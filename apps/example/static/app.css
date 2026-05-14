@@ -33,6 +33,25 @@ body {
   color: #444;
 }
 
+/* Admin header variant — placed after base header rules so the color
+   overrides win on equal specificity. */
+.site-header--admin {
+  background: #1a1a1a;
+  border-bottom-color: #2a2a2a;
+}
+
+.site-header--admin .brand {
+  color: #f5f5f5;
+}
+
+.site-header--admin nav a {
+  color: #cfd8dc;
+}
+
+.site-header--admin nav a:hover {
+  color: #fff;
+}
+
 main {
   max-width: 900px;
   margin: 0 auto;

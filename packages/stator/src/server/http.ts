@@ -98,6 +98,12 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         let html = result.html
         if (get.live) {
           // Tell the client runtime to open an EventSource for this page.
+          // TODO(V1): replace this string-replace with a sentinel-comment
+          // insertion point (e.g. `<!--stator:head-->` in the layout). The
+          // second thing the framework needs to inject into <head> (CSP
+          // nonce, SSE base URL, hydration manifest, etc.) is when this
+          // pattern becomes untenable — don't add a second .replace() here,
+          // build the sentinel mechanism instead.
           html = html.replace(
             '</head>',
             '<meta name="stator-live" content="true"></head>',

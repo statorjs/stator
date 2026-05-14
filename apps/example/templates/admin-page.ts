@@ -51,8 +51,8 @@ export default function adminPage(
 
   <div class="admin-aggregates">
     <div class="aggregate">
-      <span class="aggregate-label">Active sessions</span>
-      <span class="aggregate-value">${read(admin, (a) => a.activeSessionCount)}</span>
+      <span class="aggregate-label">Active carts</span>
+      <span class="aggregate-value">${read(admin, (a) => a.activeCartCount)}</span>
     </div>
     <div class="aggregate">
       <span class="aggregate-label">Items in carts</span>
@@ -83,9 +83,9 @@ export default function adminPage(
     </ul>`,
   )}
 
-  <h2>Sessions</h2>
+  <h2>Active carts</h2>
   ${when(
-    read(admin, (a) => a.activeSessionCount === 0),
+    read(admin, (a) => a.activeCartCount === 0),
     () => html`<p class="admin-empty">No active carts. Add an item from the products page.</p>`,
   )}
   <ul class="admin-sessions">
