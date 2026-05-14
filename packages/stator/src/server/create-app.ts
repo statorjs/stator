@@ -5,6 +5,7 @@ import { discoverRoutes } from './route-discovery.ts'
 import { MachineStore } from './machine-store.ts'
 import { buildHonoApp } from './http.ts'
 import { InMemoryStore, type Store } from './store.ts'
+import { logger } from './logger.ts'
 
 export interface CreateAppConfig {
   machinesDir: string
@@ -13,6 +14,9 @@ export interface CreateAppConfig {
   /** Persistence adapter for session-lifecycle machine state. Defaults to
    *  InMemoryStore — fine for dev, V1 adapters swap in here. */
   store?: Store
+  /** Per-session TTL in seconds. Every set to any of the session's
+   *  machines refreshes this expiry. Defaults to 24h (86400). */
+  sessionTtlSeconds?: number
 }
 
 export interface StatorApp {
@@ -28,7 +32,9 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
 
   const { defs } = await discoverMachines(machinesDir)
   const persistence = config.store ?? new InMemoryStore()
-  const store = new MachineStore(defs, persistence)
+  const store = new MachineStore(defs, persistence, {
+    sessionTtlSeconds: config.sessionTtlSeconds,
+  })
   store.bootAppMachines()
 
   const routes = await discoverRoutes(routesDir)
@@ -38,7 +44,7 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     listen(port: number): Promise<void> {
       return new Promise((resolveFn) => {
         serve({ fetch: app.fetch, port }, () => {
-          console.log(`stator: listening on http://localhost:${port}`)
+          logger.info({ port, machines: defs.length, routes: routes.length }, 'listening')
           resolveFn()
         })
       })

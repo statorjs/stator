@@ -207,6 +207,21 @@ button:hover {
 
 /* Admin dashboard */
 
+.admin-banner {
+  background: #fff8e1;
+  border: 1px solid #f0d57e;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.92rem;
+  color: #5b4a10;
+  line-height: 1.45;
+}
+
+.admin-banner strong {
+  color: #3a2e08;
+}
+
 .admin-hint {
   color: #666;
   font-style: italic;

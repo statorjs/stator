@@ -152,11 +152,16 @@ export class SessionRuntime {
    *  back to the Store. App-machine touches (rare; the POC doesn't emit
    *  events to app machines) are not persisted. */
   async persistTouched(touched: ReadonlySet<string>): Promise<void> {
+    const ttlSeconds = this.store.sessionTtlSeconds
     for (const name of touched) {
       const handle = this.actors.get(name)
       if (!handle) continue
       const snapshot = handle.actor.getPersistedSnapshot()
-      await this.store.persistence.set(this.sessionId, name, snapshot)
+      // Every set refreshes the session's whole expiry — the user is
+      // active, so all of their machines stay alive together.
+      await this.store.persistence.set(this.sessionId, name, snapshot, {
+        ttlSeconds,
+      })
     }
   }
 

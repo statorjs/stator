@@ -48,10 +48,17 @@ export class MachineStore {
     Array<{ targetName: string; event: string; dispatch: { type: string; [k: string]: unknown } }>
   >()
 
+  /** Default per-session TTL in seconds. Applied on every persistTouched
+   *  so a session stays alive as long as the user keeps interacting; idle
+   *  sessions expire as a whole. Adapters honor this on `set()`. */
+  readonly sessionTtlSeconds: number
+
   constructor(
     defs: MachineDef<any, any>[],
     readonly persistence: Store,
+    opts?: { sessionTtlSeconds?: number },
   ) {
+    this.sessionTtlSeconds = opts?.sessionTtlSeconds ?? 86400
     for (const def of defs) {
       if (this.defs.has(def.name)) {
         throw new Error(`stator: duplicate machine name "${def.name}"`)

@@ -20,6 +20,11 @@ cart counter and the button label both update via slot patches — no full page
 reload. Navigate to `/cart` to change quantities, then `/checkout` to walk
 through a 3-state checkout flow with guards.
 
+Open `/admin` in another tab to see a live cross-session dashboard: every
+visitor's cart shows up there in real time, pushed over SSE as they interact.
+That route is `live: true`; shopping pages aren't. Open two windows on `/` and
+watch `/admin` update without polling.
+
 ## Layout
 
 ```
@@ -61,11 +66,16 @@ apps/example/            # the cart-and-checkout demo
 - **Routing** is file-based, with each route file exporting named `GET` /
   `POST` handlers built via `defineRoute({ reads, render })`. The render
   function receives an object keyed by machine `name`.
-- **Wire protocol**: `POST /__events` accepts `{ machine, event }` validated
-  by zod, returns `{ patches: Patch[] }` where each patch is one of:
-    - `{ slot, value }` — text content
-    - `{ slot, attr, value, parentId }` — attribute on a synthetic-id parent
-    - `{ slot, html }` — innerHTML replacement (full list re-render)
+- **Wire protocol** is documented in [`WIRE.md`](./WIRE.md). Patches use a
+  discriminated `{ target: { kind, id }, op, ... }` shape — slot vs element
+  addressing as orthogonal dimensions from the op (text / html / attr).
+- **SSE for live routes**. Routes declared with `live: true` open an
+  EventSource on render; the framework fans out push patches to every open
+  connection whose route reads a touched machine. `/admin` uses this; shopping
+  pages don't (their POST responses cover their own updates).
+- **Persistence via a Store adapter**. `InMemoryStore` is the default;
+  `RedisStore` ships in-box for production. Per-session TTL refreshes on every
+  state-changing event — idle sessions expire as a whole.
 - **Client runtime** (~100 LOC) attaches delegated listeners on `document.body`
   for click / submit / change / input. On fire, it reads `data-event-<type>`
   from the closest ancestor, POSTs the JSON descriptor with an `X-Stator-Route`
@@ -89,10 +99,16 @@ apps/example/            # the cart-and-checkout demo
   *inside* the selector function, not in the template ternary around the
   `read(...)` call. Write `read(cart, c => c.contains(id) ? 'a' : 'b')`, not
   `read(cart, c => c.contains(id)) ? 'a' : 'b'`.
-- **In-memory state only.** No persistence adapter; session state is lost on
-  server restart.
-- **No SSE / live updates.** Request-response only.
 - **No schema CLI / dev tools / hot reload.**
+- **No keyed `each`.** Lists re-render their full body on shape changes;
+  per-item insert / remove / move patches are reserved in the wire format
+  for V1.
+- **No type-safe `send` payloads.** Action and guard event arguments are
+  typed `any`. Full event-typing is part of the V1 custom machine impl
+  (see [`framework-poc-spec.md`](./framework-poc-spec.md)).
+- **`tsx` runtime, no build step.** Production runs `tsx server.ts`; the
+  startup TS-transform cost is paid once per machine boot. A real build
+  pipeline lands with the V1 SFC compiler.
 
 ## Scripts
 
@@ -103,6 +119,51 @@ apps/example/            # the cart-and-checkout demo
 | `pnpm test`                 | run framework unit + integration tests via vitest   |
 | `pnpm dev`                  | `tsx watch` the example app on `localhost:3000`     |
 | `pnpm --filter example start` | run the example app once (no watch)               |
+
+## Deploy (Fly.io + Upstash Redis)
+
+The example app is configured to deploy on Fly.io with Upstash Redis for
+session storage. Single small machine, always-on (no scale-to-zero — SSE
+connections need the process to keep running).
+
+**Prereqs:** `flyctl` installed, signed-in Fly account, an Upstash Redis
+database (or Fly-managed Redis if their integration is current).
+
+```bash
+# 1. Initial setup (once per app)
+fly launch --no-deploy --copy-config        # adopts fly.toml; pick app name
+fly secrets set REDIS_URL='rediss://default:<pw>@<host>:6379'
+
+# 2. Deploy
+fly deploy
+```
+
+The `fly.toml` defaults:
+
+- `auto_stop_machines = "off"`, `min_machines_running = 1` — required for SSE.
+- `shared-cpu-1x` / 512 MB — comfortable for the demo's memory profile.
+- `force_https = true` — pairs with `NODE_ENV=production` which enables the
+  Secure cookie flag.
+
+**Without `REDIS_URL`**, the app falls back to `InMemoryStore` and logs a
+warning. Sessions die on every deploy. Useful for local dev or smoke tests;
+not for a live demo.
+
+**Env vars:**
+
+| | |
+|---|---|
+| `REDIS_URL` | Upstash / Fly Redis connection string. `rediss://` for TLS. |
+| `PORT` | Listen port. Defaults to `3000`. Fly sets this automatically. |
+| `NODE_ENV` | `production` enables Secure cookie and JSON logs. |
+| `LOG_LEVEL` | `debug` / `info` (default) / `warn` / `error`. |
+| `SESSION_TTL_SECONDS` | Per-session idle TTL. Defaults to `86400` (24h). |
+| `STATOR_SECURE_COOKIE` | `1` / `0` — overrides `NODE_ENV` cookie behavior. |
+
+The `/admin` route is intentionally open in the demo — it shows every
+visitor's cart in real time and exists to demonstrate cross-session SSE. The
+page banner explains this. No PII is collected anywhere in the demo (productIds
+and quantities only).
 
 ## License
 

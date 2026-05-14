@@ -16,6 +16,8 @@ export type { InstanceHandle } from './instance-proxy.ts'
 export { InMemoryStore } from './store.ts'
 export type { Store } from './store.ts'
 
+export { RedisStore } from './redis-store.ts'
+
 export { SessionRuntime } from './session-runtime.ts'
 
 export { discoverMachines } from './discovery.ts'
@@ -37,6 +39,8 @@ export { getOrCreateSessionId, SESSION_COOKIE } from './session.ts'
 
 export { buildHonoApp } from './http.ts'
 export type { HttpConfig } from './http.ts'
+
+export { logger, scopedLogger } from './logger.ts'
 
 export { fanOut, registerConnection, unregisterConnection, activeConnectionCount } from './sse.ts'
 export type { Connection } from './sse.ts'

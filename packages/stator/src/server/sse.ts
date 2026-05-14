@@ -2,6 +2,9 @@ import { recompute, type Patch } from './recompute.ts'
 import type { RenderState } from './render-context.ts'
 import type { RouteDefinition } from './routing.ts'
 import type { SessionRuntime } from './session-runtime.ts'
+import { scopedLogger } from './logger.ts'
+
+const sseLog = scopedLogger('sse')
 
 /**
  * One open SSE connection. Lifetime equals the underlying TCP connection.
@@ -34,6 +37,10 @@ export function registerConnection(
   const id = `sse${nextId++}`
   const conn: Connection = { ...init, id, closed: false }
   connections.set(id, conn)
+  sseLog.debug(
+    { id, sid: conn.sessionId, route: conn.routeKey, total: connections.size },
+    'connection opened',
+  )
   return conn
 }
 
@@ -43,6 +50,10 @@ export function unregisterConnection(id: string): void {
   conn.closed = true
   conn.runtime.dispose()
   connections.delete(id)
+  sseLog.debug(
+    { id, sid: conn.sessionId, route: conn.routeKey, total: connections.size },
+    'connection closed',
+  )
 }
 
 export function activeConnectionCount(): number {
@@ -62,6 +73,7 @@ export function activeConnectionCount(): number {
 export async function fanOut(touched: ReadonlySet<string>): Promise<void> {
   if (touched.size === 0 || connections.size === 0) return
 
+  let pushedCount = 0
   for (const conn of connections.values()) {
     if (conn.closed) continue
 
@@ -82,8 +94,17 @@ export async function fanOut(touched: ReadonlySet<string>): Promise<void> {
 
     try {
       await conn.send(JSON.stringify({ patches }))
-    } catch {
+      pushedCount++
+    } catch (err) {
       // Client gone; let the stream's close handler clean up.
+      sseLog.debug({ id: conn.id, err }, 'push failed')
     }
+  }
+
+  if (pushedCount > 0) {
+    sseLog.debug(
+      { touched: [...touched], pushed: pushedCount, total: connections.size },
+      'fan-out',
+    )
   }
 }

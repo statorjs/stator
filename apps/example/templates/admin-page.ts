@@ -21,6 +21,13 @@ export default function adminPage(
   products: InstanceOf<typeof ProductsMachine>,
 ): HtmlFragment {
   return html`<section class="admin">
+  <div class="admin-banner">
+    <strong>Live demo.</strong> This page shows every visitor's cart in real
+    time to demonstrate the framework's cross-session SSE pipeline. Carts
+    contain only product IDs and quantities — no names, emails, addresses,
+    or other personal data are collected by this demo.
+  </div>
+
   <h1>Admin dashboard</h1>
   <p class="admin-hint">Live view of carts across all sessions. Open shopping
     tabs in other windows and watch this page update.</p>

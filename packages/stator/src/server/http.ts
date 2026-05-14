@@ -14,6 +14,9 @@ import { getOrCreateSessionId } from './session.ts'
 import { SessionRuntime } from './session-runtime.ts'
 import type { RouteDefinition } from './routing.ts'
 import { fanOut, registerConnection, unregisterConnection } from './sse.ts'
+import { scopedLogger } from './logger.ts'
+
+const httpLog = scopedLogger('http')
 
 export interface HttpConfig {
   routes: DiscoveredRoute[]
@@ -54,6 +57,20 @@ function withSessionLock<T>(sid: string, fn: () => Promise<T>): Promise<T> {
 export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   const app = new Hono()
   const clientJs = await bundleClient()
+
+  // Request logger: one line per request with method, path, status, duration.
+  // SSE endpoints stay open indefinitely; we log on entry, not on close.
+  app.use('*', async (c, next) => {
+    const start = performance.now()
+    await next()
+    const ms = Math.round(performance.now() - start)
+    const status = c.res.status
+    const isLive = c.req.path === '/__sse'
+    httpLog[status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info'](
+      { method: c.req.method, path: c.req.path, status, ms, sse: isLive || undefined },
+      isLive ? 'sse open' : 'request',
+    )
+  })
 
   // Index routes by routeKey (`"GET /cart"`) so the POST handler can look
   // up the route the client is currently on and use its `reads:` to drive
