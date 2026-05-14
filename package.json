@@ -1,0 +1,21 @@
+{
+  "name": "stator-monorepo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "pnpm -r exec tsc --noEmit",
+    "test": "pnpm -r --filter=stator test",
+    "dev": "pnpm --filter example dev",
+    "build": "pnpm --filter stator build"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}
