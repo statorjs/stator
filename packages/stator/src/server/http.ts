@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
 import { readFile } from 'node:fs/promises'
 import { resolve, dirname, extname } from 'node:path'
@@ -12,6 +13,7 @@ import { recompute } from './recompute.ts'
 import { getOrCreateSessionId } from './session.ts'
 import { SessionRuntime } from './session-runtime.ts'
 import type { RouteDefinition } from './routing.ts'
+import { fanOut, registerConnection, unregisterConnection } from './sse.ts'
 
 export interface HttpConfig {
   routes: DiscoveredRoute[]
@@ -93,12 +95,66 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       try {
         await runtime.loadGraph(get.reads)
         const result = renderRoute(get, routeKey, sessionId, runtime)
-        return c.html(result.html)
+        let html = result.html
+        if (get.live) {
+          // Tell the client runtime to open an EventSource for this page.
+          html = html.replace(
+            '</head>',
+            '<meta name="stator-live" content="true"></head>',
+          )
+        }
+        return c.html(html)
       } finally {
         runtime.dispose()
       }
     })
   }
+
+  // SSE endpoint. The connection's runtime + renderState stay alive for
+  // the connection's lifetime — this is the one place per-session state
+  // outlives a request, because the connection *is* one (very long) request.
+  app.get('/__sse', async (c) => {
+    const routeKey = c.req.query('route')
+    if (!routeKey) return c.text('missing route param', 400)
+    const routeEntry = routesByKey.get(routeKey)
+    if (!routeEntry) return c.text(`unknown route "${routeKey}"`, 404)
+    if (!routeEntry.route.live) {
+      return c.text(`route "${routeKey}" is not declared live: true`, 400)
+    }
+
+    const { sessionId } = getOrCreateSessionId(c)
+
+    return streamSSE(c, async (stream) => {
+      const runtime = new SessionRuntime(sessionId, config.store)
+      await runtime.loadGraph(routeEntry.route.reads)
+      const { renderState } = renderRoute(
+        routeEntry.route,
+        routeKey,
+        sessionId,
+        runtime,
+      )
+      const conn = registerConnection({
+        sessionId,
+        routeKey,
+        route: routeEntry.route,
+        runtime,
+        renderState,
+        send: async (data: string) => {
+          await stream.writeSSE({ data })
+        },
+      })
+
+      // Keep the stream open until the client disconnects. Hono's stream
+      // helper detects close and triggers the abort signal.
+      try {
+        await new Promise<void>((resolveFn) => {
+          stream.onAbort(() => resolveFn())
+        })
+      } finally {
+        unregisterConnection(conn.id)
+      }
+    })
+  })
 
   app.post('/__events', async (c) => {
     const { sessionId } = getOrCreateSessionId(c)
@@ -149,6 +205,13 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         }
 
         await runtime.persistTouched(touched)
+
+        // Fan-out to any live SSE connections whose routes care about a
+        // touched machine. Patches are computed per-connection against
+        // each connection's own slot map, so this admin tab on session C
+        // sees session A's cart changes via AdminMachine, etc.
+        await fanOut(touched)
+
         return c.json({ patches })
       } finally {
         runtime.dispose()

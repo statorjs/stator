@@ -16,7 +16,18 @@ export default defineMachine({
   name: 'CartMachine',
   lifecycle: 'session',
   reads: [ProductsMachine],
-  emits: ['ITEM_ADDED', 'ITEM_REMOVED', 'CART_CLEARED'],
+  emits: {
+    // One event covering every cart mutation, payload carries the full
+    // post-transition snapshot so subscribers (e.g. AdminMachine) can
+    // denormalize without further lookups.
+    CART_CHANGED: {
+      payload: (ctx: CartContext) => ({
+        items: ctx.items,
+        itemCount: ctx.items.reduce((s, i) => s + i.quantity, 0),
+        total: ctx.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0),
+      }),
+    },
+  },
   subscribes: [
     { from: CheckoutMachine, event: 'ORDER_PLACED', dispatch: 'CLEAR' },
   ],
@@ -27,11 +38,11 @@ export default defineMachine({
   states: {
     idle: {
       on: {
-        ADD_ITEM: { actions: 'addItem', emit: 'ITEM_ADDED' },
-        REMOVE_ITEM: { actions: 'removeItem', emit: 'ITEM_REMOVED' },
-        INCREMENT: { actions: 'increment' },
-        DECREMENT: { actions: 'decrement' },
-        CLEAR: { actions: 'clearCart', emit: 'CART_CLEARED' },
+        ADD_ITEM: { actions: 'addItem', emit: 'CART_CHANGED' },
+        REMOVE_ITEM: { actions: 'removeItem', emit: 'CART_CHANGED' },
+        INCREMENT: { actions: 'increment', emit: 'CART_CHANGED' },
+        DECREMENT: { actions: 'decrement', emit: 'CART_CHANGED' },
+        CLEAR: { actions: 'clearCart', emit: 'CART_CHANGED' },
       },
     },
   },

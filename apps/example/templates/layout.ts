@@ -19,6 +19,7 @@ export default function layout(
         <a href="/">Products</a>
         <a href="/cart">Cart (${read(cart, (c) => c.itemCount)})</a>
         <a href="/checkout">Checkout</a>
+        <a href="/admin">Admin</a>
       </nav>
     </header>
     <main>${body}</main>

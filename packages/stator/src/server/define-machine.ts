@@ -19,6 +19,43 @@ export interface SubscribeEntry {
   dispatch: SubscribeEvent
 }
 
+/**
+ * Declaration for a single named emit. Payload selector runs synchronously
+ * after the transition's actions (so it sees post-mutation context), with
+ * the originating event. Must be pure of (context, event) — no external
+ * reads, no async, no side effects. Returns extra fields that get merged
+ * into the emitted event under `{ type: '<emit-name>', ...payload }`.
+ *
+ * Subscribers see the merged event, plus `sourceSessionId` automatically
+ * injected when the subscription crosses a session→app lifecycle boundary.
+ */
+export interface EmitDeclaration<TContext = any, TEvent = any> {
+  payload?: (context: TContext, event: TEvent) => Record<string, unknown>
+}
+
+/**
+ * Object form: `{ EMIT_NAME: { payload?: ... } | null }` — null/empty means
+ * "no payload, just the type." Array form: `['NAME', ...]` — shorthand for
+ * the same. Both normalize to a `Record<string, EmitDeclaration>` internally.
+ */
+export type EmitsConfig<TContext = any, TEvent = any> =
+  | readonly string[]
+  | Record<string, EmitDeclaration<TContext, TEvent> | null>
+
+function normalizeEmits(emits: EmitsConfig | undefined): Record<string, EmitDeclaration> {
+  if (!emits) return {}
+  if (Array.isArray(emits)) {
+    const out: Record<string, EmitDeclaration> = {}
+    for (const name of emits) out[name] = {}
+    return out
+  }
+  const out: Record<string, EmitDeclaration> = {}
+  for (const [name, decl] of Object.entries(emits)) {
+    out[name] = decl ?? {}
+  }
+  return out
+}
+
 export interface DefineMachineConfig<
   TContext extends object,
   TSelectors extends SelectorMap<TContext>,
@@ -27,7 +64,7 @@ export interface DefineMachineConfig<
   name: string
   lifecycle: Lifecycle
   reads?: MachineDef<any, any, any>[]
-  emits?: string[]
+  emits?: EmitsConfig<TContext>
   /** Other machines' emits this machine listens to. Each entry installs a
    *  listener on the `from` actor; when it fires `event`, `dispatch` is
    *  delivered to this machine. */
@@ -49,7 +86,8 @@ export interface MachineDef<
   name: string
   lifecycle: Lifecycle
   reads: MachineDef<any, any, any>[]
-  emits: string[]
+  /** Normalized form: every declared emit, possibly with a payload selector. */
+  emits: Record<string, EmitDeclaration>
   subscribes: SubscribeEntry[]
   selectors: TSelectors
   xstateMachine: AnyStateMachine
@@ -65,7 +103,8 @@ export function defineMachine<
 >(
   config: DefineMachineConfig<TContext, TSelectors, TStateKey>,
 ): MachineDef<TContext, TSelectors, TStateKey> {
-  const states = transformEmits(config.states) as Record<string, unknown>
+  const emits = normalizeEmits(config.emits)
+  const states = transformEmits(config.states, emits, config.name) as Record<string, unknown>
   const reads = config.reads ?? []
 
   /** Resolve `reads:` proxies through the active dispatch context. If the
@@ -133,7 +172,7 @@ export function defineMachine<
     name: config.name,
     lifecycle: config.lifecycle,
     reads: config.reads ?? [],
-    emits: config.emits ?? [],
+    emits,
     selectors: (config.selectors ?? ({} as TSelectors)),
     subscribes: config.subscribes ?? [],
     xstateMachine: xstateMachine as unknown as AnyStateMachine,
@@ -153,24 +192,55 @@ export function isStatorMachine(v: unknown): v is MachineDef {
 /**
  * Walk the user's states config. For any transition node carrying `emit: 'X'`
  * (or `emit: ['X', 'Y']`), strip the `emit` key and append XState emit()
- * actions to the transition's `actions` so the actor fires the event for
- * subscribers via `actor.on('X', ...)`.
+ * actions to the transition's `actions`. If the declared emit has a payload
+ * selector, the emit action is the function form so XState invokes it at
+ * transition time with the current context + originating event.
+ *
+ * Throws if a transition references an emit name not declared in the
+ * machine's top-level `emits:` config — typos turn into clear errors and
+ * the schema export sees every emit a machine can fire.
  */
-function transformEmits(node: unknown): unknown {
-  if (Array.isArray(node)) return node.map(transformEmits)
+function transformEmits(
+  node: unknown,
+  emits: Record<string, EmitDeclaration>,
+  machineName: string,
+): unknown {
+  if (Array.isArray(node)) return node.map((n) => transformEmits(n, emits, machineName))
   if (!node || typeof node !== 'object') return node
 
   const obj = node as Record<string, unknown>
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(obj)) {
     if (k === 'emit') continue
-    out[k] = transformEmits(v)
+    out[k] = transformEmits(v, emits, machineName)
   }
 
   if ('emit' in obj) {
     const emitVal = obj.emit
     const names = Array.isArray(emitVal) ? emitVal : [emitVal]
-    const emitActions = names.map((name) => xstateEmit({ type: String(name) }))
+    const emitActions: unknown[] = []
+    for (const raw of names) {
+      const name = String(raw)
+      const decl = emits[name]
+      if (!decl) {
+        throw new Error(
+          `stator: machine "${machineName}" has a transition that emits "${name}", ` +
+            `but "${name}" is not declared in the machine's emits config. Add it to emits ` +
+            `(with a payload selector if subscribers need data, or as a bare entry).`,
+        )
+      }
+      if (decl.payload) {
+        const payloadFn = decl.payload
+        emitActions.push(
+          xstateEmit(({ context, event }: { context: unknown; event: unknown }) => ({
+            type: name,
+            ...payloadFn(context, event),
+          })),
+        )
+      } else {
+        emitActions.push(xstateEmit({ type: name }))
+      }
+    }
     const existing = out.actions
     if (existing === undefined) {
       out.actions = emitActions.length === 1 ? emitActions[0] : emitActions

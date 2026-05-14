@@ -24,6 +24,52 @@ function init(): void {
   for (const type of EVENT_TYPES) {
     document.body.addEventListener(type, handleEvent)
   }
+  initLiveChannel()
+}
+
+/**
+ * When the server marks a page as live (via <meta name="stator-live">), open
+ * an SSE channel that receives patches whenever any machine the route reads
+ * changes — including from other sessions' POSTs.
+ *
+ * Reconnection: EventSource auto-reconnects with exponential backoff. On
+ * reconnect, the server has lost this connection's old slot map and can't
+ * diff against what the client currently has. POC strategy: full reload.
+ * V1 work would replace this with a diff against client-known state.
+ */
+function initLiveChannel(): void {
+  const meta = document.querySelector('meta[name="stator-live"][content="true"]')
+  if (!meta) return
+
+  const routeKey = `GET ${location.pathname}`
+  const url = `/__sse?route=${encodeURIComponent(routeKey)}`
+  const sse = new EventSource(url, { withCredentials: true })
+
+  let everOpened = false
+  sse.addEventListener('open', () => {
+    if (everOpened) {
+      // Reconnect — reload rather than risk stale state.
+      location.reload()
+      return
+    }
+    everOpened = true
+  })
+
+  sse.addEventListener('message', (e) => {
+    let data: { patches?: Patch[] }
+    try {
+      data = JSON.parse(e.data)
+    } catch (err) {
+      console.error('stator: malformed SSE message', err)
+      return
+    }
+    if (data.patches) applyPatches(data.patches)
+  })
+
+  sse.addEventListener('error', () => {
+    // Browser will auto-reconnect. Nothing to do here; the 'open' handler
+    // detects the reconnect when it fires again.
+  })
 }
 
 function handleEvent(e: Event): void {

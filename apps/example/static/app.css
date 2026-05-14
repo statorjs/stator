@@ -185,3 +185,150 @@ button:hover {
   font-size: 0.85rem;
   margin-top: 0.75rem;
 }
+
+/* Admin dashboard */
+
+.admin-hint {
+  color: #666;
+  font-style: italic;
+  margin-bottom: 1.5rem;
+}
+
+.admin-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  background: #1a1a1a;
+  color: #d0d0d0;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-metrics-label {
+  color: #6a9955;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.admin-metric {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: baseline;
+}
+
+.admin-metric-label {
+  color: #888;
+}
+
+.admin-metric-value {
+  color: #d0d0d0;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-aggregates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.aggregate {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.aggregate-label {
+  font-size: 0.85rem;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.aggregate-value {
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin-top: 0.25rem;
+}
+
+.product-totals,
+.admin-sessions {
+  list-style: none;
+  padding: 0;
+}
+
+.product-total-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.product-total-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.admin-empty {
+  color: #888;
+  font-style: italic;
+}
+
+.admin-session {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0.75rem 0;
+}
+
+.admin-session-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.5rem;
+}
+
+.admin-session-sid {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.admin-session-meta {
+  font-weight: 500;
+}
+
+.admin-session-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.admin-session-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 1rem;
+  padding: 0.4rem 0;
+  border-top: 1px solid #f0f0f0;
+  font-size: 0.95rem;
+}
+
+.admin-item-qty {
+  color: #666;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-item-price {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  width: 70px;
+}

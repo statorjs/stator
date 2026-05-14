@@ -1,7 +1,31 @@
 import { createActor } from 'xstate'
-import type { MachineDef } from './define-machine.ts'
+import type { MachineDef, SubscribeEvent } from './define-machine.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
+import { recordTouch } from './dispatch-context.ts'
 import type { Store } from './store.ts'
+
+/**
+ * Compose the event a subscriber actually receives. Order of precedence:
+ *   1. Payload from the source's emit selector (fields like `productId`, `items`).
+ *   2. Subscriber's `dispatch` declaration (`type` and any static fields it adds).
+ *   3. `sourceSessionId` when injected — set by the caller for cross-lifecycle
+ *      subscriptions only.
+ * Subscriber-side fields override source payload fields on collision; the
+ * subscriber owns the shape of its own inbox.
+ */
+export function buildDispatchEvent(
+  emitted: { type?: string; [k: string]: unknown } | undefined,
+  dispatch: SubscribeEvent,
+  sourceSessionId?: string,
+): { type: string; [k: string]: unknown } {
+  const { type: _emitType, ...payload } = emitted ?? {}
+  const dispatchBase = typeof dispatch === 'string' ? { type: dispatch } : dispatch
+  return {
+    ...payload,
+    ...dispatchBase,
+    ...(sourceSessionId !== undefined ? { sourceSessionId } : {}),
+  }
+}
 
 /**
  * Machine registry + long-lived app-machine actors + persistence adapter.
@@ -46,14 +70,16 @@ export class MachineStore {
             `stator: machine "${def.name}" subscribes to unknown machine "${sub.from.name}"`,
           )
         }
-        if (sub.from.lifecycle !== def.lifecycle) {
+        if (sub.from.lifecycle === 'app' && def.lifecycle === 'session') {
           throw new Error(
-            `stator: machine "${def.name}" (${def.lifecycle}) subscribes to ` +
-              `"${sub.from.name}" (${sub.from.lifecycle}); subscriptions must be ` +
-              `between machines of the same lifecycle in the POC.`,
+            `stator: app-lifecycle source "${sub.from.name}" cannot deliver to ` +
+              `session-lifecycle target "${def.name}" yet — app→session needs the ` +
+              `inbox model (see docs/design-notes/app-to-session-subscriptions.md). ` +
+              `Use session→app or same-lifecycle subscriptions for now.`,
           )
         }
-        if (sub.from.emits.length > 0 && !sub.from.emits.includes(sub.event)) {
+        const emitNames = Object.keys(sub.from.emits)
+        if (emitNames.length > 0 && !(sub.event in sub.from.emits)) {
           throw new Error(
             `stator: machine "${def.name}" subscribes to "${sub.from.name}.${sub.event}", ` +
               `but "${sub.from.name}" does not declare "${sub.event}" in its emits.`,
@@ -83,6 +109,24 @@ export class MachineStore {
       if (def.lifecycle === 'app' && !this.appInstances.has(def.name)) {
         const actor = createActor(def.xstateMachine).start()
         this.appInstances.set(def.name, createInstanceProxy(def, actor))
+      }
+    }
+    this.wireAppSubscriptions()
+  }
+
+  /** Wire app→app subscription listeners. Session-involved subscriptions
+   *  (session→session, session→app) are wired per-request inside
+   *  SessionRuntime. Same-lifecycle so no sourceSessionId injection. */
+  private wireAppSubscriptions(): void {
+    for (const targetHandle of this.appInstances.values()) {
+      const targetName = targetHandle.def.name
+      for (const sub of targetHandle.def.subscribes) {
+        const sourceHandle = this.appInstances.get(sub.from.name)
+        if (!sourceHandle) continue
+        sourceHandle.actor.on(sub.event as never, (emitted: any) => {
+          targetHandle.actor.send(buildDispatchEvent(emitted, sub.dispatch) as never)
+          recordTouch(targetName)
+        })
       }
     }
   }

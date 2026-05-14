@@ -38,6 +38,9 @@ export { getOrCreateSessionId, SESSION_COOKIE } from './session.ts'
 export { buildHonoApp } from './http.ts'
 export type { HttpConfig } from './http.ts'
 
+export { fanOut, registerConnection, unregisterConnection, activeConnectionCount } from './sse.ts'
+export type { Connection } from './sse.ts'
+
 export { createApp } from './create-app.ts'
 export type { CreateAppConfig, StatorApp } from './create-app.ts'
 

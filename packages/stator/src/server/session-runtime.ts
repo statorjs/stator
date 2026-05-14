@@ -1,7 +1,7 @@
 import { createActor, type AnyStateMachine } from 'xstate'
 import type { MachineDef } from './define-machine.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
-import type { MachineStore } from './machine-store.ts'
+import { buildDispatchEvent, type MachineStore } from './machine-store.ts'
 import {
   recordTouch,
   withDispatchContext,
@@ -62,22 +62,45 @@ export class SessionRuntime {
   }
 
   /**
-   * Install actor.on listeners for every `subscribes:` declaration whose
-   * source + target both live in this runtime. Must be called before any
-   * event is sent. Idempotent.
+   * Install actor.on listeners for every subscription whose source is a
+   * session-machine loaded in this runtime. The target may be:
+   *   - another session-machine in this runtime (session→session)
+   *   - an app-machine in the long-lived appInstances (session→app)
+   * App→session is blocked at validation; app→app is wired at app boot.
+   *
+   * Cross-lifecycle (session→app) subscriptions inject `sourceSessionId`
+   * into the dispatched event so the app receiver can correlate which
+   * session emitted it.
+   *
+   * Must be called before any event is sent. Idempotent.
    */
   wireSubscriptions(): void {
     if (this.wired) return
     this.wired = true
-    for (const [name, handle] of this.actors) {
-      for (const sub of handle.def.subscribes) {
-        const sourceHandle = this.actors.get(sub.from.name)
-        if (!sourceHandle) continue
-        const dispatch =
-          typeof sub.dispatch === 'string' ? { type: sub.dispatch } : sub.dispatch
-        sourceHandle.actor.on(sub.event as never, () => {
-          handle.actor.send(dispatch as never)
-          recordTouch(name)
+
+    for (const [sourceName, sourceHandle] of this.actors) {
+      for (const sub of this.store.subscribersOf(sourceName)) {
+        const targetDef = this.store.getDef(sub.targetName)
+        if (!targetDef) continue
+        const targetHandle =
+          targetDef.lifecycle === 'app'
+            ? this.store.appInstance(sub.targetName)
+            : this.actors.get(sub.targetName)
+        if (!targetHandle) continue
+
+        const crossLifecycle = sourceHandle.def.lifecycle !== targetDef.lifecycle
+        const sid = this.sessionId
+        const targetName = sub.targetName
+
+        sourceHandle.actor.on(sub.event as never, (emitted: any) => {
+          targetHandle.actor.send(
+            buildDispatchEvent(
+              emitted,
+              sub.dispatch,
+              crossLifecycle ? sid : undefined,
+            ) as never,
+          )
+          recordTouch(targetName)
         })
       }
     }
