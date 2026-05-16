@@ -7,6 +7,14 @@ export default function checkoutPage(
   cart: InstanceOf<typeof CartMachine>,
 ): HtmlFragment {
   return html`<section class="checkout">
+  <div class="demo-banner">
+    <strong>Demo flow.</strong> The buttons below stand in for real form
+    fields so this demo doesn't collect or store any of your personal data.
+    The state machine driving this flow — its states, guards, and
+    transitions — is exactly what a production checkout would use; only the
+    UI inputs change.
+  </div>
+
   <h1>Checkout</h1>
   <p class="state-label">Current state: ${read(checkout, (c) => c.state)}</p>
 

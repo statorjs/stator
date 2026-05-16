@@ -100,7 +100,9 @@ export function when<T>(
     })
   }
 
-  const html = `<span data-slot="${slotId}" data-branch="true">${innerHtml}</span>`
+  // `display: contents` so the wrapper span doesn't break the surrounding
+  // element's layout (grid/flex) — see each.ts for the same rationale.
+  const html = `<span data-slot="${slotId}" data-branch="true" style="display:contents">${innerHtml}</span>`
   return { __isBranchResult: true, html, slotId }
 }
 
@@ -154,6 +156,8 @@ export function match<TKey extends string>(
     })
   }
 
-  const html = `<span data-slot="${slotId}" data-branch="true">${innerHtml}</span>`
+  // `display: contents` so the wrapper span doesn't break the surrounding
+  // element's layout (grid/flex) — see each.ts for the same rationale.
+  const html = `<span data-slot="${slotId}" data-branch="true" style="display:contents">${innerHtml}</span>`
   return { __isBranchResult: true, html, slotId }
 }

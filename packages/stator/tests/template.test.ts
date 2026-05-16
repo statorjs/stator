@@ -128,7 +128,7 @@ describe('html templating', () => {
       const out = runInRender(state, () =>
         html`<ul>${each(read(cart, (c) => c.items as Array<{ productId: string; quantity: number }>), (item) => html`<li>${item.productId} x${item.quantity}</li>`)}</ul>`,
       )
-      expect(out.html).toMatch(/<ul><span data-slot="s0" data-list="true">.*<\/span><\/ul>/)
+      expect(out.html).toMatch(/<ul><span data-slot="s0" data-list="true" style="display:contents">.*<\/span><\/ul>/)
       expect(out.html).toContain('<li>p1 x1</li>')
       expect(out.html).toContain('<li>p2 x1</li>')
       const listBinding = state.bindings.get('s0')!

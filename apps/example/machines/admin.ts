@@ -87,6 +87,23 @@ export default defineMachine({
       return counts
     },
 
+    // Same aggregate as `countByProduct`, but shaped for direct rendering:
+    // only productIds with at least one unit currently in some cart, sorted
+    // by total count desc. Lets the admin dashboard render an N-row list
+    // that grows/shrinks with real activity instead of showing every
+    // product permanently with mostly-zero counts.
+    inCartProducts: (ctx) => {
+      const counts: Record<string, number> = {}
+      for (const session of Object.values(ctx.sessions)) {
+        for (const item of session.items) {
+          counts[item.productId] = (counts[item.productId] ?? 0) + item.quantity
+        }
+      }
+      return Object.entries(counts)
+        .map(([productId, count]) => ({ productId, count }))
+        .sort((a, b) => b.count - a.count)
+    },
+
     // DEBUG: intentionally non-pure — these selectors sample live process
     // state every time they're read. Used by the admin dashboard for
     // leak/connection visibility. Every recompute re-evaluates them, so

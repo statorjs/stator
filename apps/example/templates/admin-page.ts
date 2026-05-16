@@ -78,13 +78,10 @@ export default function adminPage(
     read(admin, (a) => a.totalItemsInCarts > 0),
     () => html`<ul class="product-totals">
       ${each(
-        read(products, (p) => p.all as Array<{ id: string; name: string }>),
-        (product) => html`<li class="product-total-row">
-          <span class="product-total-name">${product.name}</span>
-          <span class="product-total-count">${read(
-            admin,
-            (a) => a.countByProduct[product.id] ?? 0,
-          )}</span>
+        read(admin, (a) => a.inCartProducts as Array<{ productId: string; count: number }>),
+        (row) => html`<li class="product-total-row">
+          <span class="product-total-name">${(products.byId as any)(row.productId)?.name ?? row.productId}</span>
+          <span class="product-total-count">${row.count}</span>
         </li>`,
       )}
     </ul>`,

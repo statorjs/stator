@@ -59,7 +59,12 @@ export function each<T>(
     })
   }
 
-  const html = `<span data-slot="${slotId}" data-list="true">${innerHtml}</span>`
+  // `display: contents` so the wrapper span is invisible to layout — its
+  // children become layout-children of the surrounding element. Without
+  // this, putting `each()` inside a CSS grid or flex container would
+  // collapse all items into a single grid/flex cell. The span itself stays
+  // in the DOM as the patch addressing target.
+  const html = `<span data-slot="${slotId}" data-list="true" style="display:contents">${innerHtml}</span>`
   return { __isEachResult: true, html, slotId }
 }
 
