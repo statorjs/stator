@@ -147,6 +147,12 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
     const { sessionId } = getOrCreateSessionId(c)
 
+    // Tell intermediate proxies (Fly edge, nginx, others) not to buffer the
+    // response. Without this, small SSE messages can accumulate in a proxy
+    // buffer waiting for a fill threshold, producing batched / dropped-
+    // looking delivery on the client.
+    c.header('X-Accel-Buffering', 'no')
+
     return streamSSE(c, async (stream) => {
       const runtime = new SessionRuntime(sessionId, config.store)
       await runtime.loadGraph(routeEntry.route.reads)
@@ -167,6 +173,23 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         },
       })
 
+      // Force an immediate flush so edge proxies (Fly, nginx, Cloudflare,
+      // etc.) commit the response headers and consider the stream "alive"
+      // before any real fan-out arrives. EventSource ignores SSE comment
+      // lines, so the browser doesn't see this. Without an initial flush,
+      // some proxies hold the response or terminate the connection before
+      // it ever reaches the client.
+      await stream.write(': open\n\n')
+
+      // Periodic keep-alive so the proxy's idle timeout doesn't close a
+      // connection that's not currently receiving fan-out pushes. 25s is
+      // comfortably under Fly's default and any typical proxy timeout.
+      const keepAlive = setInterval(() => {
+        stream.write(': keep-alive\n\n').catch(() => {
+          // Stream closed; will be cleaned up by abort handler.
+        })
+      }, 25_000)
+
       // Keep the stream open until the client disconnects. Hono's stream
       // helper detects close and triggers the abort signal.
       try {
@@ -174,6 +197,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
           stream.onAbort(() => resolveFn())
         })
       } finally {
+        clearInterval(keepAlive)
         unregisterConnection(conn.id)
       }
     })

@@ -108,8 +108,11 @@ function initLiveChannel(): void {
   })
 
   sse.addEventListener('error', () => {
-    // Browser will auto-reconnect. Nothing to do here; the 'open' handler
-    // detects the reconnect when it fires again.
+    // EventSource auto-reconnects. readyState: 0=connecting, 1=open, 2=closed.
+    if (sse.readyState === EventSource.CLOSED) {
+      console.warn('stator: SSE permanently closed')
+    }
+    // Don't log transient blips — noisy on flaky networks.
   })
 }
 
