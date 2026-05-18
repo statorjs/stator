@@ -18,6 +18,9 @@ export type { Store } from './store.ts'
 
 export { RedisStore } from './redis-store.ts'
 
+export { CachedStore } from './cached-store.ts'
+export type { CachedStoreOptions } from './cached-store.ts'
+
 export { SessionRuntime } from './session-runtime.ts'
 
 export { discoverMachines } from './discovery.ts'

@@ -1,6 +1,13 @@
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createApp, InMemoryStore, RedisStore, logger, type Store } from '@statorjs/stator/server'
+import {
+  createApp,
+  InMemoryStore,
+  RedisStore,
+  CachedStore,
+  logger,
+  type Store,
+} from '@statorjs/stator/server'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -9,8 +16,17 @@ const port = Number(process.env.PORT ?? 3000)
 
 let store: Store
 if (redisUrl) {
-  store = new RedisStore(redisUrl)
-  logger.info({ store: 'redis', url: redactUrl(redisUrl) }, 'persistence adapter selected')
+  // Cache-in-front-of-Redis. Cuts Upstash command counts ~50% on chatty
+  // sessions without changing durability — writes are write-through, so a
+  // crash loses only the cache, not state.
+  store = new CachedStore(new RedisStore(redisUrl), {
+    memoryTtlSeconds: 300,
+    maxEntries: 10_000,
+  })
+  logger.info(
+    { store: 'redis+cache', url: redactUrl(redisUrl) },
+    'persistence adapter selected',
+  )
 } else {
   store = new InMemoryStore()
   logger.warn(
