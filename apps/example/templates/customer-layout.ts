@@ -1,4 +1,4 @@
-import { html, read, type InstanceOf, type HtmlFragment } from 'stator/template'
+import { html, read, type InstanceOf, type HtmlFragment } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
 import baseLayout from './base-layout.ts'
 

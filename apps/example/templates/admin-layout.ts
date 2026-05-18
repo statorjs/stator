@@ -1,4 +1,4 @@
-import { html, type HtmlFragment } from 'stator/template'
+import { html, type HtmlFragment } from '@statorjs/stator/template'
 import baseLayout from './base-layout.ts'
 
 /**

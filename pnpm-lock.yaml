@@ -14,7 +14,7 @@ importers:
 
   apps/example:
     dependencies:
-      stator:
+      '@statorjs/stator':
         specifier: workspace:*
         version: link:../../packages/stator
     devDependencies:

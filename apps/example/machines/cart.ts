@@ -1,4 +1,4 @@
-import { defineMachine } from 'stator/server'
+import { defineMachine } from '@statorjs/stator/server'
 import CheckoutMachine from './checkout.ts'
 import ProductsMachine from './products.ts'
 

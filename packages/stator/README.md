@@ -31,12 +31,12 @@ persisted by the Store layer.
 ## Subpath exports
 
 ```ts
-import { defineMachine, defineRoute, createApp } from 'stator/server'
-import { html, read, each, when, match, on, classList, styleList } from 'stator/template'
-// 'stator/client' is the browser runtime — not imported from server code
+import { defineMachine, defineRoute, createApp } from '@statorjs/stator/server'
+import { html, read, each, when, match, on, classList, styleList } from '@statorjs/stator/template'
+// '@statorjs/stator/client' is the browser runtime — not imported from server code
 ```
 
-## `stator/server`
+## `@statorjs/stator/server`
 
 ### `defineMachine(config)`
 
@@ -88,7 +88,7 @@ Routes are files in the routes directory exporting named HTTP-method handlers:
 
 ```ts
 // routes/cart.ts → GET /cart
-import { defineRoute } from 'stator/server'
+import { defineRoute } from '@statorjs/stator/server'
 import CartMachine from '../machines/cart.ts'
 import cartPage from '../templates/cart-page.ts'
 

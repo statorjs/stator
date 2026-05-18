@@ -1,4 +1,4 @@
-import { html, type HtmlFragment } from 'stator/template'
+import { html, type HtmlFragment } from '@statorjs/stator/template'
 
 /**
  * Pure HTML shell. No machine dependencies — takes pre-rendered header and
@@ -20,6 +20,7 @@ export default function baseLayout(
     ${header}
     <main>${body}</main>
     <script src="/static/client.js"></script>
+    <script src="/static/inspector.js" defer></script>
   </body>
 </html>`
 }

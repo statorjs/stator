@@ -1,6 +1,6 @@
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createApp, InMemoryStore, RedisStore, logger, type Store } from 'stator/server'
+import { createApp, InMemoryStore, RedisStore, logger, type Store } from '@statorjs/stator/server'
 
 const here = dirname(fileURLToPath(import.meta.url))
 

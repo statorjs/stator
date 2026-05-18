@@ -1,4 +1,4 @@
-import { defineMachine } from 'stator/server'
+import { defineMachine } from '@statorjs/stator/server'
 
 type CheckoutContext = {
   shippingName: string

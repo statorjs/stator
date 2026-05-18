@@ -1,4 +1,4 @@
-import { defineMachine } from 'stator/server'
+import { defineMachine } from '@statorjs/stator/server'
 
 export type Category = 'stationery' | 'office' | 'lifestyle'
 

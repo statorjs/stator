@@ -5,7 +5,7 @@ import {
   when,
   type InstanceOf,
   type HtmlFragment,
-} from 'stator/template'
+} from '@statorjs/stator/template'
 import type AdminMachine from '../machines/admin.ts'
 import type ProductsMachine from '../machines/products.ts'
 

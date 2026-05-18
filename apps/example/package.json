@@ -8,7 +8,7 @@
     "start": "tsx server.ts"
   },
   "dependencies": {
-    "stator": "workspace:*"
+    "@statorjs/stator": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",

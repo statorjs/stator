@@ -20,7 +20,7 @@ binding, scope subsumption, explicit reads).
 ---
 // Frontmatter — TypeScript. Imports + props declaration. Runs once per
 // render, before the body.
-import { read, each, when, match, on, classList } from 'stator/template'
+import { read, each, when, match, on, classList } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
 
 interface Props {
@@ -45,7 +45,7 @@ Compiler emits a `.ts` module that the existing runtime consumes:
 
 ```ts
 // emitted from the .stator file above
-import { html, read } from 'stator/template'
+import { html, read } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
 
 interface Props { cart: InstanceOf<typeof CartMachine> }
@@ -68,9 +68,9 @@ detail; not covered here.)
 
 ```
 ---
-import { read } from 'stator/template'
+import { read } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
-import type { HtmlFragment } from 'stator/template'
+import type { HtmlFragment } from '@statorjs/stator/template'
 
 interface Props {
   cart: InstanceOf<typeof CartMachine>
@@ -105,7 +105,7 @@ const { cart, body } = Stator.props<Props>()
 
 ```
 ---
-import { read, each, on, classList } from 'stator/template'
+import { read, each, on, classList } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
 import type ProductsMachine from '../machines/products.ts'
 
@@ -142,7 +142,7 @@ const { products, cart } = Stator.props<{
 
 ```
 ---
-import { read, each, on, when } from 'stator/template'
+import { read, each, on, when } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
 import type ProductsMachine from '../machines/products.ts'
 
@@ -189,7 +189,7 @@ const { cart, products } = Stator.props<{
 
 ```
 ---
-import { read, on, match } from 'stator/template'
+import { read, on, match } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
 import type CheckoutMachine from '../machines/checkout.ts'
 
@@ -326,7 +326,7 @@ template literal.
 ### 6. Imports: type vs value, and which subset survives
 
 ```ts
-import { read, each, when, match, on, classList } from 'stator/template'
+import { read, each, when, match, on, classList } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'  // type-only
 ```
 

@@ -1,4 +1,4 @@
-import { defineRoute } from 'stator/server'
+import { defineRoute } from '@statorjs/stator/server'
 import CartMachine from '../machines/cart.ts'
 import CheckoutMachine from '../machines/checkout.ts'
 import customerLayout from '../templates/customer-layout.ts'
