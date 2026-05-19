@@ -748,6 +748,12 @@ img, svg { display: block; max-width: 100%; }
   .cta { flex-direction: row; gap: 1rem; }
 }
 
+/* Mid-page CTA after the architectural decisions: extra top margin so it
+   has its own breathing room separating it from the dense decisions list. */
+.cta--mid {
+  margin-top: 3rem;
+}
+
 .cta__link {
   font-family: var(--mono);
   font-size: 0.82rem;
@@ -810,4 +816,46 @@ img, svg { display: block; max-width: 100%; }
 ::selection {
   background: var(--copper);
   color: var(--canvas);
+}
+
+/* ============================================================
+   Mobile (≤ 540px) refinements
+   ============================================================ */
+
+@media (max-width: 540px) {
+
+  /* Tighter horizontal gutter so we don't lose so much usable width. */
+  .header,
+  .main,
+  .footer {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Mobile header: brand and theme toggle only. The Demo / Source
+     links are accessible via the prominent CTAs mid-page and at the
+     bottom of the page. */
+  .nav__link                  { display: none; }
+
+  /* Hero dimension: hide the trailing dashed line (it's just a few
+     dashes on a phone, and visually noisy) and center the brackets. */
+  .dimension                  { justify-content: center; }
+  .dimension::after           { display: none; }
+
+  /* Section head: drop the divider line and let the title wrap onto
+     its own row when it doesn't fit next to the chip. */
+  .section-head               { flex-wrap: wrap; row-gap: 0.4rem; }
+  .section-head__divider      { display: none; }
+  .section-head__title        { flex-shrink: 1; min-width: 0; }
+
+  /* Decisions: tighter number column and less row inset. */
+  .decision {
+    grid-template-columns: 1.75rem 1fr;
+    gap: 0.6rem;
+    padding: 1.05rem 0.25rem;
+  }
+
+  /* Less vertical air below the final CTA before the footer. */
+  .main                       { padding-bottom: 2.5rem; }
+  .section:last-child         { margin-bottom: 0; }
 }
