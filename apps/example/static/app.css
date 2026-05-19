@@ -125,6 +125,96 @@ h3 {
   color: #fff;
 }
 
+/* Anchor name for the mobile nav popover to attach to the header. */
+.site-header {
+  anchor-name: --site-header;
+}
+
+/* Mobile nav toggle — hidden by default, revealed under the breakpoint. */
+.nav-toggle {
+  display: none;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-toggle__bar {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--text);
+  border-radius: 2px;
+}
+
+/* Desktop: the nav is a popover element by markup (so mobile can use the
+   popover API for light-dismiss + escape), but we want it to render inline
+   like a normal flex row at desktop widths. Override the UA defaults
+   (display: none when closed, plus the dialog-ish margin/border/padding). */
+@media (min-width: 641px) {
+  .site-header nav[popover]:not(:popover-open),
+  .site-header nav[popover]:popover-open {
+    display: flex;
+    position: static;
+    inset: auto;
+    margin: 0;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+    width: auto;
+    height: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .site-header {
+    padding: 0.85rem 1.1rem;
+  }
+
+  /* Customer header gets a hamburger that toggles its nav. The admin
+     header has a single link so it stays inline. */
+  .site-header:not(.site-header--admin) .nav-toggle {
+    display: inline-flex;
+  }
+
+  /* Mobile: the popover anchors below the sticky header as a full-width
+     overlay. Outside-click and Escape are handled natively by popover=auto.
+     Closed state inherits display:none from the popover UA stylesheet. */
+  .site-header nav[popover]:popover-open {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    position-anchor: --site-header;
+    top: anchor(bottom);
+    left: anchor(left);
+    right: anchor(right);
+    width: auto;
+    margin: 0;
+    border: 0;
+    padding: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  .site-header nav[popover]:popover-open a {
+    margin-left: 0;
+    padding: 0.85rem 1.1rem;
+    color: var(--text);
+    border-top: 1px solid var(--border);
+  }
+  .site-header nav[popover]:popover-open a:first-child {
+    border-top: 0;
+  }
+}
+
 /* --- Banners --- */
 
 .demo-banner,

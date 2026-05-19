@@ -17,7 +17,17 @@ export default function customerLayout(
 ): HtmlFragment {
   const header = html`<header class="site-header">
       <a href="/" class="brand">stator demo</a>
-      <nav>
+      <button
+        class="nav-toggle"
+        type="button"
+        popovertarget="site-nav"
+        aria-label="Toggle navigation"
+      >
+        <span class="nav-toggle__bar"></span>
+        <span class="nav-toggle__bar"></span>
+        <span class="nav-toggle__bar"></span>
+      </button>
+      <nav id="site-nav" popover>
         <a href="/">Products</a>
         <a href="/cart">Cart (${read(cart, (c) => c.itemCount)})</a>
         <a href="/checkout">Checkout</a>
