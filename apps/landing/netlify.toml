@@ -1,0 +1,17 @@
+# Netlify configuration for the Stator landing page.
+#
+# Plain HTML + CSS, no build step. `netlify deploy` from inside this
+# directory picks up `publish = "."` and uploads the folder verbatim.
+
+[build]
+  publish = "."
+  command = ""
+
+# Short cache with revalidation — landing page copy is the kind of thing
+# that gets edited and needs to reflect quickly after a deploy.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "public, max-age=300, must-revalidate"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

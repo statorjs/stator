@@ -1,6 +1,6 @@
 {
   "name": "@statorjs/stator",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "exports": {
     "./server": {
@@ -17,6 +17,7 @@
     }
   },
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "build:client": "esbuild src/client/runtime.ts --bundle --format=iife --target=es2020 --outfile=dist/client.js"

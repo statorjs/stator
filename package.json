@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "pnpm -r exec tsc --noEmit",
+    "typecheck": "pnpm -r --if-present run typecheck",
     "test": "pnpm -r --filter=stator test",
     "dev": "pnpm --filter example dev",
     "build": "pnpm --filter stator build"

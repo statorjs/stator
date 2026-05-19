@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "dev": "tsx watch server.ts",
     "start": "tsx server.ts"
   },
