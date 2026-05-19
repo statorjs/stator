@@ -167,4 +167,4 @@ and quantities only).
 
 ## License
 
-Unlicensed POC — not for production use.
+MIT — see [LICENSE](./LICENSE).

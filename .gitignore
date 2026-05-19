@@ -6,3 +6,6 @@ dist/
 .env.local
 coverage/
 .vitest-cache/
+
+# Local Netlify folder
+.netlify
