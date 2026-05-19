@@ -1,0 +1,22 @@
+# Netlify config for the stator landing page.
+#
+# The site lives in `apps/landing/`. `base` tells Netlify to treat that
+# directory as the deploy root, so `publish = "."` resolves to
+# `apps/landing/` rather than the repo root.
+#
+# The demo app (apps/example) is NOT deployed via Netlify — that runs
+# on Fly. Don't add example-app build steps here.
+
+[build]
+  base = "apps/landing"
+  publish = "."
+  command = ""
+
+# Short cache with revalidation so landing-page copy edits take effect
+# quickly after a deploy.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "public, max-age=300, must-revalidate"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

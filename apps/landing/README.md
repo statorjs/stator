@@ -9,9 +9,12 @@ no build step. Deployed to Netlify.
 apps/landing/
   index.html      ← single-page content
   styles.css      ← all styles, theme tokens for light/dark
-  netlify.toml    ← publish config + headers
-  package.json    ← workspace member, deploy scripts
+  package.json    ← workspace member, optional deploy scripts
 ```
+
+Deploy config (`base = "apps/landing"`, headers, etc.) lives in the
+repo-root [`netlify.toml`](../../netlify.toml), not here. That root
+config is what Netlify reads when it auto-deploys on push to `main`.
 
 ## Local preview
 
@@ -25,26 +28,22 @@ python3 -m http.server -d apps/landing 8080
 
 ## Deploy
 
-One-time:
+The site is connected to this GitHub repo via the Netlify dashboard.
+Pushes to `main` trigger an auto-deploy. No manual command needed for
+the normal case.
+
+For ad-hoc deploys from your machine (e.g. testing a config change
+before pushing), the optional scripts in this package:
 
 ```bash
 cd apps/landing
-netlify login          # if you haven't already
-netlify link           # connect this directory to the statorjs.dev site
-```
-
-Push a deploy:
-
-```bash
-cd apps/landing
-pnpm deploy            # → netlify deploy --prod --dir .
-```
-
-Preview a build without promoting it to production:
-
-```bash
 pnpm preview           # → netlify deploy --dir .   (returns a unique URL)
+pnpm deploy            # → netlify deploy --prod --dir .  (promotes to prod)
 ```
+
+Both expect `netlify login` + `netlify link` already done. The CLI
+flow uses the root `netlify.toml`'s base/publish settings, so behavior
+matches the git-integration path.
 
 ## Content notes
 
