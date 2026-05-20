@@ -4,8 +4,9 @@
 > lives in composable state machines that have no awareness of the UI, and the
 > UI is a thin renderer binding state-machine outputs to DOM positions.
 
-This repo is the POC implementation. The full design and rationale lives in
-[`framework-poc-spec.md`](./framework-poc-spec.md).
+This repo is the POC implementation. Design rationale and per-feature
+specs live in [`.chisel/specs/`](./.chisel/specs/) (shipped + draft work),
+managed via the [Chisel](https://chisel.build) CLI.
 
 ## Quickstart
 
@@ -104,8 +105,7 @@ apps/example/            # the cart-and-checkout demo
   per-item insert / remove / move patches are reserved in the wire format
   for V1.
 - **No type-safe `send` payloads.** Action and guard event arguments are
-  typed `any`. Full event-typing is part of the V1 custom machine impl
-  (see [`framework-poc-spec.md`](./framework-poc-spec.md)).
+  typed `any`. Full event-typing is part of the V1 custom machine impl.
 - **`tsx` runtime, no build step.** Production runs `tsx server.ts`; the
   startup TS-transform cost is paid once per machine boot. A real build
   pipeline lands with the V1 SFC compiler.
