@@ -12,3 +12,7 @@ coverage/
 
 # Chisel Cache
 .chisel/index.db
+
+# Private apps live on feature branches, not on main. Branches that want
+# to track files under apps/private/ remove this line.
+apps/private/
