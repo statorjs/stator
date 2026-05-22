@@ -5,10 +5,14 @@
  *   1. Attach delegated event listeners on document.body for a fixed set of
  *      DOM event types. On fire, look for the nearest ancestor carrying
  *      `data-event-<type>="..."` and POST the JSON descriptor to /__events.
- *   2. Apply patches in the response according to the wire protocol — see
+ *   2. Intercept form submissions: when the form has a `data-event-submit`
+ *      descriptor, follow the descriptor path; otherwise POST the form's
+ *      FormData to its `action` URL.
+ *   3. Apply patches in the response according to the wire protocol — see
  *      WIRE.md. Two target kinds (slot, element) × three ops (text, html,
  *      attr) currently implemented.
- *   3. Dispatch `stator:*` CustomEvents on `window` at protocol edges so
+ *   4. Apply directives (navigate, reload, etc.) after patches.
+ *   5. Dispatch `stator:*` CustomEvents on `window` at protocol edges so
  *      inspectors and devtools can observe the traffic without monkey-
  *      patching. See "Observability hooks" below for the contract.
  */
@@ -21,30 +25,20 @@ type Patch =
   | { target: SlotTarget; op: 'html'; value: string }
   | { target: ElementTarget; op: 'attr'; name: string; value: string }
 
+type Directive =
+  | { type: 'navigate'; to: string }
+  | { type: 'reload' }
+  | { type: 'push-url'; to: string }
+  | { type: 'replace-url'; to: string }
+  | { type: 'focus'; target: { kind: 'slot' | 'element'; id: string } }
+  | { type: 'scroll'; target: { kind: 'slot' | 'element'; id: string }; behavior?: 'smooth' | 'auto' }
+  | { type: 'event'; name: string; detail?: unknown }
+
 const EVENT_TYPES = ['click', 'submit', 'change', 'input'] as const
 
 /* ------------------------------------------------------------------ */
 /* Observability hooks                                                 */
 /* ------------------------------------------------------------------ */
-/*
- * Three CustomEvents dispatched on `window`:
- *
- *   stator:event-sent       — just before a user-triggered event POSTs.
- *     detail: { machine, event, routeKey, timestamp }
- *
- *   stator:patches-received — after a patch batch is parsed, before apply.
- *     detail: { patches, source: 'post' | 'sse', durationMs?, timestamp }
- *
- *   stator:patch-applied    — once per patch, just after applying it.
- *     detail: { patch, element, timestamp }
- *
- * `element` may be null if the patch's target id didn't resolve. `durationMs`
- * is present on `source: 'post'` events (round-trip time) and absent for SSE
- * pushes (the framework doesn't time those).
- *
- * Stable contract — observable surface; safe to consume from inspector or
- * third-party tooling.
- */
 
 function emit(name: string, detail: unknown): void {
   window.dispatchEvent(new CustomEvent(name, { detail }))
@@ -61,16 +55,6 @@ function init(): void {
   initLiveChannel()
 }
 
-/**
- * When the server marks a page as live (via <meta name="stator-live">), open
- * an SSE channel that receives patches whenever any machine the route reads
- * changes — including from other sessions' POSTs.
- *
- * Reconnection: EventSource auto-reconnects with exponential backoff. On
- * reconnect, the server has lost this connection's old slot map and can't
- * diff against what the client currently has. POC strategy: full reload.
- * V1 work would replace this with a diff against client-known state.
- */
 function initLiveChannel(): void {
   const meta = document.querySelector('meta[name="stator-live"][content="true"]')
   if (!meta) return
@@ -90,7 +74,7 @@ function initLiveChannel(): void {
   })
 
   sse.addEventListener('message', (e) => {
-    let data: { patches?: Patch[] }
+    let data: { patches?: Patch[]; directives?: Directive[] }
     try {
       data = JSON.parse(e.data)
     } catch (err) {
@@ -105,20 +89,56 @@ function initLiveChannel(): void {
       })
       applyPatches(data.patches)
     }
+    if (data.directives && data.directives.length > 0) {
+      applyDirectives(data.directives)
+    }
   })
 
   sse.addEventListener('error', () => {
-    // EventSource auto-reconnects. readyState: 0=connecting, 1=open, 2=closed.
     if (sse.readyState === EventSource.CLOSED) {
       console.warn('stator: SSE permanently closed')
     }
-    // Don't log transient blips — noisy on flaky networks.
   })
 }
 
 function handleEvent(e: Event): void {
   const target = e.target as Element | null
   if (!target) return
+
+  // Form submissions: prefer data-event-submit descriptor if present,
+  // otherwise intercept based on form's action attribute.
+  if (e.type === 'submit') {
+    const form = target.closest('form') as HTMLFormElement | null
+    if (form) {
+      const descriptorAttr = form.getAttribute('data-event-submit')
+      if (descriptorAttr) {
+        e.preventDefault()
+        let descriptor: { machine: string; event: { type: string } }
+        try {
+          descriptor = JSON.parse(descriptorAttr)
+        } catch (err) {
+          console.error('stator: malformed event descriptor on form', form, descriptorAttr)
+          return
+        }
+        void dispatchEvent(descriptor)
+        return
+      }
+      // Opt-in interception via `data-stator-enhance`. Plain forms without
+      // the attribute submit normally — they may legitimately point at
+      // third-party endpoints, or want browser-default behavior for SEO,
+      // accessibility, or focus management. Auto-intercepting every form
+      // would silently change HTML semantics in ways the developer never
+      // asked for.
+      if (form.hasAttribute('data-stator-enhance') && form.action && form.method.toLowerCase() === 'post') {
+        e.preventDefault()
+        void submitForm(form)
+        return
+      }
+      // Fall through: nothing to intercept, browser default submit.
+      return
+    }
+  }
+
   const attrName = `data-event-${e.type}`
   const el = target.closest(`[${attrName}]`)
   if (!el) return
@@ -133,11 +153,10 @@ function handleEvent(e: Event): void {
     return
   }
 
-  if (e.type === 'submit') e.preventDefault()
-  void dispatch(descriptor)
+  void dispatchEvent(descriptor)
 }
 
-async function dispatch(descriptor: {
+async function dispatchEvent(descriptor: {
   machine: string
   event: { type: string }
 }): Promise<void> {
@@ -157,6 +176,7 @@ async function dispatch(descriptor: {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        Accept: 'application/json',
         'X-Stator-Route': routeKey,
       },
       credentials: 'same-origin',
@@ -170,21 +190,61 @@ async function dispatch(descriptor: {
     console.error('stator: event POST failed', res.status, await res.text())
     return
   }
-  let data: { patches: Patch[] }
+  await applyEnvelopeFromResponse(res, startedAt, 'post')
+}
+
+/**
+ * Submit a plain HTML form to its action URL with FormData. Signals
+ * `Accept: application/json` so the server returns the directives envelope
+ * even though the form looks like a normal browser submission.
+ */
+async function submitForm(form: HTMLFormElement): Promise<void> {
+  const formData = new FormData(form)
+  const startedAt = performance.now()
+  let res: Response
+  try {
+    res = await fetch(form.action, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+      credentials: 'same-origin',
+      body: formData,
+    })
+  } catch (err) {
+    console.error('stator: network error during form submit', err)
+    return
+  }
+  if (!res.ok) {
+    console.error('stator: form submit failed', res.status, await res.text())
+    return
+  }
+  await applyEnvelopeFromResponse(res, startedAt, 'post')
+}
+
+async function applyEnvelopeFromResponse(
+  res: Response,
+  startedAt: number,
+  source: 'post' | 'sse',
+): Promise<void> {
+  let data: { patches?: Patch[]; directives?: Directive[] }
   try {
     data = await res.json()
   } catch (err) {
-    console.error('stator: malformed event response', err)
+    console.error('stator: malformed response', err)
     return
   }
   const durationMs = Math.round(performance.now() - startedAt)
-  emit('stator:patches-received', {
-    patches: data.patches,
-    source: 'post',
-    durationMs,
-    timestamp: Date.now(),
-  })
-  applyPatches(data.patches)
+  if (data.patches) {
+    emit('stator:patches-received', {
+      patches: data.patches,
+      source,
+      durationMs,
+      timestamp: Date.now(),
+    })
+    applyPatches(data.patches)
+  }
+  if (data.directives && data.directives.length > 0) {
+    applyDirectives(data.directives)
+  }
 }
 
 function applyPatches(patches: Patch[]): void {
@@ -202,6 +262,52 @@ function applyPatches(patches: Patch[]): void {
     }
     emit('stator:patch-applied', { patch, element, timestamp: Date.now() })
   }
+}
+
+function applyDirectives(directives: Directive[]): void {
+  for (const directive of directives) {
+    emit('stator:directive-applied', { directive, timestamp: Date.now() })
+    switch (directive.type) {
+      case 'navigate':
+        location.href = directive.to
+        return // stop processing further directives; we're leaving
+      case 'reload':
+        location.reload()
+        return
+      case 'push-url':
+        history.pushState({}, '', directive.to)
+        break
+      case 'replace-url':
+        history.replaceState({}, '', directive.to)
+        break
+      case 'focus': {
+        const el = resolveTarget(directive.target)
+        if (el && 'focus' in el && typeof (el as HTMLElement).focus === 'function') {
+          ;(el as HTMLElement).focus()
+        }
+        break
+      }
+      case 'scroll': {
+        const el = resolveTarget(directive.target)
+        if (el && 'scrollIntoView' in el) {
+          ;(el as HTMLElement).scrollIntoView({ behavior: directive.behavior ?? 'auto' })
+        }
+        break
+      }
+      case 'event':
+        emit(directive.name, directive.detail)
+        break
+      default:
+        console.error('stator: unknown directive type', directive)
+    }
+  }
+}
+
+function resolveTarget(target: { kind: 'slot' | 'element'; id: string }): Element | null {
+  if (target.kind === 'slot') {
+    return document.querySelector(`[data-slot="${target.id}"]`)
+  }
+  return document.querySelector(`[data-stator-id="${target.id}"]`)
 }
 
 if (document.readyState === 'loading') {

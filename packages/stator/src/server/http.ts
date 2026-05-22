@@ -8,6 +8,7 @@ import { build } from 'esbuild'
 
 import type { MachineStore } from './machine-store.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
+import { HTTP_METHODS } from './route-discovery.ts'
 import { renderRoute } from './render.ts'
 import { recompute } from './recompute.ts'
 import { getOrCreateSessionId } from './session.ts'
@@ -15,6 +16,8 @@ import { SessionRuntime } from './session-runtime.ts'
 import type { RouteDefinition } from './routing.ts'
 import { fanOut, registerConnection, unregisterConnection } from './sse.ts'
 import { scopedLogger } from './logger.ts'
+import { buildRouteRequest } from './route-request.ts'
+import { runApiRoute, applyRenderedEffects } from './api-route.ts'
 
 const httpLog = scopedLogger('http')
 
@@ -54,6 +57,52 @@ function withSessionLock<T>(sid: string, fn: () => Promise<T>): Promise<T> {
   return next
 }
 
+/** Compiled matcher: turns `/p/:id` into a regex that captures params. */
+interface RouteMatcher {
+  route: DiscoveredRoute
+  regex: RegExp
+}
+
+function compileMatcher(route: DiscoveredRoute): RouteMatcher {
+  // Translate Hono-pattern (`/p/:id`) into a regex that matches a literal
+  // URL path and captures each param value.
+  const pattern = route.urlPath
+    .split('/')
+    .map((seg) => {
+      if (seg.startsWith(':')) return '([^/]+)'
+      return seg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    })
+    .join('/')
+  return { route, regex: new RegExp(`^${pattern}$`) }
+}
+
+/**
+ * Match a literal URL path against compiled matchers. Returns the matched
+ * route + extracted params, or null if nothing matches.
+ */
+function matchPath(
+  matchers: RouteMatcher[],
+  literalPath: string,
+): { route: DiscoveredRoute; params: Record<string, string> } | null {
+  for (const m of matchers) {
+    const result = m.regex.exec(literalPath)
+    if (!result) continue
+    const params: Record<string, string> = {}
+    m.route.paramNames.forEach((name, i) => {
+      params[name] = decodeURIComponent(result[i + 1] ?? '')
+    })
+    return { route: m.route, params }
+  }
+  return null
+}
+
+/** Parse a route key like "GET /p/abc-123" into method + literal path. */
+function parseRouteKey(routeKey: string): { method: string; path: string } | null {
+  const space = routeKey.indexOf(' ')
+  if (space < 0) return null
+  return { method: routeKey.slice(0, space), path: routeKey.slice(space + 1) }
+}
+
 export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   const app = new Hono()
   const clientJs = await bundleClient()
@@ -72,13 +121,11 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     )
   })
 
-  // Index routes by routeKey (`"GET /cart"`) so the POST handler can look
-  // up the route the client is currently on and use its `reads:` to drive
-  // selective machine hydration.
-  const routesByKey = new Map<string, { route: RouteDefinition; urlPath: string }>()
-  for (const r of config.routes) {
-    if (r.GET) routesByKey.set(`GET ${r.urlPath}`, { route: r.GET, urlPath: r.urlPath })
-  }
+  // Compile matchers for GET routes. Used by POST /__events and SSE to
+  // resolve a literal client path back to a route pattern + params.
+  const getMatchers: RouteMatcher[] = config.routes
+    .filter((r) => r.GET)
+    .map(compileMatcher)
 
   app.get('/static/client.js', (c) => {
     c.header('Content-Type', 'application/javascript; charset=utf-8')
@@ -102,35 +149,14 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   }
 
   for (const route of config.routes) {
-    if (!route.GET) continue
-    const get = route.GET
-    const urlPath = route.urlPath
-    app.get(urlPath, async (c) => {
-      const { sessionId } = getOrCreateSessionId(c)
-      const routeKey = `GET ${urlPath}`
-      const runtime = new SessionRuntime(sessionId, config.store)
-      try {
-        await runtime.loadGraph(get.reads)
-        const result = renderRoute(get, routeKey, sessionId, runtime)
-        let html = result.html
-        if (get.live) {
-          // Tell the client runtime to open an EventSource for this page.
-          // TODO(V1): replace this string-replace with a sentinel-comment
-          // insertion point (e.g. `<!--stator:head-->` in the layout). The
-          // second thing the framework needs to inject into <head> (CSP
-          // nonce, SSE base URL, hydration manifest, etc.) is when this
-          // pattern becomes untenable — don't add a second .replace() here,
-          // build the sentinel mechanism instead.
-          html = html.replace(
-            '</head>',
-            '<meta name="stator-live" content="true"></head>',
-          )
-        }
-        return c.html(html)
-      } finally {
-        runtime.dispose()
-      }
-    })
+    if (route.GET) registerGetRoute(app, route, route.GET, config.store)
+    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE'] as const) {
+      const apiRoute = route[method]
+      if (!apiRoute) continue
+      app.on(method, route.urlPath, async (c) => {
+        return runApiRoute(c, route, apiRoute, config.store)
+      })
+    }
   }
 
   // SSE endpoint. The connection's runtime + renderState stay alive for
@@ -139,10 +165,23 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   app.get('/__sse', async (c) => {
     const routeKey = c.req.query('route')
     if (!routeKey) return c.text('missing route param', 400)
-    const routeEntry = routesByKey.get(routeKey)
-    if (!routeEntry) return c.text(`unknown route "${routeKey}"`, 404)
-    if (!routeEntry.route.live) {
+    const parsed = parseRouteKey(routeKey)
+    if (!parsed || parsed.method !== 'GET') {
+      return c.text(`malformed route key "${routeKey}"`, 400)
+    }
+    const matched = matchPath(getMatchers, parsed.path)
+    if (!matched || !matched.route.GET) {
+      return c.text(`unknown route "${routeKey}"`, 404)
+    }
+    const route = matched.route.GET
+    if (!route.live) {
       return c.text(`route "${routeKey}" is not declared live: true`, 400)
+    }
+    // The SSE endpoint's own Request becomes the connection's request
+    // object for fan-out renders. params come from the matched literal path.
+    const request = {
+      ...buildRouteRequest(c, matched.route.paramNames),
+      params: matched.params,
     }
 
     const { sessionId } = getOrCreateSessionId(c)
@@ -155,17 +194,19 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
     return streamSSE(c, async (stream) => {
       const runtime = new SessionRuntime(sessionId, config.store)
-      await runtime.loadGraph(routeEntry.route.reads)
+      await runtime.loadGraph(route.reads)
       const { renderState } = renderRoute(
-        routeEntry.route,
+        route,
         routeKey,
         sessionId,
         runtime,
+        request,
       )
       const conn = registerConnection({
         sessionId,
         routeKey,
-        route: routeEntry.route,
+        route,
+        request,
         runtime,
         renderState,
         send: async (data: string) => {
@@ -173,25 +214,18 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         },
       })
 
-      // Force an immediate flush so edge proxies (Fly, nginx, Cloudflare,
-      // etc.) commit the response headers and consider the stream "alive"
-      // before any real fan-out arrives. EventSource ignores SSE comment
-      // lines, so the browser doesn't see this. Without an initial flush,
-      // some proxies hold the response or terminate the connection before
-      // it ever reaches the client.
+      // Force an immediate flush so edge proxies commit response headers
+      // and consider the stream "alive" before any fan-out arrives.
       await stream.write(': open\n\n')
 
-      // Periodic keep-alive so the proxy's idle timeout doesn't close a
-      // connection that's not currently receiving fan-out pushes. 25s is
-      // comfortably under Fly's default and any typical proxy timeout.
+      // Keep-alive every 25s so proxy idle timeouts don't close the
+      // connection between real events.
       const keepAlive = setInterval(() => {
         stream.write(': keep-alive\n\n').catch(() => {
           // Stream closed; will be cleaned up by abort handler.
         })
       }, 25_000)
 
-      // Keep the stream open until the client disconnects. Hono's stream
-      // helper detects close and triggers the abort signal.
       try {
         await new Promise<void>((resolveFn) => {
           stream.onAbort(() => resolveFn())
@@ -209,9 +243,18 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     if (!routeKey) {
       return c.json({ error: 'missing X-Stator-Route header' }, 400)
     }
-    const routeEntry = routesByKey.get(routeKey)
-    if (!routeEntry) {
+    const parsed = parseRouteKey(routeKey)
+    if (!parsed || parsed.method !== 'GET') {
+      return c.json({ error: `malformed route key "${routeKey}"` }, 400)
+    }
+    const matched = matchPath(getMatchers, parsed.path)
+    if (!matched || !matched.route.GET) {
       return c.json({ error: `unknown route "${routeKey}"` }, 404)
+    }
+    const route = matched.route.GET
+    const request = {
+      ...buildRouteRequest(c, matched.route.paramNames),
+      params: matched.params,
     }
 
     let body: z.infer<typeof eventSchema>
@@ -229,19 +272,15 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     return withSessionLock(sessionId, async () => {
       const runtime = new SessionRuntime(sessionId, config.store)
       try {
-        // Hydrate route reads + origin machine. Subscribers and transitively
-        // reachable machines come along via loadGraph's traversal.
-        await runtime.loadGraph([...routeEntry.route.reads, originDef])
+        await runtime.loadGraph([...route.reads, originDef])
         runtime.wireSubscriptions()
 
-        // Pre-event render: populates a RenderState with `lastValue`
-        // snapshots that recompute will diff against once the event is
-        // applied. The HTML output is discarded — POST returns patches.
         const { renderState } = renderRoute(
-          routeEntry.route,
+          route,
           routeKey,
           sessionId,
           runtime,
+          request,
         )
 
         const touched = runtime.processEvent(body.machine, body.event)
@@ -253,13 +292,9 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
         await runtime.persistTouched(touched)
 
-        // Fan-out to any live SSE connections whose routes care about a
-        // touched machine. Patches are computed per-connection against
-        // each connection's own slot map, so this admin tab on session C
-        // sees session A's cart changes via AdminMachine, etc.
         await fanOut(touched)
 
-        return c.json({ patches })
+        return c.json({ patches, directives: [] })
       } finally {
         runtime.dispose()
       }
@@ -286,6 +321,43 @@ async function bundleClient(): Promise<string> {
   })
   cachedClientJs = result.outputFiles[0]!.text
   return cachedClientJs
+}
+
+function registerGetRoute(
+  app: Hono,
+  discovered: DiscoveredRoute,
+  route: RouteDefinition,
+  store: MachineStore,
+): void {
+  app.get(discovered.urlPath, async (c) => {
+    const { sessionId } = getOrCreateSessionId(c)
+    const literalPath = c.req.path
+    const routeKey = `GET ${literalPath}`
+    const request = buildRouteRequest(c, discovered.paramNames)
+
+    const runtime = new SessionRuntime(sessionId, store)
+    try {
+      await runtime.loadGraph(route.reads)
+      const result = renderRoute(route, routeKey, sessionId, runtime, request)
+      let html = result.html
+      if (route.live) {
+        // TODO(V1): replace this string-replace with a sentinel-comment
+        // insertion point (e.g. `<!--stator:head-->` in the layout). The
+        // second thing the framework needs to inject into <head> (CSP nonce,
+        // SSE base URL, hydration manifest, etc.) is when this pattern
+        // becomes untenable — don't add a second .replace() here, build the
+        // sentinel mechanism instead.
+        html = html.replace(
+          '</head>',
+          '<meta name="stator-live" content="true"></head>',
+        )
+      }
+      applyRenderedEffects(c, result.response)
+      return c.html(html)
+    } finally {
+      runtime.dispose()
+    }
+  })
 }
 
 function contentTypeFor(path: string): string {

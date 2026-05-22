@@ -26,8 +26,27 @@ export { SessionRuntime } from './session-runtime.ts'
 export { discoverMachines } from './discovery.ts'
 export type { DiscoveryResult } from './discovery.ts'
 
-export { defineRoute, isStatorRoute } from './routing.ts'
-export type { RouteDefinition, RouteContext, DefineRouteConfig } from './routing.ts'
+export {
+  defineRoute,
+  isStatorRoute,
+  defineApiRoute,
+  isStatorApiRoute,
+} from './routing.ts'
+export type {
+  RouteDefinition,
+  RouteContext,
+  DefineRouteConfig,
+  RouteRequest,
+  RouteRenderContext,
+  RouteResponseContext,
+  RouteCookieOptions,
+  ApiRouteDefinition,
+  ApiRouteEnvelope,
+  ApiRouteHelpers,
+  ApiRouteResult,
+  Directive,
+  DefineApiRouteConfig,
+} from './routing.ts'
 
 export { discoverRoutes } from './route-discovery.ts'
 export type { DiscoveredRoute } from './route-discovery.ts'

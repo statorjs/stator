@@ -1,6 +1,6 @@
 import { recompute, type Patch } from './recompute.ts'
 import type { RenderState } from './render-context.ts'
-import type { RouteDefinition } from './routing.ts'
+import type { RouteDefinition, RouteRequest } from './routing.ts'
 import type { SessionRuntime } from './session-runtime.ts'
 import { scopedLogger } from './logger.ts'
 
@@ -22,6 +22,11 @@ export interface Connection {
   sessionId: string
   routeKey: string
   route: RouteDefinition
+  /** URL-derived state for this specific connection. Stored at connection
+   *  open and reused by every fan-out recompute. Parameterized routes
+   *  carry the resolved path params here (`/p/:id` connection knows its
+   *  specific id). */
+  request: RouteRequest
   runtime: SessionRuntime
   renderState: RenderState
   send: (data: string) => Promise<void>
