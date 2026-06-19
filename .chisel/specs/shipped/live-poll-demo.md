@@ -1,8 +1,8 @@
 ---
 title: Live poll demo
-status: draft
+status: shipped
 created: 2026-05-21
-updated: 2026-05-21
+updated: 2026-06-17
 area: demo
 ---
 
@@ -107,4 +107,4 @@ The two state changes happen atomically within one POST, the patches go out toge
 
 ## Implementation Notes
 
-(Will fill in after build. The cross-machine flow described above will be the most interesting part to watch in the inspector — every vote should produce a visible VOTED emit and a corresponding RECORD_VOTE dispatch with the auto-injected sourceSessionId visible in the patch detail.)
+**Shipped** as `apps/poll/`. Exercises path params (`p/[id].ts`), `defineApiRoute` (`new.ts`), the `navigate` directive, a live SSE route (`live: true` on the poll page), and the cross-machine `VoterMachine` → `PollsMachine` subscription (`POLL_CREATED`/`VOTED` emits with auto-injected `sourceSessionId`). The demo stress-tested the four runtime specs that shipped alongside it ([[api-routes-and-request-response-surface]], [[route-request-context-with-path-params-and-query]], [[response-directives-for-client-side-effects]]).

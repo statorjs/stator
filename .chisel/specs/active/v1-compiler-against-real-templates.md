@@ -18,6 +18,8 @@ The why this matters more than ergonomics:
 
 The runtime is stable. The compiler is a contained second project that emits the same primitives the runtime already accepts. No runtime changes required to ship the format.
 
+Client-side state and behavior — the `<script>` block, the `on:`/`bind:`/`ref:` directives, custom-element output, and the import-location boundary — build on this format and are specced separately in [[client-scripts-directives-and-isomorphic-machines]].
+
 ## Success Criteria
 
 - A `.stator` file with frontmatter (imports + props), JSX-flavored body, and a `<style>` block compiles to a `.ts` module that the existing runtime consumes verbatim.
@@ -82,6 +84,7 @@ const { cart } = Stator.props<Props>()
 - Scoped styles × `class:list`. The compiler must thread the synthetic class through any element that has `class:list`, not just `class="..."`. The class:list runtime already accepts `string | array | object`; injecting the synthetic class as an array entry is the cleanest path.
 - Dollar-sign escaping. JSX text content with literal `$` needs to be escaped when emitted into a tagged template literal. Easy to get wrong, easy to test. Compiler emit always escapes literal `$` to `\$` to round-trip safely.
 - Editor support (LSP, syntax highlighting). Derivative work, mostly mirroring Astro/Svelte tooling. Out of scope for the MVP.
+- Bundler orchestration. The "TS AST transform, no Babel" decision above is about the *compiler*, not the *build orchestrator*. A build spike (2026-06-17, captured in [[client-scripts-directives-and-isomorphic-machines]]) showed Vite cleanly hosts this transform as a plugin and routes one `.stator` file to a server module + client bundle + scoped CSS via virtual-query ids. The transform stays bundler-agnostic behind a thin plugin adapter; Vite wraps it. One concrete constraint surfaced: scoped `<style>` must be emitted as a `lang.css`-suffixed virtual module imported by the *client* entry (SSR does not execute stylesheets), which refines the synthetic-class approach in the Approach section above.
 
 ## Implementation Notes
 
