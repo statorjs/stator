@@ -25,6 +25,10 @@ export interface HttpConfig {
   routes: DiscoveredRoute[]
   store: MachineStore
   staticDir?: string
+  /** Optional hook to inject extra `<head>` HTML for a GET route, keyed by the
+   *  route's file path. The dev server uses this to inline collected scoped CSS
+   *  (SSR head injection). Inserted at the `</head>` boundary. */
+  headExtras?: (filePath: string) => string | Promise<string>
 }
 
 const eventSchema = z.object({
@@ -149,7 +153,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   }
 
   for (const route of config.routes) {
-    if (route.GET) registerGetRoute(app, route, route.GET, config.store)
+    if (route.GET) registerGetRoute(app, route, route.GET, config.store, config.headExtras)
     for (const method of ['POST', 'PUT', 'PATCH', 'DELETE'] as const) {
       const apiRoute = route[method]
       if (!apiRoute) continue
@@ -328,6 +332,7 @@ function registerGetRoute(
   discovered: DiscoveredRoute,
   route: RouteDefinition,
   store: MachineStore,
+  headExtras?: (filePath: string) => string | Promise<string>,
 ): void {
   app.get(discovered.urlPath, async (c) => {
     const { sessionId } = getOrCreateSessionId(c)
@@ -340,6 +345,10 @@ function registerGetRoute(
       await runtime.loadGraph(route.reads)
       const result = renderRoute(route, routeKey, sessionId, runtime, request)
       let html = result.html
+      if (headExtras) {
+        const extra = await headExtras(discovered.filePath)
+        if (extra) html = html.replace('</head>', `${extra}</head>`)
+      }
       if (route.live) {
         // TODO(V1): replace this string-replace with a sentinel-comment
         // insertion point (e.g. `<!--stator:head-->` in the layout). The

@@ -7,7 +7,17 @@ export interface DiscoveryResult {
   defs: MachineDef<any, any>[]
 }
 
-export async function discoverMachines(dir: string): Promise<DiscoveryResult> {
+/** How a discovered file is turned into a module. Defaults to native dynamic
+ *  import; the dev server injects Vite's `ssrLoadModule` so `.stator` imports
+ *  (and TS) are compiled on the way in. */
+export type ModuleLoader = (file: string) => Promise<Record<string, unknown>>
+
+const nativeLoader: ModuleLoader = (file) => import(/* @vite-ignore */ pathToFileURL(file).href)
+
+export async function discoverMachines(
+  dir: string,
+  load: ModuleLoader = nativeLoader,
+): Promise<DiscoveryResult> {
   const absDir = resolve(dir)
   const entries = await readdir(absDir, { withFileTypes: true })
 
@@ -22,7 +32,7 @@ export async function discoverMachines(dir: string): Promise<DiscoveryResult> {
   const seenNames = new Set<string>()
 
   for (const file of files) {
-    const mod = await import(pathToFileURL(file).href)
+    const mod = await load(file)
     const def = mod.default
     if (!isStatorMachine(def)) {
       throw new Error(

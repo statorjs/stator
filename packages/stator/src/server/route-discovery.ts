@@ -7,6 +7,9 @@ import {
   type RouteDefinition,
   type ApiRouteDefinition,
 } from './routing.ts'
+import type { ModuleLoader } from './discovery.ts'
+
+const nativeLoader: ModuleLoader = (file) => import(/* @vite-ignore */ pathToFileURL(file).href)
 
 /** HTTP methods a route file may export. GET goes through `defineRoute`
  *  (page rendering); the rest go through `defineApiRoute` (mutation/API
@@ -47,13 +50,16 @@ export interface DiscoveredRoute {
  * (templates, helpers) that aren't routes, and throwing on them would
  * force separate trees.
  */
-export async function discoverRoutes(dir: string): Promise<DiscoveredRoute[]> {
+export async function discoverRoutes(
+  dir: string,
+  load: ModuleLoader = nativeLoader,
+): Promise<DiscoveredRoute[]> {
   const absDir = resolve(dir)
   const files = await walkRouteFiles(absDir)
   const routes: DiscoveredRoute[] = []
 
   for (const filePath of files) {
-    const mod = await import(pathToFileURL(filePath).href)
+    const mod = await load(filePath)
 
     // GET is a page route, POST/PUT/PATCH/DELETE are API routes.
     const get = isStatorRoute(mod.GET) ? (mod.GET as RouteDefinition) : undefined

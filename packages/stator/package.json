@@ -36,6 +36,7 @@
     "build:client": "esbuild src/client/runtime.ts --bundle --format=iife --target=es2020 --outfile=dist/client.js"
   },
   "dependencies": {
+    "esbuild": "^0.24.0",
     "hono": "^4.6.0",
     "ioredis": "^5.10.1",
     "pino": "^10.3.1",
@@ -53,7 +54,6 @@
   "devDependencies": {
     "@hono/node-server": "^1.13.0",
     "@types/node": "^22.7.0",
-    "esbuild": "^0.24.0",
     "pino-pretty": "^13.1.3",
     "vite": "^6.0.0",
     "vitest": "^2.1.0"

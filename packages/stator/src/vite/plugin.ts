@@ -1,5 +1,6 @@
 import type { Plugin } from 'vite'
 import { readFile } from 'node:fs/promises'
+import { transform } from 'esbuild'
 import { compile, type CompileResult } from '../compiler/index.ts'
 
 /**
@@ -63,10 +64,19 @@ export function stator(): Plugin {
       // Default: the server render module. Import the style virtual (if any) so
       // the scoped CSS participates in the module graph — the dev server walks
       // the graph after render to inject component CSS into <head>.
-      if (result.css) {
-        return `import ${JSON.stringify(file + '?' + STYLE_QUERY)}\n${result.serverCode}`
-      }
-      return result.serverCode
+      const moduleSource = result.css
+        ? `import ${JSON.stringify(file + '?' + STYLE_QUERY)}\n${result.serverCode}`
+        : result.serverCode
+
+      // The emitted module is TypeScript (type-only imports, prop annotations);
+      // Vite won't run its TS transform on a `.stator` id, so strip types here.
+      const transformed = await transform(moduleSource, {
+        loader: 'ts',
+        format: 'esm',
+        sourcefile: file,
+        sourcemap: true,
+      })
+      return { code: transformed.code, map: transformed.map }
     },
 
     handleHotUpdate(ctx) {
