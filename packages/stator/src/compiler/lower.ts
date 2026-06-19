@@ -23,6 +23,15 @@ export interface LowerOptions {
 }
 
 export function lowerTemplate(template: string, opts: LowerOptions = {}): string {
+  // A leading `<!doctype …>` isn't valid JSX — strip it before parsing and
+  // prepend it verbatim to the emitted template (it has no `$`/backtick to escape).
+  let doctype = ''
+  const doctypeMatch = template.match(/^\s*<!doctype[^>]*>/i)
+  if (doctypeMatch) {
+    doctype = doctypeMatch[0].trim()
+    template = template.slice(doctypeMatch[0].length)
+  }
+
   const wrapped = `const __t = (<>${template}</>);`
   const sf = ts.createSourceFile(
     'template.tsx',
@@ -150,7 +159,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     return ''
   }
 
-  return 'html`' + contentOfChildren(fragment.children) + '`'
+  return 'html`' + doctype + contentOfChildren(fragment.children) + '`'
 }
 
 function requireValue(value: string, directive: string): string {

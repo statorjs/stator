@@ -1,0 +1,19 @@
+---
+import type { HtmlFragment } from '@statorjs/stator/template'
+const { header, body } = Stator.props<{ header: HtmlFragment; body: HtmlFragment }>()
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>stator demo</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    {header}
+    <main>{body}</main>
+    <script src="/static/client.js"></script>
+    <script src="/static/inspector.js" defer></script>
+  </body>
+</html>

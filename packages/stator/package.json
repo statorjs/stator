@@ -12,6 +12,10 @@
       "types": "./src/engine/index.ts",
       "default": "./src/engine/index.ts"
     },
+    "./dev": {
+      "types": "./src/server/dev.ts",
+      "default": "./src/server/dev.ts"
+    },
     "./template": {
       "types": "./src/template/index.ts",
       "default": "./src/template/index.ts"

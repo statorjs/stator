@@ -1,8 +1,10 @@
 import { createServer as createViteServer, type ViteDevServer } from 'vite'
+import { serve } from '@hono/node-server'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { stator } from '../vite/index.ts'
 import { compile } from '../compiler/index.ts'
+import { logger } from './logger.ts'
 import type { Store } from './store.ts'
 
 /**
@@ -35,6 +37,7 @@ export interface DevAppConfig {
 export interface DevApp {
   fetch: (request: Request) => Response | Promise<Response>
   vite: ViteDevServer
+  listen: (port: number) => Promise<void>
   close: () => Promise<void>
 }
 
@@ -84,6 +87,14 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   return {
     fetch: (request) => app.fetch(request),
     vite,
+    listen(port: number): Promise<void> {
+      return new Promise((resolveFn) => {
+        serve({ fetch: app.fetch, port }, () => {
+          logger.info({ port, mode: 'dev', machines: defs.length, routes: routes.length }, 'listening')
+          resolveFn()
+        })
+      })
+    },
     close: () => vite.close(),
   }
 }

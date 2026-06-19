@@ -1,13 +1,13 @@
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  createApp,
   InMemoryStore,
   RedisStore,
   CachedStore,
   logger,
   type Store,
 } from '@statorjs/stator/server'
+import { createDevApp } from '@statorjs/stator/dev'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -35,7 +35,11 @@ if (redisUrl) {
   )
 }
 
-const app = await createApp({
+// Dev server: Vite compiles `.stator` templates on the way in. The production
+// serve path (pre-built assets, no Vite) is a separate follow-up; until it
+// lands, the example runs through the dev server.
+const app = await createDevApp({
+  root: here,
   machinesDir: resolve(here, 'machines'),
   routesDir: resolve(here, 'routes'),
   staticDir: resolve(here, 'static'),

@@ -55,6 +55,12 @@ describe('compiler: lowerTemplate (JSX → html`` expression)', () => {
     )
   })
 
+  it('preserves a leading <!doctype> (not valid JSX)', () => {
+    expect(lowerTemplate('<!doctype html>\n<html><body>{x}</body></html>')).toBe(
+      'html`<!doctype html><html><body>${x}</body></html>`',
+    )
+  })
+
   it('rejects unsupported directives (bind:/ref:) until Phase 3b', () => {
     expect(() => lowerTemplate('<span bind:text={x}></span>')).toThrow(CompileError)
   })
