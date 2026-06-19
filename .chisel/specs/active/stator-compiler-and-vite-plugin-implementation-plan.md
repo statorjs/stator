@@ -187,5 +187,43 @@ Compiler is a pure function → heavy input→output unit tests.
 
 ## Implementation Notes
 
-(Not started. Plan only. Phase 1 engine and Phase 2 server dispatch are merged on
-`main`. Begins with Phase 3a.)
+### Phase 3a built — 2026-06-19 (on `main` via the merged engine + dispatch base)
+
+The server compiler and dev integration are implemented and green (62 tests).
+
+- **Pure compiler** (`src/compiler/`): `split` (regions, bare-vs-attributed
+  `<script>`/`<style>` disambiguation), `lower` (JSX → `html\`\`` via the TS AST,
+  directives, recursive nested-JSX, scope-attribute injection), `compile` (server
+  module: hoisted imports/types, `Stator.props<P>()` → typed `props`, auto-injected
+  primitives), `styles` (`scopeCss` via PostCSS: subject-only rewrite, `:global`,
+  `@keyframes` rename + animation rewrite), `hash`. The **identical-patches gate**
+  proves compiled output ≡ hand-written through the runtime.
+- **Vite plugin** (`@statorjs/stator/vite`): routes one `.stator` → server module
+  + scoped-CSS `lang.css` virtual; transpiles the emitted TS module with esbuild
+  (Vite doesn't run its TS transform on a `.stator` id); `handleHotUpdate`
+  invalidates derived modules.
+- **Dev server** (`createDevApp`, `src/server/dev.ts`): Vite middleware + the
+  stator runtime. Two findings worth recording:
+  1. **Load the runtime through Vite** (`ssrLoadModule('@statorjs/stator/server')`),
+     not natively — otherwise the templates (Vite instance) and the runtime
+     (native instance) get *different* render-context module instances and
+     `read()` throws. One instance for runtime + routes + templates is mandatory.
+     (`ssr.noExternal: [/@statorjs\/stator/]` forces Vite to transform the
+     framework's TS source rather than externalize it.)
+  2. **SSR scoped-CSS head injection**: walk the SSR module graph from the route
+     file, collect reachable `.stator` files, and inline their compiled `css` into
+     a `<style>` in `<head>` via the `headExtras` hook on `buildHonoApp` (uses the
+     existing `</head>` insertion point). CSS comes from the compiler (same hash as
+     the rendered markers), not Vite's CSS-to-JS dev transform.
+- **Discovery** (`discoverMachines`/`discoverRoutes`) gained an injectable
+  `ModuleLoader` (defaults to native dynamic import; the dev server injects
+  `ssrLoadModule`). A `*.stator` ambient module declaration ships for TS.
+
+Verified end-to-end: a `.stator` route renders through the dev app with the scope
+attribute on elements, scoped CSS in `<head>`, and correct event patches.
+
+**Remaining in 3a (follow-up):** migrate the four example templates to `.stator`
+and wire the example app to `createDevApp` (the milestone is proven with a fixture
+app; migrating the real demos is mechanical). **Then 3b** (client `<script>`,
+`bind:`/`ref:`, custom elements, client dispatch) and the **production serve path**
+(built assets + manifest, no Vite) — both still open.
