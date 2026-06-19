@@ -40,6 +40,40 @@ merged and green on `main`.
 - **Staged 3a → 3b.** Server compiler first (independently shippable), then the
   client plane.
 
+### Scoped styles (decided 2026-06-19)
+
+- **Plain attribute scoping**, not CSS `@scope`. Mark every rendered element with
+  a `data-s-<hash>` attribute (the compiler already visits every element in
+  `lower.ts`), and rewrite each `<style>` selector to require it. `@scope` was
+  evaluated and rejected: its real payoff is *root-only* marking, but reliably
+  identifying a component's root through fragments and control-flow callbacks is
+  the unreliable part (a miss silently leaks styles). Once we mark every element
+  for reliability, `@scope ([data-s-H]) to (:not([data-s-H]))` is functionally
+  equivalent to a plain `[data-s-H]` selector for isolation — and the plain
+  attribute has *more predictable* specificity (scoped `.btn[data-s-H]` (0,2,0)
+  reliably beats a global `.btn` (0,1,0); `@scope` leaves them equal) and no
+  browser-baseline dependency. Attribute scoping is also the converged choice of
+  Astro/Svelte/Vue.
+- **Attribute, not class.** Orthogonal to the reactive `class:list` directive, so
+  scoping and class patching never interact (supersedes the format spec's earlier
+  "synthetic class" plan).
+- **CSS transform via PostCSS** (`postcss` + `postcss-selector-parser`), in the
+  compiler as a pure `scopeCss(css, hash)` function (testable standalone; the Vite
+  plugin calls it, then Vite's own pipeline handles `url()`/nesting/minify on the
+  result). Handles: per-compound selector rewrite, `:global(...)` / `<style
+  is:global>` lifted out unscoped, and `@keyframes` name scoping (rename per-hash
+  + rewrite `animation`/`animation-name` references) to avoid collisions.
+- **CSS variables from state: reuse `style:list`, no `define:vars`.**
+  `style:list={{ '--accent': read(m, s => s.x) }}` on an element sets the custom
+  property reactively (recompute patches the style attr) — strictly more powerful
+  than Astro's static `define:vars`, and one fewer concept. CSS text stays static
+  (no `{interpolation}` into CSS); the directive is the sanctioned state→CSS bridge.
+- **SSR head injection.** The page collects the scoped CSS of the components it
+  rendered and injects it into `<head>` at render time (via the `</head>` sentinel
+  flagged in `http.ts`) — independent of client JS. (The build spike's
+  "client entry imports the CSS" was a spike simplification; a server-rendered
+  page needs its CSS in the head, not gated behind the JS bundle.)
+
 ## Structure
 
 ```

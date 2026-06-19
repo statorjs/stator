@@ -67,7 +67,7 @@ const { cart } = Stator.props<Props>()
 2. Parse body as JSX, walk the AST.
 3. Lower JSX to tagged-template-shaped source (or directly emit calls into `html`...`). Preserve callback closures in place.
 4. Rewrite `Stator.props<Props>()` to the function-signature form.
-5. Extract `<style>` blocks, hash, inject a synthetic class into every body element. Integrate with `class:list` specs that already exist on an element.
+5. Extract `<style>` blocks, hash, inject a scope **attribute** (`data-s-<hash>`) into every rendered element, and rewrite selectors to require it. (Supersedes the earlier "synthetic class" idea — an attribute is orthogonal to the reactive `class:list` directive, so the two never interact. Decided 2026-06-19; rationale + `:global`/keyframes handling in [[stator-compiler-and-vite-plugin-implementation-plan]].)
 
 **Scope of MVP**: handles the four example templates. Compile-time slot analysis (static slot ids baked into output) is a follow-on optimization, not part of the MVP.
 

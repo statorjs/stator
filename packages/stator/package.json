@@ -31,6 +31,8 @@
     "hono": "^4.6.0",
     "ioredis": "^5.10.1",
     "pino": "^10.3.1",
+    "postcss": "^8.5.15",
+    "postcss-selector-parser": "^7.1.4",
     "zod": "^3.23.0"
   },
   "devDependencies": {

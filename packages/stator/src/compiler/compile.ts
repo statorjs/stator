@@ -1,6 +1,8 @@
 import ts from 'typescript'
 import { splitStator } from './split.ts'
 import { lowerTemplate } from './lower.ts'
+import { scopeHash } from './hash.ts'
+import { scopeCss } from './styles.ts'
 
 /**
  * Assemble a `.stator` source into the server `.ts` module the runtime
@@ -19,8 +21,11 @@ import { lowerTemplate } from './lower.ts'
 export interface CompileResult {
   /** The server render module source. */
   serverCode: string
-  /** Scoped CSS (later stage). */
-  styles: string[]
+  /** Per-component scope hash (the `data-s-<hash>` marker uses it). */
+  scopeHash: string
+  /** Scoped CSS, ready for the Vite CSS pipeline. Empty when there's no
+   *  `<style>`. */
+  css: string
   /** Client `<script>` regions (Phase 3b). */
   scripts: string[]
 }
@@ -28,9 +33,21 @@ export interface CompileResult {
 const PRIMITIVES_IMPORT =
   "import { html, read, each, when, match, on, classList, styleList } from '@statorjs/stator/template'"
 
-export function compile(source: string): CompileResult {
+export interface CompileOptions {
+  /** Stable id for the component (file path). Used for the scope hash so the
+   *  hash is stable across edits to unrelated files; falls back to the source. */
+  id?: string
+}
+
+export function compile(source: string, opts: CompileOptions = {}): CompileResult {
   const { frontmatter, template, styles, scripts } = splitStator(source)
-  const htmlExpr = lowerTemplate(template)
+
+  const hasStyles = styles.length > 0
+  const hash = scopeHash(opts.id ?? source)
+  const scopeAttr = hasStyles ? `data-s-${hash}` : undefined
+
+  const htmlExpr = lowerTemplate(template, { scopeAttr })
+  const css = hasStyles ? scopeCss(styles.join('\n'), hash) : ''
   const { hoisted, body, propsType } = processFrontmatter(frontmatter)
 
   const param = propsType ? `props: ${propsType}` : ''
@@ -42,7 +59,7 @@ export function compile(source: string): CompileResult {
   lines.push(`  return ${htmlExpr}`)
   lines.push('}')
 
-  return { serverCode: lines.join('\n') + '\n', styles, scripts }
+  return { serverCode: lines.join('\n') + '\n', scopeHash: hash, css, scripts }
 }
 
 interface FrontmatterParts {

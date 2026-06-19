@@ -51,12 +51,25 @@ const doubled = n * 2
     expect(serverCode.indexOf('const doubled = n * 2')).toBeGreaterThan(fnIdx)
   })
 
-  it('passes through styles and scripts for later stages', () => {
-    const src = `<p>x</p>
-<style>.x { color: red }</style>
-<script>console.log('c')</script>`
-    const r = compile(src)
-    expect(r.styles).toEqual(['.x { color: red }'])
+  it('scopes styles and injects the scope attribute on elements', () => {
+    const src = `<p class="x">hi</p>
+<style>.x { color: red }</style>`
+    const r = compile(src, { id: 'comp.stator' })
+    // attribute injected on the element
+    expect(r.serverCode).toContain(`<p class="x" data-s-${r.scopeHash}>`)
+    // selector rewritten to require the same attribute
+    expect(r.css).toContain(`.x[data-s-${r.scopeHash}]`)
+  })
+
+  it('does not inject a scope attribute when there is no <style>', () => {
+    const r = compile('<p class="x">hi</p>')
+    expect(r.serverCode).not.toContain('data-s-')
+    expect(r.css).toBe('')
+  })
+
+  it('passes through scripts for later stages', () => {
+    const r = compile(`<p>x</p>
+<script>console.log('c')</script>`)
     expect(r.scripts[0]).toContain("console.log('c')")
   })
 })
