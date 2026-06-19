@@ -155,8 +155,28 @@ client/server portability check and answers "who can reach this machine?"
 
 ## Implementation Notes
 
-(Not yet implemented. Captured while iterating on the client model; the
-client-model spike's hand-written `dispatch('SearchMachine', ...)` is the concrete
-magic-string smell this resolves. Depends on [[custom-isomorphic-state-machine-engine]]
-for the typed surface; the wire format it targets already exists. Consumed by
-[[client-scripts-directives-and-isomorphic-machines]].)
+Captured while iterating on the client model; the client-model spike's
+hand-written `dispatch('SearchMachine', ...)` is the concrete magic-string smell
+this resolves. Depends on [[custom-isomorphic-state-machine-engine]] for the typed
+surface; the wire format it targets already exists. Consumed by
+[[client-scripts-directives-and-isomorphic-machines]].
+
+### Server surface landed — 2026-06-19
+
+The **server** half ships: an API-route handler's `dispatch` is now def-mediated
+and typed — `dispatch(VoterMachine, { type: 'CREATE_POLL', ... })` instead of
+`dispatch('VoterMachine', {...})`. The target name is read from `machine.name`;
+the event is checked against `EventOf<typeof machine>` (the machine's declared
+event union, added to the engine). The `/__events` wire format is unchanged — this
+is purely the authoring surface. The poll demo's new-poll route is migrated off
+the magic string. Verified: framework 29/29 (incl. a new http test dispatching via
+the imported def through the real runtime), poll app typechecks, and a
+typecheck-gated scratch confirmed wrong-event and missing-field dispatches are
+**compile errors** (`@ts-expect-error` satisfied).
+
+**Deferred to the compiler phase (Phase 3):** the *client* method form
+`Machine.dispatch(event)` in a `<script>` — it's entangled with the
+identity-vs-value import distinction (stripping a server machine's body from the
+browser bundle while keeping its name + event types), which needs the `.stator`
+compiler. The "one method or two" (`send` vs `dispatch`) question rides with it;
+the server surface uses the existing `dispatch` helper name for now.

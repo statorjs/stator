@@ -148,9 +148,15 @@ gets lifted here.
 - **Delayed transitions in 1.0?** `after`/timers are the one lean gap likely to
   bite. Decide whether to include a minimal timer mechanism (and how it behaves
   across the server/client boundary and across hydration) or defer with the rest.
-- **Event-declaration syntax.** A TS type parameter (`defineMachine<Events>(...)`)
-  vs. a runtime schema vs. inferring from the `on:`/`emits` maps. Affects
-  ergonomics and how cleanly [[typed-events-and-machine-mediated-dispatch]] reads.
+- **Event-declaration syntax.** ~~A TS type parameter (`defineMachine<Events>(...)`)~~
+  **Decided (2026-06-19): `events: {} as Events` phantom property.** A bare
+  explicit type arg (`defineMachine<Events>({...})`) is impossible in TS — once any
+  type param has a default (required, since `events` is optional), supplying one
+  explicit arg makes every trailing param fall to its default instead of inferring
+  (verified by scratch: context/reads/selectors all collapsed). The only working
+  alternatives are a curried `defineMachine<Events>()({...})` (odd empty `()`) or a
+  `type<Events>()` helper (do-nothing property) — both just relocate the wart. Kept
+  `{} as Events`: instantly legible, no cleverness, naturally optional.
 - **Extension-point shape.** What internal representation keeps hierarchy/parallel
   addable later — a flat state list now, or a degenerate tree (depth 1) that can
   grow? Decide before coding the core, not after.
