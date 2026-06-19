@@ -20,7 +20,7 @@ const { title, blurb, cat, products, cart } = Stator.props<{
   cart: InstanceOf<typeof CartMachine>
 }>()
 ---
-<section class="catalog-section catalog-section--{cat}">
+<section class={`catalog-section catalog-section--${cat}`}>
   <header class="catalog-section-header">
     <h2>{title}</h2>
     <p class="catalog-section-blurb">{blurb}</p>
@@ -28,7 +28,7 @@ const { title, blurb, cat, products, cart } = Stator.props<{
   <ul class="product-grid">
     {each(read(products, p => (p.byCategory as (c: string) => Product[])(cat)), (product: Product) =>
       <li class="product-card">
-        <div class="product-thumb product-thumb--{product.category}">
+        <div class={`product-thumb product-thumb--${product.category}`}>
           <span class="product-thumb-initials">{product.initials}</span>
         </div>
         <div class="product-body">

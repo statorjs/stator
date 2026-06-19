@@ -1,0 +1,14 @@
+---
+import type { HtmlFragment } from '@statorjs/stator/template'
+import baseLayout from './base-layout.stator'
+const { body } = Stator.props<{ body: HtmlFragment }>()
+---
+{baseLayout({
+  body,
+  header: <header class="site-header site-header--admin">
+    <a href="/admin" class="brand">stator demo · admin</a>
+    <nav>
+      <a href="/">← Back to shop</a>
+    </nav>
+  </header>,
+})}
