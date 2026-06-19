@@ -1,8 +1,8 @@
 ---
 title: Response directives for client-side effects
-status: draft
+status: shipped
 created: 2026-05-21
-updated: 2026-05-21
+updated: 2026-06-17
 area: protocol
 ---
 
@@ -85,4 +85,4 @@ The deeper why: the framework already commits to "server is authoritative." That
 
 ## Implementation Notes
 
-(Not yet implemented. The poll demo's "navigate after create" is the first concrete user, and the form-submit handler in `apps/poll/templates/new-poll-page.ts` currently uses a JS `location.href` workaround that goes away once this lands.)
+**Shipped** (same commit as [[api-routes-and-request-response-surface]]). The `/__events` response is `{ patches, directives }` (`http.ts`); the client applies patches then directives in array order (`runtime.ts` `applyDirectives`). All reserved directives are implemented in the client switch: `navigate`, `reload`, `push-url`, `replace-url`, `focus`, `scroll`, `event`. `navigate` is dogfooded by `apps/poll/routes/new.ts` (navigate after create / on validation error). SSE messages still carry only `{ patches }`; directives over SSE remain the deferred open question.

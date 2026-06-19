@@ -1,8 +1,8 @@
 ---
 title: API routes and request response surface
-status: draft
+status: shipped
 created: 2026-05-21
-updated: 2026-05-21
+updated: 2026-06-17
 area: runtime
 ---
 
@@ -163,4 +163,4 @@ After applying patches, run `applyDirectives(data.directives ?? [])`. New `stato
 
 ## Implementation Notes
 
-(Will fill in after the change lands. The poll demo's new-poll form is the first dogfood; refactoring it from the custom-JS workaround to a real defineApiRoute is one of the success criteria.)
+**Shipped** (commit "Add poll demo, path params, defineApiRoute, response directives + side-effect surface"). `defineApiRoute({ reads, handler })` lives in `routing.ts`; `runApiRoute` in `api-route.ts` executes it. The handler receives the full `RouteRequest` (see [[route-request-context-with-path-params-and-query]]) plus `ApiRouteHelpers` with `dispatch`, and returns an `ApiRouteResult` (`{ patches?, directives? }`). Dogfooded by `apps/poll/routes/new.ts` (`POST = defineApiRoute(...)`), which validates the form, `dispatch`es `CREATE_POLL` to `VoterMachine`, and returns a `navigate` directive. (That `dispatch('VoterMachine', ...)` call is the magic-string smell now addressed by [[typed-events-and-machine-mediated-dispatch]].)

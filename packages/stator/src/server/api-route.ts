@@ -78,7 +78,7 @@ export async function runApiRoute(
       let renderState: import('./render-context.ts').RenderState | null = null
 
       const helpers: ApiRouteHelpers = {
-        dispatch: async (machineName, event) => {
+        dispatch: async (machine, event) => {
           if (!renderState) {
             // First dispatch: capture the originating page's bindings if
             // this route corresponds to a visible page. For now, skip the
@@ -87,7 +87,8 @@ export async function runApiRoute(
             // currently capture. (Patches from API-route dispatches would
             // need a target page; that's a future spec.)
           }
-          const dispatchedTouched = runtime.processEvent(machineName, event)
+          // The target machine is addressed by its def; read the name off it.
+          const dispatchedTouched = runtime.processEvent(machine.name, event)
           for (const name of dispatchedTouched) touched.add(name)
         },
       }

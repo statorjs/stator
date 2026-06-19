@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Stator · a state-machine framework for the web</title>
-  <meta name="description" content="A JavaScript framework where state machines are the unit of composition. DOM renders where state lives, usually the server. The client receives HTML and slot patches. Per-route opt-in SSE.">
+  <title>Stator 1.0 · the server-canonical state-machine framework</title>
+  <meta name="description" content="A JavaScript framework where state machines are the unit of composition and DOM renders where its state lives. One .stator file, a compiler-checked server/client boundary, typed events, and slot-level wire patches. Honest about what it does and doesn't do.">
 
   <!-- Inline theme application BEFORE stylesheet to prevent FOUC -->
   <script>
@@ -47,7 +47,7 @@
     </a>
 
     <nav class="nav">
-      <span class="nav__meta">REV 0.1</span>
+      <span class="nav__meta">REV 1.0-PREVIEW</span>
       <a href="https://demo.statorjs.dev" class="nav__link">Demo</a>
       <a href="https://github.com/" class="nav__link">Source</a>
 
@@ -78,294 +78,290 @@
 
     <!-- HERO -->
     <section class="hero">
-      <p class="hero__spec">DOC-001 · v0.1 · proof of concept</p>
+      <p class="hero__spec">DOC-002 · v1.0 · preview</p>
       <h1 class="hero__title">
-        <span class="hero__title-line">A state-machine</span>
-        <span class="hero__title-line">framework</span>
-        <span class="hero__title-line"><span class="hero__title-accent">for the web.</span></span>
+        <span class="hero__title-line">Render where</span>
+        <span class="hero__title-line">state</span>
+        <span class="hero__title-line"><span class="hero__title-accent">lives.</span></span>
       </h1>
 
       <div class="dimension" aria-hidden="true">
         <span class="dimension__bracket">├</span>
-        <span class="dimension__label">paradigm shift, declared</span>
+        <span class="dimension__label">server-canonical, by default</span>
         <span class="dimension__bracket">┤</span>
       </div>
 
       <p class="hero__lede">
-        State machines are the unit of composition. The server/client boundary
-        is declared at the module level. DOM renders where state lives,
-        usually the server, so the client mostly receives HTML and slot
-        patches.
+        Stator is a web framework where state machines are the unit of
+        composition and the DOM renders wherever its state lives — almost
+        always the server. One <code class="inline">.stator</code> file holds the
+        logic, the markup, and the small amount of browser code a page actually
+        needs, with the server/client line drawn by where you put an import and
+        checked by the compiler.
       </p>
 
       <div class="poc">
-        <p class="poc__label">/* NOTE */</p>
+        <p class="poc__label">/* 1.0 PREVIEW */</p>
         <p class="poc__text">
-          This is early. The demo at
+          This page describes the committed 1.0 design. The runtime, wire
+          protocol, routing, and live SSE are built and running — the demo at
           <a href="https://demo.statorjs.dev" class="link">demo.statorjs.dev</a>
-          works end-to-end but the framework's edges are rough and held together with
-          dental floss and super glue. Sharing it now to test the ideas, before
-          sinking more time into polishing the wrong shape. No npm release yet,
-          just an open repo and a live demo.
+          exercises them end-to-end. The 1.0 developer surface below — the
+          <code class="inline">.stator</code> compiler, the client model, typed
+          events — is specified and in build. We're publishing the shape first,
+          on purpose, so the API gets pressure before it ossifies.
         </p>
       </div>
     </section>
 
-    <!-- DECISIONS -->
-    <section class="decisions">
-      <div class="section-head">
-        <span class="section-head__id">SPEC-A</span>
-        <span class="section-head__divider"></span>
-        <span class="section-head__title">Architectural decisions</span>
-      </div>
-
-      <ol class="decisions__list">
-        <li class="decision">
-          <span class="decision__num">01</span>
-          <div class="decision__body">
-            <p class="decision__claim">DOM renders where state lives.</p>
-            <p class="decision__detail">Each machine declares its lifecycle. Today every machine is server-side, so the DOM that reads from it renders on the server and ships as HTML. No state synchronization, no hydration. A bounded client plane lands in V1 for state that only matters in one tab, like input drafts.</p>
-          </div>
-        </li>
-        <li class="decision">
-          <span class="decision__num">02</span>
-          <div class="decision__body">
-            <p class="decision__claim">State machines as the unit of composition.</p>
-            <p class="decision__detail">No components, no hooks, no stores. Each machine declares its events, transitions, actions, and selectors in one place.</p>
-          </div>
-        </li>
-        <li class="decision">
-          <span class="decision__num">03</span>
-          <div class="decision__body">
-            <p class="decision__claim">Module-level server/client boundary.</p>
-            <p class="decision__detail">Server code imports from <code class="inline">@statorjs/stator/server</code>, templates from <code class="inline">/template</code>, the browser runtime from <code class="inline">/client</code>. Crossing the line is an import error, not a runtime surprise.</p>
-          </div>
-        </li>
-        <li class="decision">
-          <span class="decision__num">04</span>
-          <div class="decision__body">
-            <p class="decision__claim">Explicit reads, not auto-tracking.</p>
-            <p class="decision__detail">Templates call <code class="inline">read(machine, selector)</code> per slot. Every reactive dependency is visible at the call site. No conditional-read footguns.</p>
-          </div>
-        </li>
-        <li class="decision">
-          <span class="decision__num">05</span>
-          <div class="decision__body">
-            <p class="decision__claim">Slot-level wire patches.</p>
-            <p class="decision__detail">When a machine transitions, the server diffs only the affected slots and emits text / attribute / html patches. No vdom, no full re-renders.</p>
-          </div>
-        </li>
-        <li class="decision">
-          <span class="decision__num">06</span>
-          <div class="decision__body">
-            <p class="decision__claim">Cross-machine events via declared subscriptions.</p>
-            <p class="decision__detail">Machines compose through named emits and receiver-side <code class="inline">subscribes:</code> entries. The graph is statically analyzable, not hidden in closures.</p>
-          </div>
-        </li>
-        <li class="decision">
-          <span class="decision__num">07</span>
-          <div class="decision__body">
-            <p class="decision__claim">Per-route opt-in SSE for live views.</p>
-            <p class="decision__detail">Routes that need cross-session live updates declare <code class="inline">live: true</code> and automatically open an SSE channel. Routes that don't, don't.</p>
-          </div>
-        </li>
-      </ol>
-
-      <div class="cta cta--mid">
-        <a href="https://demo.statorjs.dev" class="cta__link">
-          <span class="cta__arrow">→</span> Open the demo
-        </a>
-        <a href="https://github.com/" class="cta__link">
-          <span class="cta__arrow">→</span> Read the source
-        </a>
-      </div>
-    </section>
-
-    <!-- §1 THE PROBLEM -->
+    <!-- §1 WHY -->
     <section class="section">
       <div class="section-head">
         <span class="section-head__id">§1</span>
         <span class="section-head__divider"></span>
-        <span class="section-head__title">Where the modern frontend stack hurts</span>
+        <span class="section-head__title">Why another framework</span>
       </div>
 
       <div class="prose">
         <p>
-          Three frustrations drove this project. They show up everywhere in
-          the modern frontend stack, and none of them get talked about as
-          much as they should.
+          Three frustrations drove this. They're structural, they show up across
+          the modern stack, and Stator is the answer to all three at once.
         </p>
 
         <h3 class="prose__sub">/ State coupled to UI</h3>
         <p>
-          In most modern frameworks, your application's state lives inside
-          the component tree. Hooks attach to components, providers wrap
-          them, and stores subscribe to component instances.
-        </p>
-        <p>
-          Move a piece of business logic and you rewire components. Test a
-          transition and you need a fake DOM. Refactor a feature and the
-          blast radius is half the tree, because state boundaries and
-          component boundaries got conflated.
-        </p>
-        <p>
-          State should be its own thing, not a property of where it happens
-          to get read.
+          In most frameworks your state lives inside the component tree. Hooks
+          attach to components, providers wrap them, stores subscribe to
+          instances. Move a piece of logic and you rewire components; test a
+          transition and you need a fake DOM. State should be its own thing, not
+          a property of where it happens to be read.
         </p>
 
         <h3 class="prose__sub">/ Shipping the renderer to the client</h3>
         <p>
-          Most modern frameworks ship a JS bundle to the browser, fetch data
-          over the network, and render the DOM there. The browser is the
-          renderer of record.
-        </p>
-        <p>
-          That's complicated for no architectural reason. State has to sync
-          between server and client, bundle size becomes a budget, and
-          hydration mismatches become a class of bug. Loading, error,
-          retry, and offline states pile up through the codebase.
-        </p>
-        <p>
-          It's also a security risk. Anything you ship to the browser is
-          inspectable, and anything fetchable from it is replayable with
-          different parameters. Server-side validation becomes load-bearing
-          in a way that's easy to forget about until it bites you.
-        </p>
-        <p>
-          Render where state lives, and let browsers do what they're good at: displaying HTML.
+          Ship a bundle, fetch data, render in the browser. Now state syncs
+          across the wire, bundle size is a budget, hydration mismatch is a bug
+          class, and anything fetchable is replayable with different params.
+          Render where state lives and let the browser do what it's good at:
+          displaying HTML.
         </p>
 
-        <h3 class="prose__sub">/ The invisible RSC boundary</h3>
+        <h3 class="prose__sub">/ The invisible boundary</h3>
         <p>
-          React Server Components ask you to keep components looking
-          unified while execution quietly shifts between server and client.
-          The intention is good.
-        </p>
-        <p>
-          The reality is that the boundary is load-bearing in ways that
-          aren't visible from source. You discover where it actually fell
-          by inspecting the bundle, or by reading the postmortem after
-          secrets leaked into a client chunk. A
-          <code class="inline">"use client"</code> directive at the top of
-          a file is a long way from a guarantee about which code ran
-          where.
+          React Server Components keep the source looking unified while execution
+          quietly shifts between server and client. The boundary ends up
+          load-bearing in ways you can't see from the file — you find where it
+          really fell by inspecting the bundle, or by reading the postmortem
+          after a secret leaked into a client chunk. A
+          <code class="inline">"use&nbsp;client"</code> at the top of a file is a
+          long way from a guarantee about which code ran where.
         </p>
       </div>
     </section>
 
-    <!-- §2 THE PARADIGM -->
+    <!-- §2 THE .STATOR FILE -->
     <section class="section">
       <div class="section-head">
         <span class="section-head__id">§2</span>
         <span class="section-head__divider"></span>
-        <span class="section-head__title">The paradigm</span>
+        <span class="section-head__title">One file, one obvious boundary</span>
       </div>
 
       <div class="prose">
         <p>
-          A few rules, applied consistently. The unit of composition is the
-          <em>machine</em>. Every machine declares where it runs (app scope
-          or per session), what it reads, what it emits, and how it
-          transitions.
+          A Stator component is a <code class="inline">.stator</code> file with
+          three regions: a frontmatter fence and template that render on the
+          <em>server</em>, and an optional <code class="inline">&lt;script&gt;</code>
+          that runs in the <em>browser</em>. The rule for where code runs has one
+          clause: <strong>if it's imported inside the
+          <code class="inline">&lt;script&gt;</code>, it's client; otherwise it's
+          server.</strong> No <code class="inline">"use client"</code>, no
+          coloring that spreads through your imports, no surprise at the bundle.
         </p>
-        <p>
-          Templates read machine state through explicit slots, and events
-          round-trip to the server. The server diffs and returns just the
-          slots that changed.
-        </p>
+      </div>
 
-        <h3 class="prose__sub">/ Machines, declared</h3>
-
-<pre class="code"><code><span class="c-c">// machines/cart.ts</span>
-<span class="c-k">import</span> { defineMachine } <span class="c-k">from</span> <span class="c-s">'@statorjs/stator/server'</span>
-<span class="c-k">import</span> ProductsMachine <span class="c-k">from</span> <span class="c-s">'./products.ts'</span>
-
-<span class="c-k">export default</span> <span class="c-f">defineMachine</span>({
-  name: <span class="c-s">'CartMachine'</span>,
-  lifecycle: <span class="c-s">'session'</span>,            <span class="c-c">// 'app' | 'session'</span>
-  reads: [ProductsMachine],         <span class="c-c">// declared dependencies</span>
-
-  context: { items: [] },
-  initial: <span class="c-s">'idle'</span>,
-  states: {
-    idle: {
-      on: {
-        ADD_ITEM: { actions: <span class="c-s">'addItem'</span>, emit: <span class="c-s">'ITEM_ADDED'</span> },
-      },
-    },
-  },
-
-  actions: {
-    <span class="c-f">addItem</span>: (ctx, ev, { reads }) =&gt; {
-      <span class="c-c">// The canonical price is read from ProductsMachine on the server.</span>
-      <span class="c-c">// The wire event carries only productId.</span>
-      <span class="c-k">const</span> product = reads.ProductsMachine.<span class="c-f">byId</span>(ev.productId)
-      <span class="c-k">if</span> (!product) <span class="c-k">return</span>
-      ctx.items.<span class="c-f">push</span>({
-        productId: ev.productId,
-        unitPrice: product.price,
-        quantity: <span class="c-n">1</span>,
-      })
-    },
-  },
-
-  emits: {
-    ITEM_ADDED: { payload: (ctx) =&gt; ({ items: ctx.items }) },
-  },
-
-  selectors: {
-    itemCount: (ctx) =&gt; ctx.items.<span class="c-f">reduce</span>((s, i) =&gt; s + i.quantity, <span class="c-n">0</span>),
-  },
-})</code></pre>
-
-        <p>
-          Templates read machine state through explicit slot helpers. A
-          <code class="inline">read</code> call registers a binding the server can
-          diff against on later transitions.
-        </p>
-
-<pre class="code"><code><span class="c-c">// templates/header.ts</span>
+      <p class="code-cap">components/SearchBox.stator</p>
+<pre class="code"><code><span class="c-c">---  // frontmatter + template render on the SERVER</span>
 <span class="c-k">import</span> { html, read } <span class="c-k">from</span> <span class="c-s">'@statorjs/stator/template'</span>
+<span class="c-k">import</span> SearchMachine <span class="c-k">from</span> <span class="c-s">'./machines/search.ts'</span>
+<span class="c-c">---</span>
 
-<span class="c-k">export default function</span> <span class="c-f">header</span>(cart) {
-  <span class="c-k">return</span> html`&lt;a href=<span class="c-s">"/cart"</span>&gt;Cart (${<span class="c-f">read</span>(cart, c =&gt; c.itemCount)})&lt;/a&gt;`
-}</code></pre>
+<span class="c-t">&lt;search-box&gt;</span>
+  <span class="c-c">&lt;!-- server-rendered, updated by slot patches over the wire --&gt;</span>
+  <span class="c-t">&lt;p&gt;</span>Results: {<span class="c-f">read</span>(SearchMachine, s =&gt; s.summary)}<span class="c-t">&lt;/p&gt;</span>
 
-        <h3 class="prose__sub">/ The wire edge</h3>
+  <span class="c-t">&lt;input</span> <span class="c-a">bind:value</span>={query}<span class="c-t">&gt;</span>
+  <span class="c-t">&lt;button</span> <span class="c-a">on:click</span>={run} <span class="c-a">bind:disabled</span>={notReady}<span class="c-t">&gt;</span>Search<span class="c-t">&lt;/button&gt;</span>
+  <span class="c-t">&lt;p</span> <span class="c-a">bind:text</span>={error}<span class="c-t">&gt;&lt;/p&gt;</span>
+<span class="c-t">&lt;/search-box&gt;</span>
+
+<span class="c-t">&lt;script&gt;</span>  <span class="c-c">// this region runs in the BROWSER</span>
+  <span class="c-k">import</span> { machine, use } <span class="c-k">from</span> <span class="c-s">'@statorjs/stator'</span>
+  <span class="c-k">import</span> SearchMachine <span class="c-k">from</span> <span class="c-s">'./machines/search.ts'</span>
+  <span class="c-k">import</span> { validate } <span class="c-k">from</span> <span class="c-s">'./lib/validate.ts'</span>
+
+  <span class="c-c">// the draft is client-only state — never touches the network</span>
+  <span class="c-k">const</span> Draft = <span class="c-f">machine</span>({
+    query: <span class="c-s">''</span>,
+    on: { SET: (s, e) =&gt; { s.query = e.value } },
+    select: {
+      error:    s =&gt; <span class="c-f">validate</span>(s.query)[<span class="c-n">0</span>] ?? <span class="c-s">''</span>,
+      notReady: s =&gt; <span class="c-f">validate</span>(s.query).length &gt; <span class="c-n">0</span>,
+    },
+  })
+
+  <span class="c-k">export default class extends</span> StatorElement {
+    draft = <span class="c-f">use</span>(Draft)
+    <span class="c-f">run</span>() {
+      <span class="c-k">if</span> (<span class="c-k">this</span>.draft.notReady) <span class="c-k">return</span>
+      <span class="c-c">// commit the local draft to the SERVER machine — the one round-trip</span>
+      SearchMachine.<span class="c-f">dispatch</span>({ type: <span class="c-s">'RUN'</span>, query: <span class="c-k">this</span>.draft.query })
+    }
+  }
+<span class="c-t">&lt;/script&gt;</span>
+
+<span class="c-t">&lt;style&gt;</span>  <span class="c-c">// scoped to this component at build time</span>
+  p { color: <span class="c-s">var(--ink)</span>; }
+<span class="c-t">&lt;/style&gt;</span></code></pre>
+
+      <div class="boundary">
+        <div class="boundary__half boundary__half--server">
+          <p class="boundary__tag">▚ Server</p>
+          <p class="boundary__desc">
+            The template and its <code>read()</code> bindings render to HTML and
+            update through slot patches. <code>SearchMachine</code> imported here
+            is the authoritative, persisted machine.
+          </p>
+        </div>
+        <div class="boundary__half boundary__half--client">
+          <p class="boundary__tag">▞ Client</p>
+          <p class="boundary__desc">
+            Everything in <code>&lt;script&gt;</code> is browser code. The draft
+            machine runs locally; <code>bind:</code> writes to the DOM with no
+            re-render; <code>SearchMachine.dispatch()</code> is the visible hop
+            to the server.
+          </p>
+        </div>
+      </div>
+
+      <div class="prose">
         <p>
-          Every event arriving at the server is shape-validated before any
-          machine sees it. The framework knows which machine the event
-          targets, which route the client is on, and which slots that route's
-          templates registered.
-        </p>
-        <p>
-          A single POST produces a small JSON patch list, set this slot's
-          text, replace that list's innerHTML, changes this element's class. etc.
-          The ~1kB client script applies each patch by element id.
-        </p>
-        <p>
-          No call-arbitrary-server-function or exposed RPC surface. Just send an
-          event to a machine and let the machine decides what to do.
+          You can read that file top to bottom and know exactly what ships to the
+          browser: the things in the <code class="inline">&lt;script&gt;</code>.
+          That's the whole mental model.
         </p>
       </div>
     </section>
 
-    <!-- §3 ROUTES -->
+    <!-- §3 THE CLIENT MODEL -->
     <section class="section">
       <div class="section-head">
         <span class="section-head__id">§3</span>
         <span class="section-head__divider"></span>
-        <span class="section-head__title">One architecture, three routes</span>
+        <span class="section-head__title">No renderer in the browser</span>
       </div>
 
       <div class="prose">
         <p>
-          Stator has one rendering architecture: server renders HTML, client
-          receives slot patches over POST. The framework exposes one opt-in
-          extension (<code class="inline">live: true</code>) for routes that
-          need cross-session push. The demo at
-          <a href="https://demo.statorjs.dev" class="link">demo.statorjs.dev</a>
-          uses three routes to show what each piece looks like in practice.
+          Stator never ships a virtual DOM or re-runs your template in the
+          browser. The server renders the HTML; the browser <em>mutates</em> it
+          with native DOM calls. Reactivity is one loop —
+          <em>subscribe → read a selector → write the node</em> — the same shape
+          the server uses to diff slots, just running locally. You declare it on
+          the node it touches:
+        </p>
+
+        <ul class="status__list" style="margin: 0 0 1.5rem;">
+          <li><code class="inline">on:click={handler}</code> — events in. Sends to a local machine, or
+            <code class="inline">.dispatch()</code> to a server one.</li>
+          <li><code class="inline">bind:text</code> / <code class="inline">bind:value</code> /
+            <code class="inline">bind:disabled</code> — state out. Two-way on form controls,
+            one-way everywhere else.</li>
+          <li><code class="inline">ref:name</code> — a typed handle to a server-rendered node,
+            for the rare imperative case (focus, a third-party widget). No
+            <code class="inline">querySelector</code> strings.</li>
+        </ul>
+
+        <p>
+          Client state is a machine too — the <em>same</em> machine type as the
+          server, just instantiated in the browser. A machine that touches
+          server-only capability (persistence, secrets, cross-session emit)
+          can't be imported into a <code class="inline">&lt;script&gt;</code>;
+          that's a compile error, not a runtime leak. And validation written once
+          runs on both sides: as a client selector for instant feedback, and as a
+          server guard that is the actual gate.
+        </p>
+      </div>
+    </section>
+
+    <!-- §4 MACHINES & THE WIRE -->
+    <section class="section">
+      <div class="section-head">
+        <span class="section-head__id">§4</span>
+        <span class="section-head__divider"></span>
+        <span class="section-head__title">Machines, typed end to end</span>
+      </div>
+
+      <div class="prose">
+        <p>
+          A machine declares its events, context, states, guards, actions, and
+          selectors in one place. Events are a typed union, so actions and guards
+          see a narrowed payload and <code class="inline">dispatch</code> is
+          checked at the call site — no stringly-typed sends.
+        </p>
+      </div>
+
+      <p class="code-cap">machines/search.ts</p>
+<pre class="code"><code><span class="c-k">import</span> { defineMachine } <span class="c-k">from</span> <span class="c-s">'@statorjs/stator/server'</span>
+
+<span class="c-k">type</span> Events = { type: <span class="c-s">'RUN'</span>; query: <span class="c-t">string</span> }
+
+<span class="c-k">export default</span> <span class="c-f">defineMachine</span>({
+  name: <span class="c-s">'SearchMachine'</span>,
+  lifecycle: <span class="c-s">'session'</span>,
+  events: {} <span class="c-k">as</span> Events,                 <span class="c-c">// the typed event surface</span>
+
+  context: { history: [] <span class="c-k">as</span> <span class="c-t">string</span>[] },
+  initial: <span class="c-s">'idle'</span>,
+  states: {
+    idle: { on: { RUN: { guard: <span class="c-s">'valid'</span>, actions: <span class="c-s">'record'</span> } } },
+  },
+
+  guards:  { <span class="c-f">valid</span>:  (ctx, ev) =&gt; ev.query.<span class="c-f">trim</span>().length &gt;= <span class="c-n">3</span> },
+  actions: { <span class="c-f">record</span>: (ctx, ev) =&gt; { ctx.history.<span class="c-f">unshift</span>(ev.query) } },
+
+  selectors: {
+    summary: (ctx) =&gt; ctx.history.<span class="c-f">join</span>(<span class="c-s">' · '</span>) || <span class="c-s">'none yet'</span>,
+  },
+})</code></pre>
+
+      <div class="prose">
+        <p>
+          An event arriving at the server is shape-validated, routed to its
+          machine, and run. The framework knows which slots the current route
+          registered, diffs only those, and returns a small JSON patch list — set
+          this slot's text, flip that attribute, replace this list's HTML. A tiny
+          client script applies each patch by id. There's no exposed RPC surface:
+          you send an event to a machine, and the machine decides what happens.
+        </p>
+      </div>
+    </section>
+
+    <!-- §5 LIVE -->
+    <section class="section">
+      <div class="section-head">
+        <span class="section-head__id">§5</span>
+        <span class="section-head__divider"></span>
+        <span class="section-head__title">Live views, opt-in</span>
+      </div>
+
+      <div class="prose">
+        <p>
+          Most routes need nothing more than the POST round-trip. Routes that want
+          cross-session push declare <code class="inline">live: true</code> and the
+          framework opens an SSE channel, fanning the same slot patches out to
+          every open connection whose route reads a touched machine. The demo's
+          three routes show the range:
         </p>
       </div>
 
@@ -376,11 +372,9 @@
             <p class="mode__route">/</p>
             <p class="mode__name">Explicit reads · slot patches</p>
             <p class="mode__body">
-              Product list rendered server-side, shipped as HTML. Each "Add
-              to cart" button is bound through three reads: its class, its
-              label, and the header cart counter. Clicking sends one event,
-              and the response is three patches addressed by slot. The rest
-              of the page doesn't re-render.
+              Product list rendered server-side. Each "Add to cart" click sends
+              one event; the response is a handful of patches addressed by slot.
+              The rest of the page never re-renders.
             </p>
           </div>
           <div class="mode__media"><span>product list</span></div>
@@ -392,12 +386,10 @@
             <p class="mode__route">/checkout</p>
             <p class="mode__name">State machine · guarded transitions</p>
             <p class="mode__body">
-              A three-state machine (<code class="inline">shipping</code> →
-              <code class="inline">payment</code> → <code class="inline">complete</code>)
-              drives the page. The template uses <code class="inline">match()</code>
-              keyed on machine state to render only the current step. Guards
-              block invalid transitions, so you can't submit shipping without
-              a name and address. No hidden DOM for inactive steps.
+              A three-state machine drives the page; the template renders only the
+              current step. Guards block invalid transitions — you can't submit
+              shipping without a name and address. No hidden DOM for inactive
+              steps.
             </p>
           </div>
           <div class="mode__media"><span>checkout</span></div>
@@ -409,12 +401,10 @@
             <p class="mode__route">/admin</p>
             <p class="mode__name">Cross-session live · opt-in SSE</p>
             <p class="mode__body">
-              Same architecture, plus <code class="inline">live: true</code>. An
-              app-lifecycle machine subscribes to every session's cart emits and
-              denormalizes the activity into a dashboard view. The route opens
-              an SSE channel, and the framework pushes only the slots that
-              changed. Open <code class="inline">/admin</code> in one tab, shop
-              in another, watch the row update.
+              Add <code class="inline">live: true</code>. An app-lifecycle machine
+              subscribes to every session's cart and denormalizes a dashboard.
+              Shop in one tab, watch <code class="inline">/admin</code> update in
+              another, no polling.
             </p>
           </div>
           <div class="mode__media"><span>/admin live</span></div>
@@ -422,19 +412,118 @@
       </div>
     </section>
 
-    <!-- §4 COMPARE -->
+    <!-- §6 SUPPORT MATRIX -->
     <section class="section">
       <div class="section-head">
-        <span class="section-head__id">§4</span>
+        <span class="section-head__id">§6</span>
+        <span class="section-head__divider"></span>
+        <span class="section-head__title">What 1.0 is, and isn't</span>
+      </div>
+
+      <div class="prose">
+        <p>
+          The fastest way to evaluate a framework is to know its edges. Here are
+          ours, plainly: what ships in 1.0, what's planned for after, and what
+          Stator is deliberately <em>not</em> going to do.
+        </p>
+      </div>
+
+      <div class="matrix">
+        <div class="matrix__col">
+          <p class="matrix__head matrix__head--now">/// IN 1.0</p>
+          <ul class="matrix__list matrix__list--now">
+            <li>Server-canonical rendering with slot-level wire patches</li>
+            <li><code class="inline">.stator</code> SFC: frontmatter, template, client <code class="inline">&lt;script&gt;</code>, scoped styles</li>
+            <li>Import-location server/client boundary, compiler-enforced</li>
+            <li>State machines with typed events, guards, actions, selectors</li>
+            <li>Client machines + custom elements; <code class="inline">on:</code> / <code class="inline">bind:</code> / <code class="inline">ref:</code></li>
+            <li>Two-way form binding and isomorphic validation</li>
+            <li>Typed machine-mediated <code class="inline">dispatch</code></li>
+            <li>File routing, path params, API routes, response directives</li>
+            <li>Per-route opt-in SSE for cross-session live views</li>
+            <li>Pluggable Store (in-memory / Redis), per-session TTL</li>
+            <li>Keyed lists; small (~6 KB) isomorphic engine, no XState</li>
+          </ul>
+        </div>
+        <div class="matrix__col">
+          <p class="matrix__head matrix__head--next">/// PLANNED</p>
+          <ul class="matrix__list matrix__list--next">
+            <li>Horizontal scaling across replicas (Redis pub/sub backplane)</li>
+            <li>Durable app→session delivery: webhooks, cron, and background jobs pushing into idle sessions</li>
+            <li>Statechart depth: nested, parallel, and history states</li>
+            <li>Delayed transitions / timers</li>
+            <li>Editor LSP beyond syntax highlighting</li>
+            <li>Schema export for tooling and LLM context</li>
+          </ul>
+        </div>
+        <div class="matrix__col">
+          <p class="matrix__head matrix__head--no">/// NOT A GOAL</p>
+          <ul class="matrix__list matrix__list--no">
+            <li>A virtual DOM or re-rendering JSX in the browser</li>
+            <li>Using React / Vue / Svelte components or their ecosystems</li>
+            <li>Async inside machines — async lives in routes and API handlers</li>
+            <li>A client-side SPA router as the default</li>
+            <li>Batteries-included backend: auth, ORM, and storage are yours to bring</li>
+            <li>Winning a hydration-cost benchmark by hydrating less cleverly — we don't hydrate</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="prose">
+        <p>
+          The "not a goal" column is load-bearing. Stator is small because it
+          says no to a lot. If one of those lines is a requirement for you, the
+          honest answer is that another tool fits better — and the next section
+          says which.
+        </p>
+      </div>
+    </section>
+
+    <!-- §7 FIT -->
+    <section class="section">
+      <div class="section-head">
+        <span class="section-head__id">§7</span>
+        <span class="section-head__divider"></span>
+        <span class="section-head__title">Is Stator for you?</span>
+      </div>
+
+      <div class="fit">
+        <div class="fit__col">
+          <p class="fit__head fit__head--yes">Reach for Stator when</p>
+          <ul class="fit__list fit__list--yes">
+            <li>Your app is mostly server state — CRUD, flows, dashboards — with islands of local interactivity</li>
+            <li>You want the server/client line obvious in the source and checked by the compiler</li>
+            <li>You care about small client payloads and HTML that works before JS</li>
+            <li>You like modeling logic as explicit, testable state machines</li>
+            <li>A single always-on instance is fine to start (scale-out is on the roadmap, not a rewrite)</li>
+          </ul>
+        </div>
+        <div class="fit__col">
+          <p class="fit__head fit__head--no">Look elsewhere when</p>
+          <ul class="fit__list fit__list--no">
+            <li>You need to scale horizontally across replicas today — it's planned, not here yet; reach for Phoenix LiveView</li>
+            <li>The UI is a heavy client app: an editor, a canvas tool, a game, an offline-first PWA</li>
+            <li>You depend on the React/Vue ecosystem and its component libraries</li>
+            <li>You need a large community and battle-tested stability right now</li>
+            <li>Your team models domains as objects and services, and state machines feel like friction</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- §8 COMPARE -->
+    <section class="section">
+      <div class="section-head">
+        <span class="section-head__id">§8</span>
         <span class="section-head__divider"></span>
         <span class="section-head__title">In context</span>
       </div>
 
       <div class="prose">
         <p>
-          Stator isn't the first framework to take any of these positions.
-          Where it differs is worth being plain about. So is where the other
-          framework is the better pick.
+          Stator isn't the first framework to take any one of these positions.
+          Where it differs is worth being plain about — and so is where the other
+          tool is the better pick.
         </p>
       </div>
 
@@ -442,103 +531,46 @@
         <article class="compare__row">
           <p class="compare__name">React + RSC</p>
           <p class="compare__diff">
-            The big one. RSC's ambition is right: keep components unified
-            while shifting execution. The implementation produces a boundary
-            that bites in production. Stator makes the boundary
-            module-level, with server code importing from one subpath and
-            client code from another. Crossing them is an import error, not
-            a build-graph surprise.
+            RSC's ambition is right — keep components unified while shifting
+            execution — but the boundary it produces is invisible from source and
+            bites in production. Stator makes the boundary a place you can see: an
+            import inside <code class="inline">&lt;script&gt;</code> is client,
+            everything else is server, and the compiler enforces it.
           </p>
           <p class="compare__when">
             <span class="compare__when-label">PICK REACT WHEN</span>
-            ecosystem depth, hiring pool, or React Native overlap matter more
-            than paradigm correctness.
+            ecosystem depth, the hiring pool, or React Native overlap matter more
+            than boundary clarity.
           </p>
         </article>
 
         <article class="compare__row">
           <p class="compare__name">Phoenix LiveView</p>
           <p class="compare__diff">
-            The closest spiritual ancestor. LiveView pioneered server-canonical
-            fine-grained rendering and slot-based wire diffs. Stator borrows
-            directly from this lineage. Differences: JavaScript instead of
-            Elixir, state externalized to a pluggable Store (in-memory or
-            Redis) rather than held in BEAM process memory, and explicit
-            state machines as the modeling unit.
+            The closest spiritual ancestor: server-canonical, fine-grained, slot
+            diffs over the wire. Stator borrows the lineage in JavaScript, with
+            state externalized to a pluggable Store rather than held in process
+            memory, and explicit state machines as the modeling unit.
           </p>
           <p class="compare__when">
             <span class="compare__when-label">PICK LIVEVIEW WHEN</span>
-            you can be on the BEAM and want the elegance of in-memory session
-            state.
+            you can be on the BEAM and want horizontal scaling and in-memory
+            session state today.
           </p>
         </article>
 
         <article class="compare__row">
           <p class="compare__name">Hotwire / Turbo</p>
           <p class="compare__diff">
-            Similar server-canonical philosophy and HTML-over-the-wire
-            mechanism, coarser-grained. Turbo Frames swap chunks rather than
-            addressing individual slots, and there's no formal state-machine
-            model: state lives in Rails controllers and models.
+            Same server-canonical, HTML-over-the-wire philosophy, coarser-grained.
+            Turbo swaps frames rather than addressing individual slots, and there's
+            no formal state model — state lives in controllers and models.
           </p>
           <p class="compare__when">
             <span class="compare__when-label">PICK HOTWIRE WHEN</span>
             you're already a Rails shop and the app is shaped like CRUD.
           </p>
         </article>
-      </div>
-    </section>
-
-    <!-- §5 STATUS -->
-    <section class="section">
-      <div class="section-head">
-        <span class="section-head__id">§5</span>
-        <span class="section-head__divider"></span>
-        <span class="section-head__title">What works, what's planned</span>
-      </div>
-
-      <div class="status">
-        <div class="status__col">
-          <p class="status__head status__head--ok">/// WORKING</p>
-          <ul class="status__list">
-            <li>Server runtime: per-request actor hydration from a pluggable Store</li>
-            <li><code class="inline">defineMachine</code> wrapping XState v5 with framework metadata, selectors, and declared emits</li>
-            <li>Module-level server/client boundary via subpath exports</li>
-            <li>File-based machine and route discovery, with topological reads-graph validation</li>
-            <li>Template primitives: <code class="inline">read</code>, <code class="inline">each</code>, <code class="inline">when</code>, <code class="inline">match</code>, <code class="inline">on</code></li>
-            <li>Compound attribute directives: <code class="inline">class:list</code>, <code class="inline">style:list</code></li>
-            <li>Slot-level wire patches (text / attr / html), scope-subsumed</li>
-            <li>Cross-machine subscriptions with declared payloads and auto-injected <code class="inline">sourceSessionId</code></li>
-            <li><code class="inline">reads:</code> proxies available from templates and from actions/guards</li>
-            <li>Per-route opt-in SSE (<code class="inline">live: true</code>) with cross-session fan-out</li>
-            <li>Pluggable Store: <code class="inline">InMemoryStore</code>, <code class="inline">RedisStore</code>, <code class="inline">CachedStore</code></li>
-            <li>Per-session TTL refreshed on activity</li>
-          </ul>
-        </div>
-        <div class="status__col">
-          <p class="status__head status__head--gap">/// PLANNED (V1)</p>
-          <ul class="status__list">
-            <li>Client-side machines (<code class="inline">defineLocalMachine</code>) for ephemeral browser state</li>
-            <li>SFC compiler with <code class="inline">.stator</code> format (frontmatter + JSX body + scoped styles)</li>
-            <li>Typed event payloads and end-to-end <code class="inline">send</code> / action / guard typing</li>
-            <li>Schema CLI export for tooling and LLM context</li>
-            <li>Cross-machine event inbox (app→session delivery, multi-replica)</li>
-            <li>Compile-time slot analysis</li>
-            <li>Hot reload, dev tools (machine inspector, slot inspector, event trace)</li>
-            <li>Proper router with parameter patterns</li>
-            <li>Form abstractions</li>
-            <li>Auth patterns</li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="prose">
-        <p>
-          Sharing this now, before the V1 list is built, is the point. The
-          goal is to find out whether the paradigm is worth building toward,
-          or whether there's a fundamental objection we haven't seen yet. The
-          repo is open. Issues and emails are both welcome.
-        </p>
       </div>
 
       <div class="cta">
@@ -555,11 +587,11 @@
 
   <footer class="footer">
     <div class="footer__row">
-      <span class="footer__cell">STATOR · v0.1</span>
-      <span class="footer__cell">DOC-001</span>
-      <span class="footer__cell">REV. 2026.05</span>
+      <span class="footer__cell">STATOR · v1.0-preview</span>
+      <span class="footer__cell">DOC-002</span>
+      <span class="footer__cell">REV. 2026.06</span>
     </div>
-    <p class="footer__note">Built to argue for an idea, not to win a benchmark.</p>
+    <p class="footer__note">Opinionated on purpose. Honest about the edges.</p>
   </footer>
 
   <!-- Theme toggle behavior -->
@@ -586,7 +618,6 @@
         });
       }
 
-      // Initial state: read what was applied pre-paint, default to 'auto'
       var initial = currentStored() === 'light' ? 'light'
                   : currentStored() === 'dark'  ? 'dark'
                   : 'auto';

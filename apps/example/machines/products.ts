@@ -119,8 +119,6 @@ const SEED_PRODUCTS: Product[] = [
 export default defineMachine({
   name: 'ProductsMachine',
   lifecycle: 'app',
-  reads: [],
-  emits: {},
 
   context: { products: SEED_PRODUCTS },
   initial: 'ready',

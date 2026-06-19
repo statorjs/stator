@@ -1,15 +1,13 @@
-import type { MachineDef } from '../server/define-machine.ts'
+import type { AnyMachineDef, InstanceOf as SelectorsOf } from '../engine/index.ts'
 import type { EventDescriptor } from '../server/render-context.ts'
 
 /**
- * The template-facing shape of a machine instance.
- * Selectors appear as plain properties (callable if the selector returns a function).
- * `send`, `state`, `snapshot` are framework-provided.
+ * The template-facing shape of a machine instance: the engine's selector view
+ * (each selector as a property carrying its return type, callable if it returns
+ * a function) plus the framework-provided `send` / `state` / `snapshot`.
  */
-export type InstanceOf<TDef extends MachineDef<any, any, any>> =
-  TDef extends MachineDef<infer _TCtx, infer TS, infer TStateKey>
-    ? { readonly [K in keyof TS]: ReturnType<TS[K]> } & InstanceCommon<TStateKey>
-    : never
+export type InstanceOf<TDef extends AnyMachineDef> = SelectorsOf<TDef> &
+  InstanceCommon
 
 export interface InstanceCommon<TStateKey extends string = string> {
   send(event: { type: string; [k: string]: unknown }): EventDescriptor | void

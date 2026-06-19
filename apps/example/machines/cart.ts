@@ -12,6 +12,13 @@ type CartContext = {
   items: CartItem[]
 }
 
+type CartEvents =
+  | { type: 'ADD_ITEM'; productId: string }
+  | { type: 'REMOVE_ITEM'; productId: string }
+  | { type: 'INCREMENT'; productId: string }
+  | { type: 'DECREMENT'; productId: string }
+  | { type: 'CLEAR' }
+
 /** Shared payload selector: every cart emit carries the post-transition
  *  snapshot. Subscribers that denormalize (e.g. AdminMachine) re-set their
  *  view from this; subscribers that care about the specific event semantic
@@ -25,6 +32,7 @@ const cartSnapshot = (ctx: CartContext) => ({
 export default defineMachine({
   name: 'CartMachine',
   lifecycle: 'session',
+  events: {} as CartEvents,
   reads: [ProductsMachine],
   // Four domain-fact emits — each names a thing that happened in the cart,
   // not a generic "something changed." Transitions select between them via
@@ -49,60 +57,54 @@ export default defineMachine({
         ADD_ITEM: [
           // First-time add → ITEM_ADDED; repeat add of same product → quantity bump.
           {
-            guard: 'isNewProduct',
-            actions: 'addItem',
+            when: (ctx, ev) => !ctx.items.some((i) => i.productId === ev.productId),
+            do: (ctx, ev, { reads }) => {
+              const product = reads.ProductsMachine.byId(ev.productId)
+              if (product) ctx.items.push({ productId: ev.productId, quantity: 1, unitPrice: product.price })
+            },
             emit: 'ITEM_ADDED',
           },
-          { actions: 'addItem', emit: 'ITEM_QUANTITY_CHANGED' },
+          {
+            do: (ctx, ev) => {
+              const existing = ctx.items.find((i) => i.productId === ev.productId)
+              if (existing) existing.quantity += 1
+            },
+            emit: 'ITEM_QUANTITY_CHANGED',
+          },
         ],
-        REMOVE_ITEM: { actions: 'removeItem', emit: 'ITEM_REMOVED' },
-        INCREMENT: { actions: 'increment', emit: 'ITEM_QUANTITY_CHANGED' },
+        REMOVE_ITEM: {
+          do: (ctx, ev) => { ctx.items = ctx.items.filter((i) => i.productId !== ev.productId) },
+          emit: 'ITEM_REMOVED',
+        },
+        INCREMENT: {
+          do: (ctx, ev) => {
+            const it = ctx.items.find((i) => i.productId === ev.productId)
+            if (it && it.quantity < 99) it.quantity += 1
+          },
+          emit: 'ITEM_QUANTITY_CHANGED',
+        },
         DECREMENT: [
           // Decrementing the last unit removes the line entirely.
           {
-            guard: 'isLastUnit',
-            actions: 'decrement',
+            when: (ctx, ev) => {
+              const it = ctx.items.find((i) => i.productId === ev.productId)
+              return !!it && it.quantity <= 1
+            },
+            do: (ctx, ev) => {
+              ctx.items = ctx.items.filter((i) => i.productId !== ev.productId)
+            },
             emit: 'ITEM_REMOVED',
           },
-          { actions: 'decrement', emit: 'ITEM_QUANTITY_CHANGED' },
+          {
+            do: (ctx, ev) => {
+              const it = ctx.items.find((i) => i.productId === ev.productId)
+              if (it && it.quantity > 1) it.quantity -= 1
+            },
+            emit: 'ITEM_QUANTITY_CHANGED',
+          },
         ],
-        CLEAR: { actions: 'clearCart', emit: 'CART_CLEARED' },
+        CLEAR: { do: (ctx) => { ctx.items = [] }, emit: 'CART_CLEARED' },
       },
-    },
-  },
-
-  actions: {
-    addItem: (ctx, ev, { reads }) => {
-      const product = reads.ProductsMachine.byId(ev.productId)
-      if (!product) return
-      const existing = ctx.items.find((i) => i.productId === ev.productId)
-      if (existing) existing.quantity += 1
-      else ctx.items.push({ productId: ev.productId, quantity: 1, unitPrice: product.price })
-    },
-    removeItem: (ctx, ev) => {
-      ctx.items = ctx.items.filter((i) => i.productId !== ev.productId)
-    },
-    increment: (ctx, ev) => {
-      const it = ctx.items.find((i) => i.productId === ev.productId)
-      if (it && it.quantity < 99) it.quantity += 1
-    },
-    decrement: (ctx, ev) => {
-      const idx = ctx.items.findIndex((i) => i.productId === ev.productId)
-      if (idx < 0) return
-      const it = ctx.items[idx]!
-      if (it.quantity > 1) it.quantity -= 1
-      else ctx.items.splice(idx, 1)
-    },
-    clearCart: (ctx) => {
-      ctx.items = []
-    },
-  },
-
-  guards: {
-    isNewProduct: (ctx, ev) => !ctx.items.some((i) => i.productId === ev.productId),
-    isLastUnit: (ctx, ev) => {
-      const it = ctx.items.find((i) => i.productId === ev.productId)
-      return !!it && it.quantity <= 1
     },
   },
 

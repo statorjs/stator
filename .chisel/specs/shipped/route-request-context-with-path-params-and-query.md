@@ -1,8 +1,8 @@
 ---
 title: Route request context with path params and query
-status: draft
+status: shipped
 created: 2026-05-21
-updated: 2026-05-21
+updated: 2026-06-17
 area: runtime
 ---
 
@@ -91,4 +91,4 @@ The `request` arg is optional in the function signature; existing routes ignore 
 
 ## Implementation Notes
 
-(Will fill in after the change lands. Built alongside the poll demo as a dogfood.)
+**Shipped** (same commit as [[api-routes-and-request-response-surface]]). `RouteRequest` (`routing.ts`) carries `params`, `query`, `method`, `url`, `headers`, the raw `Request`, and body accessors (`formData`/`json`/`text`/`arrayBuffer`); `buildRouteRequest` (`route-request.ts`) constructs it from the Hono context. Path params come from `[name]` file segments → `paramNames` → `matchPath`/`compileMatcher` in `http.ts`, which also resolve params for POST `/__events` and SSE connections. Dogfooded by `apps/poll/routes/p/[id].ts` (`request.params.id`).

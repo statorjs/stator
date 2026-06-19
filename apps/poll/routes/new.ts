@@ -26,8 +26,9 @@ export const POST = defineApiRoute({
 
     // VoterMachine emits POLL_CREATED, which PollsMachine subscribes to.
     // The framework's cross-machine subscription path runs the actual
-    // create transition there.
-    await dispatch('VoterMachine', {
+    // create transition there. Dispatch is addressed by the imported machine
+    // def (no magic string); the event is typed against VoterMachine's events.
+    await dispatch(VoterMachine, {
       type: 'CREATE_POLL',
       question,
       options,

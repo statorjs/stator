@@ -16,11 +16,18 @@ type AdminContext = {
   sessions: Record<string, SessionCartSnapshot>
 }
 
+type AdminEvents = {
+  type: 'SESSION_CART_CHANGED'
+  items: CartItem[]
+  itemCount: number
+  total: number
+  sourceSessionId: string
+}
+
 export default defineMachine({
   name: 'AdminMachine',
   lifecycle: 'app',
-  reads: [],
-  emits: {},
+  events: {} as AdminEvents,
 
   subscribes: [
     // Every cart-mutating event delivers a fresh snapshot here, with
@@ -40,27 +47,22 @@ export default defineMachine({
   states: {
     ready: {
       on: {
-        SESSION_CART_CHANGED: { actions: 'updateSessionCart' },
+        // ev: { items, itemCount, total, sourceSessionId } — payload merged
+        // from CartMachine's emit + framework-injected sourceSessionId.
+        SESSION_CART_CHANGED: (ctx, ev) => {
+          const sid = ev.sourceSessionId
+          if (ev.items.length === 0) {
+            delete ctx.sessions[sid]
+          } else {
+            ctx.sessions[sid] = {
+              items: ev.items,
+              itemCount: ev.itemCount,
+              total: ev.total,
+              lastUpdate: Date.now(),
+            }
+          }
+        },
       },
-    },
-  },
-
-  actions: {
-    updateSessionCart: (ctx, ev) => {
-      // ev shape: { type, items, itemCount, total, sourceSessionId } —
-      // payload merged from CartMachine's emit + framework's sourceSessionId
-      const sid = ev.sourceSessionId as string
-      const items = ev.items as CartItem[]
-      if (items.length === 0) {
-        delete ctx.sessions[sid]
-      } else {
-        ctx.sessions[sid] = {
-          items,
-          itemCount: ev.itemCount as number,
-          total: ev.total as number,
-          lastUpdate: Date.now(),
-        }
-      }
     },
   },
 

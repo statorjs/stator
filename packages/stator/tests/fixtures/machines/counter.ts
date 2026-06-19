@@ -1,26 +1,19 @@
 import { defineMachine } from '../../../src/server/define-machine.ts'
 
+type Events = { type: 'INCREMENT' } | { type: 'DECREMENT' }
+
 export default defineMachine({
   name: 'CounterMachine',
   lifecycle: 'session',
-  reads: [],
-  emits: [],
+  events: {} as Events,
   context: { count: 0 },
   initial: 'idle',
   states: {
     idle: {
       on: {
-        INCREMENT: { actions: 'inc' },
-        DECREMENT: { actions: 'dec' },
+        INCREMENT: (ctx) => { ctx.count += 1 },
+        DECREMENT: (ctx) => { ctx.count -= 1 },
       },
-    },
-  },
-  actions: {
-    inc: (ctx) => {
-      ctx.count += 1
-    },
-    dec: (ctx) => {
-      ctx.count -= 1
     },
   },
   selectors: {

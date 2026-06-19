@@ -1,4 +1,4 @@
-import type { MachineDef } from './define-machine.ts'
+import type { AnyMachineDef, EventOf, MachineDef } from './define-machine.ts'
 import type { HtmlFragment } from '../template/types.ts'
 
 /** Machine context passed to a route's render function. Keyed by machine name. */
@@ -148,10 +148,13 @@ export type ApiRouteResult = Response | ApiRouteEnvelope
 /** Helpers available inside an API route handler. The framework provides
  *  these; user handlers ignore the ones they don't need. */
 export interface ApiRouteHelpers {
-  /** Dispatch an event to a named machine. Loads the machine if not already
-   *  loaded, processes the event under the dispatch context, persists touched
-   *  machines, fires cross-machine subscriptions. */
-  dispatch: (machineName: string, event: { type: string; [k: string]: unknown }) => Promise<void>
+  /** Dispatch an event to a machine, addressed by the imported machine def
+   *  (not a magic string). The target name is read from `machine.name`; the
+   *  event is type-checked against that machine's declared event union.
+   *  Processes the event under the dispatch context, persists touched machines,
+   *  fires cross-machine subscriptions. The machine must be in the route's
+   *  loaded graph (its `reads`, transitively). */
+  dispatch: <D extends AnyMachineDef>(machine: D, event: EventOf<D>) => Promise<void>
 }
 
 export interface ApiRouteDefinition {
