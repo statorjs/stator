@@ -1,0 +1,8 @@
+<section class="greeting">
+  <h1 class="title">Hello</h1>
+</section>
+
+<style>
+  .greeting { padding: 1rem; }
+  .title { color: red; }
+</style>
