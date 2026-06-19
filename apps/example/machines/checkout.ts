@@ -7,10 +7,27 @@ type CheckoutContext = {
   orderNumber: string | null
 }
 
+type Field = 'shippingName' | 'shippingAddress' | 'paymentLast4'
+
+type CheckoutEvents =
+  | { type: 'SET_FIELD'; field: Field; value: string }
+  | { type: 'SUBMIT_SHIPPING' }
+  | { type: 'SUBMIT_PAYMENT' }
+  | { type: 'BACK' }
+  | { type: 'RESET' }
+
+// Shared by both the shipping and payment SET_FIELD transitions.
+const setField = (ctx: CheckoutContext, ev: { field: Field; value: string }) => {
+  ctx[ev.field] = String(ev.value)
+}
+
+const shippingValid = (ctx: CheckoutContext) =>
+  ctx.shippingName.trim().length > 0 && ctx.shippingAddress.trim().length > 0
+
 export default defineMachine({
   name: 'CheckoutMachine',
   lifecycle: 'session',
-  reads: [],
+  events: {} as CheckoutEvents,
   emits: ['ORDER_PLACED'],
 
   context: {
@@ -24,50 +41,37 @@ export default defineMachine({
   states: {
     shipping: {
       on: {
-        SET_FIELD: { actions: 'setField' },
-        SUBMIT_SHIPPING: { target: 'payment', guard: 'shippingValid' },
+        SET_FIELD: (ctx, ev) => { setField(ctx, ev) },
+        SUBMIT_SHIPPING: { to: 'payment', when: shippingValid },
       },
     },
     payment: {
       on: {
-        SET_FIELD: { actions: 'setField' },
-        BACK: { target: 'shipping' },
+        SET_FIELD: (ctx, ev) => { setField(ctx, ev) },
+        BACK: { to: 'shipping' },
         SUBMIT_PAYMENT: {
-          target: 'complete',
-          guard: 'paymentValid',
-          actions: 'placeOrder',
+          to: 'complete',
+          when: (ctx) => /^\d{4}$/.test(ctx.paymentLast4),
+          do: (ctx) => {
+            ctx.orderNumber = 'ORD-' + Math.random().toString(36).slice(2, 8).toUpperCase()
+          },
           emit: 'ORDER_PLACED',
         },
       },
     },
     complete: {
       on: {
-        RESET: { target: 'shipping', actions: 'reset' },
+        RESET: {
+          to: 'shipping',
+          do: (ctx) => {
+            ctx.shippingName = ''
+            ctx.shippingAddress = ''
+            ctx.paymentLast4 = ''
+            ctx.orderNumber = null
+          },
+        },
       },
     },
-  },
-
-  actions: {
-    setField: (ctx, ev) => {
-      if (ev.field === 'shippingName') ctx.shippingName = String(ev.value)
-      else if (ev.field === 'shippingAddress') ctx.shippingAddress = String(ev.value)
-      else if (ev.field === 'paymentLast4') ctx.paymentLast4 = String(ev.value)
-    },
-    placeOrder: (ctx) => {
-      ctx.orderNumber = 'ORD-' + Math.random().toString(36).slice(2, 8).toUpperCase()
-    },
-    reset: (ctx) => {
-      ctx.shippingName = ''
-      ctx.shippingAddress = ''
-      ctx.paymentLast4 = ''
-      ctx.orderNumber = null
-    },
-  },
-
-  guards: {
-    shippingValid: (ctx) =>
-      ctx.shippingName.trim().length > 0 && ctx.shippingAddress.trim().length > 0,
-    paymentValid: (ctx) => /^\d{4}$/.test(ctx.paymentLast4),
   },
 
   selectors: {

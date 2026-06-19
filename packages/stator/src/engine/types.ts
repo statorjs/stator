@@ -91,9 +91,12 @@ export interface StateNode<
 }
 
 /** Payload selector runs synchronously AFTER the transition's action, so it
- *  sees post-mutation context. Pure of (ctx, ev). */
-export interface EmitDeclaration<C, E extends EventObject> {
-  payload?: (ctx: C, ev: E) => Record<string, unknown>
+ *  sees post-mutation context. Pure of (ctx, ev). The event is typed `any`
+ *  because an emit may fire from several transitions carrying different events;
+ *  the originating event isn't statically pinned to one union member. (Tighter
+ *  emit typing is tracked as an open question on the engine spec.) */
+export interface EmitDeclaration<C, _E extends EventObject = EventObject> {
+  payload?: (ctx: C, ev: any) => Record<string, unknown>
 }
 
 export type EmitsConfig<C, E extends EventObject> =

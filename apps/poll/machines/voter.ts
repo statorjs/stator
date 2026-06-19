@@ -7,10 +7,14 @@ type VoterContext = {
   votedIn: Record<string, string>
 }
 
+type VoterEvents =
+  | { type: 'CREATE_POLL'; question: string; options: string[] }
+  | { type: 'VOTE'; pollId: string; optionId: string }
+
 export default defineMachine({
   name: 'VoterMachine',
   lifecycle: 'session',
-  reads: [],
+  events: {} as VoterEvents,
 
   // Client events route to this machine first. Cross-machine subscriptions on
   // PollsMachine pick up the emits and update the shared state.
@@ -38,18 +42,15 @@ export default defineMachine({
         CREATE_POLL: { emit: 'POLL_CREATED' },
         // Record the vote locally for UI purposes; the cross-machine subscription
         // on PollsMachine handles the authoritative count + dedup.
-        VOTE: { actions: 'recordOwnVote', emit: 'VOTED' },
+        VOTE: {
+          do: (ctx, ev) => {
+            if (!ev.pollId || !ev.optionId) return
+            if (ctx.votedIn[ev.pollId]) return // already voted; ignore
+            ctx.votedIn[ev.pollId] = ev.optionId
+          },
+          emit: 'VOTED',
+        },
       },
-    },
-  },
-
-  actions: {
-    recordOwnVote: (ctx, ev) => {
-      const pollId = String(ev.pollId ?? '')
-      const optionId = String(ev.optionId ?? '')
-      if (!pollId || !optionId) return
-      if (ctx.votedIn[pollId]) return // already voted; ignore
-      ctx.votedIn[pollId] = optionId
     },
   },
 

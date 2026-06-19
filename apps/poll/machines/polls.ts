@@ -26,6 +26,10 @@ type PollsContext = {
   lastVote: { pollId: string; sessionId: string } | null
 }
 
+type PollsEvents =
+  | { type: 'CREATE_POLL'; question: string; options: string[]; sourceSessionId: string }
+  | { type: 'RECORD_VOTE'; pollId: string; optionId: string; sourceSessionId: string }
+
 function genId(): string {
   return Math.random().toString(36).slice(2, 10)
 }
@@ -37,7 +41,7 @@ function genOptionId(): string {
 export default defineMachine({
   name: 'PollsMachine',
   lifecycle: 'app',
-  reads: [],
+  events: {} as PollsEvents,
 
   // Session machines emit POLL_CREATED / VOTED; we subscribe with auto-injected
   // sourceSessionId. The framework's cross-lifecycle delivery path threads the
@@ -71,65 +75,59 @@ export default defineMachine({
     ready: {
       on: {
         CREATE_POLL: {
-          actions: 'createPoll',
+          do: (ctx, ev) => {
+            const question = String(ev.question ?? '').trim().slice(0, 200)
+            const rawOptions = Array.isArray(ev.options) ? (ev.options as unknown[]) : []
+            if (!question || rawOptions.length < 2) {
+              ctx.lastCreatedPollId = null
+              return
+            }
+            const options: PollOption[] = rawOptions
+              .map((o) => String(o ?? '').trim().slice(0, 100))
+              .filter((t) => t.length > 0)
+              .slice(0, 6)
+              .map((text) => ({ id: genOptionId(), text, count: 0 }))
+            if (options.length < 2) {
+              ctx.lastCreatedPollId = null
+              return
+            }
+
+            let id = genId()
+            while (ctx.polls[id]) id = genId()
+
+            ctx.polls[id] = {
+              id,
+              question,
+              options,
+              createdAt: Date.now(),
+              voterSessions: {},
+            }
+            ctx.lastCreatedPollId = id
+          },
           emit: 'POLL_CREATED',
         },
         RECORD_VOTE: {
-          actions: 'recordVote',
+          do: (ctx, ev) => {
+            const pollId = String(ev.pollId ?? '')
+            const optionId = String(ev.optionId ?? '')
+            const sid = String(ev.sourceSessionId ?? '')
+            const poll = ctx.polls[pollId]
+            if (!poll || !sid || poll.voterSessions[sid]) {
+              ctx.lastVote = null
+              return
+            }
+            const option = poll.options.find((o) => o.id === optionId)
+            if (!option) {
+              ctx.lastVote = null
+              return
+            }
+            option.count += 1
+            poll.voterSessions[sid] = true
+            ctx.lastVote = { pollId, sessionId: sid }
+          },
           emit: 'VOTE_RECORDED',
         },
       },
-    },
-  },
-
-  actions: {
-    createPoll: (ctx, ev) => {
-      const question = String(ev.question ?? '').trim().slice(0, 200)
-      const rawOptions = Array.isArray(ev.options) ? (ev.options as unknown[]) : []
-      if (!question || rawOptions.length < 2) {
-        ctx.lastCreatedPollId = null
-        return
-      }
-      const options: PollOption[] = rawOptions
-        .map((o) => String(o ?? '').trim().slice(0, 100))
-        .filter((t) => t.length > 0)
-        .slice(0, 6)
-        .map((text) => ({ id: genOptionId(), text, count: 0 }))
-      if (options.length < 2) {
-        ctx.lastCreatedPollId = null
-        return
-      }
-
-      let id = genId()
-      while (ctx.polls[id]) id = genId()
-
-      ctx.polls[id] = {
-        id,
-        question,
-        options,
-        createdAt: Date.now(),
-        voterSessions: {},
-      }
-      ctx.lastCreatedPollId = id
-    },
-
-    recordVote: (ctx, ev) => {
-      const pollId = String(ev.pollId ?? '')
-      const optionId = String(ev.optionId ?? '')
-      const sid = String(ev.sourceSessionId ?? '')
-      const poll = ctx.polls[pollId]
-      if (!poll || !sid || poll.voterSessions[sid]) {
-        ctx.lastVote = null
-        return
-      }
-      const option = poll.options.find((o) => o.id === optionId)
-      if (!option) {
-        ctx.lastVote = null
-        return
-      }
-      option.count += 1
-      poll.voterSessions[sid] = true
-      ctx.lastVote = { pollId, sessionId: sid }
     },
   },
 
