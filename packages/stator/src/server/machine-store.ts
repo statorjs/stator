@@ -1,7 +1,8 @@
-import { createActor } from 'xstate'
+import { createActor } from '../engine/index.ts'
 import type { MachineDef, SubscribeEvent } from './define-machine.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
 import { recordTouch } from './dispatch-context.ts'
+import { serverReadsResolver } from './reads-helpers.ts'
 import type { Store } from './store.ts'
 
 /**
@@ -114,7 +115,7 @@ export class MachineStore {
   bootAppMachines(): void {
     for (const def of this.defs.values()) {
       if (def.lifecycle === 'app' && !this.appInstances.has(def.name)) {
-        const actor = createActor(def.xstateMachine).start()
+        const actor = createActor(def, { resolveHelpers: serverReadsResolver(def) }).start()
         this.appInstances.set(def.name, createInstanceProxy(def, actor))
       }
     }

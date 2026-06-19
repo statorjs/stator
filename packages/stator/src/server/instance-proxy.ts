@@ -1,5 +1,4 @@
-import type { Actor, AnyStateMachine } from 'xstate'
-import type { MachineDef } from './define-machine.ts'
+import type { Actor, MachineDef } from '../engine/index.ts'
 import {
   getCurrentRenderState,
   createEventDescriptor,
@@ -9,7 +8,7 @@ import type { InstanceOf } from '../template/types.ts'
 
 export interface InstanceHandle<TDef extends MachineDef = MachineDef> {
   readonly def: TDef
-  readonly actor: Actor<AnyStateMachine>
+  readonly actor: Actor<any, any>
   readonly proxy: InstanceOf<TDef>
 }
 
@@ -21,7 +20,7 @@ export function defForProxy(proxy: object): MachineDef<any, any> | undefined {
 
 export function createInstanceProxy<TDef extends MachineDef>(
   def: TDef,
-  actor: Actor<AnyStateMachine>,
+  actor: Actor<any, any>,
 ): InstanceHandle<TDef> {
   const proxy = Object.create(null) as Record<string, unknown>
 
@@ -47,7 +46,12 @@ export function createInstanceProxy<TDef extends MachineDef>(
   Object.defineProperty(proxy, 'state', {
     enumerable: true,
     configurable: false,
-    get: () => actor.getSnapshot().value,
+    // Engine state value is a path array (`['idle']`); expose the leaf name as
+    // a string so templates/selectors see the current state key as before.
+    get: () => {
+      const v = actor.getSnapshot().value
+      return v[v.length - 1]
+    },
   })
 
   Object.defineProperty(proxy, 'snapshot', {

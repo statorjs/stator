@@ -12,37 +12,36 @@ import { html } from '../src/template/html.ts'
 import { read } from '../src/template/read.ts'
 import { each, renderListBody } from '../src/template/each.ts'
 import { on } from '../src/template/directives/on.ts'
+import type { InstanceOf } from '../src/template/types.ts'
 
 function makeCart() {
   type Item = { productId: string; quantity: number; unitPrice: number }
+  type Events =
+    | { type: 'ADD'; productId: string; unitPrice: number }
+    | { type: 'REMOVE'; productId: string }
+    | { type: 'SET_QTY'; productId: string; quantity: number }
   return defineMachine({
     name: 'CartMachine',
     lifecycle: 'session',
-    reads: [],
-    emits: [],
+    events: {} as Events,
     context: { items: [] as Item[] },
     initial: 'idle',
     states: {
       idle: {
         on: {
-          ADD: { actions: 'add' },
-          REMOVE: { actions: 'remove' },
-          SET_QTY: { actions: 'setQty' },
+          ADD: (ctx, ev) => {
+            const ex = ctx.items.find((i) => i.productId === ev.productId)
+            if (ex) ex.quantity += 1
+            else ctx.items.push({ productId: ev.productId, quantity: 1, unitPrice: ev.unitPrice })
+          },
+          REMOVE: (ctx, ev) => {
+            ctx.items = ctx.items.filter((i) => i.productId !== ev.productId)
+          },
+          SET_QTY: (ctx, ev) => {
+            const it = ctx.items.find((i) => i.productId === ev.productId)
+            if (it) it.quantity = ev.quantity
+          },
         },
-      },
-    },
-    actions: {
-      add: (ctx, ev) => {
-        const ex = ctx.items.find((i) => i.productId === ev.productId)
-        if (ex) ex.quantity += 1
-        else ctx.items.push({ productId: ev.productId, quantity: 1, unitPrice: ev.unitPrice })
-      },
-      remove: (ctx, ev) => {
-        ctx.items = ctx.items.filter((i) => i.productId !== ev.productId)
-      },
-      setQty: (ctx, ev) => {
-        const it = ctx.items.find((i) => i.productId === ev.productId)
-        if (it) it.quantity = ev.quantity
       },
     },
     selectors: {
@@ -56,7 +55,7 @@ function makeCart() {
 
 async function buildRuntime(): Promise<{
   runtime: SessionRuntime
-  cart: any
+  cart: InstanceOf<ReturnType<typeof makeCart>>
   state: RenderState
   Cart: ReturnType<typeof makeCart>
 }> {
@@ -65,7 +64,7 @@ async function buildRuntime(): Promise<{
   store.bootAppMachines()
   const runtime = new SessionRuntime('s1', store)
   await runtime.loadGraph([Cart])
-  const cart = runtime.proxyFor('CartMachine') as any
+  const cart = runtime.proxyFor('CartMachine') as InstanceOf<ReturnType<typeof makeCart>>
   const state = createRenderState('s1', 'GET /')
   return { runtime, cart, state, Cart }
 }

@@ -91,18 +91,30 @@ export function createActor<C extends object, E extends EventObject, S extends s
       // The `on` map narrows the event per key; internally we treat every
       // transition uniformly against the full event union (the runtime event
       // IS the narrowed type for this key, so the coercion is sound).
-      const transition = node?.on?.[event.type as E['type']] as
+      type RawTransition =
         | ((ctx: C, ev: E, h: ActionHelpers) => void)
         | TransitionConfig<C, E, S>
+      const entry = node?.on?.[event.type as E['type']] as
+        | RawTransition
+        | RawTransition[]
         | undefined
-      if (!transition) return
-
-      const config: TransitionConfig<C, E, S> =
-        typeof transition === 'function' ? { do: transition } : transition
+      if (!entry) return
 
       const h = helpers()
 
-      if (config.when && !config.when(context, event as never, h)) return
+      // Resolve to the first candidate whose guard passes. A bare function or
+      // a config with no `when` always matches.
+      const candidates = Array.isArray(entry) ? entry : [entry]
+      let config: TransitionConfig<C, E, S> | undefined
+      for (const candidate of candidates) {
+        const c: TransitionConfig<C, E, S> =
+          typeof candidate === 'function' ? { do: candidate } : candidate
+        if (!c.when || c.when(context, event as never, h)) {
+          config = c
+          break
+        }
+      }
+      if (!config) return
 
       if (config.do) {
         const draft = structuredClone(context) as C

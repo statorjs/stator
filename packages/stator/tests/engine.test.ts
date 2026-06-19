@@ -87,6 +87,55 @@ describe('engine: defineMachine + createActor', () => {
     expect(a.getSnapshot().value).toEqual(['complete'])
   })
 
+  it('picks the first matching candidate in a guarded transition array', () => {
+    type Events = { type: 'ADD'; id: string }
+
+    const Cart = defineMachine({
+      name: 'Cart',
+      lifecycle: 'session',
+      events: {} as Events,
+      emits: { ITEM_ADDED: null, QTY_CHANGED: null },
+      context: { items: [] as Array<{ id: string; qty: number }> },
+      initial: 'idle',
+      states: {
+        idle: {
+          on: {
+            ADD: [
+              // first-time add → ITEM_ADDED; repeat → QTY_CHANGED
+              {
+                when: (ctx, ev) => !ctx.items.some((i) => i.id === ev.id),
+                do: (ctx, ev) => { ctx.items.push({ id: ev.id, qty: 1 }) },
+                emit: 'ITEM_ADDED',
+              },
+              {
+                do: (ctx, ev) => {
+                  const it = ctx.items.find((i) => i.id === ev.id)!
+                  it.qty += 1
+                },
+                emit: 'QTY_CHANGED',
+              },
+            ],
+          },
+        },
+      },
+    })
+
+    const a = createActor(Cart).start()
+    const emits: string[] = []
+    a.on('ITEM_ADDED', () => emits.push('ITEM_ADDED'))
+    a.on('QTY_CHANGED', () => emits.push('QTY_CHANGED'))
+
+    a.send({ type: 'ADD', id: 'p1' }) // new → ITEM_ADDED
+    a.send({ type: 'ADD', id: 'p1' }) // repeat → QTY_CHANGED
+    a.send({ type: 'ADD', id: 'p2' }) // new → ITEM_ADDED
+
+    expect(a.getSnapshot().context.items).toEqual([
+      { id: 'p1', qty: 2 },
+      { id: 'p2', qty: 1 },
+    ])
+    expect(emits).toEqual(['ITEM_ADDED', 'QTY_CHANGED', 'ITEM_ADDED'])
+  })
+
   it('fires declared emits with post-mutation payloads to on() listeners', () => {
     type Events = { type: 'ADD'; item: string }
 

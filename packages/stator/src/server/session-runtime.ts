@@ -1,7 +1,8 @@
-import { createActor, type AnyStateMachine } from 'xstate'
+import { createActor, type Snapshot } from '../engine/index.ts'
 import type { MachineDef } from './define-machine.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
 import { buildDispatchEvent, type MachineStore } from './machine-store.ts'
+import { serverReadsResolver } from './reads-helpers.ts'
 import {
   recordTouch,
   withDispatchContext,
@@ -56,8 +57,10 @@ export class SessionRuntime {
 
   private async loadOne(def: MachineDef<any, any>): Promise<void> {
     const persisted = await this.store.persistence.get(this.sessionId, def.name)
-    const opts = persisted !== null ? { snapshot: persisted as never } : undefined
-    const actor = createActor(def.xstateMachine as AnyStateMachine, opts).start()
+    const actor = createActor(def, {
+      snapshot: persisted !== null ? (persisted as Snapshot<any>) : undefined,
+      resolveHelpers: serverReadsResolver(def),
+    }).start()
     this.actors.set(def.name, createInstanceProxy(def, actor))
   }
 

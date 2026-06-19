@@ -9,8 +9,6 @@ describe('MachineStore + SessionRuntime', () => {
     const ProductsMachine = defineMachine({
       name: 'ProductsMachine',
       lifecycle: 'app',
-      reads: [],
-      emits: [],
       context: { products: [{ id: 'p1', name: 'Notebook', price: 12 }] },
       initial: 'ready',
       states: { ready: {} },
@@ -33,29 +31,32 @@ describe('MachineStore + SessionRuntime', () => {
     type CartItem = { productId: string; quantity: number; unitPrice: number }
     type CartContext = { items: CartItem[] }
 
+    type CartEvents =
+      | { type: 'ADD_ITEM'; productId: string; unitPrice: number }
+      | { type: 'REMOVE_ITEM'; productId: string }
+
     const CartMachine = defineMachine({
       name: 'CartMachine',
       lifecycle: 'session',
-      reads: [],
+      events: {} as CartEvents,
       emits: ['ITEM_ADDED'],
       context: { items: [] } as CartContext,
       initial: 'idle',
       states: {
         idle: {
           on: {
-            ADD_ITEM: { actions: 'addItem', emit: 'ITEM_ADDED' },
-            REMOVE_ITEM: { actions: 'removeItem' },
+            ADD_ITEM: {
+              do: (ctx, ev) => {
+                const existing = ctx.items.find((i) => i.productId === ev.productId)
+                if (existing) existing.quantity += 1
+                else ctx.items.push({ productId: ev.productId, quantity: 1, unitPrice: ev.unitPrice })
+              },
+              emit: 'ITEM_ADDED',
+            },
+            REMOVE_ITEM: (ctx, ev) => {
+              ctx.items = ctx.items.filter((i) => i.productId !== ev.productId)
+            },
           },
-        },
-      },
-      actions: {
-        addItem: (ctx, ev) => {
-          const existing = ctx.items.find((i) => i.productId === ev.productId)
-          if (existing) existing.quantity += 1
-          else ctx.items.push({ productId: ev.productId, quantity: 1, unitPrice: ev.unitPrice })
-        },
-        removeItem: (ctx, ev) => {
-          ctx.items = ctx.items.filter((i) => i.productId !== ev.productId)
         },
       },
       selectors: {
@@ -113,15 +114,11 @@ describe('MachineStore + SessionRuntime', () => {
     const CartMachine = defineMachine({
       name: 'CartMachine',
       lifecycle: 'session',
-      reads: [],
-      emits: [],
+      events: {} as { type: 'ADD'; id: string },
       context: { items: [] as { id: string }[] },
       initial: 'idle',
-      states: { idle: { on: { ADD: { actions: 'add' } } } },
-      actions: {
-        add: (ctx, ev) => {
-          ctx.items.push({ id: ev.id })
-        },
+      states: {
+        idle: { on: { ADD: (ctx, ev) => { ctx.items.push({ id: ev.id }) } } },
       },
       selectors: { count: (ctx) => ctx.items.length },
     })

@@ -9,8 +9,8 @@
       "default": "./src/server/index.ts"
     },
     "./machine": {
-      "types": "./src/server/define-machine.ts",
-      "default": "./src/server/define-machine.ts"
+      "types": "./src/engine/index.ts",
+      "default": "./src/engine/index.ts"
     },
     "./template": {
       "types": "./src/template/index.ts",
@@ -31,7 +31,6 @@
     "hono": "^4.6.0",
     "ioredis": "^5.10.1",
     "pino": "^10.3.1",
-    "xstate": "^5.18.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

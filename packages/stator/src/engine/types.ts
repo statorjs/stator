@@ -67,7 +67,8 @@ export type Transition<
   R = Record<string, any>,
 > = Action<C, E, R> | TransitionConfig<C, E, S, R>
 
-/** The `on` map: each event type maps to a transition whose action/guard see
+/** The `on` map: each event type maps to a transition (or an ordered array of
+ *  guarded candidates — first whose `when` passes wins) whose action/guard see
  *  the event NARROWED to exactly that type. This is the Option A payoff. */
 export type OnMap<
   C,
@@ -75,7 +76,9 @@ export type OnMap<
   S extends string,
   R = Record<string, any>,
 > = {
-  [K in E['type']]?: Transition<C, Extract<E, { type: K }>, S, R>
+  [K in E['type']]?:
+    | Transition<C, Extract<E, { type: K }>, S, R>
+    | Array<Transition<C, Extract<E, { type: K }>, S, R>>
 }
 
 export interface StateNode<
