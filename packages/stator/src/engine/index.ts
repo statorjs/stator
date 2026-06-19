@@ -19,6 +19,7 @@ export type {
   EmitDeclaration,
   EmitsConfig,
   EventObject,
+  EventOf,
   InstanceOf,
   Lifecycle,
   MachineDef,

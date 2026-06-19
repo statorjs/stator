@@ -52,6 +52,34 @@ describe('HTTP layer', () => {
     ])
   })
 
+  it('dispatches to a machine via its imported def (typed, no magic string)', async () => {
+    const app = await createApp({
+      machinesDir: resolve(fixtures, 'machines'),
+      routesDir: resolve(fixtures, 'routes'),
+    })
+
+    // Establish a session.
+    const getResponse = await app.fetch(new Request('http://localhost/'))
+    const cookie = getResponse.headers.get('set-cookie')!.split(';')[0]!
+
+    // POST /submit → handler calls dispatch(CounterMachine, { type: 'INCREMENT' }).
+    const post = await app.fetch(
+      new Request('http://localhost/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: cookie },
+        body: JSON.stringify({}),
+      }),
+    )
+    expect(post.status).toBe(200)
+
+    // The dispatch persisted the touched machine: a fresh GET shows count 1.
+    const after = await app.fetch(
+      new Request('http://localhost/', { headers: { Cookie: cookie } }),
+    )
+    const html = await after.text()
+    expect(html).toContain('<span data-slot="s0">count is 1</span>')
+  })
+
   it('rejects unknown machines with 404', async () => {
     const app = await createApp({
       machinesDir: resolve(fixtures, 'machines'),

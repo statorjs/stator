@@ -177,6 +177,11 @@ export type ReadsMap<TReads extends readonly AnyMachineDef[]> = {
   [M in TReads[number] as M['name']]: InstanceOf<M>
 }
 
+/** The event union a machine accepts — used to type machine-mediated dispatch
+ *  (`dispatch(Machine, event)`) against the imported def. */
+export type EventOf<D extends AnyMachineDef> =
+  D extends MachineDef<any, infer E, any, any, any> ? E : never
+
 export function isStatorMachine(v: unknown): v is AnyMachineDef {
   return (
     typeof v === 'object' &&
