@@ -173,6 +173,28 @@ Compiler is a pure function → heavy input→output unit tests.
   keeps 1.0 release surface small; a separate package can come later if the
   dependency boundary warrants it.
 
+## Production serve path (decided 2026-06-19)
+
+Dev uses Vite; production must not ship it. Two constraints conflict: routing uses
+runtime file-discovery + dynamic `import()` (not statically bundleable), and Node
+can't `import` a `.stator` natively. Chosen approach — a **build to `dist/`** that
+sidesteps both by reusing the proven `createApp` + `tsx` runtime over precompiled
+output:
+
+1. Copy `machines/`, `routes/`, `static/` into `dist/`.
+2. Compile each `*.stator` → a sibling `*.stator.ts` (the server module), delete
+   the `.stator`, and accumulate its scoped CSS.
+3. Rewrite `.stator` import specifiers (`'./x.stator'` → `'./x.stator.ts'`) across
+   the copied `.ts` and compiled modules.
+4. Write the concatenated scoped CSS to `dist/static/components.css` (one cacheable
+   stylesheet; scoped, so over-inclusion per page is inert).
+5. Prod server: `createApp` over `dist/` with a `headExtras` hook that links
+   `components.css` in `<head>`. No Vite, no loader hooks, no bundler — file
+   discovery runs on the precompiled `dist/` exactly as today.
+
+Rejected: a Node ESM loader hook (the compiler is TS; loading it in the loader
+thread is fiddly) and full SSR bundling (fights dynamic-import discovery).
+
 ## Open Questions
 
 - **Per-component chunk manifest shape** — how the server maps a route's rendered
@@ -222,8 +244,27 @@ The server compiler and dev integration are implemented and green (62 tests).
 Verified end-to-end: a `.stator` route renders through the dev app with the scope
 attribute on elements, scoped CSS in `<head>`, and correct event patches.
 
-**Remaining in 3a (follow-up):** migrate the four example templates to `.stator`
-and wire the example app to `createDevApp` (the milestone is proven with a fixture
-app; migrating the real demos is mechanical). **Then 3b** (client `<script>`,
-`bind:`/`ref:`, custom elements, client dispatch) and the **production serve path**
-(built assets + manifest, no Vite) — both still open.
+**Example migration done — 2026-06-19.** All example templates are `.stator`
+(layouts, product-list/category-section, cart, checkout, admin); the `.ts`
+templates are deleted; the app runs via `createDevApp`. Surfaced + fixed two real
+compiler bugs against real templates: a leading `<!doctype>` (not valid JSX —
+stripped pre-parse, prepended verbatim) and the JSX rule that `{}` inside a
+*quoted* attribute is literal (dynamic classes must use `class={\`…${x}\`}`).
+Verified live: all four routes render, ADD_ITEM produces the exact 3 patches,
+dynamic category classes correct.
+
+**Production serve path done — 2026-06-19.** `buildApp` (`@statorjs/stator/build`)
+compiles a `.stator` app to a `dist/` of plain `.ts` + a concatenated
+`components.css`; the prod server runs `createApp` over `dist/` with a
+`headExtras` hook linking the stylesheet — **no Vite**. `createApp` gained the
+`headExtras` option. Example wired: `pnpm build` (tsx build.ts) → `pnpm start`
+(tsx start.ts over dist). One sharp edge: `dist/` must live **inside the app dir**
+so module resolution finds the same `@statorjs/stator` copy as the runtime —
+otherwise the templates and `renderRoute` get split `render-context` instances and
+`read()` throws (the same single-instance requirement the dev server solves via
+Vite). Verified: full `build` → `start` cycle serves all routes + patches with no
+Vite. Build unit test covers compiled siblings, specifier rewrite, and CSS
+collection.
+
+**Remaining: Phase 3b** — client `<script>`, `bind:`/`ref:`, custom elements,
+client dispatch.
