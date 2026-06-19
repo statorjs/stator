@@ -103,6 +103,8 @@ transform → server module + client entry + scoped CSS, hosted as a Vite plugin
 (build spike validated the orchestration and the `lang.css` constraint). `on:` /
 `bind:` / `ref:` codegen; custom-element ownership; the import-boundary and
 capability-portability compile errors (consumes Phases 1–2). Largest surface area.
+Sub-staged **3a** (server compiler, no `<script>`) then **3b** (client plane) —
+detailed build plan in [[stator-compiler-and-vite-plugin-implementation-plan]].
 
 **Phase 4 — Keyed `each`.** [[keyed-each-and-list-item-identity]]. Per-item
 insert/remove/move (wire format already reserves the ops); the compiler extracts
