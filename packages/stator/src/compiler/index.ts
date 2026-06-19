@@ -9,3 +9,5 @@
 export { splitStator } from './split.ts'
 export type { ParsedStator } from './split.ts'
 export { lowerTemplate, CompileError } from './lower.ts'
+export { compile } from './compile.ts'
+export type { CompileResult } from './compile.ts'
