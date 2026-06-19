@@ -209,8 +209,35 @@ emit with post-mutation payload, clone isolation across actors, snapshot
 hydration round-trip, injected reads resolver, capability tagging) — all green;
 full existing suite still 27/27; `tsc --noEmit` clean.
 
-**Not yet done (next):** migrate the glue (`instance-proxy`, `session-runtime`,
-`machine-store`) off XState onto this engine; rewrite the example machines to the
-Option A API; port `machine.test.ts`; remove the `xstate` dependency; repoint the
-`@statorjs/stator/machine` export from `src/server/define-machine.ts` to
-`src/engine/`.
+### Migration complete — 2026-06-19
+
+The glue and all machines now run on the engine; XState is gone from the
+framework.
+
+- **Glue swapped:** `machine-store` / `session-runtime` create actors via
+  `createActor(def, { snapshot, resolveHelpers })`; `instance-proxy` consumes the
+  engine `Actor` and exposes the leaf state name as a string for template compat.
+  Reads resolution moved out of `defineMachine` into a host-side
+  `serverReadsResolver` (server/reads-helpers.ts) that reads the dispatch
+  context — keeping the engine host-agnostic. `server/define-machine.ts` is now a
+  thin re-export of the engine.
+- **Transition arrays** added to the engine (first guard that passes wins) —
+  surfaced by the cart's `ADD_ITEM`/`DECREMENT` during migration; flat-state, in
+  the lean set.
+- **All machines ported to Option A inline:** cart, checkout, products, admin
+  (example) and polls, voter (poll) — with typed event unions. Shared actions
+  (cart add/decrement branches) inlined rather than extracted, the accepted
+  Option-A cost.
+- **Emit payload event is typed `any`** in `EmitDeclaration` — an emit can fire
+  from multiple transitions, so its originating event isn't statically one union
+  member (tracked as the cross-machine emit-typing open question).
+- `xstate` removed from `packages/stator/package.json`; `@statorjs/stator/machine`
+  repointed to `src/engine/`.
+
+Verified: framework `tsc` clean + 28/28 tests; example and poll apps `tsc` clean;
+example app booted on the engine and an `ADD_ITEM` (resolving
+`reads.ProductsMachine.byId`) produced correct patches with no errors —
+cross-machine reads, guarded transition arrays, emits, and the
+render→recompute→patch pipeline all exercised end-to-end. Committed on
+`feat/1.0-engine` (engine core, framework migration, app port as separate
+commits).
