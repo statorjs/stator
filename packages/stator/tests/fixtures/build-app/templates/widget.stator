@@ -1,0 +1,8 @@
+<div class="widget">
+  <span class="label">hi</span>
+</div>
+
+<style>
+  .widget { padding: 1rem; }
+  .label { color: teal; }
+</style>

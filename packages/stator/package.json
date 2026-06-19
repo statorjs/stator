@@ -16,6 +16,10 @@
       "types": "./src/server/dev.ts",
       "default": "./src/server/dev.ts"
     },
+    "./build": {
+      "types": "./src/build/index.ts",
+      "default": "./src/build/index.ts"
+    },
     "./template": {
       "types": "./src/template/index.ts",
       "default": "./src/template/index.ts"
