@@ -232,8 +232,68 @@ Runs in dev (watch regenerates on `.stator` change) and as a `stator sync`-style
 step before `tsc`. Components without a `<style>`/props still get a `.d.ts` for
 the default-export signature.
 
+## Request / response access (route-scoped)
+
+A `.stator` route page (and `defineApiRoute` handlers) can read the incoming
+request and write the outgoing response via an ambient, mirroring Astro's
+`Astro.request` / `Astro.response` — but **scoped to routes only**, never general
+components. This is more disciplined than Astro (where any component can read
+`Astro.request` and silently become request-coupled) and is dead-on the framework
+thesis: request data enters at the route boundary and flows down explicitly.
+
+```jsx
+// routes/dashboard.stator
+---
+const [user] = Stator.reads([UserMachine])
+const lang = Stator.request.headers.get('accept-language')   // read incoming
+Stator.response.headers.set('cache-control', 'private')      // set outgoing
+---
+<Layout><h1>Hi</h1></Layout>
+```
+
+- `Stator.request` wraps the existing `RouteRequest` (params/query/headers/method/
+  body); `Stator.response` writes to the existing response side-effect surface
+  (`RenderedResponseEffects` — headers/cookies/status).
+- Mechanism: a **runtime accessor reading the active render context** — the same
+  ambient pattern `read()` already uses (`requireCurrentRenderState`). No compiler
+  rewrite needed; works in `.ts` routes too.
+- In a **component** (`templates/*.stator`), `Stator.request` / `Stator.response`
+  is a **compile error**: "request/response are route-only; pass the value down as
+  a prop." (Requires compilation-context awareness — below.)
+
+## Diagnostics and compilation context
+
+The route-only rule (and several others) means the compiler must know **what kind
+of file it's compiling** and must report errors well. Both are cross-cutting —
+they serve every compile-error case (this spec's, plus 3b's). Built first /
+alongside stage 1.
+
+**Compilation context.** `compile()` gains a `kind: 'route' | 'component'` option
+(the Vite plugin / build sets it from the directory — `routes/` → route, else
+component). `kind` gates a capability matrix:
+
+| frontmatter capability                | component | route page |
+|---------------------------------------|-----------|------------|
+| `Stator.props<P>()`                   | ✓         | ✗ (no parent props) |
+| type-only machine imports             | ✓         | —          |
+| value machine imports + `Stator.reads([...])` | ✗ | ✓        |
+| `Stator.request` / `Stator.response`  | ✗         | ✓          |
+| `'use live'` pragma                   | ✗         | ✓          |
+
+Each illegal use is a clear compile error naming the rule and the fix.
+
+**Located diagnostics.** `CompileError` gains a location (`file`, `line`,
+`column`) and a code frame, derived from the offending TS AST node
+(`getLineAndCharacterOfPosition`). The Vite plugin maps `CompileError` →
+Vite's error shape (`loc` + `frame`) so the dev overlay and terminal both show
+file:line:col with a snippet. Messages follow a consistent "what's wrong → how to
+fix" form. This replaces today's bare-string throws across the whole compiler.
+
 ## Approach (stages)
 
+0. **Diagnostics + context** — `kind: 'route' | 'component'` on `compile()`;
+   located `CompileError` (file/line/col + frame) mapped to Vite's error shape;
+   the capability matrix gate. Foundational — stages 1–3 report through it.
 1. **Component invocation** — capitalized-tag resolution in `lower.ts`; lower to a
    call with a props object; error on unresolved tag.
 2. **Children** — collect a component invocation's children (default + `child="x"`
@@ -275,9 +335,11 @@ the default-export signature.
 
 ## Open Questions
 
-- **Route config surface.** `Stator.route({ live: true })` (leaning — `Stator.*`
-  consistency, scales to more options) vs a frontmatter `export const live = true`.
-  Could also defer until a second option beyond `live` exists.
+- **Pragma form.** `'use live'` (directive prologue) vs `// @stator live`
+  (comment). Leaning the directive prologue (`'use strict'`/`'use client'`
+  precedent, survives tooling); the compiler validates the keyword against a fixed
+  mode-flag set and errors on a typo. Decide before stage 3.
+
 ### Resolved (2026-06-19)
 
 - **Named-child validation** → in scope: a `child="x"` with no matching
@@ -291,6 +353,14 @@ the default-export signature.
 - **`index` vs root catch-all** → index wins (static > rest param), confirmed.
 - **Routing priority rules** → confirmed against Astro's model.
 - **Prerendering / `getStaticPaths`** → out of scope for 1.0 (render-on-demand).
+- **Route config syntax** → a build-time **pragma** (`'use live'`) for boolean
+  rendering-mode flags; structured response config (headers/status) lives in the
+  request/response surface, not route-config keys. `export const`-style config
+  (option B) rejected — looks like a real export but is consumed/stripped (the
+  compiled module exports `GET`), a known Astro misstep.
+- **Request/response access** → `Stator.request` / `Stator.response`, **route-scoped
+  only** (compile error in components); ambient accessor over the existing render
+  context + response side-effect surface.
 
 ## Implementation Notes
 
