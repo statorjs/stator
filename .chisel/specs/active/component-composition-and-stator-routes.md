@@ -115,7 +115,7 @@ import ProductsMachine from '../machines/products.ts'
 import CustomerLayout from '../templates/customer-layout.stator'
 import ProductList from '../templates/product-list.stator'
 
-const { cart, products } = Stator.reads(CartMachine, ProductsMachine)
+const [cart, products] = Stator.reads([CartMachine, ProductsMachine])
 ---
 <CustomerLayout cart={cart}>
   <ProductList products={products} cart={cart} />
@@ -124,10 +124,13 @@ const { cart, products } = Stator.reads(CartMachine, ProductsMachine)
 
 - **Value imports** of machines (a route needs the real def for its `reads:`
   graph), distinct from a *component's* type-only machine imports.
-- **`Stator.reads(...)`** — compile-time marker. The compiler lifts the machine
-  list into `defineRoute({ reads: [...] })` and binds the destructured instances
-  from the render context (which is keyed by machine `name`). Exact destructure
-  form is an open question (positional vs name-rename) below.
+- **`Stator.reads([...])`** — compile-time marker; the argument is an **array**,
+  mirroring `defineRoute({ reads: [...] })`. Destructure is **positional**
+  (`const [cart, products] = Stator.reads([CartMachine, ProductsMachine])`) — the
+  order matches the array. The compiler lifts the machine list into
+  `defineRoute({ reads: [...] })` and binds the positional instances from the
+  render context (keyed internally by machine `name`, but the author addresses them
+  positionally). (Decided 2026-06-19.)
 - **`Stator.route({ live: true })`** — optional, for route config (SSE, etc.),
   consistent with `Stator.props` / `Stator.reads`.
 
@@ -150,8 +153,17 @@ your memory of the router):
 - **Rest params** have the lowest priority and match greedily (zero or more
   segments).
 - **Ties resolved alphabetically.**
+- `routes/index.stator` (`/`) ranks **above** a root `routes/[...slug].stator`
+  (also matches `/`) — index is static, the catch-all is a rest param. (Confirmed.)
 - (Astro also gives endpoints precedence over pages; for us GET-page vs `.ts`-API
   differ by *method*, handled by the merge rule below, so this is moot.)
+
+**Out of scope for 1.0: prerendering / `getStaticPaths`.** Astro can resolve a
+catch-all more precisely when it's prerendered (the route declares the exact URLs
+it builds). Stator 1.0 is server-canonical / render-on-demand, so there's no
+build-time URL enumeration — catch-alls resolve purely by the runtime specificity
+rules above. A prerender mode (with declared paths feeding the sort) is a possible
+future addition, not 1.0.
 
 ### Catch-all / rest params (currently unsupported)
 
@@ -187,6 +199,39 @@ discovery error with a clear message.
   differs (e.g. the method-merge rule, which Astro's prerender/endpoint split
   doesn't need).
 
+## Type generation (prop typing)
+
+Caller-side prop typing must work — `<ProductList products={x}/>` typechecks
+against the component's `Stator.props<P>()`. This is a major DX/safety win and a
+decided requirement (2026-06-19). The blocker is the ambient `declare module
+'*.stator'` wildcard, which types the default export as `(props?: any)`.
+
+**Approach: per-component typegen** (the Astro `sync` / svelte-check / vue-tsc
+pattern). A typegen step emits a `<name>.stator.d.ts` next to each component:
+
+```ts
+// product-list.stator.d.ts (generated)
+import type { InstanceOf, HtmlFragment } from '@statorjs/stator/template'
+import type CartMachine from '../machines/cart.ts'
+import type ProductsMachine from '../machines/products.ts'
+declare const _default: (props: {
+  products: InstanceOf<typeof ProductsMachine>
+  cart: InstanceOf<typeof CartMachine>
+}) => HtmlFragment
+export default _default
+```
+
+TS resolves `import ProductList from './product-list.stator'` to the specific
+`product-list.stator.d.ts` (which beats the `*.stator` wildcard), so the caller
+gets real prop types and `<ProductList .../>` is checked. The `.d.ts` carries the
+frontmatter's type imports (which the compiler already separates) plus `P` from
+`Stator.props<P>()`. The wildcard ambient remains as the fallback for
+not-yet-synced files.
+
+Runs in dev (watch regenerates on `.stator` change) and as a `stator sync`-style
+step before `tsc`. Components without a `<style>`/props still get a `.d.ts` for
+the default-export signature.
+
 ## Approach (stages)
 
 1. **Component invocation** — capitalized-tag resolution in `lower.ts`; lower to a
@@ -200,7 +245,9 @@ discovery error with a clear message.
    (`routes/*.stator`).
 4. **Routing engine** — rest-param parsing (`[...name]`), specificity sort, the
    method-merge rule in discovery.
-5. **Migrate the example** to component-invocation + `.stator` routes; delete the
+5. **Typegen** — emit `<name>.stator.d.ts` per component (prop typing above); wire
+   into dev watch + a sync step.
+6. **Migrate the example** to component-invocation + `.stator` routes; delete the
    `body: HtmlFragment` plumbing.
 
 ## Alternatives Considered
@@ -222,21 +269,21 @@ discovery error with a clear message.
 
 ## Open Questions
 
-- **`Stator.reads` destructure form.** Positional (`const [cart, products] =
-  Stator.reads(CartMachine, ProductsMachine)`) vs name-rename (`const {
-  CartMachine: cart, ProductsMachine: products } = ...`). Positional is concise but
-  less self-documenting; name-rename is explicit but verbose. The render context is
-  keyed by machine name, so the compiler can support either. Decide before stage 3.
-- **Component prop typing.** A `.stator` component's `Stator.props<P>()` types its
-  props; can the *caller's* `<ProductList products={x}/>` be typecheck against `P`?
-  Likely via the `*.stator` ambient declaration carrying a generic — needs design.
+- **Route config surface.** `Stator.route({ live: true })` (leaning — `Stator.*`
+  consistency, scales to more options) vs a frontmatter `export const live = true`.
+  Could also defer until a second option beyond `live` exists.
 - **Typed children.** Should a component declare which named children it accepts
-  (so `child="typo"` is a compile error)? Nice-to-have; possibly defer.
-- **Route config surface.** Confirm `Stator.route({ live })` vs a frontmatter
-  `export const`. Leaning `Stator.route` for `Stator.*` consistency.
-- **`index` vs catch-all at root.** `routes/index.stator` (`/`) vs
-  `routes/[...slug].stator` (also matches `/`): the specificity sort must rank
-  index above the root catch-all. Confirm against Astro's exact tie behavior.
+  (so `child="typo"` is a compile error)? Nice-to-have; likely defer past block A.
+
+### Resolved (2026-06-19)
+
+- **`Stator.reads` form** → `Stator.reads([CartMachine, ProductsMachine])` (array
+  arg, mirrors `defineRoute({ reads })`), **positional** destructure.
+- **Prop typing** → yes, required; via per-component `.stator.d.ts` typegen (see
+  Type generation). 
+- **`index` vs root catch-all** → index wins (static > rest param), confirmed.
+- **Routing priority rules** → confirmed against Astro's model.
+- **Prerendering / `getStaticPaths`** → out of scope for 1.0 (render-on-demand).
 
 ## Implementation Notes
 
