@@ -86,11 +86,18 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     }
     if (ts.isJsxElement(node)) {
       const tag = node.openingElement.tagName.getText(sf)
+      if (isComponentTag(tag)) {
+        return '${' + lowerComponent(tag, node.openingElement.attributes, node.children) + '}'
+      }
       const attrs = lowerAttributes(node.openingElement.attributes)
       return `<${tag}${attrs}${scopeSuffix}>${contentOfChildren(node.children)}</${tag}>`
     }
     if (ts.isJsxSelfClosingElement(node)) {
-      return `<${node.tagName.getText(sf)}${lowerAttributes(node.attributes)}${scopeSuffix} />`
+      const tag = node.tagName.getText(sf)
+      if (isComponentTag(tag)) {
+        return '${' + lowerComponent(tag, node.attributes, undefined) + '}'
+      }
+      return `<${tag}${lowerAttributes(node.attributes)}${scopeSuffix} />`
     }
     if (ts.isJsxFragment(node)) return contentOfChildren(node.children)
     throw new CompileError(
@@ -191,7 +198,55 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     return ''
   }
 
+  // A capitalized JSX tag (`<ProductList .../>`) is a Stator component
+  // invocation — lower it to a call `Name({ ...props, children })`. Attributes
+  // become props; children render eagerly into a `children` fragment (named
+  // children via `child="x"` are stage 2).
+  const lowerComponent = (
+    tag: string,
+    attrs: ts.JsxAttributes,
+    children: ts.NodeArray<ts.JsxChild> | undefined,
+  ): string => {
+    const entries: string[] = []
+    for (const attr of attrs.properties) {
+      if (ts.isJsxSpreadAttribute(attr)) {
+        throw new CompileError(
+          `stator: spread props ({...x}) on <${tag}/> are not supported`,
+          loc(attr),
+        )
+      }
+      if (ts.isJsxNamespacedName(attr.name)) {
+        throw new CompileError(
+          `stator: directive "${attr.name.namespace.text}:${attr.name.name.text}" is not valid on ` +
+            `component <${tag}/> — directives apply to HTML elements, not components`,
+          loc(attr),
+        )
+      }
+      const name = attr.name.getText(sf)
+      if (!attr.initializer) {
+        entries.push(`${name}: true`) // boolean shorthand
+      } else if (ts.isStringLiteral(attr.initializer)) {
+        entries.push(`${name}: ${JSON.stringify(attr.initializer.text)}`)
+      } else {
+        entries.push(`${name}: ${attrExpr(attr)}`)
+      }
+    }
+
+    if (children) {
+      const inner = contentOfChildren(children)
+      if (inner.trim() !== '') entries.push('children: html`' + inner + '`')
+    }
+
+    return `${tag}({ ${entries.join(', ')} })`
+  }
+
   return 'html`' + doctype + contentOfChildren(fragment.children) + '`'
+}
+
+/** A capitalized tag name is a component invocation; lowercase / hyphenated is a
+ *  literal HTML element (incl. custom elements). Matches React/Astro/Solid. */
+function isComponentTag(tag: string): boolean {
+  return /^[A-Z]/.test(tag)
 }
 
 /** Escape literal template text so it round-trips inside a `\`…\`` literal. */
