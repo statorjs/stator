@@ -278,7 +278,7 @@ component). `kind` gates a capability matrix:
 | type-only machine imports             | ✓         | —          |
 | value machine imports + `Stator.reads([...])` | ✗ | ✓        |
 | `Stator.request` / `Stator.response`  | ✗         | ✓          |
-| `'use live'` pragma                   | ✗         | ✓          |
+| `// @stator live` pragma              | ✗         | ✓          |
 
 Each illegal use is a clear compile error naming the rule and the fix.
 
@@ -335,12 +335,22 @@ fix" form. This replaces today's bare-string throws across the whole compiler.
 
 ## Open Questions
 
-- **Pragma form.** `'use live'` (directive prologue) vs `// @stator live`
-  (comment). Leaning the directive prologue (`'use strict'`/`'use client'`
-  precedent, survives tooling); the compiler validates the keyword against a fixed
-  mode-flag set and errors on a typo. Decide before stage 3.
-
 ### Resolved (2026-06-19)
+
+- **Pragma form** → **`// @stator live`** (comment pragma, `@`-tag style like
+  `@ts-check`/`@vite-ignore`). Placed at the top of the route frontmatter. The
+  compiler validates the keyword against a fixed mode-flag set and errors on a typo
+  (e.g. `// @stator liev`). Rationale: `live` is a **build-time** directive — its
+  job is "compiler, emit `live: true` into this route's `defineRoute`"; the SSE
+  behavior is a downstream runtime consequence (like Go's `//go:build` having
+  runtime consequences yet being a build directive). Build-time directives
+  conventionally use **comments** (Go `//go:build`, TS `///`, Vite/Webpack magic
+  comments); the string-literal `'use X'` prologue is reserved for *runtime*
+  directives (`'use strict'`/`'use client'`) and borrowing it for a build flag
+  mildly misleads. Principle recorded for future flags: **build-time directives →
+  comment pragma** (`// @stator …`); a genuine *runtime* module-mode (none yet)
+  would use the string-literal prologue. Structured config (headers/cache) is never
+  a pragma — it lives in the request/response surface.
 
 - **Named-child validation** → in scope: a `child="x"` with no matching
   `<children name="x"/>` in the target component is a compile error. Needs
@@ -353,7 +363,7 @@ fix" form. This replaces today's bare-string throws across the whole compiler.
 - **`index` vs root catch-all** → index wins (static > rest param), confirmed.
 - **Routing priority rules** → confirmed against Astro's model.
 - **Prerendering / `getStaticPaths`** → out of scope for 1.0 (render-on-demand).
-- **Route config syntax** → a build-time **pragma** (`'use live'`) for boolean
+- **Route config syntax** → a build-time **comment pragma** (`// @stator live`) for boolean
   rendering-mode flags; structured response config (headers/status) lives in the
   request/response surface, not route-config keys. `export const`-style config
   (option B) rejected — looks like a real export but is consumed/stripped (the
