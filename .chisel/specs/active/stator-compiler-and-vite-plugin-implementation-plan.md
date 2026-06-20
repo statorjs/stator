@@ -266,5 +266,10 @@ Vite). Verified: full `build` → `start` cycle serves all routes + patches with
 Vite. Build unit test covers compiled siblings, specifier rewrite, and CSS
 collection.
 
-**Remaining: Phase 3b** — client `<script>`, `bind:`/`ref:`, custom elements,
+**Next: composition + routes (block A)** — JSX-element component invocation,
+the `<children>`/`child="..."` model, `.stator` route pages, and the routing
+engine fixes (priority, catch-alls, page+API merge). Specced in
+[[component-composition-and-stator-routes]]; sequenced **before** 3b.
+
+**Then: Phase 3b** — client `<script>`, `bind:`/`ref:`, custom elements,
 client dispatch.
