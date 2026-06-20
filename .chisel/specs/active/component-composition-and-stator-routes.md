@@ -239,7 +239,13 @@ the default-export signature.
 2. **Children** — collect a component invocation's children (default + `child="x"`
    named), pass as a `children` value; lower `<children/>` / `<children name>` in
    the component body. Wire scope-attribute injection to skip the `<children>`
-   pseudo-element.
+   pseudo-element. **Validate named children**: a `child="x"` whose target
+   component declares no `<children name="x"/>` is a **compile error** (decided
+   2026-06-19). This requires *cross-file resolution* — compiling a caller resolves
+   each `<Component>` import, reads the callee's declared region names, and checks
+   every `child=` against them (plus the implicit default). This is the compiler's
+   first cross-file analysis (it has been file-at-a-time); the resolved region set
+   per component is cached and also feeds typegen.
 3. **Route pages** — `Stator.reads` / `Stator.route` rewrite in the route-`.stator`
    compile path; emit `GET = defineRoute(...)`; directory-based detection
    (`routes/*.stator`).
@@ -272,10 +278,11 @@ the default-export signature.
 - **Route config surface.** `Stator.route({ live: true })` (leaning — `Stator.*`
   consistency, scales to more options) vs a frontmatter `export const live = true`.
   Could also defer until a second option beyond `live` exists.
-- **Typed children.** Should a component declare which named children it accepts
-  (so `child="typo"` is a compile error)? Nice-to-have; likely defer past block A.
-
 ### Resolved (2026-06-19)
+
+- **Named-child validation** → in scope: a `child="x"` with no matching
+  `<children name="x"/>` in the target component is a compile error. Needs
+  cross-file region resolution (see stage 2).
 
 - **`Stator.reads` form** → `Stator.reads([CartMachine, ProductsMachine])` (array
   arg, mirrors `defineRoute({ reads })`), **positional** destructure.
