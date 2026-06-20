@@ -1,4 +1,7 @@
 import ts from 'typescript'
+import { CompileError, locAt, type DiagnosticLocation } from './diagnostics.ts'
+
+export { CompileError } from './diagnostics.ts'
 
 /**
  * Lower a `.stator` JSX template body to an `html\`…\`` tagged-template
@@ -15,21 +18,29 @@ import ts from 'typescript'
  * (`data-s-<hash>`) — the marker the scoped-style selector rewrite targets.
  */
 
-export class CompileError extends Error {}
+const WRAP_PREFIX_LEN = 'const __t = (<>'.length
 
 export interface LowerOptions {
   /** Scope marker attribute, e.g. `data-s-a1b2c3d4`. Injected on every element. */
   scopeAttr?: string
+  /** Original `.stator` source — enables located diagnostics. */
+  source?: string
+  /** Character offset in `source` where the template body begins. */
+  templateOffset?: number
+  /** File path, for diagnostics. */
+  file?: string
 }
 
 export function lowerTemplate(template: string, opts: LowerOptions = {}): string {
   // A leading `<!doctype …>` isn't valid JSX — strip it before parsing and
   // prepend it verbatim to the emitted template (it has no `$`/backtick to escape).
   let doctype = ''
+  let doctypeLen = 0
   const doctypeMatch = template.match(/^\s*<!doctype[^>]*>/i)
   if (doctypeMatch) {
     doctype = doctypeMatch[0].trim()
-    template = template.slice(doctypeMatch[0].length)
+    doctypeLen = doctypeMatch[0].length
+    template = template.slice(doctypeLen)
   }
 
   const wrapped = `const __t = (<>${template}</>);`
@@ -41,6 +52,14 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     ts.ScriptKind.TSX,
   )
   const scopeSuffix = opts.scopeAttr ? ` ${opts.scopeAttr}` : ''
+
+  // Map a node in the wrapped template back to a location in the original
+  // `.stator` source (when source-mapping context was provided).
+  const loc = (node: ts.Node): DiagnosticLocation | undefined => {
+    if (opts.source == null || opts.templateOffset == null) return undefined
+    const orig = opts.templateOffset + doctypeLen + (node.getStart(sf) - WRAP_PREFIX_LEN)
+    return locAt(opts.source, orig, opts.file)
+  }
 
   let fragment: ts.JsxFragment | undefined
   const find = (node: ts.Node): void => {
@@ -76,6 +95,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     if (ts.isJsxFragment(node)) return contentOfChildren(node.children)
     throw new CompileError(
       `stator: unsupported template node: ${ts.SyntaxKind[(node as ts.Node).kind]}`,
+      loc(node as ts.Node),
     )
   }
 
@@ -118,7 +138,10 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     let out = ''
     for (const attr of attrs.properties) {
       if (ts.isJsxSpreadAttribute(attr)) {
-        throw new CompileError('stator: spread attributes ({...x}) are not supported')
+        throw new CompileError(
+          'stator: spread attributes ({...x}) are not supported',
+          loc(attr),
+        )
       }
       out += ' ' + lowerAttribute(attr)
     }
@@ -130,17 +153,26 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       const ns = attr.name.namespace.text
       const name = attr.name.name.text
       const value = attrExpr(attr)
+      const requireValue = (dir: string): string => {
+        if (!value) throw new CompileError(`stator: ${dir} requires a value ({...})`, loc(attr))
+        return value
+      }
       if (ns === 'on') {
-        if (!value) throw new CompileError(`stator: on:${name} requires a handler ({...})`)
+        if (!value) {
+          throw new CompileError(`stator: on:${name} requires a handler ({...})`, loc(attr))
+        }
         return '${' + `on(${JSON.stringify(name)}, ${value})` + '}'
       }
       if (ns === 'class' && name === 'list') {
-        return '${' + `classList(${requireValue(value, 'class:list')})` + '}'
+        return '${' + `classList(${requireValue('class:list')})` + '}'
       }
       if (ns === 'style' && name === 'list') {
-        return '${' + `styleList(${requireValue(value, 'style:list')})` + '}'
+        return '${' + `styleList(${requireValue('style:list')})` + '}'
       }
-      throw new CompileError(`stator: directive "${ns}:${name}" is not supported yet (Phase 3b)`)
+      throw new CompileError(
+        `stator: directive "${ns}:${name}" is not supported yet (Phase 3b)`,
+        loc(attr),
+      )
     }
 
     const name = attr.name.getText(sf)
@@ -160,11 +192,6 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
   }
 
   return 'html`' + doctype + contentOfChildren(fragment.children) + '`'
-}
-
-function requireValue(value: string, directive: string): string {
-  if (!value) throw new CompileError(`stator: ${directive} requires a value ({...})`)
-  return value
 }
 
 /** Escape literal template text so it round-trips inside a `\`…\`` literal. */

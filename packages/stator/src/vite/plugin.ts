@@ -1,7 +1,19 @@
 import type { Plugin } from 'vite'
 import { readFile } from 'node:fs/promises'
 import { transform } from 'esbuild'
-import { compile, type CompileResult } from '../compiler/index.ts'
+import { compile, CompileError, type CompileResult } from '../compiler/index.ts'
+
+/** Map a `CompileError` to a Vite/Rollup-friendly error so the dev overlay and
+ *  terminal show file:line:column with a code frame. */
+function toViteError(err: unknown): unknown {
+  if (!(err instanceof CompileError) || !err.loc) return err
+  const { file, line, column, frame } = err.loc
+  return Object.assign(new Error(err.message), {
+    id: file,
+    loc: file ? { file, line, column } : undefined,
+    frame,
+  })
+}
 
 /**
  * The `.stator` Vite plugin — a thin adapter over the pure compiler
@@ -27,7 +39,14 @@ export function stator(): Plugin {
     const cached = cache.get(file)
     if (cached) return cached
     const source = await readFile(file, 'utf8')
-    const result = compile(source, { id: file })
+    // routes/*.stator are route pages; everything else is a component.
+    const kind = /[\\/]routes[\\/].*\.stator$/.test(file) ? 'route' : 'component'
+    let result: CompileResult
+    try {
+      result = compile(source, { id: file, kind })
+    } catch (err) {
+      throw toViteError(err)
+    }
     cache.set(file, result)
     return result
   }

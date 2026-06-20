@@ -28,6 +28,11 @@ export interface ParsedStator {
   styles: string[]
   /** Contents of each bare `<script>` region (client code), in source order. */
   scripts: string[]
+  /** Character offset in the original source where the (trimmed) template body
+   *  begins — used to map template diagnostics back to original positions.
+   *  Assumes `<style>`/`<script>` regions follow the template body (the
+   *  convention), so leading offset is unaffected by their removal. */
+  templateOffset: number
 }
 
 const FRONTMATTER_RE = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*\r?\n?/
@@ -37,12 +42,18 @@ const SCRIPT_RE = /<script>([\s\S]*?)<\/script>/g
 export function splitStator(source: string): ParsedStator {
   let rest = source
   let frontmatter = ''
+  let frontmatterLen = 0
 
   const fm = rest.match(FRONTMATTER_RE)
   if (fm) {
     frontmatter = (fm[1] ?? '').trim()
-    rest = rest.slice(fm[0].length)
+    frontmatterLen = fm[0].length
+    rest = rest.slice(frontmatterLen)
   }
+
+  // Leading whitespace before the template body (after the frontmatter).
+  const leadingWs = rest.length - rest.trimStart().length
+  const templateOffset = frontmatterLen + leadingWs
 
   const styles: string[] = []
   rest = rest.replace(STYLE_RE, (_m, css: string) => {
@@ -56,5 +67,5 @@ export function splitStator(source: string): ParsedStator {
     return ''
   })
 
-  return { frontmatter, template: rest.trim(), styles, scripts }
+  return { frontmatter, template: rest.trim(), styles, scripts, templateOffset }
 }

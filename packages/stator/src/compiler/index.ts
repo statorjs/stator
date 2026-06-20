@@ -8,8 +8,10 @@
  */
 export { splitStator } from './split.ts'
 export type { ParsedStator } from './split.ts'
-export { lowerTemplate, CompileError } from './lower.ts'
+export { lowerTemplate } from './lower.ts'
 export { compile } from './compile.ts'
 export type { CompileResult, CompileOptions } from './compile.ts'
 export { scopeCss } from './styles.ts'
 export { scopeHash } from './hash.ts'
+export { CompileError, locAt, offsetToLineCol, codeFrame } from './diagnostics.ts'
+export type { DiagnosticLocation } from './diagnostics.ts'

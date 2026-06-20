@@ -35,18 +35,28 @@ const PRIMITIVES_IMPORT =
 
 export interface CompileOptions {
   /** Stable id for the component (file path). Used for the scope hash so the
-   *  hash is stable across edits to unrelated files; falls back to the source. */
+   *  hash is stable across edits to unrelated files; falls back to the source.
+   *  Also the diagnostics file path. */
   id?: string
+  /** Whether this file is a route page or a reusable component. Gates the
+   *  frontmatter capability matrix (request/response, reads, props, pragmas).
+   *  Defaults to 'component'. The Vite plugin / build sets it from the directory. */
+  kind?: 'route' | 'component'
 }
 
 export function compile(source: string, opts: CompileOptions = {}): CompileResult {
-  const { frontmatter, template, styles, scripts } = splitStator(source)
+  const { frontmatter, template, styles, scripts, templateOffset } = splitStator(source)
 
   const hasStyles = styles.length > 0
   const hash = scopeHash(opts.id ?? source)
   const scopeAttr = hasStyles ? `data-s-${hash}` : undefined
 
-  const htmlExpr = lowerTemplate(template, { scopeAttr })
+  const htmlExpr = lowerTemplate(template, {
+    scopeAttr,
+    source,
+    templateOffset,
+    file: opts.id,
+  })
   const css = hasStyles ? scopeCss(styles.join('\n'), hash) : ''
   const { hoisted, body, propsType } = processFrontmatter(frontmatter)
 
