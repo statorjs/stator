@@ -1,0 +1,4 @@
+---
+const { title, count } = Stator.props<{ title: string; count: number }>()
+---
+<div class="card"><h2>{title}</h2><span>{count}</span></div>
