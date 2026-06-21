@@ -136,6 +136,48 @@ Exit criteria: a `.stator` component with a client machine, two-way form binding
 and a typed client→server commit works end to end in a browser (the client-model
 spike, now compiler-produced rather than hand-written).
 
+### 3b decisions (2026-06-21)
+
+- **Custom-element model: name-match, co-located islands.** A `<script>`'s named
+  class exports map to custom-element tags by **kebab-case ↔ PascalCase**
+  (`export class QuantityStepper` ↔ `<quantity-stepper>`). The name *is* the
+  binding — explicit, visible in both places, no default-export magic. Checked both
+  directions: a tag with no matching class → error; a class with no matching tag →
+  error (dead code). The hyphen requirement is the platform's (custom elements need
+  a `-`); a single-word class is a clear compile error.
+- **Server component with client islands is the primary shape.** A `.stator` is
+  server-rendered (default export, used as `<ProductCard/>`); its template embeds
+  custom-element tags as client islands; the `<script>` defines those islands'
+  classes, **co-located** in the same file. Multiple elements per file is the
+  normal case (a card with a wishlist heart + a quantity stepper), not a fringe.
+  A purely-client widget is the degenerate single-root case. Cross-file island
+  reuse (define once, embed in many) is a follow-on — the reusable unit in 1.0 is
+  the `.stator` component itself (`<ProductCard/>`), islands live inside it.
+- **Hydration seed deferred.** Client actors start from the machine's static
+  `context` (= what the server rendered from). No serialized seed channel; 1.0
+  client state is ephemeral (drafts, toggles, steppers). Seeding client state from
+  a server prop is a documented follow-on.
+- **`bind:` drives both** the server initial paint (from the machine's static
+  default context, read at compile time) and the client subscribe-and-write.
+
+### 3b build stages
+
+0. **Client runtime primitives** (`src/client/`): `StatorElement` base, `use()` /
+   inline `machine()`, the subscribe→selector→diff→write loop, `refs`, the
+   `dispatch` helper. Hand-written runtime the generated code calls.
+1. **Element detection + name-match validation** (compiler, pure): find
+   custom-element tags + `export class` names, validate both directions + hyphen.
+2. **`ref:`** → unique keyed attr (server) + typed `this.refs.<name>` (client).
+3. **`bind:` one-way** (`text`/`html`/`disabled`/`<attr>`): server initial paint +
+   client subscription.
+4. **`bind:` two-way** (`value`/`checked` + `|lazy`): loop-break / IME / typed
+   values.
+5. **`on:` generalized + client `Machine.dispatch`** (the deferred Phase-2 commit;
+   identity-import).
+6. **`{key}Changed` / `effect`** escape hatch.
+7. **Custom-element codegen + client bundle emission**: `customElements.define`
+   per island; per-component client bundle + `<script>` injection (dev + build).
+
 ## Test matrix
 
 Compiler is a pure function → heavy input→output unit tests.
