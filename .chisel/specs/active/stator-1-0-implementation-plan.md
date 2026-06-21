@@ -121,6 +121,17 @@ non-POST entry points.
 editor syntax highlighting; rewrite the example apps in `.stator` (compiler spec
 success criterion); docs incl. the single-replica boundary.
 
+**Real-world proving demo (after 3b).** Decided 2026-06-21: build a deep,
+realistic **ecommerce storefront emulating Allbirds** as the framework's
+validation target — it exercises every distinctive bet at once (session/app
+machines, guarded checkout flow, client-only state via 3b, slot patches, live
+stock via SSE, composition, routing, request/response). Sequencing: **finish
+Phase 3b first**, then build the demo top-to-bottom against the full surface
+(rather than letting the demo drive 3b's API). The existing `example` is the toy;
+this is the real thing — variants, faceted filtering, pagination, real forms, real
+checkout. Recursive composition (nested categories / threaded reviews) folds in as
+a feature rather than switching domains.
+
 **Critical path:** Phase 1 → Phase 3. Phases 2 and 4 ride alongside 3; Phase 5 is
 the main scope lever and is largely independent.
 

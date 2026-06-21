@@ -374,6 +374,42 @@ fix" form. This replaces today's bare-string throws across the whole compiler.
 
 ## Implementation Notes
 
-(Not started. Spec for review. Builds on the 3a compiler
-[[stator-compiler-and-vite-plugin-implementation-plan]]; precedes Phase 3b. Uses
-Astro's router as the routing-specificity baseline.)
+**Built and complete — 2026-06-21** (115 framework tests green; example migrated +
+verified end-to-end). Six stages, each committed:
+
+- **0 Diagnostics + context** — located `CompileError` (file/line/col + code frame
+  mapped back through the frontmatter offset + JSX-wrapper prefix), `kind:
+  'route'|'component'` on `compile()`, the capability matrix gate. Vite plugin maps
+  errors to the dev overlay shape.
+- **1 Component invocation** — capitalized tags → `Name({ ...props })`; lowercase/
+  hyphenated stay HTML; directives/spread on a component error.
+- **2 Children** — `<children/>` / `<children name="x"/>` → `props.children?.<region>`;
+  caller `child="x"` buckets into a structured `children` bag (default + named);
+  cross-file named-child validation (compile a caller → resolve each `<Component>`
+  import → read callee regions → error on unknown `child=`). Composes correctly
+  through the runtime (default + named regions splice).
+- **3 Route pages** — `routes/*.stator` → `GET = defineRoute(...)`;
+  `Stator.reads([...])` (positional bind via `__ctx[M.name]`), `Stator.request`→
+  `__req`, `Stator.response`→`__ctx.response`, `// @stator live`→`live: true`. Full
+  capability matrix enforced.
+- **4 Routing engine** — `[...name]` rest params (`*name` → `(?:/(.*))?`),
+  Astro-baseline specificity sort, page+API method merge (same method = hard
+  error). **Our matcher is now the routing authority**: GET/API dispatch via Hono
+  catch-alls (`app.get('*')`/`app.on(METHOD,'*')`) that fall through for framework
+  endpoints; SSE/POST resolution shares it. Both demos verified (incl. poll's
+  `/p/:id` + `POST /new`).
+- **5 Typegen** — `generateDts()` emits a component's typed default-export
+  signature from `Stator.props<P>()`; `syncTypes()` writes them into a hidden,
+  gitignored **`.stator/types/`** mirror (NOT next to source — Astro `.astro/` /
+  SvelteKit `.svelte-kit/` convention), resolved via app tsconfig
+  `rootDirs: [".", ".stator/types"]`. Prop typing verified driving real `tsc`.
+- **6 Example migration** — all example routes are `.stator` pages, layouts use
+  `<BaseLayout>` + `<children name="header"/>`/`<children/>`, `body: HtmlFragment`
+  prop-drilling gone. Verified: all routes 200, composition chain renders, `live`
+  pragma → SSE meta, events patch.
+
+Known gap (expected): plain `tsc` can't see into `.stator` files, so cross-`.stator`
+prop checking needs a future `stator check` tool (the Astro-`check`/`svelte-check`
+equivalent); the `.d.ts` currently serves editor IntelliSense + that future tool.
+Builds on [[stator-compiler-and-vite-plugin-implementation-plan]]; precedes Phase
+3b.
