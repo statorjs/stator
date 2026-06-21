@@ -160,12 +160,25 @@ spike, now compiler-produced rather than hand-written).
 - **`bind:` drives both** the server initial paint (from the machine's static
   default context, read at compile time) and the client subscribe-and-write.
 
+### 3b status / resume point (paused 2026-06-21)
+
+**Stage 1 done** (custom-element detection + name-match validation, committed). The
+**gating open decision** before stages 0/2–7 is the **client reactivity API**: what
+`use(Machine)` returns and how a `bind:`/`on:` expression resolves reactive state
+against it (e.g. a live proxy like the server's `read()`, an explicit selector
+form, or a signal). It determines the generated wiring, the `StatorElement` base,
+and the compiler codegen all at once — getting it wrong reworks stages 2–7. The
+spike hard-coded one answer (`sel.count(actor.getSnapshot().context)`); the SFC
+needs an ergonomic, typed one. **Next session: a deep options comparison with
+pros/cons and code examples to land a direction**, before any stage-0 code.
+
 ### 3b build stages
 
 0. **Client runtime primitives** (`src/client/`): `StatorElement` base, `use()` /
    inline `machine()`, the subscribe→selector→diff→write loop, `refs`, the
-   `dispatch` helper. Hand-written runtime the generated code calls.
-1. **Element detection + name-match validation** (compiler, pure): find
+   `dispatch` helper. Hand-written runtime the generated code calls. **(Gated on the
+   client-reactivity-API decision above.)**
+1. ✅ **Element detection + name-match validation** (compiler, pure): find
    custom-element tags + `export class` names, validate both directions + hyphen.
 2. **`ref:`** → unique keyed attr (server) + typed `this.refs.<name>` (client).
 3. **`bind:` one-way** (`text`/`html`/`disabled`/`<attr>`): server initial paint +
