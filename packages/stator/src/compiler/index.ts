@@ -16,5 +16,12 @@ export { scopeCss } from './styles.ts'
 export { scopeHash } from './hash.ts'
 export { declaredRegions, componentImportSpecifier } from './regions.ts'
 export { generateDts } from './dts.ts'
+export {
+  analyzeClient,
+  kebabToPascal,
+  pascalToKebab,
+  isCustomElementTag,
+} from './client-script.ts'
+export type { ClientElement, ClientAnalysis } from './client-script.ts'
 export { CompileError, locAt, offsetToLineCol, codeFrame } from './diagnostics.ts'
 export type { DiagnosticLocation } from './diagnostics.ts'

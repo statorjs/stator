@@ -29,6 +29,9 @@ export interface LowerMeta {
   /** Capitalized component tags invoked in this file (for cross-file
    *  resolution / validation in later stages). */
   components: Set<string>
+  /** Custom-element tags (lowercase, hyphenated) used in this file's template —
+   *  the client islands the `<script>` defines (Phase 3b). */
+  customElements: Set<string>
 }
 
 export interface LowerOptions {
@@ -112,6 +115,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
         if (meta) meta.components.add(tag)
         return '${' + lowerComponent(tag, node.openingElement.attributes, node.children) + '}'
       }
+      if (meta && tag.includes('-')) meta.customElements.add(tag)
       const attrs = lowerAttributes(node.openingElement.attributes)
       return `<${tag}${attrs}${scopeSuffix}>${contentOfChildren(node.children)}</${tag}>`
     }
@@ -122,6 +126,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
         if (meta) meta.components.add(tag)
         return '${' + lowerComponent(tag, node.attributes, undefined) + '}'
       }
+      if (meta && tag.includes('-')) meta.customElements.add(tag)
       return `<${tag}${lowerAttributes(node.attributes)}${scopeSuffix} />`
     }
     if (ts.isJsxFragment(node)) return contentOfChildren(node.children)
