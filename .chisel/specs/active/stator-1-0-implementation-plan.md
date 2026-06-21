@@ -131,6 +131,17 @@ the main scope lever and is largely independent.
 - Horizontal scaling (Redis pub/sub backplane on `fanOut`).
 - Statechart richness (nested/parallel/history/invoke) — extension points only.
 - Editor LSP beyond syntax highlighting.
+- **Owning the HTTP layer.** Decided 2026-06-21: keep **Hono for 1.0 as a thin
+  runtime adapter**, not as the router. Stator's own matcher is the routing
+  authority (rest params + specificity sort; GET/API dispatch and SSE/POST
+  resolution all go through `matchPath`). Hono still carries real weight at the
+  runtime layer — `Context` (`c.req`/`c.json`/`c.html`/`c.redirect`),
+  `hono/cookie`, `hono/streaming` SSE, the `@hono/node-server` `serve()` adapter,
+  and near-free multi-runtime portability (Node/Bun/Deno/Workers) via Web-standard
+  `Request`/`Response`. Owning the full HTTP layer (stator-native `Context`
+  carrying the render context / response surface / directives first-class) is a
+  deliberate post-1.0 option; the `buildHonoApp` + matcher seam keeps the swap
+  localized.
 
 ## Open Questions
 
