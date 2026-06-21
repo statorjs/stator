@@ -42,6 +42,10 @@ export interface CompileOptions {
    *  frontmatter capability matrix (request/response, reads, props, pragmas).
    *  Defaults to 'component'. The Vite plugin / build sets it from the directory. */
   kind?: 'route' | 'component'
+  /** Resolve a component identifier (used in this file) to the named regions it
+   *  declares, for cross-file `child="x"` validation. The Vite plugin / build
+   *  supplies this (reads sibling `.stator` files). Omitted → validation skipped. */
+  resolveRegions?: (componentName: string) => Set<string> | null
 }
 
 export function compile(source: string, opts: CompileOptions = {}): CompileResult {
@@ -58,6 +62,7 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
     templateOffset,
     file: opts.id,
     meta,
+    resolveRegions: opts.resolveRegions,
   })
   const css = hasStyles ? scopeCss(styles.join('\n'), hash) : ''
   const { hoisted, body, propsType } = processFrontmatter(frontmatter)

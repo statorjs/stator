@@ -1,7 +1,35 @@
 import type { Plugin } from 'vite'
+import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { resolve, dirname } from 'node:path'
 import { transform } from 'esbuild'
-import { compile, CompileError, type CompileResult } from '../compiler/index.ts'
+import {
+  compile,
+  CompileError,
+  splitStator,
+  declaredRegions,
+  componentImportSpecifier,
+  type CompileResult,
+} from '../compiler/index.ts'
+
+/** Build a region resolver for a file: maps a component identifier used in
+ *  `file` to the named regions its imported `.stator` declares. Reads sibling
+ *  files synchronously (resolution happens mid-compile). Returns null when the
+ *  identifier isn't a `.stator` default import or the file can't be read. */
+function regionResolverFor(file: string, source: string) {
+  const { frontmatter } = splitStator(source)
+  return (componentName: string): Set<string> | null => {
+    const spec = componentImportSpecifier(frontmatter, componentName)
+    if (!spec) return null
+    const target = spec.startsWith('.') ? resolve(dirname(file), spec) : null
+    if (!target) return null
+    try {
+      return declaredRegions(readFileSync(target, 'utf8'))
+    } catch {
+      return null
+    }
+  }
+}
 
 /** Map a `CompileError` to a Vite/Rollup-friendly error so the dev overlay and
  *  terminal show file:line:column with a code frame. */
@@ -43,7 +71,11 @@ export function stator(): Plugin {
     const kind = /[\\/]routes[\\/].*\.stator$/.test(file) ? 'route' : 'component'
     let result: CompileResult
     try {
-      result = compile(source, { id: file, kind })
+      result = compile(source, {
+        id: file,
+        kind,
+        resolveRegions: regionResolverFor(file, source),
+      })
     } catch (err) {
       throw toViteError(err)
     }

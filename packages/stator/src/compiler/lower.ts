@@ -43,6 +43,12 @@ export interface LowerOptions {
   /** Out-param: the lowerer populates this with analysis metadata for
    *  compile()/validation/typegen. */
   meta?: LowerMeta
+  /** Resolve a component identifier to the set of named regions it declares
+   *  (`<children name="x"/>`). Returns null if unresolvable (e.g. not a
+   *  `.stator` import, or no resolver wired) — in which case named-child
+   *  validation is skipped for that component. Supplied by the Vite plugin /
+   *  build, which can read sibling `.stator` files. */
+  resolveRegions?: (componentName: string) => Set<string> | null
 }
 
 export function lowerTemplate(template: string, opts: LowerOptions = {}): string {
@@ -304,13 +310,26 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     }
 
     if (children) {
+      const declared = opts.resolveRegions?.(tag) ?? null
       const defaultParts: string[] = []
       const named: Record<string, string> = {}
       for (const child of children) {
         const region = childRegionOf(child)
         const rendered = contentOfChild(child)
-        if (region) named[region] = (named[region] ?? '') + rendered
-        else defaultParts.push(rendered)
+        if (region) {
+          if (declared && !declared.has(region)) {
+            const list = [...declared]
+            throw new CompileError(
+              `stator: <${tag}/> has no child region "${region}". ` +
+                (list.length
+                  ? `Declared regions: ${list.map((r) => `"${r}"`).join(', ')}. `
+                  : `It declares no named regions. `) +
+                `Add <children name="${region}"/> to ${tag}, or remove the child="${region}" marker.`,
+              loc(child as ts.Node),
+            )
+          }
+          named[region] = (named[region] ?? '') + rendered
+        } else defaultParts.push(rendered)
       }
       const bag: string[] = []
       const defaultContent = defaultParts.join('')
