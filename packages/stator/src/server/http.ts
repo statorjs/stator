@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
 import { readFile } from 'node:fs/promises'
@@ -70,13 +70,23 @@ interface RouteMatcher {
 function compileMatcher(route: DiscoveredRoute): RouteMatcher {
   // Translate Hono-pattern (`/p/:id`) into a regex that matches a literal
   // URL path and captures each param value.
-  const pattern = route.urlPath
-    .split('/')
-    .map((seg) => {
-      if (seg.startsWith(':')) return '([^/]+)'
-      return seg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    })
-    .join('/')
+  // A rest segment (`*name`) consumes the remainder including its leading slash,
+  // so it can match zero segments (`/files` for `/files/[...path]`).
+  const parts = route.urlPath.split('/')
+  let pattern = ''
+  for (let i = 0; i < parts.length; i++) {
+    const seg = parts[i]!
+    if (seg.startsWith('*')) {
+      // Absorb the preceding `/` and match the (possibly empty) remainder.
+      pattern = pattern.replace(/\/$/, '') + '(?:/(.*))?'
+    } else if (seg.startsWith(':')) {
+      pattern += '([^/]+)'
+      if (i < parts.length - 1) pattern += '/'
+    } else {
+      pattern += seg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      if (i < parts.length - 1) pattern += '/'
+    }
+  }
   return { route, regex: new RegExp(`^${pattern}$`) }
 }
 
@@ -125,11 +135,13 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     )
   })
 
-  // Compile matchers for GET routes. Used by POST /__events and SSE to
-  // resolve a literal client path back to a route pattern + params.
-  const getMatchers: RouteMatcher[] = config.routes
-    .filter((r) => r.GET)
-    .map(compileMatcher)
+  // Compile matchers for every route, in discovery's specificity order. Our own
+  // matcher (not Hono's router) is the routing authority: GET/API dispatch and
+  // SSE/POST resolution all go through `matchPath`, so rest params (`*name`) and
+  // specificity ordering behave identically everywhere. Hono only routes the
+  // fixed framework endpoints (static exact paths it prioritizes over `*`).
+  const matchers: RouteMatcher[] = config.routes.map(compileMatcher)
+  const getMatchers = matchers // SSE/POST filter by `.GET` after matching
 
   app.get('/static/client.js', (c) => {
     c.header('Content-Type', 'application/javascript; charset=utf-8')
@@ -152,16 +164,6 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     })
   }
 
-  for (const route of config.routes) {
-    if (route.GET) registerGetRoute(app, route, route.GET, config.store, config.headExtras)
-    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE'] as const) {
-      const apiRoute = route[method]
-      if (!apiRoute) continue
-      app.on(method, route.urlPath, async (c) => {
-        return runApiRoute(c, route, apiRoute, config.store)
-      })
-    }
-  }
 
   // SSE endpoint. The connection's runtime + renderState stay alive for
   // the connection's lifetime — this is the one place per-session state
@@ -305,6 +307,32 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     })
   })
 
+  // User-route dispatch: catch-alls resolved by our matcher, registered LAST so
+  // the fixed framework endpoints (/__events, /__sse, /static/*) — all registered
+  // above — take their requests first. A request that matches no user route falls
+  // through to Hono's default (so framework paths handled above are untouched).
+  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE'] as const) {
+    app.on(method, '*', async (c, next) => {
+      const matched = matchPath(matchers, c.req.path)
+      const apiRoute = matched?.route[method]
+      if (!matched || !apiRoute) return next()
+      return runApiRoute(c, matched.route, apiRoute, config.store, matched.params)
+    })
+  }
+
+  app.get('*', async (c, next) => {
+    const matched = matchPath(matchers, c.req.path)
+    if (!matched || !matched.route.GET) return next()
+    return handleGet(
+      c,
+      matched.route,
+      matched.route.GET,
+      matched.params,
+      config.store,
+      config.headExtras,
+    )
+  })
+
   return app
 }
 
@@ -327,18 +355,19 @@ async function bundleClient(): Promise<string> {
   return cachedClientJs
 }
 
-function registerGetRoute(
-  app: Hono,
+async function handleGet(
+  c: Context,
   discovered: DiscoveredRoute,
   route: RouteDefinition,
+  params: Record<string, string>,
   store: MachineStore,
   headExtras?: (filePath: string) => string | Promise<string>,
-): void {
-  app.get(discovered.urlPath, async (c) => {
+): Promise<Response> {
+  {
     const { sessionId } = getOrCreateSessionId(c)
     const literalPath = c.req.path
     const routeKey = `GET ${literalPath}`
-    const request = buildRouteRequest(c, discovered.paramNames)
+    const request = { ...buildRouteRequest(c, discovered.paramNames), params }
 
     const runtime = new SessionRuntime(sessionId, store)
     try {
@@ -366,7 +395,7 @@ function registerGetRoute(
     } finally {
       runtime.dispose()
     }
-  })
+  }
 }
 
 function contentTypeFor(path: string): string {

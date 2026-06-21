@@ -59,9 +59,14 @@ export async function runApiRoute(
   discovered: DiscoveredRoute,
   route: ApiRouteDefinition,
   store: MachineStore,
+  /** Path params from the framework's own matcher (the dispatch catch-all
+   *  bypasses Hono's per-route param extraction). */
+  params?: Record<string, string>,
 ): Promise<Response> {
   const { sessionId } = getOrCreateSessionId(c)
-  const request = buildRouteRequest(c, discovered.paramNames)
+  const request = params
+    ? { ...buildRouteRequest(c, discovered.paramNames), params }
+    : buildRouteRequest(c, discovered.paramNames)
 
   return withSessionLock(sessionId, async () => {
     const runtime = new SessionRuntime(sessionId, store)
