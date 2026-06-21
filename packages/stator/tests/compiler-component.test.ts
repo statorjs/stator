@@ -19,15 +19,15 @@ describe('compiler: component invocation (stage 1)', () => {
     expect(lowerTemplate('<Footer />')).toBe('html`${Footer({  })}`')
   })
 
-  it('passes children as an html`` fragment', () => {
+  it('passes default children in a children bag', () => {
     expect(lowerTemplate('<Layout cart={c}><ProductList products={p} /></Layout>')).toBe(
-      'html`${Layout({ cart: c, children: html`${ProductList({ products: p })}` })}`',
+      'html`${Layout({ cart: c, children: { default: html`${ProductList({ products: p })}` } })}`',
     )
   })
 
   it('passes mixed element + component children', () => {
     expect(lowerTemplate('<Layout><h1>Title</h1><Body /></Layout>')).toBe(
-      'html`${Layout({ children: html`<h1>Title</h1>${Body({  })}` })}`',
+      'html`${Layout({ children: { default: html`<h1>Title</h1>${Body({  })}` } })}`',
     )
   })
 

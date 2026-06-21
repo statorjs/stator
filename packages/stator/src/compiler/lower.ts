@@ -20,6 +20,17 @@ export { CompileError } from './diagnostics.ts'
 
 const WRAP_PREFIX_LEN = 'const __t = (<>'.length
 
+export interface LowerMeta {
+  /** This file's body contains a `<children>` placeholder (so the compiled
+   *  function must accept a `props.children` bag). */
+  usesChildren: boolean
+  /** Named regions this file declares via `<children name="x"/>`. */
+  regions: Set<string>
+  /** Capitalized component tags invoked in this file (for cross-file
+   *  resolution / validation in later stages). */
+  components: Set<string>
+}
+
 export interface LowerOptions {
   /** Scope marker attribute, e.g. `data-s-a1b2c3d4`. Injected on every element. */
   scopeAttr?: string
@@ -29,6 +40,9 @@ export interface LowerOptions {
   templateOffset?: number
   /** File path, for diagnostics. */
   file?: string
+  /** Out-param: the lowerer populates this with analysis metadata for
+   *  compile()/validation/typegen. */
+  meta?: LowerMeta
 }
 
 export function lowerTemplate(template: string, opts: LowerOptions = {}): string {
@@ -52,6 +66,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     ts.ScriptKind.TSX,
   )
   const scopeSuffix = opts.scopeAttr ? ` ${opts.scopeAttr}` : ''
+  const meta = opts.meta
 
   // Map a node in the wrapped template back to a location in the original
   // `.stator` source (when source-mapping context was provided).
@@ -86,7 +101,9 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     }
     if (ts.isJsxElement(node)) {
       const tag = node.openingElement.tagName.getText(sf)
+      if (tag === 'children') return lowerChildrenPlaceholder(node.openingElement.attributes)
       if (isComponentTag(tag)) {
+        if (meta) meta.components.add(tag)
         return '${' + lowerComponent(tag, node.openingElement.attributes, node.children) + '}'
       }
       const attrs = lowerAttributes(node.openingElement.attributes)
@@ -94,7 +111,9 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     }
     if (ts.isJsxSelfClosingElement(node)) {
       const tag = node.tagName.getText(sf)
+      if (tag === 'children') return lowerChildrenPlaceholder(node.attributes)
       if (isComponentTag(tag)) {
+        if (meta) meta.components.add(tag)
         return '${' + lowerComponent(tag, node.attributes, undefined) + '}'
       }
       return `<${tag}${lowerAttributes(node.attributes)}${scopeSuffix} />`
@@ -150,9 +169,61 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
           loc(attr),
         )
       }
-      out += ' ' + lowerAttribute(attr)
+      // `child="x"` is a composition marker consumed by the parent component,
+      // not a rendered HTML attribute — strip it from element output.
+      if (
+        ts.isJsxAttribute(attr) &&
+        !ts.isJsxNamespacedName(attr.name) &&
+        attr.name.getText(sf) === 'child'
+      ) {
+        continue
+      }
+      const lowered = lowerAttribute(attr)
+      if (lowered) out += ' ' + lowered
     }
     return out
+  }
+
+  // `<children/>` → the default child bag entry; `<children name="x"/>` → the
+  // named one. Empty string when absent, so a missing region renders nothing.
+  const lowerChildrenPlaceholder = (attrs: ts.JsxAttributes): string => {
+    if (meta) meta.usesChildren = true
+    let region = 'default'
+    for (const attr of attrs.properties) {
+      if (
+        ts.isJsxAttribute(attr) &&
+        !ts.isJsxNamespacedName(attr.name) &&
+        attr.name.getText(sf) === 'name' &&
+        attr.initializer &&
+        ts.isStringLiteral(attr.initializer)
+      ) {
+        region = attr.initializer.text
+        if (meta) meta.regions.add(region)
+      }
+    }
+    return '${props.children?.' + region + " ?? ''}"
+  }
+
+  // Read a `child="x"` marker off a caller's child node (null = default bucket).
+  const childRegionOf = (node: ts.JsxChild): string | null => {
+    const attrs = ts.isJsxElement(node)
+      ? node.openingElement.attributes
+      : ts.isJsxSelfClosingElement(node)
+        ? node.attributes
+        : undefined
+    if (!attrs) return null
+    for (const attr of attrs.properties) {
+      if (
+        ts.isJsxAttribute(attr) &&
+        !ts.isJsxNamespacedName(attr.name) &&
+        attr.name.getText(sf) === 'child' &&
+        attr.initializer &&
+        ts.isStringLiteral(attr.initializer)
+      ) {
+        return attr.initializer.text
+      }
+    }
+    return null
   }
 
   const lowerAttribute = (attr: ts.JsxAttribute): string => {
@@ -233,8 +304,21 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     }
 
     if (children) {
-      const inner = contentOfChildren(children)
-      if (inner.trim() !== '') entries.push('children: html`' + inner + '`')
+      const defaultParts: string[] = []
+      const named: Record<string, string> = {}
+      for (const child of children) {
+        const region = childRegionOf(child)
+        const rendered = contentOfChild(child)
+        if (region) named[region] = (named[region] ?? '') + rendered
+        else defaultParts.push(rendered)
+      }
+      const bag: string[] = []
+      const defaultContent = defaultParts.join('')
+      if (defaultContent.trim() !== '') bag.push('default: html`' + defaultContent + '`')
+      for (const [name, content] of Object.entries(named)) {
+        bag.push(`${JSON.stringify(name)}: html\`${content}\``)
+      }
+      if (bag.length > 0) entries.push(`children: { ${bag.join(', ')} }`)
     }
 
     return `${tag}({ ${entries.join(', ')} })`

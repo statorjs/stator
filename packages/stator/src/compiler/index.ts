@@ -9,6 +9,7 @@
 export { splitStator } from './split.ts'
 export type { ParsedStator } from './split.ts'
 export { lowerTemplate } from './lower.ts'
+export type { LowerMeta, LowerOptions } from './lower.ts'
 export { compile } from './compile.ts'
 export type { CompileResult, CompileOptions } from './compile.ts'
 export { scopeCss } from './styles.ts'

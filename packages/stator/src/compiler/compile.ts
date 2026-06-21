@@ -1,6 +1,6 @@
 import ts from 'typescript'
 import { splitStator } from './split.ts'
-import { lowerTemplate } from './lower.ts'
+import { lowerTemplate, type LowerMeta } from './lower.ts'
 import { scopeHash } from './hash.ts'
 import { scopeCss } from './styles.ts'
 
@@ -51,16 +51,24 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
   const hash = scopeHash(opts.id ?? source)
   const scopeAttr = hasStyles ? `data-s-${hash}` : undefined
 
+  const meta: LowerMeta = { usesChildren: false, regions: new Set(), components: new Set() }
   const htmlExpr = lowerTemplate(template, {
     scopeAttr,
     source,
     templateOffset,
     file: opts.id,
+    meta,
   })
   const css = hasStyles ? scopeCss(styles.join('\n'), hash) : ''
   const { hoisted, body, propsType } = processFrontmatter(frontmatter)
 
-  const param = propsType ? `props: ${propsType}` : ''
+  // A `props` param is needed when the body declares props OR uses `<children>`
+  // (which reads `props.children`). The children bag is loosely typed here — the
+  // generated `.stator.d.ts` (typegen) carries the real public prop types.
+  let param = ''
+  if (propsType && meta.usesChildren) param = `props: ${propsType} & { children?: any }`
+  else if (propsType) param = `props: ${propsType}`
+  else if (meta.usesChildren) param = `props: { children?: any }`
   const lines = [PRIMITIVES_IMPORT]
   if (hoisted) lines.push(hoisted)
   lines.push('')
