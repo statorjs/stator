@@ -1,33 +1,49 @@
-import { readdir, readFile, writeFile, stat } from 'node:fs/promises'
-import { join, sep } from 'node:path'
+import { readdir, readFile, writeFile, mkdir, rm } from 'node:fs/promises'
+import { join, sep, relative, dirname } from 'node:path'
 import { generateDts } from '../compiler/dts.ts'
 
 /**
- * Type sync: walk an app's `.stator` files and write a sibling
- * `<name>.stator.d.ts` for each component, so `tsc`/editors type
- * `import X from './x.stator'` against the component's real props (the `.d.ts`
- * beats the `*.stator` ambient wildcard). Route pages (`routes/*.stator`) are
- * skipped — they export `GET`, not a render function.
+ * Type sync: generate a `<name>.stator.d.ts` for each component so editors and
+ * `tsc` type `import X from './x.stator'` against the component's real props
+ * (the `.d.ts` beats the `*.stator` ambient wildcard).
  *
- * Runs as a one-shot `stator sync` step before `tsc`, and on `.stator` change in
- * a dev watch.
+ * The generated files live in a hidden, framework-managed `.stator/types/`
+ * directory that MIRRORS the source tree — never next to source. TS finds them
+ * via `rootDirs: ['.', '.stator/types']` in the app's tsconfig, which merges the
+ * two trees into one virtual root (the Astro `.astro/` / SvelteKit `.svelte-kit/`
+ * convention). `.stator/` is gitignored.
+ *
+ * Route pages (`routes/*.stator`) are skipped — they export `GET`, not a render
+ * function.
  */
 export interface SyncResult {
   /** Number of `.stator.d.ts` files written. */
   written: number
+  /** The generated-types directory. */
+  outDir: string
 }
 
+const TYPES_DIR = join('.stator', 'types')
+
 export async function syncTypes(root: string): Promise<SyncResult> {
+  const outDir = join(root, TYPES_DIR)
+  await rm(outDir, { recursive: true, force: true })
+
   const files = await walk(root)
   let written = 0
   for (const file of files) {
     const kind = file.split(sep).includes('routes') ? 'route' : 'component'
     const dts = generateDts(await readFile(file, 'utf8'), { kind })
     if (dts === null) continue
-    await writeFile(file + '.d.ts', dts)
+    // Mirror the source path under .stator/types: templates/x.stator →
+    // .stator/types/templates/x.stator.d.ts.
+    const rel = relative(root, file)
+    const target = join(outDir, rel + '.d.ts')
+    await mkdir(dirname(target), { recursive: true })
+    await writeFile(target, dts)
     written++
   }
-  return { written }
+  return { written, outDir }
 }
 
 async function walk(dir: string): Promise<string[]> {

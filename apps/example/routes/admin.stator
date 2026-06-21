@@ -1,0 +1,12 @@
+---
+// @stator live
+import AdminMachine from '../machines/admin.ts'
+import ProductsMachine from '../machines/products.ts'
+import AdminLayout from '../templates/admin-layout.stator'
+import AdminPage from '../templates/admin-page.stator'
+
+const [admin, products] = Stator.reads([AdminMachine, ProductsMachine])
+---
+<AdminLayout>
+  <AdminPage admin={admin} products={products} />
+</AdminLayout>

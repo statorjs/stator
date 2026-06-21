@@ -1,7 +1,3 @@
----
-import type { HtmlFragment } from '@statorjs/stator/template'
-const { header, body } = Stator.props<{ header: HtmlFragment; body: HtmlFragment }>()
----
 <!doctype html>
 <html lang="en">
   <head>
@@ -11,8 +7,8 @@ const { header, body } = Stator.props<{ header: HtmlFragment; body: HtmlFragment
     <link rel="stylesheet" href="/static/app.css" />
   </head>
   <body>
-    {header}
-    <main>{body}</main>
+    <children name="header"/>
+    <main><children/></main>
     <script src="/static/client.js"></script>
     <script src="/static/inspector.js" defer></script>
   </body>

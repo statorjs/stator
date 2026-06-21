@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "sync": "tsx sync.ts",
+    "typecheck": "tsx sync.ts && tsc --noEmit",
     "dev": "tsx watch server.ts",
     "build": "tsx build.ts",
     "start": "tsx start.ts"

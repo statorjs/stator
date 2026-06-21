@@ -68,7 +68,10 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   const cssForFile = async (file: string): Promise<string> => {
     let css = cssCache.get(file)
     if (css === undefined) {
-      css = compile(await readFile(file, 'utf8'), { id: file }).css
+      // Match the plugin's kind detection so route-page frontmatter
+      // (Stator.reads etc.) compiles under the route capability set.
+      const kind = /[\\/]routes[\\/].*\.stator$/.test(file) ? 'route' : 'component'
+      css = compile(await readFile(file, 'utf8'), { id: file, kind }).css
       cssCache.set(file, css)
     }
     return css

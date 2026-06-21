@@ -2,7 +2,7 @@
 import type { InstanceOf } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
 import type ProductsMachine from '../machines/products.ts'
-import categorySection from './category-section.stator'
+import CategorySection from './category-section.stator'
 
 const { products, cart } = Stator.props<{
   products: InstanceOf<typeof ProductsMachine>
@@ -15,7 +15,7 @@ const { products, cart } = Stator.props<{
     <p>A small, hand-picked selection. Everything ships from one workshop.</p>
   </section>
 
-  {categorySection({ title: 'Stationery', blurb: 'Notebooks, pens, and the things that go around them.', cat: 'stationery', products, cart })}
-  {categorySection({ title: 'Office', blurb: 'Working-from-anywhere essentials.', cat: 'office', products, cart })}
-  {categorySection({ title: 'Lifestyle', blurb: 'Quietly nice things for the rest of the day.', cat: 'lifestyle', products, cart })}
+  <CategorySection title="Stationery" blurb="Notebooks, pens, and the things that go around them." cat="stationery" products={products} cart={cart} />
+  <CategorySection title="Office" blurb="Working-from-anywhere essentials." cat="office" products={products} cart={cart} />
+  <CategorySection title="Lifestyle" blurb="Quietly nice things for the rest of the day." cat="lifestyle" products={products} cart={cart} />
 </div>

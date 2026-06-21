@@ -1,16 +1,12 @@
 ---
-import type { HtmlFragment, InstanceOf } from '@statorjs/stator/template'
+import type { InstanceOf } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
-import baseLayout from './base-layout.stator'
+import BaseLayout from './base-layout.stator'
 
-const { cart, body } = Stator.props<{
-  cart: InstanceOf<typeof CartMachine>
-  body: HtmlFragment
-}>()
+const { cart } = Stator.props<{ cart: InstanceOf<typeof CartMachine> }>()
 ---
-{baseLayout({
-  body,
-  header: <header class="site-header">
+<BaseLayout>
+  <header class="site-header" child="header">
     <a href="/" class="brand">stator demo</a>
     <button
       class="nav-toggle"
@@ -28,5 +24,6 @@ const { cart, body } = Stator.props<{
       <a href="/checkout">Checkout</a>
       <a href="/admin">Admin</a>
     </nav>
-  </header>,
-})}
+  </header>
+  <children/>
+</BaseLayout>
