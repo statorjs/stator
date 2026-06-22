@@ -339,6 +339,20 @@ no wire) are distinct capability layers over the same core.
   to a local subscription — same directive, routed by import location? This is the
   "seamless boundary" prize, but server text-position interpolation vs
   element-attribute directive is a real difference to reconcile first.
+- **Client dynamic lists (deferred — viable path recorded 2026-06-21).** A list
+  whose length changes purely client-side needs node *creation* in the browser,
+  which has no obvious mechanism under "no client JSX renderer." Not needed for 1.0:
+  most ecommerce "lists" are *server* lists (cart, search results — re-rendered via
+  `each`/recompute wire patches) or fixed-shape sets the client only toggles via
+  `bind:`. The viable later path for a genuine client-only dynamic list: a client
+  `each(list, row => <li/>, key)` where the compiler emits the row body **once as an
+  inert `<template>`** in the server HTML (real DOM the server authored — not a
+  shipped renderer), and a client `each`-runtime keyed-diffs the list and
+  `cloneNode`s the template per new item, rewiring each row's `bind:`/`on:`. Reuses
+  the **same keyed-diff as Phase 4 keyed-`each`** (server-side) — clone replaces
+  `html\`\`` as the node factory. Rejected: innerHTML-regeneration (kills focus /
+  listeners / input state in rows). Build alongside Phase 4 or as a fast-follow, if
+  a real client-only dynamic list appears.
 - **Terser inline-machine form.** `machine({ count: 0, on: { … } })` is a proposed
   shorthand distinct from today's `defineMachine` (no `name`/`lifecycle`/`initial`/
   `states` for component-local state). This is load-bearing: if trivial machines
