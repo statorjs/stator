@@ -138,21 +138,35 @@ spike, now compiler-produced rather than hand-written).
 
 ### 3b decisions (2026-06-21)
 
-- **Custom-element model: name-match, co-located islands.** A `<script>`'s named
-  class exports map to custom-element tags by **kebab-case ↔ PascalCase**
-  (`export class QuantityStepper` ↔ `<quantity-stepper>`). The name *is* the
-  binding — explicit, visible in both places, no default-export magic. Checked both
-  directions: a tag with no matching class → error; a class with no matching tag →
-  error (dead code). The hyphen requirement is the platform's (custom elements need
-  a `-`); a single-word class is a clear compile error.
-- **Server component with client islands is the primary shape.** A `.stator` is
-  server-rendered (default export, used as `<ProductCard/>`); its template embeds
-  custom-element tags as client islands; the `<script>` defines those islands'
-  classes, **co-located** in the same file. Multiple elements per file is the
-  normal case (a card with a wishlist heart + a quantity stepper), not a fringe.
-  A purely-client widget is the degenerate single-root case. Cross-file island
-  reuse (define once, embed in many) is a follow-on — the reusable unit in 1.0 is
-  the `.stator` component itself (`<ProductCard/>`), islands live inside it.
+- **Separate-file client components (revised 2026-06-21; was co-located islands).**
+  One `.stator` = one component, server **or** client — never both. A `.stator` is a
+  *client component* iff it has a `<script>` exporting a `StatorElement` subclass
+  whose name kebab-matches its custom-element root tag (`export class
+  QuantityStepper` ↔ root `<quantity-stepper>`); otherwise it's a *server component*
+  (no `<script>`). File kind is **intrinsic** — derivable by reading the file
+  (`extends StatorElement` + custom-element root is a true structural statement, like
+  `extends HTMLElement`), NOT an out-of-band signal. Explicitly rejected: a
+  `'use client'` pragma or a `@statorjs/stator/client` import path as the signal —
+  both are coloring bolted on top (the RSC failure mode). The client helpers
+  (`use`/`machine`/`StatorElement`) are auto-injected like the server template
+  primitives, so no colored import appears in author code.
+
+  Rationale: co-location quietly broke the "single-file component" invariant — one
+  file would define a server template *plus* N client custom elements. Separation
+  restores 1 file = 1 component, makes the strict "client bind = client actors"
+  rule **structural** (a client template can't `read()` server state — it's not in
+  scope; server content arrives via props/attributes or slotted children), and
+  removes island-scope detection from the compiler entirely.
+- **Name-match (unchanged).** kebab tag ↔ PascalCase class, checked both directions;
+  hyphen required (platform rule), single-word class is a clear error.
+- **Composition: server component composes client components.** A server template
+  imports and invokes a client component uniformly as `<QuantityStepper
+  unit-price={product.price}/>` (block A's component invocation) — its render emits
+  the `<quantity-stepper …>` shell server-side; the client bundle upgrades it.
+  Client-component "props" are attributes (scalar, coerced via `attr()`); arbitrary
+  server content passes as slotted children. Same `<Foo/>` at every call site;
+  whether a component renders server-side or hydrates is intrinsic to the imported
+  file, not a call-site burden.
 - **Client reactivity API: member-access with dependency inference (decided
   2026-06-21).** `use(Machine)` returns a live `InstanceOf` proxy (selectors/
   context as properties read through `getSnapshot()` per access — the client mirror
@@ -192,26 +206,39 @@ spike, now compiler-produced rather than hand-written).
   (no static-vs-seeded special case) and makes the narrow seed fall out for free.
   Then the client subscribe-and-write takes over.
 
-### 3b status / resume point (updated 2026-06-21)
+### 3b status / resume point (updated 2026-06-21 — separate-file model)
 
 **Stages 0–3 done** (136 tests green, committed): the full client *runtime*
 (`StatorElement`/`defineElement`, `use(Machine, seed?)` + live proxy + narrow seed,
 the `bind()` loop, terse `machine()`, `effect`, `attr`, `dispatch`) — validated
 end-to-end in happy-dom; custom-element name-match (stage 1); `ref:` (stage 2);
-`<script>` class analysis (`use()` fields + methods, stage 3).
+`<script>` class analysis (`use()` fields + methods, stage 3). All survive the
+separate-file revision unchanged.
 
-**Next: stage 4 — island-scope lowering** (the biggest integrated change). Lowering
-must (a) detect island scope — inside a custom-element subtree matching a `<script>`
-class, `on:`/`bind:` are CLIENT wiring not server directives (the import-boundary
-rule, structural in the tree); (b) inject per-directive node markers into the server
-HTML; (c) collect directives per island + infer each expression's reactive deps
-(referenced `use()` fields). Marker index and collected-directive index are coupled
-(server marker must match the generated `setup()` query), so done together in
-`lower.ts`. Then **stage 5** emits the `StatorElement` subclass `setup()` from that
-collection. Initial-paint model: **client-paint-on-connect** (server renders bound
-nodes empty; `bind()` paints on connect). The target runtime is built + proven —
-stage 4/5 = "make the compiler generate what `tests/client-runtime.test.ts`
-hand-wrote."
+**Simplified by separate-file:** a client component is a whole-file custom element,
+so there is **no island-scope detection** — the entire template of a client `.stator`
+is client-scoped. Revised stages:
+
+4. **Client-component lowering** (pure): in a client file, lower the template to the
+   custom-element shell + collect `bind:`/`on:`/`ref:` directives (inject node
+   markers; infer each expression's reactive deps from the file's `use()` fields).
+   No "inside vs outside" — far simpler than the co-located version.
+5. **Emit the island class + `setup()`** from the collection (`bind(...)` for
+   `bind:`, listeners for `on:`); two-way `bind:value|checked` (+ `|lazy`);
+   `{key}Changed`/`effect`; client `Machine.dispatch`. Initial paint =
+   client-paint-on-connect (server renders bound nodes empty; `bind()` paints on
+   connect). Target = "make the compiler emit what `tests/client-runtime.test.ts`
+   hand-wrote."
+6. **Client bundle + injection**: per-component client entry; server emits the
+   `<script type=module>` tag; wire dev + build.
+
+**Open: client dynamic lists** (a list whose length changes purely client-side).
+Raised 2026-06-21; not yet designed. See the client-model spec — most ecommerce
+"lists" are actually *server* lists (re-rendered via `each`/recompute wire patches)
+or fixed-shape lists the client only toggles, so genuine client dynamic lists are
+rarer than they seem; the hard case (client-only add/remove with no client JSX
+renderer) likely reuses Phase-4 keyed-each's diff algorithm with `<template>`
+cloning as the node factory. Decide scope before stage 4/5 if Allbirds needs it.
 
 ### 3b build stages
 
