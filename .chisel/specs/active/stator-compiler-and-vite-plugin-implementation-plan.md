@@ -209,17 +209,30 @@ write` binding loop, `refs`, `attr()`, `dispatch`).
    code calls.
 1. ✅ **Element detection + name-match validation** (compiler, pure): find
    custom-element tags + `export class` names, validate both directions + hyphen.
-2. **`ref:`** → unique keyed attr (server) + typed `this.refs.<name>` (client).
-3. **`bind:` one-way** (`text`/`html`/`disabled`/`<attr>`): server initial paint
-   (render-time, against seeded context) + client subscription with inferred deps;
-   error if a bind references a non-client (server) machine.
-4. **`bind:` two-way** (`value`/`checked` + `|lazy`): loop-break / IME / typed
-   values.
-5. **`on:` generalized + client `Machine.dispatch`** (the deferred Phase-2 commit;
-   identity-import).
-6. **`{key}Changed` / `effect`** escape hatch.
-7. **Custom-element codegen + client bundle emission**: `customElements.define`
-   per island; per-component client bundle + `<script>` injection (dev + build).
+2. ✅ **`ref:`** → `data-ref` attr (server) + `this.refs.<name>` accessor (client).
+
+**Restructure (2026-06-21):** `bind:`/`on:` can't lower in isolation — they require
+the custom-element codegen that consumes them. So stages 3–6 are now a **unified
+client-codegen pass**, and **client-paint-on-connect** is the chosen initial-paint
+model (server renders the bound node empty; the client paints on `connectedCallback`
+via the `bind()` runtime's initial `apply(compute())`; server-computed initial paint
+is a later refinement that needs the isomorphic client machine def visible to the
+server render).
+
+3. **Script analysis** (pure): per exported island class, extract `use()` fields
+   (field → machine id), method names, and the in-scope client `machine()` defs.
+   Feeds dependency inference.
+4. **Directive collection per island** (pure): walk each custom-element subtree in
+   the template, collect `bind:`/`on:`/`ref:` directives with their target nodes;
+   infer each `bind:`/`on:` expression's reactive deps (referenced `use()` fields);
+   error if a `bind:` references a non-`use()` (server) machine.
+5. **Emit the island class + setup()** : generate the `StatorElement` subclass with
+   `setup()` wiring (`bind(...)` for `bind:`, `addEventListener` for `on:`) and
+   `defineElement(Class, 'tag')`. Two-way `bind:value|checked` (+ `|lazy`) with
+   loop-break / IME; `{key}Changed` / `effect`; client `Machine.dispatch` (the
+   deferred Phase-2 commit + identity import).
+6. **Client bundle + injection**: per-component client entry; server emits the
+   `<script type=module>` tag; wire dev + build.
 
 ## Test matrix
 

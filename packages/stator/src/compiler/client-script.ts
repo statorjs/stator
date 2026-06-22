@@ -106,16 +106,56 @@ interface ExportedClass {
 
 /** Find `export class Foo ...` declarations in the script. */
 function extractExportedClasses(script: string): ExportedClass[] {
+  return analyzeScriptClasses(script).map((c) => ({ name: c.name }))
+}
+
+/** Per-island analysis used by client codegen: which fields are `use()` client
+ *  actors (field name → the machine identifier they instantiate) and the class's
+ *  method names (so `on:click={inc}` can resolve `inc` to a method). */
+export interface ScriptClass {
+  name: string
+  /** field name → machine identifier (e.g. `qty` → `Qty`). These are the
+   *  reactive dependencies a `bind:`/`on:` expression can reference. */
+  useFields: Map<string, string>
+  /** method names declared on the class. */
+  methods: Set<string>
+}
+
+export function analyzeScriptClasses(script: string): ScriptClass[] {
   const sf = ts.createSourceFile('script.ts', script, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
-  const out: ExportedClass[] = []
+  const out: ScriptClass[] = []
   for (const stmt of sf.statements) {
     if (
-      ts.isClassDeclaration(stmt) &&
-      stmt.name &&
-      stmt.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
+      !ts.isClassDeclaration(stmt) ||
+      !stmt.name ||
+      !stmt.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
     ) {
-      out.push({ name: stmt.name.text })
+      continue
     }
+    const useFields = new Map<string, string>()
+    const methods = new Set<string>()
+    for (const member of stmt.members) {
+      if (
+        ts.isPropertyDeclaration(member) &&
+        member.initializer &&
+        ts.isIdentifier(member.name)
+      ) {
+        const init = member.initializer
+        // `field = use(Machine, ...)` → reactive client actor.
+        if (
+          ts.isCallExpression(init) &&
+          ts.isIdentifier(init.expression) &&
+          init.expression.text === 'use' &&
+          init.arguments[0] &&
+          ts.isIdentifier(init.arguments[0])
+        ) {
+          useFields.set(member.name.text, (init.arguments[0] as ts.Identifier).text)
+        }
+      } else if (ts.isMethodDeclaration(member) && ts.isIdentifier(member.name)) {
+        methods.add(member.name.text)
+      }
+    }
+    out.push({ name: stmt.name.text, useFields, methods })
   }
   return out
 }
