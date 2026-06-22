@@ -158,7 +158,30 @@ spike, now compiler-produced rather than hand-written).
   scope; server content arrives via props/attributes or slotted children), and
   removes island-scope detection from the compiler entirely.
 - **Name-match (unchanged).** kebab tag ↔ PascalCase class, checked both directions;
-  hyphen required (platform rule), single-word class is a clear error.
+  hyphen required (platform rule), single-word class is a clear error. The custom
+  element **must be the file's root** — a nested custom element under server chrome
+  (`<div><my-toggle/></div>`) is an error (it re-creates the "one file, two
+  components" blur). A plain non-Stator custom element is *not* defined in a
+  `.stator` `<script>` at all: write its tag as literal markup (Stator emits it
+  verbatim) and define it in your own JS module / import a separate Stator client
+  component. `.stator` `<script>` = define *this file's* `StatorElement` client
+  component, full stop (the "tight" rule — `.stator` never becomes "a file with
+  optional client JS").
+- **Custom-element name collisions: build-time detection.** Custom-element names are
+  a single global registry per document, so two distinct client components both
+  producing `<my-toggle>` collide (the 2nd `customElements.define` throws, or the
+  `defineElement` HMR-idempotency guard silently no-ops → wrong behavior). Because
+  the compiler sees the whole project, the **build / `stator sync` scans all client
+  `.stator` and hard-errors on a duplicate tag, naming both files** — turning a
+  silent/runtime footgun into a loud early build error. The user owns the namespace
+  (platform reality); prefix shared/library elements by convention (`<acme-toggle>`,
+  like `<sl-button>`). Rejected: auto-namespacing the tag with a hash
+  (`my-toggle-a1b2c3`) — it reintroduces the magic generated name (source ≠ rendered
+  DOM), the thing name-match exists to avoid. Limits (documented, not solved):
+  collisions with *third-party* web components (defined in node_modules JS, outside
+  our scan) surface only at runtime — convention (prefixing) is the mitigation;
+  scoped custom-element registries (emerging standard) are the future escape, too
+  thin for 1.0.
 - **Composition: server component composes client components.** A server template
   imports and invokes a client component uniformly as `<QuantityStepper
   unit-price={product.price}/>` (block A's component invocation) — its render emits
@@ -229,8 +252,11 @@ is client-scoped. Revised stages:
    client-paint-on-connect (server renders bound nodes empty; `bind()` paints on
    connect). Target = "make the compiler emit what `tests/client-runtime.test.ts`
    hand-wrote."
-6. **Client bundle + injection**: per-component client entry; server emits the
-   `<script type=module>` tag; wire dev + build.
+6. **Client bundle + injection + collision check**: per-component client entry;
+   server emits the `<script type=module>` tag; wire dev + build. The build /
+   `stator sync` scans all client `.stator` and **hard-errors on a duplicate
+   custom-element tag** (global-registry collision), naming both files; also
+   enforces the root-must-be-the-custom-element rule.
 
 **Open: client dynamic lists** (a list whose length changes purely client-side).
 Raised 2026-06-21; not yet designed. See the client-model spec — most ecommerce
@@ -242,37 +268,12 @@ cloning as the node factory. Decide scope before stage 4/5 if Allbirds needs it.
 
 ### 3b build stages
 
-0. **Client runtime primitives** (`src/client/`): `StatorElement` base, `use(Machine,
-   seed?)` (live `InstanceOf` proxy + initial-context seed) / inline `machine()`,
-   the `(deps, thunk)→subscribe/eval/diff/write` binding loop, `refs`,
-   `attr(name, coerce)`, the `dispatch` helper. Hand-written runtime the generated
-   code calls.
-1. ✅ **Element detection + name-match validation** (compiler, pure): find
-   custom-element tags + `export class` names, validate both directions + hyphen.
-2. ✅ **`ref:`** → `data-ref` attr (server) + `this.refs.<name>` accessor (client).
-
-**Restructure (2026-06-21):** `bind:`/`on:` can't lower in isolation — they require
-the custom-element codegen that consumes them. So stages 3–6 are now a **unified
-client-codegen pass**, and **client-paint-on-connect** is the chosen initial-paint
-model (server renders the bound node empty; the client paints on `connectedCallback`
-via the `bind()` runtime's initial `apply(compute())`; server-computed initial paint
-is a later refinement that needs the isomorphic client machine def visible to the
-server render).
-
-3. **Script analysis** (pure): per exported island class, extract `use()` fields
-   (field → machine id), method names, and the in-scope client `machine()` defs.
-   Feeds dependency inference.
-4. **Directive collection per island** (pure): walk each custom-element subtree in
-   the template, collect `bind:`/`on:`/`ref:` directives with their target nodes;
-   infer each `bind:`/`on:` expression's reactive deps (referenced `use()` fields);
-   error if a `bind:` references a non-`use()` (server) machine.
-5. **Emit the island class + setup()** : generate the `StatorElement` subclass with
-   `setup()` wiring (`bind(...)` for `bind:`, `addEventListener` for `on:`) and
-   `defineElement(Class, 'tag')`. Two-way `bind:value|checked` (+ `|lazy`) with
-   loop-break / IME; `{key}Changed` / `effect`; client `Machine.dispatch` (the
-   deferred Phase-2 commit + identity import).
-6. **Client bundle + injection**: per-component client entry; server emits the
-   `<script type=module>` tag; wire dev + build.
+**Superseded by the separate-file revision — the authoritative stage list lives in
+the "3b status / resume point" section above** (stages 0–3 done; 4 client-component
+lowering; 5 emit class + `setup()`; 6 client bundle + injection + collision check).
+The earlier co-located "per island / island-scope" framing here is obsolete; kept
+only as history. Done so far: ✅ 0 runtime, ✅ 1 name-match, ✅ 2 `ref:`, ✅ 3 script
+analysis.
 
 ## Test matrix
 
