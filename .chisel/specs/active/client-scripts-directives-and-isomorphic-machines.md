@@ -344,22 +344,46 @@ no wire) are distinct capability layers over the same core.
   `states` for component-local state). This is load-bearing: if trivial machines
   aren't nearly free to declare, the field escape hatch wins for the wrong reason.
   Exact shape TBD, and how it relates to the full `defineMachine` surface.
-- **Multiple machines per element.** `bind:text={count}` and `{key}Changed`
-  assume one machine per element so the key is unambiguous. Multi-machine elements
-  would need qualification (`bind:text={counter.count}`); confirm the unqualified
-  single-machine form is the common case and qualification is the exception.
-- **Base class vs plain class.** Does a client element `extends StatorElement`, or
-  does the developer write a plain class that the build step wraps into the
-  custom-element definition? The plain-class-plus-codegen route is less ceremony
-  and fits the "build step earns its keep" theme.
 - **Client state lifetime across navigation.** Element-owned actors reset on
   full-page navigation (usually correct for ephemeral UI). A future case may want
   persistence across navigations (web storage); per [[feedback_server_mediated_state]]
   the `bind:`/`send` call sites should stay identical regardless of where
   persistence lives. Deferred until a real case forces it.
 - **Imperative third-party widgets.** The genuine imperative escape hatch (canvas,
-  maps, editors) lives in the `<script>` via `ref:` + `effect()`. Confirm this is
-  sufficient and that nothing pushes toward a richer island API.
+  maps, editors) lives in the `<script>` via `ref:` + `effect()`. Confirm sufficient.
+
+### Resolved — client reactivity & element model (2026-06-21)
+
+- **Reactivity API → member-access + dependency inference.** `use(Machine)` returns
+  a live `InstanceOf` proxy (the client mirror of the server instance proxy);
+  `bind:text={qty.count}` is plain member access, and the compiler **infers** which
+  `use()` actors the expression references, subscribes to all, and re-evals→diffs→
+  writes on any change. One mechanism: *(dep set, value thunk)*. Supersedes the
+  "one machine per element / unqualified `count`" assumption — bindings are always
+  qualified by their actor (`qty.count`), so **multiple machines per element and
+  multi-machine binds (`{qty.count + other.x}`) work identically** (N subscriptions,
+  same body — no arity special case). `read(instance, selector)` survives as an
+  optional explicit spelling, not a separate primitive. Signals rejected (second
+  reactive system).
+- **Client `bind:` references client actors only.** A server machine in a client
+  `bind:` is a compile error (server state reaches the client via wire patches, a
+  separate path). A node mixing client + server resolves by the value-vs-live-source
+  distinction: a server *value* constant for the interaction is seeded into the
+  client machine (below); only two genuinely-live sources on one node is the (rare,
+  forbidden) smell.
+- **Base class → `extends StatorElement`.** Client islands extend the framework
+  base (owns actor lifecycle on connect/disconnect, `refs`, `attr()`, the binding
+  loop). Name-matched to a kebab tag (`QuantityStepper` ↔ `<quantity-stepper>`),
+  co-located islands, multiple per file. (See the 3b plan in
+  [[stator-compiler-and-vite-plugin-implementation-plan]].)
+- **Narrow hydration seed (A) in 1.0; full resume (B) deferred.** (A) server *value*
+  → client machine initial context (scalar via server-rendered attribute, read on
+  connect) — `use(Machine, { unitPrice: this.attr('unit-price', Number) })`. The
+  engine already supports it (`createActor(def, { context })`); the seed is small
+  and needed (price-×-quantity stepper). (B) serialize/resume a server-*run* client
+  machine's whole state tree mid-flight stays deferred to a future release. `bind:`
+  initial paint is computed at **server-render time** against the seeded context
+  (selectors are isomorphic), so seeding falls out for free.
 
 ## Implementation Notes
 

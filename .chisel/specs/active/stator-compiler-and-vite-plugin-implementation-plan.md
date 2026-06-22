@@ -153,36 +153,66 @@ spike, now compiler-produced rather than hand-written).
   A purely-client widget is the degenerate single-root case. Cross-file island
   reuse (define once, embed in many) is a follow-on — the reusable unit in 1.0 is
   the `.stator` component itself (`<ProductCard/>`), islands live inside it.
-- **Hydration seed deferred.** Client actors start from the machine's static
-  `context` (= what the server rendered from). No serialized seed channel; 1.0
-  client state is ephemeral (drafts, toggles, steppers). Seeding client state from
-  a server prop is a documented follow-on.
-- **`bind:` drives both** the server initial paint (from the machine's static
-  default context, read at compile time) and the client subscribe-and-write.
+- **Client reactivity API: member-access with dependency inference (decided
+  2026-06-21).** `use(Machine)` returns a live `InstanceOf` proxy (selectors/
+  context as properties read through `getSnapshot()` per access — the client mirror
+  of the server instance proxy). A `bind:` expression is authored as plain member
+  access (`bind:text={qty.count}`); the compiler **infers the reactive
+  dependencies** by scanning the expression for referenced `use()` fields,
+  subscribes to all of them, and re-evals→diffs→writes on any change. One binding
+  mechanism: *(dependency set, value thunk) → subscribe / eval / diff / write*.
+  Multi-machine binds (`{qty.count + other.x}`) are handled **identically** — the
+  dep set just has more members (N subscriptions, same generated body); there is
+  no arity limit and no special case. `read(instance, selector)` survives only as
+  an *optional explicit spelling* of the same mechanism (when you want the
+  dependency named), not a separate primitive. Signals were rejected — they'd be a
+  second reactive system, violating "one reactivity model."
+- **Client `bind:` references client actors only (strict rule).** Every reactive
+  identifier in a client `bind:` expression must be a `use()` client actor. Server
+  state is not locally reactive — it reaches the client via wire patches, a
+  separate path — so referencing a server machine in a client bind is a compile
+  error. A DOM node mixing client + server state resolves via the value-vs-live-
+  source distinction: a server *value* that's constant for the interaction (e.g.
+  `unitPrice`) is **seeded into the client machine** (see narrow seed below) and the
+  derivation becomes pure-client; only two genuinely-*live* sources on one node is
+  the (rare) smell the rule rightly forbids.
+- **Narrow hydration seed (A) IN scope; full resume (B) deferred.** Split the
+  conflated "hydration seed": (A) a server *value* → a client machine's initial
+  context (scalar, server-rendered as an attribute, read on connect) is cheap and
+  needed for 1.0 (the Allbirds price-×-quantity stepper is first-class). The engine
+  already supports it (`createActor(def, { context })`); the server already renders
+  the attribute (3a); the only new piece is `use(Machine, seed)` + a
+  `this.attr('name', coerce)` reader. (B) serializing/resuming a server-*run* client
+  machine's whole state tree mid-flight stays deferred to a future release —
+  revisit once real usage shows the need.
+- **`bind:` initial paint at server-render time.** Compute every `bind:` initial
+  value by evaluating its selector against the seeded initial context
+  (`{ ...static, ...seed }`) at *render* time — selectors are isomorphic, so the
+  server runs them — NOT at compile time from static context. This is uniform
+  (no static-vs-seeded special case) and makes the narrow seed fall out for free.
+  Then the client subscribe-and-write takes over.
 
-### 3b status / resume point (paused 2026-06-21)
+### 3b status / resume point (updated 2026-06-21)
 
 **Stage 1 done** (custom-element detection + name-match validation, committed). The
-**gating open decision** before stages 0/2–7 is the **client reactivity API**: what
-`use(Machine)` returns and how a `bind:`/`on:` expression resolves reactive state
-against it (e.g. a live proxy like the server's `read()`, an explicit selector
-form, or a signal). It determines the generated wiring, the `StatorElement` base,
-and the compiler codegen all at once — getting it wrong reworks stages 2–7. The
-spike hard-coded one answer (`sel.count(actor.getSnapshot().context)`); the SFC
-needs an ergonomic, typed one. **Next session: a deep options comparison with
-pros/cons and code examples to land a direction**, before any stage-0 code.
+**client reactivity API is now decided** (member-access + inference, above), so
+stages 0/2–7 are unblocked. Next code: **stage 0** — the client runtime primitives
+(`StatorElement`, `use(Machine, seed?)`, the `(deps, thunk)→subscribe/eval/diff/
+write` binding loop, `refs`, `attr()`, `dispatch`).
 
 ### 3b build stages
 
-0. **Client runtime primitives** (`src/client/`): `StatorElement` base, `use()` /
-   inline `machine()`, the subscribe→selector→diff→write loop, `refs`, the
-   `dispatch` helper. Hand-written runtime the generated code calls. **(Gated on the
-   client-reactivity-API decision above.)**
+0. **Client runtime primitives** (`src/client/`): `StatorElement` base, `use(Machine,
+   seed?)` (live `InstanceOf` proxy + initial-context seed) / inline `machine()`,
+   the `(deps, thunk)→subscribe/eval/diff/write` binding loop, `refs`,
+   `attr(name, coerce)`, the `dispatch` helper. Hand-written runtime the generated
+   code calls.
 1. ✅ **Element detection + name-match validation** (compiler, pure): find
    custom-element tags + `export class` names, validate both directions + hyphen.
 2. **`ref:`** → unique keyed attr (server) + typed `this.refs.<name>` (client).
-3. **`bind:` one-way** (`text`/`html`/`disabled`/`<attr>`): server initial paint +
-   client subscription.
+3. **`bind:` one-way** (`text`/`html`/`disabled`/`<attr>`): server initial paint
+   (render-time, against seeded context) + client subscription with inferred deps;
+   error if a bind references a non-client (server) machine.
 4. **`bind:` two-way** (`value`/`checked` + `|lazy`): loop-break / IME / typed
    values.
 5. **`on:` generalized + client `Machine.dispatch`** (the deferred Phase-2 commit;
