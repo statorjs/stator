@@ -194,11 +194,24 @@ spike, now compiler-produced rather than hand-written).
 
 ### 3b status / resume point (updated 2026-06-21)
 
-**Stage 1 done** (custom-element detection + name-match validation, committed). The
-**client reactivity API is now decided** (member-access + inference, above), so
-stages 0/2–7 are unblocked. Next code: **stage 0** — the client runtime primitives
-(`StatorElement`, `use(Machine, seed?)`, the `(deps, thunk)→subscribe/eval/diff/
-write` binding loop, `refs`, `attr()`, `dispatch`).
+**Stages 0–3 done** (136 tests green, committed): the full client *runtime*
+(`StatorElement`/`defineElement`, `use(Machine, seed?)` + live proxy + narrow seed,
+the `bind()` loop, terse `machine()`, `effect`, `attr`, `dispatch`) — validated
+end-to-end in happy-dom; custom-element name-match (stage 1); `ref:` (stage 2);
+`<script>` class analysis (`use()` fields + methods, stage 3).
+
+**Next: stage 4 — island-scope lowering** (the biggest integrated change). Lowering
+must (a) detect island scope — inside a custom-element subtree matching a `<script>`
+class, `on:`/`bind:` are CLIENT wiring not server directives (the import-boundary
+rule, structural in the tree); (b) inject per-directive node markers into the server
+HTML; (c) collect directives per island + infer each expression's reactive deps
+(referenced `use()` fields). Marker index and collected-directive index are coupled
+(server marker must match the generated `setup()` query), so done together in
+`lower.ts`. Then **stage 5** emits the `StatorElement` subclass `setup()` from that
+collection. Initial-paint model: **client-paint-on-connect** (server renders bound
+nodes empty; `bind()` paints on connect). The target runtime is built + proven —
+stage 4/5 = "make the compiler generate what `tests/client-runtime.test.ts`
+hand-wrote."
 
 ### 3b build stages
 
