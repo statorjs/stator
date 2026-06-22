@@ -32,6 +32,8 @@ export interface LowerMeta {
   /** Custom-element tags (lowercase, hyphenated) used in this file's template —
    *  the client islands the `<script>` defines (Phase 3b). */
   customElements: Set<string>
+  /** `ref:<name>` handles declared in the template (Phase 3b). */
+  refs: Set<string>
 }
 
 export interface LowerOptions {
@@ -257,6 +259,16 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       }
       if (ns === 'style' && name === 'list') {
         return '${' + `styleList(${requireValue('style:list')})` + '}'
+      }
+      // `ref:name` — a client-addressable handle. Server renders a `data-ref`
+      // marker; the client island exposes it as `this.refs.<name>`. The
+      // directive carries no value (`<button ref:btn>`).
+      if (ns === 'ref') {
+        if (value) {
+          throw new CompileError(`stator: ref:${name} takes no value (write \`ref:${name}\`)`, loc(attr))
+        }
+        if (meta) meta.refs.add(name)
+        return `data-ref=${JSON.stringify(name)}`
       }
       throw new CompileError(
         `stator: directive "${ns}:${name}" is not supported yet (Phase 3b)`,

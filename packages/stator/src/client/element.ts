@@ -21,6 +21,20 @@ export class StatorElement extends HTMLElement {
   /** @internal — binding disposers registered during setup. */
   [DISPOSERS]: Array<() => void> = []
 
+  /** Named handles to `ref:`-marked elements within this island, resolved
+   *  lazily by `data-ref`. `this.refs.btn` → the nearest `[data-ref="btn"]`. */
+  get refs(): Record<string, HTMLElement> {
+    const self = this
+    return new Proxy(
+      {},
+      {
+        get(_t, name: string) {
+          return self.querySelector(`[data-ref="${name}"]`) as HTMLElement | null
+        },
+      },
+    ) as Record<string, HTMLElement>
+  }
+
   /** Read + coerce an attribute (the narrow hydration seed source). */
   attr<T = string>(name: string, coerce?: (raw: string) => T): T | undefined {
     const raw = this.getAttribute(name)

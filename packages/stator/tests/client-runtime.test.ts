@@ -82,6 +82,17 @@ describe('client runtime (3b stage 0)', () => {
     expect(out.textContent).toBe('2')
   })
 
+  it('refs resolves data-ref handles within the island', () => {
+    class RefWidget extends StatorElement {}
+    defineElement(RefWidget, 'ref-widget')
+    const holder = document.createElement('div')
+    holder.innerHTML = '<ref-widget><button data-ref="go">x</button></ref-widget>'
+    document.body.appendChild(holder)
+    const el = holder.querySelector('ref-widget') as RefWidget
+    expect(el.refs.go).toBe(el.querySelector('[data-ref="go"]'))
+    expect(el.refs.missing).toBeNull()
+  })
+
   it('attr() reads + coerces a seed attribute', () => {
     class PriceTag extends StatorElement {}
     defineElement(PriceTag, 'price-tag')

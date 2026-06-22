@@ -3,7 +3,7 @@ import { lowerTemplate, type LowerMeta } from '../src/compiler/lower.ts'
 import { compile } from '../src/compiler/compile.ts'
 
 function meta(): LowerMeta {
-  return { usesChildren: false, regions: new Set(), components: new Set(), customElements: new Set() }
+  return { usesChildren: false, regions: new Set(), components: new Set(), customElements: new Set(), refs: new Set() }
 }
 
 describe('compiler: children (stage 2)', () => {

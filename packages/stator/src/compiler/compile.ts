@@ -57,7 +57,7 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
   const hash = scopeHash(opts.id ?? source)
   const scopeAttr = hasStyles ? `data-s-${hash}` : undefined
 
-  const meta: LowerMeta = { usesChildren: false, regions: new Set(), components: new Set(), customElements: new Set() }
+  const meta: LowerMeta = { usesChildren: false, regions: new Set(), components: new Set(), customElements: new Set(), refs: new Set() }
   const htmlExpr = lowerTemplate(template, {
     scopeAttr,
     source,
