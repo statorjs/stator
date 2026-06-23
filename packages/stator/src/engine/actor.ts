@@ -12,6 +12,10 @@ export interface Actor<C, E extends EventObject> {
   start(): Actor<C, E>
   stop(): void
   send(event: E): void
+  /** Merge into the initial context before `start()`. Used for the deferred
+   *  client seed (attribute values aren't available at actor creation — only at
+   *  the element's connect). No-op after start. */
+  seed(partial: Partial<C>): void
   getSnapshot(): Snapshot<C>
   subscribe(listener: (snapshot: Snapshot<C>) => void): { unsubscribe(): void }
   /** Listen for a declared emit. Returns a remover. Used by cross-machine
@@ -70,6 +74,9 @@ export function createActor<C extends object, E extends EventObject, S extends s
   }
 
   const actor: Actor<C, E> = {
+    seed(partial: Partial<C>) {
+      if (!started) context = { ...context, ...partial }
+    },
     start() {
       if (!started) {
         started = true

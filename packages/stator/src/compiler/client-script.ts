@@ -122,6 +122,19 @@ export interface ScriptClass {
   /** every member name (fields + methods) — for rewriting a template
    *  expression's class-member references to `this.<member>`. */
   members: Set<string>
+  /** declared attribute surface from `static attrs = { unitPrice: Number, ... }`:
+   *  camelCase prop name → value kind (drives server prop→attr rendering + types). */
+  staticAttrs: Map<string, AttrKind>
+}
+
+export type AttrKind = 'number' | 'string' | 'boolean'
+
+function attrKindOf(coercer: ts.Expression): AttrKind {
+  if (ts.isIdentifier(coercer)) {
+    if (coercer.text === 'Number') return 'number'
+    if (coercer.text === 'Boolean') return 'boolean'
+  }
+  return 'string' // String, or any custom coercer → serialize as a string attribute
 }
 
 export function analyzeScriptClasses(script: string): ScriptClass[] {
@@ -138,7 +151,24 @@ export function analyzeScriptClasses(script: string): ScriptClass[] {
     const useFields = new Map<string, string>()
     const methods = new Set<string>()
     const members = new Set<string>()
+    const staticAttrs = new Map<string, AttrKind>()
     for (const member of stmt.members) {
+      // `static attrs = { unitPrice: Number, selected: Boolean }`
+      if (
+        ts.isPropertyDeclaration(member) &&
+        member.modifiers?.some((m) => m.kind === ts.SyntaxKind.StaticKeyword) &&
+        ts.isIdentifier(member.name) &&
+        member.name.text === 'attrs' &&
+        member.initializer &&
+        ts.isObjectLiteralExpression(member.initializer)
+      ) {
+        for (const p of member.initializer.properties) {
+          if (ts.isPropertyAssignment(p) && ts.isIdentifier(p.name)) {
+            staticAttrs.set(p.name.text, attrKindOf(p.initializer))
+          }
+        }
+        continue
+      }
       if (ts.isPropertyDeclaration(member) && ts.isIdentifier(member.name)) {
         members.add(member.name.text)
         const init = member.initializer
@@ -158,7 +188,7 @@ export function analyzeScriptClasses(script: string): ScriptClass[] {
         members.add(member.name.text)
       }
     }
-    out.push({ name: stmt.name.text, useFields, methods, members })
+    out.push({ name: stmt.name.text, useFields, methods, members, staticAttrs })
   }
   return out
 }

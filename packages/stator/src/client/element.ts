@@ -1,5 +1,4 @@
-import { pushCollector, popCollector } from './use.ts'
-import type { Actor } from '../engine/index.ts'
+import { pushCollector, popCollector, type CollectedActor } from './use.ts'
 
 const ACTORS = Symbol('stator.actors')
 const DISPOSERS = Symbol('stator.disposers')
@@ -21,8 +20,9 @@ function camelToKebab(name: string): string {
  * state, which is the intended default for ephemeral UI.
  */
 export class StatorElement extends HTMLElement {
-  /** @internal — actors collected during construction (set by `defineElement`). */
-  [ACTORS]: Actor<any, any>[] = [];
+  /** @internal — actors (+ deferred seed thunks) collected during construction
+   *  (set by `defineElement`). */
+  [ACTORS]: CollectedActor[] = [];
   /** @internal — binding disposers registered during setup. */
   [DISPOSERS]: Array<() => void> = []
 
@@ -85,14 +85,18 @@ export class StatorElement extends HTMLElement {
   protected setup(): void {}
 
   connectedCallback(): void {
-    for (const actor of this[ACTORS]) actor.start()
+    // Apply deferred seeds now that attributes are available, then start.
+    for (const { actor, seedThunk } of this[ACTORS]) {
+      if (seedThunk) actor.seed(seedThunk())
+      actor.start()
+    }
     this.setup()
   }
 
   disconnectedCallback(): void {
     for (const dispose of this[DISPOSERS]) dispose()
     this[DISPOSERS] = []
-    for (const actor of this[ACTORS]) actor.stop()
+    for (const { actor } of this[ACTORS]) actor.stop()
   }
 }
 

@@ -17,3 +17,4 @@ export type {
 } from './directives/core.ts'
 export type { InstanceOf, HtmlFragment } from './types.ts'
 export { createHtmlFragment, isHtmlFragment } from './types.ts'
+export { clientShellAttrs } from './client-shell.ts'

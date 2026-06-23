@@ -4,6 +4,14 @@ import { lowerTemplate, type LowerMeta } from './lower.ts'
 import { scopeHash } from './hash.ts'
 import { scopeCss } from './styles.ts'
 import { CompileError, locAt, type DiagnosticLocation } from './diagnostics.ts'
+import {
+  analyzeScriptClasses,
+  analyzeClient,
+  isCustomElementTag,
+  pascalToKebab,
+  type ClientDirective,
+} from './client-script.ts'
+import { emitClientModule } from './client-emit.ts'
 
 /**
  * Assemble a `.stator` source into the server `.ts` module the runtime
@@ -20,15 +28,23 @@ import { CompileError, locAt, type DiagnosticLocation } from './diagnostics.ts'
  */
 
 export interface CompileResult {
-  /** The server render module source. */
+  /** The server render module source (shell render for a client component). */
   serverCode: string
   /** Per-component scope hash (the `data-s-<hash>` marker uses it). */
   scopeHash: string
   /** Scoped CSS, ready for the Vite CSS pipeline. Empty when there's no
    *  `<style>`. */
   css: string
-  /** Client `<script>` regions (Phase 3b). */
+  /** Raw client `<script>` regions, as authored. */
   scripts: string[]
+  /** True when this `.stator` is a client component (whole-file custom element). */
+  isClient: boolean
+  /** The generated client entry module (Phase 3b) — the `StatorElement` subclass
+   *  + `setup()` + `defineElement`. Empty for server components. */
+  clientCode: string
+  /** Custom-element tag this client component defines (e.g. `quantity-stepper`),
+   *  or undefined for a server component. */
+  clientTag?: string
 }
 
 const PRIMITIVES_IMPORT =
@@ -57,6 +73,13 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
   const hash = scopeHash(opts.id ?? source)
   const scopeAttr = hasStyles ? `data-s-${hash}` : undefined
 
+  // A `<script>` with an exported class makes this a *client component* (a
+  // whole-file custom element) — a different compile path entirely.
+  const script = scripts.join('\n')
+  if (script.trim() && analyzeScriptClasses(script).length > 0) {
+    return compileClient(template, script, { hash, scopeAttr, styles, file: opts.id })
+  }
+
   const meta: LowerMeta = { usesChildren: false, regions: new Set(), components: new Set(), customElements: new Set(), refs: new Set() }
   const htmlExpr = lowerTemplate(template, {
     scopeAttr,
@@ -74,7 +97,119 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
       ? emitRoute(fm, htmlExpr, meta)
       : emitComponent(fm, htmlExpr, meta)
 
-  return { serverCode, scopeHash: hash, css, scripts }
+  return { serverCode, scopeHash: hash, css, scripts, isClient: false, clientCode: '' }
+}
+
+/**
+ * Compile a client component: its template root is the custom element, the
+ * `<script>` defines the matching class. Produces (i) a server shell render
+ * module — `(props) => HtmlFragment` rendering the custom-element tag with the
+ * declared attrs + inner shell (markers + children) — and (ii) the client entry
+ * module (the `StatorElement` subclass + wiring).
+ */
+function compileClient(
+  template: string,
+  script: string,
+  ctx: { hash: string; scopeAttr?: string; styles: string[]; file?: string },
+): CompileResult {
+  const classes = analyzeScriptClasses(script)
+  const root = extractClientRoot(template, ctx.file)
+
+  // Name-match validation (both directions, hyphen rule).
+  const tags = new Set([root.tag])
+  analyzeClient(script, tags, { file: ctx.file })
+
+  const cls = classes.find((c) => pascalToKebab(c.name) === root.tag)!
+
+  // Lower the inner shell in client mode: collect bind:/on:, strip them, inject
+  // markers. (Client templates have no read() — server state isn't in scope.)
+  const directives: ClientDirective[] = []
+  const meta: LowerMeta = {
+    usesChildren: false, regions: new Set(), components: new Set(),
+    customElements: new Set(), refs: new Set(),
+  }
+  const innerExpr = lowerTemplate(root.inner, {
+    scopeAttr: ctx.scopeAttr,
+    file: ctx.file,
+    meta,
+    client: { useFields: new Set(cls.useFields.keys()), directives },
+  })
+
+  const css = ctx.styles.length ? scopeCss(ctx.styles.join('\n'), ctx.hash) : ''
+
+  // Server shell module: <tag {attrs}{scope}>{inner}</tag>.
+  const attrDecl = `{ ${[...cls.staticAttrs].map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(', ')} }`
+  const rootScope = ctx.scopeAttr ? ` data-s-${ctx.hash}` : ''
+  const serverCode = [
+    "import { html, read, each, when, match, on, classList, styleList, createHtmlFragment, clientShellAttrs } from '@statorjs/stator/template'",
+    '',
+    `export default function (props = {}) {`,
+    `  const __inner = ${innerExpr}`,
+    `  const __attrs = clientShellAttrs(props, ${attrDecl})`,
+    `  return createHtmlFragment(\`<${root.tag}\${__attrs}${rootScope}>\` + __inner.html + \`</${root.tag}>\`)`,
+    '}',
+    '',
+  ].join('\n')
+
+  const clientCode = emitClientModule({
+    script,
+    element: { tag: root.tag, className: cls.name },
+    directives,
+    members: cls.members,
+  })
+
+  return {
+    serverCode,
+    scopeHash: ctx.hash,
+    css,
+    scripts: [script],
+    isClient: true,
+    clientCode,
+    clientTag: root.tag,
+  }
+}
+
+/** Parse a client template, returning the custom-element root tag and the inner
+ *  source (its children). Enforces "root must be the custom element". */
+function extractClientRoot(template: string, file?: string): { tag: string; inner: string } {
+  const wrapped = `const __t = (<>${template}</>);`
+  const sf = ts.createSourceFile('t.tsx', wrapped, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let fragment: ts.JsxFragment | undefined
+  const find = (n: ts.Node): void => {
+    if (ts.isJsxFragment(n)) { fragment = n; return }
+    ts.forEachChild(n, find)
+  }
+  find(sf)
+  const elements = (fragment?.children ?? []).filter(
+    (c) => ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c),
+  )
+  if (elements.length !== 1) {
+    throw new CompileError(
+      'stator: a client component must have a single custom-element root.',
+      file ? { file, line: 1, column: 1, frame: '' } : undefined,
+    )
+  }
+  const rootEl = elements[0]!
+  if (ts.isJsxSelfClosingElement(rootEl)) {
+    const tag = rootEl.tagName.getText(sf)
+    requireCustomRoot(tag, file)
+    return { tag, inner: '' }
+  }
+  const el = rootEl as ts.JsxElement
+  const tag = el.openingElement.tagName.getText(sf)
+  requireCustomRoot(tag, file)
+  const inner = wrapped.slice(el.openingElement.getEnd(), el.closingElement.getStart())
+  return { tag, inner }
+}
+
+function requireCustomRoot(tag: string, file?: string): void {
+  if (!isCustomElementTag(tag)) {
+    throw new CompileError(
+      `stator: a client component's root must be a custom element (a hyphenated tag like ` +
+        `<my-widget>), found <${tag}>. A nested custom element under server chrome isn't allowed.`,
+      file ? { file, line: 1, column: 1, frame: '' } : undefined,
+    )
+  }
 }
 
 interface FrontmatterParts {

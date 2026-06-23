@@ -22,13 +22,20 @@ export interface ClientInstance {
 
 const ACTOR = Symbol('stator.actor')
 
-/** Active collector: `use()` registers its actor here during element
- *  construction, so `StatorElement` can start/stop them on connect/disconnect.
- *  A stack supports nested construction (rare, but correct). */
-const collectors: Actor<any, any>[][] = []
+/** An actor plus an optional deferred seed thunk — evaluated at the element's
+ *  connect (when attributes are available), not at construction. */
+export interface CollectedActor {
+  actor: Actor<any, any>
+  seedThunk?: () => Record<string, unknown>
+}
 
-export function pushCollector(): Actor<any, any>[] {
-  const bucket: Actor<any, any>[] = []
+/** Active collector: `use()` registers its actor here during element
+ *  construction, so `StatorElement` can start/seed/stop them on connect/disconnect.
+ *  A stack supports nested construction (rare, but correct). */
+const collectors: CollectedActor[][] = []
+
+export function pushCollector(): CollectedActor[] {
+  const bucket: CollectedActor[] = []
   collectors.push(bucket)
   return bucket
 }
@@ -38,19 +45,25 @@ export function popCollector(): void {
 }
 
 /**
- * Instantiate a client machine, owned by the constructing element. Optionally
- * seed scalar values into the initial context (the narrow hydration seed —
- * e.g. a server-rendered `unit-price` attribute).
+ * Instantiate a client machine, owned by the constructing element. The optional
+ * seed sets initial context (the narrow hydration seed). A plain object is
+ * applied eagerly; a **thunk** `() => ({...})` is deferred to the element's
+ * connect — required when the seed reads `this.attrs`, since attributes aren't
+ * available at construction (the custom-element upgrade-timing rule).
  */
-export function use(def: MachineDef, seed?: Record<string, unknown>): ClientInstance {
-  const snapshot: Snapshot<any> | undefined = seed
-    ? { value: [def.initial], context: { ...(def.context as object), ...seed } }
+export function use(
+  def: MachineDef,
+  seed?: Record<string, unknown> | (() => Record<string, unknown>),
+): ClientInstance {
+  const eager = typeof seed === 'object' ? seed : undefined
+  const snapshot: Snapshot<any> | undefined = eager
+    ? { value: [def.initial], context: { ...(def.context as object), ...eager } }
     : undefined
   const actor = createActor(def as MachineDef<any, any, any>, { snapshot })
 
   // Register with the element under construction so its lifecycle owns the actor.
   const bucket = collectors[collectors.length - 1]
-  if (bucket) bucket.push(actor)
+  if (bucket) bucket.push({ actor, seedThunk: typeof seed === 'function' ? seed : undefined })
 
   const inst = Object.create(null) as Record<string | symbol, unknown>
   ;(inst as any)[ACTOR] = actor
