@@ -1,5 +1,6 @@
 import ts from 'typescript'
 import { CompileError, locAt, type DiagnosticLocation } from './diagnostics.ts'
+import { inferDeps, type ClientDirective } from './client-script.ts'
 
 export { CompileError } from './diagnostics.ts'
 
@@ -54,6 +55,14 @@ export interface LowerOptions {
    *  validation is skipped for that component. Supplied by the Vite plugin /
    *  build, which can read sibling `.stator` files. */
   resolveRegions?: (componentName: string) => Set<string> | null
+  /** Client-component mode (Phase 3b). When set, `on:`/`bind:` directives are
+   *  *collected* (with a node marker injected) instead of emitted as server
+   *  directives — the generated client class wires them. `useFields` is the set
+   *  of `use()` actor names (for dep inference); `directives` is the out-list. */
+  client?: {
+    useFields: Set<string>
+    directives: ClientDirective[]
+  }
 }
 
 export function lowerTemplate(template: string, opts: LowerOptions = {}): string {
@@ -174,6 +183,10 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
   }
 
   const lowerAttributes = (attrs: ts.JsxAttributes): string => {
+    // Client mode: collect this element's on:/bind: directives under one node
+    // marker, strip them from the server shell, emit `data-b="<marker>"` once.
+    const clientMarker = opts.client ? collectClientDirectives(attrs) : undefined
+
     let out = ''
     for (const attr of attrs.properties) {
       if (ts.isJsxSpreadAttribute(attr)) {
@@ -191,10 +204,57 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       ) {
         continue
       }
+      // In client mode, on:/bind: were collected above — don't emit them.
+      if (
+        opts.client &&
+        ts.isJsxAttribute(attr) &&
+        ts.isJsxNamespacedName(attr.name) &&
+        (attr.name.namespace.text === 'on' || attr.name.namespace.text === 'bind')
+      ) {
+        continue
+      }
       const lowered = lowerAttribute(attr)
       if (lowered) out += ' ' + lowered
     }
+    if (clientMarker) out += ` data-b="${clientMarker}"`
     return out
+  }
+
+  // Collect on:/bind: directives on one element into `opts.client.directives`,
+  // allocating a single node marker. Returns the marker, or undefined if the
+  // element has no client directives.
+  const collectClientDirectives = (attrs: ts.JsxAttributes): string | undefined => {
+    const client = opts.client!
+    const pending: ClientDirective[] = []
+    for (const attr of attrs.properties) {
+      if (!ts.isJsxAttribute(attr) || !ts.isJsxNamespacedName(attr.name)) continue
+      const ns = attr.name.namespace.text
+      const name = attr.name.name.text
+      if (ns !== 'on' && ns !== 'bind') continue
+      const expr = attrExpr(attr)
+      if (!expr) {
+        throw new CompileError(`stator: ${ns}:${name} requires a value ({...})`, loc(attr))
+      }
+      if (ns === 'on') {
+        pending.push({ marker: '', kind: 'on', event: name, expr, deps: [] })
+      } else {
+        pending.push({
+          marker: '',
+          kind: 'bind',
+          target: name,
+          expr,
+          deps: inferDeps(expr, client.useFields),
+        })
+      }
+    }
+    if (pending.length === 0) return undefined
+    // One marker per element (sequential): count distinct markers so far.
+    const marker = `b${new Set(client.directives.map((d) => d.marker)).size}`
+    for (const d of pending) {
+      d.marker = marker
+      client.directives.push(d)
+    }
+    return marker
   }
 
   // `<children/>` → the default child bag entry; `<children name="x"/>` → the

@@ -163,3 +163,46 @@ export function analyzeScriptClasses(script: string): ScriptClass[] {
 function loc(file?: string): DiagnosticLocation | undefined {
   return file ? { file, line: 1, column: 1, frame: '' } : undefined
 }
+
+/**
+ * A `bind:` / `on:` directive collected from a client component's template
+ * (Phase 3b stage 4). The marker addresses the node at runtime
+ * (`data-b="<marker>"` ↔ `this.querySelector('[data-b="<marker>"]')`); stage 5
+ * emits the wiring from this.
+ */
+export interface ClientDirective {
+  /** Unique node marker, e.g. `b0`. The element gets `data-b="b0"`. */
+  marker: string
+  kind: 'on' | 'bind'
+  /** on: the DOM event name (`click`). */
+  event?: string
+  /** bind: the target (`text` / `html` / `value` / `checked` / `disabled` / attr). */
+  target?: string
+  /** The author expression (handler for on:, value for bind:). */
+  expr: string
+  /** Reactive client-actor deps referenced by the expression (`use()` fields).
+   *  Only meaningful for `bind:`; `on:` handlers fire on the event, not on state. */
+  deps: string[]
+}
+
+/**
+ * Infer which `use()` client actors an expression depends on: the identifiers it
+ * references whose name is a known use-field, excluding the property-name side of
+ * member access (so `qty.count` → `qty`, `qty.count + other.x` → `qty, other`).
+ */
+export function inferDeps(expr: string, useFields: Set<string>): string[] {
+  const sf = ts.createSourceFile('e.ts', `(${expr})`, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const found = new Set<string>()
+  const visit = (n: ts.Node): void => {
+    if (ts.isIdentifier(n)) {
+      const isPropName =
+        n.parent &&
+        ts.isPropertyAccessExpression(n.parent) &&
+        n.parent.name === n
+      if (!isPropName && useFields.has(n.text)) found.add(n.text)
+    }
+    ts.forEachChild(n, visit)
+  }
+  visit(sf)
+  return [...found]
+}
