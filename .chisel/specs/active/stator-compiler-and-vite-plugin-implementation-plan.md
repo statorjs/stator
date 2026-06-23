@@ -268,11 +268,23 @@ is client-scoped. Revised stages:
      at construction (field-initializer time), only at connect. `use()` now accepts
      an object (eager) or a function (deferred to connect); the engine actor gained
      `seed(partial)` applied before `start()`. A real upgrade-timing bug this caught.
-   - **6b Two-way binds** (additive to `client-emit.ts` `wireDirective`):
-     `bind:value`/`bind:checked` (+`|lazy`) with loop-break/IME; `{key}Changed`/
-     `effect`; client `Machine.dispatch`.
-   - **6c Bundle + injection**: per-component client entry; server emits the
-     `<script type=module>` tag; wire Vite plugin + dev/build.
+   - ✅ **6b Two-way binds + dispatch** (DONE, proven in happy-dom): `bind:value`/
+     `bind:checked` two-way via the engine `@set` built-in (assigns a context key —
+     no per-field transition), loop-break (skip echo write) + IME guard; non-settable
+     paths error. Client `Machine.dispatch` works through the generic `on:` path
+     (`on:click={() => dispatch(CartMachine, {...})}` — `dispatch` auto-injected,
+     server-machine import rides through; identity-import stubbing is a 6c bundler
+     concern). **Deferred:** the `|lazy` commit-timing modifier — the `|`/`.` pipe
+     does NOT parse as JSX (TS parser), so no modifier in 1.0; non-default commit
+     uses the eject path (`value={x} on:change=...`); future re-entry via a
+     preprocessor (`bind:value|lazy` → `bind:value={lazy(...)}`). `{key}Changed`
+     convention is a small remaining additive (`effect` runtime exists).
+   - **6c Bundle + injection** (NEXT — the integration that makes client components
+     actually load in a real app). Per-component client entry from `clientCode`; the
+     server emits a `<script type=module>` tag for each client component a page
+     renders; **identity-import stubbing** so a server-machine import inside a client
+     `<script>` compiles to `{ name }` (not the server body) in the browser bundle.
+     Wire the Vite plugin (`?stator&type=client` already exists) + dev server + build.
    - **6d Collision check**: build/`stator sync` hard-errors on duplicate
      custom-element tags + enforces root-must-be-the-custom-element.
 
