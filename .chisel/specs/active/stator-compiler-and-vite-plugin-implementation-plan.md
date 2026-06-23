@@ -242,21 +242,33 @@ separate-file revision unchanged.
 so there is **no island-scope detection** — the entire template of a client `.stator`
 is client-scoped. Revised stages:
 
-4. **Client-component lowering** (pure): in a client file, lower the template to the
-   custom-element shell + collect `bind:`/`on:`/`ref:` directives (inject node
-   markers; infer each expression's reactive deps from the file's `use()` fields).
-   No "inside vs outside" — far simpler than the co-located version.
-5. **Emit the island class + `setup()`** from the collection (`bind(...)` for
-   `bind:`, listeners for `on:`); two-way `bind:value|checked` (+ `|lazy`);
-   `{key}Changed`/`effect`; client `Machine.dispatch`. Initial paint =
-   client-paint-on-connect (server renders bound nodes empty; `bind()` paints on
-   connect). Target = "make the compiler emit what `tests/client-runtime.test.ts`
-   hand-wrote."
-6. **Client bundle + injection + collision check**: per-component client entry;
-   server emits the `<script type=module>` tag; wire dev + build. The build /
-   `stator sync` scans all client `.stator` and **hard-errors on a duplicate
-   custom-element tag** (global-registry collision), naming both files; also
-   enforces the root-must-be-the-custom-element rule.
+4. ✅ **Client-component lowering** (`lower.ts` `client` mode): collect `bind:`/`on:`
+   directives under per-element `data-b` markers, infer deps (`inferDeps`), strip
+   from the server shell. `ref:` stays `data-ref`.
+5. ✅ **Emit the client module** (`client-emit.ts` `emitClientModule`): auto-inject
+   the client primitives import, keep the user class, generate a `__<Name>Impl
+   extends <Name>` subclass whose `setup()` wires each directive (`bind(...)` /
+   `addEventListener`), `defineElement(impl, tag)`. Member refs (`qty.count`, `inc`)
+   rewritten to `this.<member>`. One-way binds (text/html/disabled/checked/attr) +
+   on: done and proven running in happy-dom. **Remaining (additive):** two-way
+   `bind:value|checked` (+ `|lazy`) with loop-break/IME; `{key}Changed`/`effect`;
+   client `Machine.dispatch`.
+6. **Compile integration + bundle + injection + collision check** (NEXT). Wire
+   stages 4–5 into `compile()`: detect a client file (has `<script>` exporting a
+   `StatorElement` subclass matching a custom-element root tag); produce BOTH the
+   server shell render module AND the client module. Per-component client entry;
+   server emits the `<script type=module>` tag; wire dev + build. Build/`stator sync`
+   hard-errors on duplicate custom-element tags (global-registry collision) +
+   enforces root-must-be-the-custom-element.
+
+   **Open decision (gates stage 6): server→client prop passing.** When a server
+   template invokes `<QuantityStepper unitPrice={product.price}/>`, the client
+   component's server module must render `<quantity-stepper unit-price="12.00">…
+   </quantity-stepper>` — props become **root attributes** read via
+   `this.attr('unit-price', Number)`. Decide: camelCase prop → kebab attribute
+   mapping; scalars-only (attributes are strings — what about non-scalar?); how
+   server *content* passes (slotted children vs attrs). Interacts with the narrow-
+   seed model. Resolve before building stage 6.
 
 **Open: client dynamic lists** (a list whose length changes purely client-side).
 Raised 2026-06-21; not yet designed. See the client-model spec — most ecommerce
