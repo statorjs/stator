@@ -256,16 +256,18 @@ is client-scoped. Revised stages:
 6. **Compile integration + bundle + injection + collision check** (NEXT). Wire
    stages 4–5 into `compile()`. The `this.attrs` runtime accessor + static-`attrs`
    coercer model is DONE (`element.ts`, tested). Remaining sub-steps:
-   - **6a Client-file detection + dual output in `compile()`** (the keystone, pure +
-     testable): a client file = a `<script>` exporting a `StatorElement` subclass
-     name-matching a custom-element root tag. Produce BOTH (i) the **server shell
-     render module** — `(props) => HtmlFragment` rendering
-     `<quantity-stepper {declared-attrs}>{inner shell w/ data-b markers + children}
-     </quantity-stepper>`; attrs come from the class's `static attrs` map (camelCase
-     prop → kebab attribute, presence booleans, scalar stringify; needs a small
-     server attr-render helper) — and (ii) the **client module** (`emitClientModule`,
-     already built). Note: a client template has NO `read()` (can't reference server
-     state) so the inner shell is static HTML + markers + `<children>` slots.
+   - ✅ **6a Client-file detection + dual output in `compile()`** (DONE, full
+     server→client round-trip verified in happy-dom). `compileClient` extracts the
+     custom-element root (enforces root-must-be-custom-element), name-validates,
+     lowers the inner in client mode, emits the server shell module
+     (`createHtmlFragment(\`<tag${clientShellAttrs(props, decl)}>\` + inner.html +
+     \`</tag>\`)`) + the client module. `CompileResult` gained `isClient`,
+     `clientCode`, `clientTag`. **Deferred-seed fix (authoring API):** a seed that
+     reads `this.attrs` MUST be a **thunk** — `use(Qty, () => ({ unitPrice:
+     this.attrs.unitPrice }))` — because custom-element attributes aren't available
+     at construction (field-initializer time), only at connect. `use()` now accepts
+     an object (eager) or a function (deferred to connect); the engine actor gained
+     `seed(partial)` applied before `start()`. A real upgrade-timing bug this caught.
    - **6b Two-way binds** (additive to `client-emit.ts` `wireDirective`):
      `bind:value`/`bind:checked` (+`|lazy`) with loop-break/IME; `{key}Changed`/
      `effect`; client `Machine.dispatch`.
