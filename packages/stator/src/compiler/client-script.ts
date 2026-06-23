@@ -119,6 +119,9 @@ export interface ScriptClass {
   useFields: Map<string, string>
   /** method names declared on the class. */
   methods: Set<string>
+  /** every member name (fields + methods) — for rewriting a template
+   *  expression's class-member references to `this.<member>`. */
+  members: Set<string>
 }
 
 export function analyzeScriptClasses(script: string): ScriptClass[] {
@@ -134,15 +137,14 @@ export function analyzeScriptClasses(script: string): ScriptClass[] {
     }
     const useFields = new Map<string, string>()
     const methods = new Set<string>()
+    const members = new Set<string>()
     for (const member of stmt.members) {
-      if (
-        ts.isPropertyDeclaration(member) &&
-        member.initializer &&
-        ts.isIdentifier(member.name)
-      ) {
+      if (ts.isPropertyDeclaration(member) && ts.isIdentifier(member.name)) {
+        members.add(member.name.text)
         const init = member.initializer
         // `field = use(Machine, ...)` → reactive client actor.
         if (
+          init &&
           ts.isCallExpression(init) &&
           ts.isIdentifier(init.expression) &&
           init.expression.text === 'use' &&
@@ -153,9 +155,10 @@ export function analyzeScriptClasses(script: string): ScriptClass[] {
         }
       } else if (ts.isMethodDeclaration(member) && ts.isIdentifier(member.name)) {
         methods.add(member.name.text)
+        members.add(member.name.text)
       }
     }
-    out.push({ name: stmt.name.text, useFields, methods })
+    out.push({ name: stmt.name.text, useFields, methods, members })
   }
   return out
 }

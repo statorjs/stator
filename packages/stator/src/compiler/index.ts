@@ -16,6 +16,8 @@ export { scopeCss } from './styles.ts'
 export { scopeHash } from './hash.ts'
 export { declaredRegions, componentImportSpecifier } from './regions.ts'
 export { generateDts } from './dts.ts'
+export { emitClientModule, rewriteMembers } from './client-emit.ts'
+export type { EmitClientInput } from './client-emit.ts'
 export {
   analyzeClient,
   analyzeScriptClasses,
