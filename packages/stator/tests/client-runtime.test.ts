@@ -93,6 +93,30 @@ describe('client runtime (3b stage 0)', () => {
     expect(el.refs.missing).toBeNull()
   })
 
+  it('this.attrs reads declared attrs (camel→kebab, coerced, presence booleans)', () => {
+    class PriceWidget extends StatorElement {
+      static attrs = { unitPrice: Number, label: String, selected: Boolean }
+    }
+    defineElement(PriceWidget, 'price-widget')
+    const holder = document.createElement('div')
+    holder.innerHTML = '<price-widget unit-price="98.5" label="Runner" selected></price-widget>'
+    document.body.appendChild(holder)
+    const el = holder.querySelector('price-widget') as PriceWidget & {
+      attrs: { unitPrice: number; label: string; selected: boolean }
+    }
+    expect(el.attrs.unitPrice).toBe(98.5) // Number coercion, kebab attr
+    expect(el.attrs.label).toBe('Runner')
+    expect(el.attrs.selected).toBe(true) // present → true
+
+    const holder2 = document.createElement('div')
+    holder2.innerHTML = '<price-widget unit-price="10"></price-widget>'
+    document.body.appendChild(holder2)
+    const el2 = holder2.querySelector('price-widget') as PriceWidget & {
+      attrs: { selected: boolean }
+    }
+    expect(el2.attrs.selected).toBe(false) // absent → false
+  })
+
   it('attr() reads + coerces a seed attribute', () => {
     class PriceTag extends StatorElement {}
     defineElement(PriceTag, 'price-tag')

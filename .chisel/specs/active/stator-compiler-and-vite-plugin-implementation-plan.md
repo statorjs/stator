@@ -261,14 +261,20 @@ is client-scoped. Revised stages:
    hard-errors on duplicate custom-element tags (global-registry collision) +
    enforces root-must-be-the-custom-element.
 
-   **Open decision (gates stage 6): server→client prop passing.** When a server
-   template invokes `<QuantityStepper unitPrice={product.price}/>`, the client
-   component's server module must render `<quantity-stepper unit-price="12.00">…
-   </quantity-stepper>` — props become **root attributes** read via
-   `this.attr('unit-price', Number)`. Decide: camelCase prop → kebab attribute
-   mapping; scalars-only (attributes are strings — what about non-scalar?); how
-   server *content* passes (slotted children vs attrs). Interacts with the narrow-
-   seed model. Resolve before building stage 6.
+   **Server→client prop passing (decided 2026-06-21).** A client component declares
+   its attribute surface with a **static `attrs` coercer map**:
+   `static attrs = { unitPrice: Number, selected: Boolean }`. From that one line:
+   `this.attrs.unitPrice` is typed (`ReturnType<coercer>`) + runtime-coerced from the
+   DOM attribute; the generated server module maps prop `unitPrice` → kebab attribute
+   `unit-price`; the generated `.d.ts` types the call site (`<QuantityStepper
+   unitPrice={number}/>`; unknown attr errors). **One author-facing name** (camelCase
+   `unitPrice`) everywhere (call site, `static attrs` key, `this.attrs.unitPrice`); the
+   kebab `unit-price` is framework-managed DOM serialization the author never types
+   (like React `className`→`class`). **Scalars only** (attributes are strings; the
+   narrow-seed boundary). **Booleans = presence** (`selected={true}` → `<x selected>`;
+   `false` → omitted). **Server content** passes as slotted children via the existing
+   `<children>` mechanism, not attributes. `this.attr(name, coerce)` (stage 0) stays
+   as the raw escape hatch for dynamic/undeclared attributes.
 
 **Open: client dynamic lists** (a list whose length changes purely client-side).
 Raised 2026-06-21; not yet designed. See the client-model spec — most ecommerce

@@ -4,6 +4,11 @@ import type { Actor } from '../engine/index.ts'
 const ACTORS = Symbol('stator.actors')
 const DISPOSERS = Symbol('stator.disposers')
 
+/** camelCase author name → kebab DOM attribute (`unitPrice` → `unit-price`). */
+function camelToKebab(name: string): string {
+  return name.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())
+}
+
 /**
  * Base class for a client island. The author writes
  * `export class QuantityStepper extends StatorElement { ... }`; the compiler
@@ -35,11 +40,39 @@ export class StatorElement extends HTMLElement {
     ) as Record<string, HTMLElement>
   }
 
-  /** Read + coerce an attribute (the narrow hydration seed source). */
+  /** Read + coerce a single attribute by its literal name (raw escape hatch for
+   *  dynamic / undeclared attributes). */
   attr<T = string>(name: string, coerce?: (raw: string) => T): T | undefined {
     const raw = this.getAttribute(name)
     if (raw === null) return undefined
     return coerce ? coerce(raw) : (raw as unknown as T)
+  }
+
+  /** Typed, coerced view of the element's declared attributes.
+   *
+   *  `static attrs = { unitPrice: Number, selected: Boolean }` declares the
+   *  surface; `this.attrs.unitPrice` reads the kebab DOM attribute (`unit-price`)
+   *  and coerces it. `Number`/parse coercers run on the string; `Boolean` is
+   *  treated as a presence flag (attribute present → true). camelCase author name
+   *  ↔ kebab DOM attribute is framework-managed. */
+  get attrs(): Record<string, unknown> {
+    const decl = (this.constructor as { attrs?: Record<string, (raw: string) => unknown> }).attrs
+    const self = this
+    return new Proxy(
+      {},
+      {
+        get(_t, prop: string) {
+          const coerce = decl?.[prop]
+          const attrName = camelToKebab(prop)
+          if (coerce === (Boolean as unknown)) {
+            return self.hasAttribute(attrName)
+          }
+          const raw = self.getAttribute(attrName)
+          if (raw === null) return undefined
+          return coerce ? coerce(raw) : raw
+        },
+      },
+    )
   }
 
   /** Register a disposer to run on disconnect (used by generated bind wiring). */
