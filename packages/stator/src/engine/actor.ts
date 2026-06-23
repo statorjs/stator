@@ -92,6 +92,14 @@ export function createActor<C extends object, E extends EventObject, S extends s
     },
 
     send(event: E) {
+      // Built-in `@set`: assign one context key. Powers two-way `bind:value`
+      // (DOM → state) without a per-field transition. Available in every state.
+      if ((event as { type: string }).type === '@set') {
+        const e = event as unknown as { key: string; value: unknown }
+        context = { ...context, [e.key]: e.value }
+        notify()
+        return
+      }
       // Resolve the current leaf state (depth-1 today: value[0]).
       const stateKey = value[value.length - 1]!
       const node = def.states[stateKey]

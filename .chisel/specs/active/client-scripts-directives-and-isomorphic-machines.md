@@ -181,9 +181,20 @@ The generated wiring owns the correctness details so they aren't hand-rolled:
 - **Native typed values.** `bind:checked` -> `.checked`, `type=number` ->
   `valueAsNumber`, `<select multiple>` -> array. The directive yields the
   native-typed value; semantic coercion beyond that is the machine action's job.
-- **Commit-timing modifier.** `bind:value` is live (`input` event);
-  `bind:value|lazy` commits on `change`/blur. The `|modifier` suffix is distinct
-  from the colon that separates directive name from target.
+- **Commit-timing modifier — DEFERRED (2026-06-22).** Originally `bind:value|lazy`
+  (live vs commit-on-change/blur). **The `|` pipe (and `.`) do not parse as JSX** —
+  TS's JSX parser rejects both (verified); only Astro/Svelte/Vue accept such
+  modifiers because they ship *custom* template parsers, which we deliberately do
+  not (we use the TS AST — see [[v1-compiler-against-real-templates]]). Resolution:
+  **no modifier in 1.0.** `bind:value`/`bind:checked` are **live two-way only**;
+  non-default commit timing (lazy/blur) or transforms (trim, etc.) use the *eject*
+  path — `bind:` is "ejectable sugar," so drop it and write the explicit
+  `value={x} on:change={e => m.send({ type: '@set', key, value })}` (one line, no
+  new syntax, covers every non-default case). If a modifier later earns its place,
+  the planned re-entry is a **preprocessor** that rewrites the desired author syntax
+  `bind:value|lazy={draft.query}` → the TSX-valid `bind:value={lazy(draft.query)}`
+  before the TS parse — keeping the readable pipe at authoring time without a custom
+  parser. Not built; no committed need yet.
 
 Validation is just more machine state bound back: a `valid`/`error` selector with
 `bind:disabled={notReady}` and `bind:text={error}` gives live, network-free
