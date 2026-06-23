@@ -254,12 +254,25 @@ is client-scoped. Revised stages:
    `bind:value|checked` (+ `|lazy`) with loop-break/IME; `{key}Changed`/`effect`;
    client `Machine.dispatch`.
 6. **Compile integration + bundle + injection + collision check** (NEXT). Wire
-   stages 4–5 into `compile()`: detect a client file (has `<script>` exporting a
-   `StatorElement` subclass matching a custom-element root tag); produce BOTH the
-   server shell render module AND the client module. Per-component client entry;
-   server emits the `<script type=module>` tag; wire dev + build. Build/`stator sync`
-   hard-errors on duplicate custom-element tags (global-registry collision) +
-   enforces root-must-be-the-custom-element.
+   stages 4–5 into `compile()`. The `this.attrs` runtime accessor + static-`attrs`
+   coercer model is DONE (`element.ts`, tested). Remaining sub-steps:
+   - **6a Client-file detection + dual output in `compile()`** (the keystone, pure +
+     testable): a client file = a `<script>` exporting a `StatorElement` subclass
+     name-matching a custom-element root tag. Produce BOTH (i) the **server shell
+     render module** — `(props) => HtmlFragment` rendering
+     `<quantity-stepper {declared-attrs}>{inner shell w/ data-b markers + children}
+     </quantity-stepper>`; attrs come from the class's `static attrs` map (camelCase
+     prop → kebab attribute, presence booleans, scalar stringify; needs a small
+     server attr-render helper) — and (ii) the **client module** (`emitClientModule`,
+     already built). Note: a client template has NO `read()` (can't reference server
+     state) so the inner shell is static HTML + markers + `<children>` slots.
+   - **6b Two-way binds** (additive to `client-emit.ts` `wireDirective`):
+     `bind:value`/`bind:checked` (+`|lazy`) with loop-break/IME; `{key}Changed`/
+     `effect`; client `Machine.dispatch`.
+   - **6c Bundle + injection**: per-component client entry; server emits the
+     `<script type=module>` tag; wire Vite plugin + dev/build.
+   - **6d Collision check**: build/`stator sync` hard-errors on duplicate
+     custom-element tags + enforces root-must-be-the-custom-element.
 
    **Server→client prop passing (decided 2026-06-21).** A client component declares
    its attribute surface with a **static `attrs` coercer map**:
