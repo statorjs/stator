@@ -279,12 +279,24 @@ is client-scoped. Revised stages:
      uses the eject path (`value={x} on:change=...`); future re-entry via a
      preprocessor (`bind:value|lazy` → `bind:value={lazy(...)}`). `{key}Changed`
      convention is a small remaining additive (`effect` runtime exists).
-   - **6c Bundle + injection** (NEXT — the integration that makes client components
-     actually load in a real app). Per-component client entry from `clientCode`; the
-     server emits a `<script type=module>` tag for each client component a page
-     renders; **identity-import stubbing** so a server-machine import inside a client
-     `<script>` compiles to `{ name }` (not the server body) in the browser bundle.
-     Wire the Vite plugin (`?stator&type=client` already exists) + dev server + build.
+   - **6c Bundle + injection** — **dev path DONE** (proven via tests): the plugin
+     serves the compiled `clientCode` at `?stator&type=client` (esbuild type-strip);
+     the dev server walks the SSR module graph for reachable client `.stator`,
+     injects a `<script type="module" src="…?stator&type=client">` per one (via
+     `headExtras`, alongside scoped CSS), and `listen()` bridges Vite's middlewares
+     (`getRequestListener` + node http server falling through to Hono) so the browser
+     can fetch those modules + HMR. Verified: server shell renders, script injected,
+     module served with the registration; example app + `/@vite/client` still 200.
+     **Remaining 6c:**
+     - **Identity-import stubbing** — a server-machine import inside a client
+       `<script>` (for `dispatch`) must compile to `{ name }` only in the browser
+       bundle, not the server body (else it drags `/server` code). Needs the plugin
+       to detect a machine import + extract its `name`. (A client component that only
+       uses portable client machines works today; dispatch-to-server needs this.)
+     - **Production build** — `buildApp` must emit the client bundles + inject the
+       scripts (currently dev-only via Vite). Browser verification of the actual
+       custom-element upgrade is still "ready for verification" (can't drive a real
+       browser in tests).
    - **6d Collision check**: build/`stator sync` hard-errors on duplicate
      custom-element tags + enforces root-must-be-the-custom-element.
 
