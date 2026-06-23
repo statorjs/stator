@@ -109,7 +109,16 @@ export function stator(): Plugin {
         return result.css
       }
       if (query.includes('type=client')) {
-        return result.scripts.join('\n')
+        // The generated client entry module (StatorElement subclass + wiring).
+        // It's TS (the author's <script> may have annotations) → strip types.
+        if (!result.isClient) return 'export {}'
+        const transformed = await transform(result.clientCode, {
+          loader: 'ts',
+          format: 'esm',
+          sourcefile: file,
+          sourcemap: true,
+        })
+        return { code: transformed.code, map: transformed.map }
       }
 
       // Default: the server render module. Import the style virtual (if any) so

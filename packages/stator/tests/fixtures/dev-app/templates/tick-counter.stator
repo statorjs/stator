@@ -1,0 +1,16 @@
+<tick-counter>
+  <button on:click={inc}>tick</button>
+  <span bind:text={n.count}></span>
+</tick-counter>
+
+<script>
+  const N = machine({ count: 0, on: { INC: s => s.count++ } })
+  export class TickCounter extends StatorElement {
+    n = use(N)
+    inc() { this.n.send('INC') }
+  }
+</script>
+
+<style>
+  tick-counter { display: inline-flex; gap: 0.5rem; }
+</style>

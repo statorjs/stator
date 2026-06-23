@@ -57,4 +57,23 @@ describe('dev server: .stator end to end', () => {
     const json = (await post.json()) as { patches: Array<{ op: string; value?: string }> }
     expect(json.patches.some((p) => p.value === 'count is 1')).toBe(true)
   })
+
+  it('renders a client component shell and injects its module script (3b 6c)', async () => {
+    app ??= await createDevApp({
+      root,
+      machinesDir: resolve(root, 'machines'),
+      routesDir: resolve(root, 'routes'),
+    })
+    const html = await (await app.fetch(new Request('http://localhost/'))).text()
+
+    // Server-rendered shell of the client component (custom element + markers,
+    // directives stripped).
+    expect(html).toContain('<tick-counter')
+    expect(html).toContain('data-b="b0"')
+    expect(html).not.toContain('on:click')
+    // Its client module script is injected (served by Vite at the ?type=client URL).
+    expect(html).toMatch(
+      /<script type="module" src="\/templates\/tick-counter\.stator\?stator&type=client">/,
+    )
+  })
 })

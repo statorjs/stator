@@ -45,4 +45,20 @@ describe('vite plugin: .stator', () => {
     expect(styleMod!.code).toMatch(/data-s-[0-9a-f]{8}/)
     expect(styleMod!.code).toContain('greeting')
   })
+
+  it('serves a client component module at ?type=client (3b 6c)', async () => {
+    server ??= await createServer({
+      root,
+      plugins: [stator()],
+      appType: 'custom',
+      server: { middlewareMode: true },
+      logLevel: 'error',
+    })
+    const clientFile = resolve(root, 'toggle-box.stator')
+    const mod = await server.transformRequest(clientFile + '?stator&type=client')
+    expect(mod).toBeTruthy()
+    // The generated client entry: the StatorElement subclass + registration call.
+    expect(mod!.code).toContain('class __ToggleBoxImpl')
+    expect(mod!.code).toMatch(/defineElement\(__ToggleBoxImpl,\s*"toggle-box"\)/)
+  })
 })

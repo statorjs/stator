@@ -1,7 +1,8 @@
 import { createServer as createViteServer, type ViteDevServer } from 'vite'
-import { serve } from '@hono/node-server'
+import { getRequestListener } from '@hono/node-server'
+import { createServer as createHttpServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { resolve, relative } from 'node:path'
 import { stator } from '../vite/index.ts'
 import { compile } from '../compiler/index.ts'
 import { logger } from './logger.ts'
@@ -64,17 +65,18 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   store.bootAppMachines()
   const routes = await runtime.discoverRoutes(config.routesDir, loader)
 
-  const cssCache = new Map<string, string>()
-  const cssForFile = async (file: string): Promise<string> => {
-    let css = cssCache.get(file)
-    if (css === undefined) {
+  const root = resolve(config.root)
+  const resultCache = new Map<string, ReturnType<typeof compile>>()
+  const compiledFor = async (file: string) => {
+    let r = resultCache.get(file)
+    if (r === undefined) {
       // Match the plugin's kind detection so route-page frontmatter
       // (Stator.reads etc.) compiles under the route capability set.
       const kind = /[\\/]routes[\\/].*\.stator$/.test(file) ? 'route' : 'component'
-      css = compile(await readFile(file, 'utf8'), { id: file, kind }).css
-      cssCache.set(file, css)
+      r = compile(await readFile(file, 'utf8'), { id: file, kind })
+      resultCache.set(file, r)
     }
-    return css
+    return r
   }
 
   const app = await runtime.buildHonoApp({
@@ -82,8 +84,21 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
     store,
     staticDir: config.staticDir,
     headExtras: async (routeFile: string) => {
-      const css = await collectStatorCss(vite, routeFile, cssForFile)
-      return css ? `<style data-stator-dev>\n${css}\n</style>` : ''
+      const files = reachableStatorFiles(vite, routeFile)
+      let css = ''
+      const scripts: string[] = []
+      for (const f of files) {
+        const r = await compiledFor(f)
+        if (r.css) css += `/* ${f} */\n${r.css}\n`
+        if (r.isClient) {
+          const url = '/' + relative(root, f).replace(/\\/g, '/') + '?' + 'stator&type=client'
+          scripts.push(`<script type="module" src="${url}"></script>`)
+        }
+      }
+      const head: string[] = []
+      if (css.trim()) head.push(`<style data-stator-dev>\n${css.trim()}\n</style>`)
+      head.push(...scripts)
+      return head.join('\n')
     },
   })
 
@@ -91,8 +106,14 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
     fetch: (request) => app.fetch(request),
     vite,
     listen(port: number): Promise<void> {
+      // Vite's middlewares serve client modules + HMR to the browser; anything
+      // it doesn't handle (routes, /__events, /__sse) falls through to Hono.
+      const honoListener = getRequestListener(app.fetch)
+      const server = createHttpServer((req, res) => {
+        vite.middlewares(req, res, () => honoListener(req, res))
+      })
       return new Promise((resolveFn) => {
-        serve({ fetch: app.fetch, port }, () => {
+        server.listen(port, () => {
           logger.info({ port, mode: 'dev', machines: defs.length, routes: routes.length }, 'listening')
           resolveFn()
         })
@@ -103,16 +124,11 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
 }
 
 /**
- * Walk the SSR module graph from a route's file and collect the scoped CSS of
- * every `.stator` component reachable from it. CSS comes from the compiler
- * (same `{ id }` → same hash as the markers in the rendered HTML), not from
- * Vite's CSS-to-JS dev transform.
+ * Walk the SSR module graph from a route's file and return every `.stator` file
+ * reachable from it (route page + the components it renders). The caller compiles
+ * each to collect scoped CSS and client-component module scripts.
  */
-async function collectStatorCss(
-  vite: ViteDevServer,
-  entryFile: string,
-  cssForFile: (file: string) => Promise<string>,
-): Promise<string> {
+function reachableStatorFiles(vite: ViteDevServer, entryFile: string): string[] {
   const seen = new Set<string>()
   const statorFiles = new Set<string>()
 
@@ -121,18 +137,13 @@ async function collectStatorCss(
     const id = node.id ?? ''
     if (seen.has(id)) return
     seen.add(id)
-    if (/\.stator$/.test(id)) statorFiles.add(id)
+    const file = id.split('?')[0]!
+    if (/\.stator$/.test(file)) statorFiles.add(file)
     for (const dep of node.importedModules) visit(dep as never)
   }
 
   for (const node of vite.moduleGraph.getModulesByFile(entryFile) ?? []) {
     visit(node as never)
   }
-
-  let css = ''
-  for (const file of statorFiles) {
-    const chunk = await cssForFile(file)
-    if (chunk) css += chunk + '\n'
-  }
-  return css.trim()
+  return [...statorFiles]
 }

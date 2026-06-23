@@ -1,6 +1,7 @@
 ---
 import type CounterMachine from '../machines/counter.ts'
 import type { InstanceOf } from '@statorjs/stator/template'
+import TickCounter from './tick-counter.stator'
 const { counter } = Stator.props<{ counter: InstanceOf<typeof CounterMachine> }>()
 ---
 <!doctype html>
@@ -13,6 +14,7 @@ const { counter } = Stator.props<{ counter: InstanceOf<typeof CounterMachine> }>
     <main class="counter">
       <p class="label">{read(counter, c => c.label)}</p>
       <button on:click={() => counter.send({ type: 'INCREMENT' })}>+</button>
+      <TickCounter />
     </main>
   </body>
 </html>
