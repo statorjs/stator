@@ -1,0 +1,4 @@
+# Chisel workspace config. Docs are the source of truth for the Astro Starlight
+# site in apps/docs; specs stay under .chisel/specs (the default).
+[docs]
+source = "apps/docs/src/content/docs"
