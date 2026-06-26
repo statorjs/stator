@@ -408,10 +408,12 @@ no wire) are distinct capability layers over the same core.
   distinction: a server *value* constant for the interaction is seeded into the
   client machine (below); only two genuinely-live sources on one node is the (rare,
   forbidden) smell.
-- **Base class → `extends StatorElement`.** Client islands extend the framework
+- **Base class → `extends StatorElement`.** A client component extends the framework
   base (owns actor lifecycle on connect/disconnect, `refs`, `attr()`, the binding
-  loop). Name-matched to a kebab tag (`QuantityStepper` ↔ `<quantity-stepper>`),
-  co-located islands, multiple per file. (See the 3b plan in
+  loop). Name-matched to a kebab tag (`QuantityStepper` ↔ `<quantity-stepper>`).
+  Separate-file: one `.stator` = one component (server *or* client), the whole file
+  being the custom element — not co-located islands. (Revised from the original
+  co-located-island sketch; see the 3b plan in
   [[stator-compiler-and-vite-plugin-implementation-plan]].)
 - **Narrow hydration seed (A) in 1.0; full resume (B) deferred.** (A) server *value*
   → client machine initial context (scalar via server-rendered attribute, read on

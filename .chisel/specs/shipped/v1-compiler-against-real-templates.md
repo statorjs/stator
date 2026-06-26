@@ -1,8 +1,8 @@
 ---
 title: V1 compiler against real templates
-status: draft
+status: shipped
 created: 2026-05-20
-updated: 2026-05-20
+updated: 2026-06-25
 area: compiler
 ---
 
@@ -88,4 +88,6 @@ const { cart } = Stator.props<Props>()
 
 ## Implementation Notes
 
-(Not yet implemented. Hand-rewrites of the four existing templates exist as design exploration in this spec's predecessor design note.)
+Shipped. The `.stator` compiler exists end-to-end — `split` → JSX `lower` → `compile`, plus scoped-style hashing (`styles.ts`/`hash.ts`) and the Vite plugin adapter — in `packages/stator/src/compiler` and `packages/stator/src/vite`. The four example templates (layout, product-list, cart-page, checkout-page) are real `.stator` files in `apps/example/templates/` compiling to server modules the runtime consumes verbatim, and the example's routes are `.stator` pages too. The scope attribute (`data-s-<hash>`) approach replaced the synthetic-class idea as decided in the Approach section.
+
+The one Open Question still open is keyed `each` (`key={...}` extraction) — tracked in [[keyed-each-and-list-item-identity]]. Everything else in Success Criteria is met. The follow-on authoring surface (component composition, client `<script>` directives) shipped on top of this format; see [[component-composition-and-stator-routes]] and [[client-scripts-directives-and-isomorphic-machines]].

@@ -80,24 +80,26 @@ stays 1.x.
 
 Dependency-ordered. The spikes de-risked the *models*; this is productionization.
 
-**Phase 0 — Consolidate baseline.** (Done in spec terms: the four runtime specs
-shipped with the poll demo are marked shipped.) Land the `@statorjs/stator/machine`
-browser-safe export on main. Clean V1 start line.
+**Phase 0 — Consolidate baseline. ✅ Done.** (Done in spec terms: the four runtime
+specs shipped with the poll demo are marked shipped.) Land the
+`@statorjs/stator/machine` browser-safe export on main. Clean V1 start line.
 
-**Phase 1 — Custom engine (the linchpin).** [[custom-isomorphic-state-machine-engine]].
+**Phase 1 — Custom engine (the linchpin). ✅ Done.** [[custom-isomorphic-state-machine-engine]].
 Typed event unions (kill `any` at `define-machine.ts:75-76`); isomorphic core
 (server: dispatch context / reads / Store; client: local actor, no wire);
 capability layers (server-pinned vs portable); compact snapshot serialization +
 client hydration seed. Migrate the runtime and demos off XState; the existing
 vitest suite is the regression gate. Highest risk, highest leverage.
 
-**Phase 2 — Typed machine-mediated dispatch.** [[typed-events-and-machine-mediated-dispatch]].
+**Phase 2 — Typed machine-mediated dispatch. 🔨 Server half done; client half rides
+3b.** [[typed-events-and-machine-mediated-dispatch]].
 `Machine.send` / `Machine.dispatch` off the imported def; kills the magic-string
 `dispatch('Name', ...)` (used in the poll demo and the spike). Wire format
 unchanged — the work is the typed surface + the identity-vs-value import
 distinction. Rides on Phase 1's typed events.
 
-**Phase 3 — `.stator` compiler + Vite.** [[v1-compiler-against-real-templates]] +
+**Phase 3 — `.stator` compiler + Vite. 🔨 3a done; 3b in progress (6c identity-import
+stubbing + prod build, and 6d remain).** [[v1-compiler-against-real-templates]] +
 the client half of [[client-scripts-directives-and-isomorphic-machines]]. TS-AST
 transform → server module + client entry + scoped CSS, hosted as a Vite plugin
 (build spike validated the orchestration and the `lang.css` constraint). `on:` /
@@ -106,18 +108,19 @@ capability-portability compile errors (consumes Phases 1–2). Largest surface a
 Sub-staged **3a** (server compiler, no `<script>`) then **3b** (client plane) —
 detailed build plan in [[stator-compiler-and-vite-plugin-implementation-plan]].
 
-**Phase 4 — Keyed `each`.** [[keyed-each-and-list-item-identity]]. Per-item
+**Phase 4 — Keyed `each`. ⬜ Pending.** [[keyed-each-and-list-item-identity]]. Per-item
 insert/remove/move (wire format already reserves the ops); the compiler extracts
 `key` from the `each` callback.
 
-**Phase 5 — Single-replica cross-machine robustness.** App-machine persistence
+**Phase 5 — Single-replica cross-machine robustness. ⬜ Pending.** App-machine persistence
 (small; extend `persistTouched` + boot hydration to app machines —
 [[app-machine-state-persistence]]) and richer declarative `subscribes:`
 (source/predicate/transform as data, not opaque callback —
 [[cross-machine-effects-source-predicate-transform]]). Optional: `fanOut` from
 non-POST entry points.
 
-**Phase 6 — Polish.** Observability promotion ([[observability-primitives-promoted]]);
+**Phase 6 — Polish. ⬜ Pending** (public developer docs being planned now —
+`.chisel/docs` → Astro Starlight). Observability promotion ([[observability-primitives-promoted]]);
 editor syntax highlighting; rewrite the example apps in `.stator` (compiler spec
 success criterion); docs incl. the single-replica boundary.
 
@@ -172,6 +175,11 @@ the main scope lever and is largely independent.
 
 ## Implementation Notes
 
-(Planning document. Updated as phases complete. Predecessor: the design thread
-that produced the client/dispatch/engine specs and validated the client model,
-build pipeline, and forms+validation via spikes in `apps/private/`.)
+Planning document; updated as phases complete. **Status (2026-06-25):** Phases
+0–1 done (custom engine shipped, XState removed); Phase 2 server-side dispatch
+done, client half deferred into 3b; Phase 3a done and 3b in progress (server
+shell + client module + dev injection landed; 6c identity-import stubbing + prod
+build, and the 6d collision check, remain). Phases 4–6 pending. Per-phase specs
+carry the detail; see the ✅/🔨/⬜ markers in the phased plan above. Predecessor:
+the design thread that produced the client/dispatch/engine specs and validated the
+client model, build pipeline, and forms+validation via spikes in `apps/private/`.

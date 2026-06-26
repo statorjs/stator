@@ -22,7 +22,7 @@ The why is structural. Most frameworks that gesture at "state machines" treat th
 
 ## Constraints
 
-- Wrap XState v5 rather than building a custom state-machine implementation. The framework still gets its own surface (`defineMachine`) so the user-facing shape is ours, but XState handles state graphs, transitions, guards, actions, and emit.
+- Wrap XState v5 rather than building a custom state-machine implementation. The framework still gets its own surface (`defineMachine`) so the user-facing shape is ours, but XState handles state graphs, transitions, guards, actions, and emit. **(Superseded post-POC: XState was later replaced by a hand-written isomorphic engine to get type-safe events end-to-end and a readable client runtime — see [[custom-isomorphic-state-machine-engine]]. The `defineMachine` surface this POC established carried over unchanged.)**
 - File-based discovery for machines and routes. One source of truth per machine, declared dependencies via `reads:`, no decorators, no implicit context propagation.
 - Templates as tagged template literals. No compiler in the POC. The SFC compiler is V1 work.
 - HTTP transport only. SSE is a separate concern handled by a different spec.

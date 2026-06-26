@@ -105,9 +105,10 @@ Template constructs and their lowering target:
 | `{match(...)}` | `${match(...)}` |
 | `on:click={h}` | `${on('click', h)}` |
 | `class:list` / `style:list` | `${classList(...)}` / `${styleList(...)}` |
-| `bind:text|html|value|checked|disabled|<attr>` | client-runtime bind helpers (3b) |
-| `bind:value\|lazy` | two-way commit-on-change variant (3b) |
+| `bind:text|html|value|checked|disabled|<attr>` | client-runtime bind helpers (3b, shipped) |
+| `bind:value\|lazy` | two-way commit-on-change variant — **deferred** (TSX rejects the `\|` modifier; revisit via a `bind:value|lazy` → `bind:value={lazy(...)}` preprocessor) |
 | `ref:name` | unique keyed attr + typed refs handle (3b) |
+| `<script is:inline>` / `<script src>` | literal verbatim script (opt-out of the inline-`<script>`-is-a-client-component rule); see [[client-scripts-directives-and-isomorphic-machines]] |
 
 ## Phase 3a — server compiler + Vite (no `<script>`)
 
@@ -253,9 +254,11 @@ is client-scoped. Revised stages:
    on: done and proven running in happy-dom. **Remaining (additive):** two-way
    `bind:value|checked` (+ `|lazy`) with loop-break/IME; `{key}Changed`/`effect`;
    client `Machine.dispatch`.
-6. **Compile integration + bundle + injection + collision check** (NEXT). Wire
-   stages 4–5 into `compile()`. The `this.attrs` runtime accessor + static-`attrs`
-   coercer model is DONE (`element.ts`, tested). Remaining sub-steps:
+6. **Compile integration + bundle + injection + collision check** (IN PROGRESS —
+   6a/6b done, 6c dev-path done; remaining: 6c identity-import stubbing + prod
+   build, and 6d). Wire stages 4–5 into `compile()`. The `this.attrs` runtime
+   accessor + static-`attrs` coercer model is DONE (`element.ts`, tested).
+   Sub-steps:
    - ✅ **6a Client-file detection + dual output in `compile()`** (DONE, full
      server→client round-trip verified in happy-dom). `compileClient` extracts the
      custom-element root (enforces root-must-be-custom-element), name-validates,

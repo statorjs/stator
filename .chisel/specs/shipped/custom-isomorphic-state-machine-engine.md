@@ -1,8 +1,8 @@
 ---
 title: Custom isomorphic state-machine engine
-status: draft
+status: shipped
 created: 2026-06-17
-updated: 2026-06-17
+updated: 2026-06-25
 area: runtime
 ---
 
