@@ -58,7 +58,7 @@ import type CartMachine from '../machines/cart.ts'
     expect(r.template).toContain('<script src="/static/inspector.js" defer></script>')
   })
 
-  it('distinguishes a bare client <script> from a literal <script src> in the same file', () => {
+  it('distinguishes an inline client <script> from a literal <script src> in the same file', () => {
     const src = `<div>page</div>
 <script src="/x.js"></script>
 <script>
@@ -69,6 +69,37 @@ import type CartMachine from '../machines/cart.ts'
     expect(r.scripts[0]).toContain('StatorElement')
     expect(r.template).toContain('<script src="/x.js"></script>')
     expect(r.template).not.toContain('StatorElement')
+  })
+
+  it('captures an inline <script> even when it carries incidental attributes', () => {
+    // Only `src` / `is:inline` opt out — `type`/`lang` etc. stay components, so
+    // an incidental attribute can't silently demote a component to dead markup.
+    const src = `<div>page</div>
+<script type="module" lang="ts">
+  export class Widget extends StatorElement {}
+</script>`
+    const r = splitStator(src)
+    expect(r.scripts).toHaveLength(1)
+    expect(r.scripts[0]).toContain('class Widget')
+    expect(r.template).toBe('<div>page</div>')
+  })
+
+  it('leaves a <script is:inline> in the template as literal markup', () => {
+    const src = `<head>
+  <script is:inline>if (a) { go() }</script>
+</head>`
+    const r = splitStator(src)
+    // Verbatim inline script — not a client-code region.
+    expect(r.scripts).toEqual([])
+    expect(r.template).toContain('<script is:inline>if (a) { go() }</script>')
+  })
+
+  it('records the source offset of each captured script', () => {
+    const src = `<div>x</div>
+<script>export class A extends StatorElement {}</script>`
+    const r = splitStator(src)
+    expect(r.scriptOffsets).toHaveLength(1)
+    expect(src.slice(r.scriptOffsets[0])).toMatch(/^<script>/)
   })
 
   it('handles CRLF line endings in the frontmatter fence', () => {

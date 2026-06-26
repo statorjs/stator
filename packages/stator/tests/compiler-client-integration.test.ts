@@ -40,11 +40,17 @@ describe('compiler: client-component integration (3b stage 6a)', () => {
     expect(r.serverCode).not.toContain('bind:text')
   })
 
-  it('a plain server component (no exported class) stays on the server path', () => {
-    const r = compile('<p>hi</p>\n<script>console.log("x")</script>')
+  it('a component with no inline <script> stays on the server path', () => {
+    const r = compile('<p>hi</p>')
     expect(r.isClient).toBe(false)
     expect(r.clientCode).toBe('')
     expect(r.serverCode).toContain('export default function')
+  })
+
+  it('errors on an inline <script> with no StatorElement (no longer silently dropped)', () => {
+    expect(() => compile('<p>hi</p>\n<script>console.log("x")</script>')).toThrow(
+      /no StatorElement subclass/,
+    )
   })
 
   it('errors when the root is not a custom element', () => {

@@ -67,9 +67,31 @@ const doubled = n * 2
     expect(r.css).toBe('')
   })
 
-  it('passes through scripts for later stages', () => {
-    const r = compile(`<p>x</p>
-<script>console.log('c')</script>`)
-    expect(r.scripts[0]).toContain("console.log('c')")
+  it('errors on an inline <script> that exports no StatorElement', () => {
+    // An inline <script> is a client component; one with no StatorElement is a
+    // malformed component, surfaced rather than silently dropped.
+    expect(() =>
+      compile(`<p>x</p>
+<script>console.log('c')</script>`, { id: 'comp.stator' }),
+    ).toThrow(/no StatorElement subclass/)
+  })
+
+  it('emits a <script is:inline> verbatim, directive stripped', () => {
+    const r = compile(`<head>
+  <script is:inline>if (dark) { document.documentElement.dataset.theme = 'dark' }</script>
+</head>`)
+    // Body kept literally (braces survive), and the directive is removed.
+    expect(r.serverCode).toContain(
+      "<script>if (dark) { document.documentElement.dataset.theme = 'dark' }</script>",
+    )
+    expect(r.serverCode).not.toContain('is:inline')
+  })
+
+  it('keeps an external <script src> as literal markup', () => {
+    const r = compile(`<body>
+  <main>x</main>
+  <script src="/static/theme-init.js"></script>
+</body>`)
+    expect(r.serverCode).toContain('<script src="/static/theme-init.js">')
   })
 })

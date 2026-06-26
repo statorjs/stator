@@ -66,18 +66,30 @@ export interface CompileOptions {
 }
 
 export function compile(source: string, opts: CompileOptions = {}): CompileResult {
-  const { frontmatter, template, styles, scripts, templateOffset } = splitStator(source)
+  const { frontmatter, template, styles, scripts, scriptOffsets, templateOffset } = splitStator(source)
   const kind = opts.kind ?? 'component'
 
   const hasStyles = styles.length > 0
   const hash = scopeHash(opts.id ?? source)
   const scopeAttr = hasStyles ? `data-s-${hash}` : undefined
 
-  // A `<script>` with an exported class makes this a *client component* (a
-  // whole-file custom element) — a different compile path entirely.
+  // An inline `<script>` makes this a *client component* (a whole-file custom
+  // element) — a different compile path entirely. It must export a
+  // `StatorElement`; one that doesn't is a malformed component, not literal
+  // markup, so we surface it rather than silently dropping the script.
   const script = scripts.join('\n')
-  if (script.trim() && analyzeScriptClasses(script).length > 0) {
-    return compileClient(template, script, { hash, scopeAttr, styles, file: opts.id })
+  if (script.trim()) {
+    if (analyzeScriptClasses(script).length > 0) {
+      return compileClient(template, script, { hash, scopeAttr, styles, file: opts.id })
+    }
+    throw new CompileError(
+      `stator: this <script> exports no StatorElement subclass. An inline <script> in a ` +
+        `.stator file is compiled as a client component — add ` +
+        `\`export class … extends StatorElement { … }\`. To emit a literal script instead, ` +
+        `mark it \`<script is:inline>…</script>\` (verbatim inline) or use ` +
+        `\`<script src="…">\` (external file).`,
+      locAt(source, scriptOffsets[0] ?? 0, opts.id),
+    )
   }
 
   const meta: LowerMeta = { usesChildren: false, regions: new Set(), components: new Set(), customElements: new Set(), refs: new Set() }

@@ -53,6 +53,18 @@ of the boundary is treated as a make-or-break property of the whole feature.
   flag, no `"use client"`, no `Stator.client()` wrapper, and no second way to say
   it. The `<script>` block is the labeled client region; its import list is its
   client dependency manifest.
+- **An inline `<script>` is always the client region; opting out is explicit.**
+  Disambiguation keys off the *presence* of an opt-out signal, never "has any
+  attribute" (an incidental `type`/`lang` must not silently demote a component to
+  dead markup). Two opt-outs emit a literal, verbatim script instead: `src="..."`
+  (an external reference is never an inline component) and the `is:inline`
+  directive (verbatim inline — its body bypasses the JSX parser, so braces / `<` /
+  `${}` are preserved; the directive is stripped on emit). An inline `<script>`
+  that is neither and exports no `StatorElement` is a malformed component and a
+  **compile error**, not a silent drop. `type="module"` is deliberately *not* the
+  signal: it changes execution semantics (deferred, strict), which would break a
+  render-blocking inline script. (`<style>` still uses the older bare-vs-attributed
+  rule; aligning it on `is:inline` is a follow-up.)
 - **The machine definition is location-agnostic (carry-over of the existing
   model).** Location is a use-site decision, never a property of the definition.
   This is what lets the same machine be server here and client there. Contrast
