@@ -1,0 +1,45 @@
+<theme-toggle>
+  <button class="theme-toggle-btn" type="button" on:click={toggle} aria-label="Toggle theme">
+    <span bind:text={theme.label}></span>
+  </button>
+</theme-toggle>
+
+<script>
+  // Client-only state: the chosen theme. Source of truth at runtime is the
+  // machine; localStorage is the persistence (read on connect via the seed
+  // thunk, written on every toggle). No server involvement.
+  const Theme = machine({
+    mode: 'light',
+    on: { TOGGLE: (s) => { s.mode = s.mode === 'light' ? 'dark' : 'light' } },
+    select: { label: (s) => (s.mode === 'dark' ? '☾ Dark' : '☀ Light') },
+  })
+
+  export class ThemeToggle extends StatorElement {
+    theme = use(Theme, () => ({ mode: readStoredTheme() }))
+
+    toggle() {
+      this.theme.send('TOGGLE')
+      const mode = this.theme.mode
+      document.documentElement.dataset.theme = mode
+      try { localStorage.setItem('stator-theme', mode) } catch {}
+    }
+  }
+
+  function readStoredTheme() {
+    try { return localStorage.getItem('stator-theme') === 'dark' ? 'dark' : 'light' } catch { return 'light' }
+  }
+</script>
+
+<style>
+  theme-toggle { display: inline-flex; }
+  .theme-toggle-btn {
+    font: inherit;
+    cursor: pointer;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+  }
+  .theme-toggle-btn:hover { border-color: var(--accent); }
+</style>

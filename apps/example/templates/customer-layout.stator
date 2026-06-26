@@ -2,12 +2,14 @@
 import type { InstanceOf } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
 import BaseLayout from './base-layout.stator'
+import ThemeToggle from './theme-toggle.stator'
 
 const { cart } = Stator.props<{ cart: InstanceOf<typeof CartMachine> }>()
 ---
 <BaseLayout>
   <header class="site-header" child="header">
     <a href="/" class="brand">stator demo</a>
+    <ThemeToggle />
     <button
       class="nav-toggle"
       type="button"

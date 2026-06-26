@@ -1,9 +1,11 @@
 ---
 import BaseLayout from './base-layout.stator'
+import ThemeToggle from './theme-toggle.stator'
 ---
 <BaseLayout>
   <header class="site-header site-header--admin" child="header">
     <a href="/admin" class="brand">stator demo · admin</a>
+    <ThemeToggle />
     <nav>
       <a href="/">← Back to shop</a>
     </nav>
