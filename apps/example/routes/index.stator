@@ -1,4 +1,5 @@
 ---
+import { JsonLd } from '@statorjs/stator/components'
 import CartMachine from '../machines/cart.ts'
 import ProductsMachine from '../machines/products.ts'
 import CustomerLayout from '../templates/customer-layout.stator'
@@ -7,5 +8,6 @@ import ProductList from '../templates/product-list.stator'
 const [cart, products] = Stator.reads([CartMachine, ProductsMachine])
 ---
 <CustomerLayout cart={cart}>
+  <JsonLd json={{ "@type": "Store", name: "stator demo", description: "Goods for the desk and home." }} />
   <ProductList products={products} cart={cart} />
 </CustomerLayout>

@@ -14,6 +14,20 @@ import {
   createHtmlFragment,
   type HtmlFragment,
 } from './types.ts'
+
+/**
+ * Wrap a trusted HTML string so it's emitted **verbatim** — bypassing the text
+ * auto-escaping that `{value}` interpolation otherwise applies. The server
+ * analog of `set:html` / `dangerouslySetInnerHTML`.
+ *
+ * The string is injected unescaped: only pass markup you constructed or fully
+ * trust, never unsanitized user input. Typical use is a serialized data block
+ * (e.g. `<script type="application/ld+json">`) where the payload is already
+ * escaped for its context.
+ */
+export function raw(html: string): HtmlFragment {
+  return createHtmlFragment(html)
+}
 import { isReadResult, type ReadResult } from './read.ts'
 import { isEachResult } from './each.ts'
 import { isBranchResult } from './conditional.ts'

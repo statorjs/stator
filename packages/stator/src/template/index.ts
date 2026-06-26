@@ -1,4 +1,4 @@
-export { html } from './html.ts'
+export { html, raw } from './html.ts'
 export { read, isReadResult } from './read.ts'
 export type { ReadResult } from './read.ts'
 export { each, renderListBody, isEachResult } from './each.ts'
