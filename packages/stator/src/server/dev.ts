@@ -58,14 +58,10 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   const loader = (file: string) =>
     vite.ssrLoadModule(file) as Promise<Record<string, unknown>>
 
-  const { defs } = await runtime.discoverMachines(config.machinesDir, loader)
-  const store = new runtime.MachineStore(defs, config.store ?? new runtime.InMemoryStore(), {
-    sessionTtlSeconds: config.sessionTtlSeconds,
-  })
-  store.bootAppMachines()
-  const routes = await runtime.discoverRoutes(config.routesDir, loader)
-
   const root = resolve(config.root)
+  const machinesDir = resolve(config.machinesDir)
+  const routesDir = resolve(config.routesDir)
+
   const resultCache = new Map<string, ReturnType<typeof compile>>()
   const compiledFor = async (file: string) => {
     let r = resultCache.get(file)
@@ -79,28 +75,85 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
     return r
   }
 
-  const app = await runtime.buildHonoApp({
-    routes,
-    store,
-    staticDir: config.staticDir,
-    headExtras: async (routeFile: string) => {
-      const files = reachableStatorFiles(vite, routeFile)
-      let css = ''
-      const scripts: string[] = []
-      for (const f of files) {
-        const r = await compiledFor(f)
-        if (r.css) css += `/* ${f} */\n${r.css}\n`
-        if (r.isClient) {
-          const url = '/' + relative(root, f).replace(/\\/g, '/') + '?' + 'stator&type=client'
-          scripts.push(`<script type="module" src="${url}"></script>`)
-        }
+  const headExtras = async (routeFile: string) => {
+    const files = reachableStatorFiles(vite, routeFile)
+    let css = ''
+    const scripts: string[] = []
+    for (const f of files) {
+      const r = await compiledFor(f)
+      if (r.css) css += `/* ${f} */\n${r.css}\n`
+      if (r.isClient) {
+        const url = '/' + relative(root, f).replace(/\\/g, '/') + '?' + 'stator&type=client'
+        scripts.push(`<script type="module" src="${url}"></script>`)
       }
-      const head: string[] = []
-      if (css.trim()) head.push(`<style data-stator-dev>\n${css.trim()}\n</style>`)
-      head.push(...scripts)
-      return head.join('\n')
-    },
-  })
+    }
+    const head: string[] = []
+    // Vite's HMR client — pages are rendered by Hono, not Vite's
+    // transformIndexHtml, so it isn't injected for us. Without it the browser
+    // has no socket to receive the full-reload signal on a source change.
+    head.push('<script type="module" src="/@vite/client"></script>')
+    if (css.trim()) head.push(`<style data-stator-dev>\n${css.trim()}\n</style>`)
+    head.push(...scripts)
+    return head.join('\n')
+  }
+
+  // The app graph is rebuilt on a source change so edits don't need a restart.
+  let store: any
+  let routes: any[] = []
+  let machineCount = 0
+  let app: any
+
+  const rebuildStore = async (): Promise<void> => {
+    const { defs } = await runtime.discoverMachines(machinesDir, loader)
+    machineCount = defs.length
+    store = new runtime.MachineStore(defs, config.store ?? new runtime.InMemoryStore(), {
+      sessionTtlSeconds: config.sessionTtlSeconds,
+    })
+    store.bootAppMachines()
+  }
+  const rebuildRoutes = async (): Promise<void> => {
+    routes = await runtime.discoverRoutes(routesDir, loader)
+  }
+  const rebuildServer = async (): Promise<void> => {
+    app = await runtime.buildHonoApp({ routes, store, staticDir: config.staticDir, headExtras })
+  }
+
+  await rebuildStore()
+  await rebuildRoutes()
+  await rebuildServer()
+
+  // Live reload: on a relevant source change, re-discover and rebuild the app,
+  // then tell the browser to reload. A template/route edit keeps the store (and
+  // your session — cart contents and all) intact; only a machine edit resets it,
+  // since route `reads:` bind to machine defs by identity and must re-bind as a
+  // set. Rebuilds are serialized so overlapping saves can't race.
+  const isAppFile = (file: string): boolean => {
+    if (!/\.(stator|ts|js)$/.test(file)) return false
+    if (file.includes('/node_modules/') || file.includes('/dist/')) return false
+    if (file.startsWith(machinesDir) || file.startsWith(routesDir)) return true
+    return (vite.moduleGraph.getModulesByFile(file)?.size ?? 0) > 0
+  }
+  let reloadChain: Promise<void> = Promise.resolve()
+  const onChange = (file: string): void => {
+    const abs = resolve(file)
+    if (!isAppFile(abs)) return
+    reloadChain = reloadChain.then(async () => {
+      invalidateModuleTree(vite, abs)
+      resultCache.delete(abs)
+      try {
+        if (abs.startsWith(machinesDir)) await rebuildStore()
+        await rebuildRoutes()
+        await rebuildServer()
+        vite.ws.send({ type: 'full-reload' })
+        logger.info({ file: relative(root, abs) }, 'reloaded')
+      } catch (err) {
+        logger.error({ err: (err as Error).message, file: relative(root, abs) }, 'reload failed')
+      }
+    })
+  }
+  vite.watcher.on('change', onChange)
+  vite.watcher.on('add', onChange)
+  vite.watcher.on('unlink', onChange)
 
   return {
     fetch: (request) => app.fetch(request),
@@ -108,18 +161,35 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
     listen(port: number): Promise<void> {
       // Vite's middlewares serve client modules + HMR to the browser; anything
       // it doesn't handle (routes, /__events, /__sse) falls through to Hono.
-      const honoListener = getRequestListener(app.fetch)
+      // The arrow re-reads `app` each request so a rebuild swaps in seamlessly.
+      const honoListener = getRequestListener((req) => app.fetch(req))
       const server = createHttpServer((req, res) => {
         vite.middlewares(req, res, () => honoListener(req, res))
       })
       return new Promise((resolveFn) => {
         server.listen(port, () => {
-          logger.info({ port, mode: 'dev', machines: defs.length, routes: routes.length }, 'listening')
+          logger.info({ port, mode: 'dev', machines: machineCount, routes: routes.length }, 'listening')
           resolveFn()
         })
       })
     },
     close: () => vite.close(),
+  }
+}
+
+/** Invalidate a changed file and everything that (transitively) imports it, so
+ *  the next `ssrLoadModule` re-executes them with fresh code. */
+function invalidateModuleTree(vite: ViteDevServer, file: string): void {
+  const seen = new Set<unknown>()
+  const stack: Array<{ importers: Set<unknown> }> = [
+    ...((vite.moduleGraph.getModulesByFile(file) ?? []) as Set<never>),
+  ]
+  while (stack.length) {
+    const mod = stack.pop()
+    if (!mod || seen.has(mod)) continue
+    seen.add(mod)
+    vite.moduleGraph.invalidateModule(mod as never)
+    for (const imp of mod.importers) stack.push(imp as never)
   }
 }
 

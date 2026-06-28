@@ -73,6 +73,25 @@ merged and green on `main`.
   flagged in `http.ts`) — independent of client JS. (The build spike's
   "client entry imports the CSS" was a spike simplification; a server-rendered
   page needs its CSS in the head, not gated behind the JS bundle.)
+- **Auto-injected client runtime (decided 2026-06-28).** The framework injects
+  `<script src="/static/client.js">` into the rendered document itself — apps no
+  longer hand-write it in a layout. Rationale: a forgotten tag is a *silently*
+  dead page (events fire nothing, no patches apply) — a load-bearing dependency
+  that fails silently is the framework's job to wire, not the author's. Injection
+  lives in `handleGet` (`http.ts`), so it covers **both dev (`createDevApp`) and
+  prod-serve (`createApp` over `dist/`)** in one place — the universal render
+  path. It is **idempotent** (skipped when the document already references
+  `/static/client.js`), so a layout that still carries the tag never double-loads
+  and double-binds. Inserted before `</body>`; a route that renders a bare
+  fragment (no `</body>`) gets nothing — which is correct, since a fragment can't
+  host the runtime anyway (it needs a document shell, authored via a layout). The
+  three render-time insertions (scoped CSS, `stator-live` meta, runtime script)
+  are now funnelled through one `injectIntoDocument(html, { head, bodyEnd })`
+  helper instead of stacked `.replace()` calls — the consolidation the prior
+  `http.ts` TODO asked for. **Open follow-on:** conditional injection (skip the
+  runtime when a page has no event/bind directives, no client component, and
+  isn't `live`) is a cheap future optimization; today it always injects on full
+  documents (the runtime is tiny and idles harmlessly).
 
 ## Structure
 
@@ -302,6 +321,25 @@ is client-scoped. Revised stages:
        browser in tests).
    - **6d Collision check**: build/`stator sync` hard-errors on duplicate
      custom-element tags + enforces root-must-be-the-custom-element.
+
+   **Dev live-reload (added 2026-06-28).** The dev server previously discovered
+   machines/routes *once at boot* and captured the route `render` closures, so a
+   `.stator`/`.ts` edit needed a manual server restart (the plugin invalidated
+   Vite's graph, but the dev layer never reacted). `createDevApp` now holds the
+   app graph in mutable refs and rebuilds on a watched source change: a
+   `vite.watcher` change/add/unlink under `machinesDir`/`routesDir` (or any file
+   in the SSR module graph) invalidates the changed module + its importers,
+   re-discovers, rebuilds the Hono app, and `vite.ws.send({ type: 'full-reload' })`.
+   A **template/route** edit keeps the store (and the live session — cart and all)
+   intact; only a **machine** edit resets it, since route `reads:` bind to machine
+   defs by identity and must re-bind as a set. Rebuilds are serialized to avoid
+   races. Crucially, pages are rendered by Hono, *not* Vite's `transformIndexHtml`,
+   so the dev `headExtras` now also injects `<script type="module" src="/@vite/client">`
+   — without the HMR client the browser has no socket to receive the reload. Tested:
+   an on-disk template edit is served by the rebuilt app with no restart; the
+   browser reload itself is the one browser-only piece (ready for verification).
+   (Vite's HMR ws binds the default port 24678; running two dev servers at once
+   collides there — fine for the normal single-server case.)
 
    **Server→client prop passing (decided 2026-06-21).** A client component declares
    its attribute surface with a **static `attrs` coercer map**:

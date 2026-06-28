@@ -19,7 +19,15 @@ export async function discoverMachines(
   load: ModuleLoader = nativeLoader,
 ): Promise<DiscoveryResult> {
   const absDir = resolve(dir)
-  const entries = await readdir(absDir, { withFileTypes: true })
+  // A missing conventional dir means "no machines yet" (e.g. early in a fresh
+  // project), not an error. A *present* file that isn't a machine still throws
+  // below — that's a real mistake, not an absence.
+  const entries = await readdir(absDir, { withFileTypes: true }).catch(
+    (e: NodeJS.ErrnoException) => {
+      if (e.code === 'ENOENT') return []
+      throw e
+    },
+  )
 
   const files: string[] = []
   for (const e of entries) {

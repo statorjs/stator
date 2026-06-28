@@ -1,6 +1,7 @@
 import { describe, it, expect, afterAll } from 'vitest'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readFile, writeFile } from 'node:fs/promises'
 import { createDevApp, type DevApp } from '../src/server/dev.ts'
 
 /**
@@ -75,5 +76,43 @@ describe('dev server: .stator end to end', () => {
     expect(html).toMatch(
       /<script type="module" src="\/templates\/tick-counter\.stator\?stator&type=client">/,
     )
+  })
+
+  it('injects the Vite HMR client so the browser can receive reload signals', async () => {
+    app ??= await createDevApp({
+      root,
+      machinesDir: resolve(root, 'machines'),
+      routesDir: resolve(root, 'routes'),
+    })
+    const html = await (await app.fetch(new Request('http://localhost/'))).text()
+    expect(html).toContain('<script type="module" src="/@vite/client"></script>')
+  })
+
+  it('live-reloads a template edit without a restart', async () => {
+    app ??= await createDevApp({
+      root,
+      machinesDir: resolve(root, 'machines'),
+      routesDir: resolve(root, 'routes'),
+    })
+    const file = resolve(root, 'templates/page.stator')
+    const original = await readFile(file, 'utf8')
+    try {
+      const before = await (await app.fetch(new Request('http://localhost/'))).text()
+      expect(before).toMatch(/<title[^>]*>dev-app<\/title>/)
+
+      // Edit the template on disk; the watcher should rebuild the app graph.
+      await writeFile(file, original.replace('<title>dev-app</title>', '<title>edited-live</title>'))
+
+      // Poll until the rebuilt app serves the change (chokidar + rebuild are async).
+      let after = ''
+      for (let i = 0; i < 60; i++) {
+        after = await (await app.fetch(new Request('http://localhost/'))).text()
+        if (/edited-live/.test(after)) break
+        await new Promise((r) => setTimeout(r, 150))
+      }
+      expect(after).toMatch(/<title[^>]*>edited-live<\/title>/)
+    } finally {
+      await writeFile(file, original)
+    }
   })
 })

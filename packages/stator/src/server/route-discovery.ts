@@ -153,7 +153,13 @@ export function sortRoutes(routes: DiscoveredRoute[]): DiscoveredRoute[] {
 
 async function walkRouteFiles(dir: string): Promise<string[]> {
   const out: string[] = []
-  const entries = await readdir(dir, { withFileTypes: true })
+  // A missing routes dir means "no routes yet", not an error.
+  const entries = await readdir(dir, { withFileTypes: true }).catch(
+    (e: NodeJS.ErrnoException) => {
+      if (e.code === 'ENOENT') return []
+      throw e
+    },
+  )
   for (const e of entries) {
     const full = resolve(dir, e.name)
     if (e.isDirectory()) {
