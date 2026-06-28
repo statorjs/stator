@@ -10,7 +10,7 @@
   <body>
     <children name="header"/>
     <main><children/></main>
-    <!-- The Stator client runtime is auto-injected by the framework. -->
-    <script src="/static/inspector.js" defer></script>
+    <!-- The Stator client runtime and the dev inspector are auto-injected by
+         the framework (the inspector in dev only). -->
   </body>
 </html>

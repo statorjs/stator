@@ -33,6 +33,8 @@ export interface DevAppConfig {
   staticDir?: string
   store?: Store
   sessionTtlSeconds?: number
+  /** Auto-inject the dev inspector toolbar. On by default; set false to disable. */
+  inspector?: boolean
 }
 
 export interface DevApp {
@@ -61,6 +63,7 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   const root = resolve(config.root)
   const machinesDir = resolve(config.machinesDir)
   const routesDir = resolve(config.routesDir)
+  const inspectorOn = config.inspector ?? true
 
   const resultCache = new Map<string, ReturnType<typeof compile>>()
   const compiledFor = async (file: string) => {
@@ -92,6 +95,8 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
     // transformIndexHtml, so it isn't injected for us. Without it the browser
     // has no socket to receive the full-reload signal on a source change.
     head.push('<script type="module" src="/@vite/client"></script>')
+    // The dev inspector toolbar (off in production — only the dev server injects it).
+    if (inspectorOn) head.push('<script src="/@stator/inspector.js" defer></script>')
     if (css.trim()) head.push(`<style data-stator-dev>\n${css.trim()}\n</style>`)
     head.push(...scripts)
     return head.join('\n')
@@ -115,7 +120,7 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
     routes = await runtime.discoverRoutes(routesDir, loader)
   }
   const rebuildServer = async (): Promise<void> => {
-    app = await runtime.buildHonoApp({ routes, store, staticDir: config.staticDir, headExtras })
+    app = await runtime.buildHonoApp({ routes, store, staticDir: config.staticDir, headExtras, inspector: inspectorOn })
   }
 
   await rebuildStore()

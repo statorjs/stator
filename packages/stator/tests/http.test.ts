@@ -105,6 +105,17 @@ describe('HTTP layer', () => {
     expect(tags).toHaveLength(1)
   })
 
+  it('does not inject or serve the dev inspector in production', async () => {
+    const app = await createApp({
+      machinesDir: resolve(fixtures, 'machines'),
+      routesDir: resolve(fixtures, 'routes'),
+    })
+    const html = await (await app.fetch(new Request('http://localhost/plain'))).text()
+    expect(html).not.toContain('/@stator/inspector.js')
+    const asset = await app.fetch(new Request('http://localhost/@stator/inspector.js'))
+    expect(asset.status).toBe(404)
+  })
+
   it('rejects unknown machines with 404', async () => {
     const app = await createApp({
       machinesDir: resolve(fixtures, 'machines'),

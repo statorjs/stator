@@ -14,6 +14,12 @@ Today they're labeled "stable contract" in the README but are practically positi
 
 Server-side has nothing equivalent today, only `pino` request log lines. The promotion should also fill that gap.
 
+## Inspector promoted to a dev toolbar (done 2026-06-28)
+
+The first consumer of this contract — formerly `apps/example/static/inspector.js`, a hand-wired demo script — is now a **framework-owned, dev-only toolbar** (`packages/stator/src/client/inspector.ts`), auto-injected like Astro's dev toolbar. It's self-contained (injects its own CSS), bundled by esbuild and served at `/@stator/inspector.js`, and injected by `createDevApp`'s `headExtras` — so it's **on by default in dev, never in production** (`createApp` neither serves nor injects it). Disable with `createDevApp({ inspector: false })`. The example's hand-wired `<script>` + its `inspector.js` + the `.stator-inspector*`/`.stator-flash` CSS in `app.css` were removed; the framework owns it now.
+
+This validates the contract's central claim: the inspector depends on nothing but the public `stator:*` events, so promoting it to a framework feature was pure packaging — no coupling to unwind. The remaining work below (version field, connection-lifecycle events, server-side hooks) still stands; the toolbar is the reference client.
+
 ## Success Criteria
 
 - Three client-side `CustomEvent`s are documented as the canonical observation contract, with a version field on the contract.

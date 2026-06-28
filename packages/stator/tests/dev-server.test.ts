@@ -88,6 +88,38 @@ describe('dev server: .stator end to end', () => {
     expect(html).toContain('<script type="module" src="/@vite/client"></script>')
   })
 
+  it('auto-injects and serves the dev inspector', async () => {
+    app ??= await createDevApp({
+      root,
+      machinesDir: resolve(root, 'machines'),
+      routesDir: resolve(root, 'routes'),
+    })
+    const html = await (await app.fetch(new Request('http://localhost/'))).text()
+    expect(html).toContain('<script src="/@stator/inspector.js" defer></script>')
+
+    const asset = await app.fetch(new Request('http://localhost/@stator/inspector.js'))
+    expect(asset.status).toBe(200)
+    expect(asset.headers.get('Content-Type')).toContain('javascript')
+    expect(await asset.text()).toContain('stator-inspector')
+  })
+
+  it('can disable the inspector via config', async () => {
+    const noInspector = await createDevApp({
+      root,
+      machinesDir: resolve(root, 'machines'),
+      routesDir: resolve(root, 'routes'),
+      inspector: false,
+    })
+    try {
+      const html = await (await noInspector.fetch(new Request('http://localhost/'))).text()
+      expect(html).not.toContain('/@stator/inspector.js')
+      const asset = await noInspector.fetch(new Request('http://localhost/@stator/inspector.js'))
+      expect(asset.status).toBe(404)
+    } finally {
+      await noInspector.close()
+    }
+  })
+
   it('live-reloads a template edit without a restart', async () => {
     app ??= await createDevApp({
       root,

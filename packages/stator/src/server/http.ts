@@ -29,6 +29,9 @@ export interface HttpConfig {
    *  route's file path. The dev server uses this to inline collected scoped CSS
    *  (SSR head injection). Inserted at the `</head>` boundary. */
   headExtras?: (filePath: string) => string | Promise<string>
+  /** Serve the dev inspector asset at `/@stator/inspector.js`. The dev server
+   *  sets this and injects the script tag; production leaves it off. */
+  inspector?: boolean
 }
 
 const eventSchema = z.object({
@@ -148,6 +151,17 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     c.header('Cache-Control', 'no-cache')
     return c.body(clientJs)
   })
+
+  // Dev inspector asset — served only when enabled (the dev server injects the
+  // matching script tag). Bundled lazily on first build of the app.
+  if (config.inspector) {
+    const inspectorJs = await bundleInspector()
+    app.get('/@stator/inspector.js', (c) => {
+      c.header('Content-Type', 'application/javascript; charset=utf-8')
+      c.header('Cache-Control', 'no-cache')
+      return c.body(inspectorJs)
+    })
+  }
 
   if (config.staticDir) {
     const staticDir = config.staticDir
@@ -353,6 +367,25 @@ async function bundleClient(): Promise<string> {
   })
   cachedClientJs = result.outputFiles[0]!.text
   return cachedClientJs
+}
+
+let cachedInspectorJs: string | null = null
+
+async function bundleInspector(): Promise<string> {
+  if (cachedInspectorJs) return cachedInspectorJs
+  const here = dirname(fileURLToPath(import.meta.url))
+  const entry = resolve(here, '../client/inspector.ts')
+  const result = await build({
+    entryPoints: [entry],
+    bundle: true,
+    format: 'iife',
+    target: 'es2020',
+    write: false,
+    minify: false,
+    logLevel: 'silent',
+  })
+  cachedInspectorJs = result.outputFiles[0]!.text
+  return cachedInspectorJs
 }
 
 /**
