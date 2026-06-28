@@ -80,6 +80,31 @@ describe('HTTP layer', () => {
     expect(html).toContain('<span data-slot="s0">count is 1</span>')
   })
 
+  it('auto-injects the client runtime once, before </body>', async () => {
+    const app = await createApp({
+      machinesDir: resolve(fixtures, 'machines'),
+      routesDir: resolve(fixtures, 'routes'),
+    })
+    // /plain renders a full document with no hand-written runtime tag.
+    const res = await app.fetch(new Request('http://localhost/plain'))
+    const html = await res.text()
+    const tags = html.match(/<script src="\/static\/client\.js">/g) ?? []
+    expect(tags).toHaveLength(1)
+    expect(html).toContain('<script src="/static/client.js"></script></body>')
+  })
+
+  it('does not double-inject when the document already references the runtime', async () => {
+    const app = await createApp({
+      machinesDir: resolve(fixtures, 'machines'),
+      routesDir: resolve(fixtures, 'routes'),
+    })
+    // / (index.ts) still hand-includes the tag; the guard must not add a second.
+    const res = await app.fetch(new Request('http://localhost/'))
+    const html = await res.text()
+    const tags = html.match(/\/static\/client\.js/g) ?? []
+    expect(tags).toHaveLength(1)
+  })
+
   it('rejects unknown machines with 404', async () => {
     const app = await createApp({
       machinesDir: resolve(fixtures, 'machines'),

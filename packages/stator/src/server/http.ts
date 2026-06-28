@@ -355,6 +355,26 @@ async function bundleClient(): Promise<string> {
   return cachedClientJs
 }
 
+/**
+ * Insert framework HTML at the document's `<head>` and end-of-`<body>`
+ * boundaries — each a no-op when its boundary is absent (e.g. a route that
+ * renders a bare fragment, which can't host the runtime anyway). One
+ * consolidated injector rather than stacked `.replace()` calls.
+ */
+function injectIntoDocument(
+  html: string,
+  parts: { head?: string; bodyEnd?: string },
+): string {
+  let out = html
+  if (parts.head && out.includes('</head>')) {
+    out = out.replace('</head>', `${parts.head}</head>`)
+  }
+  if (parts.bodyEnd && out.includes('</body>')) {
+    out = out.replace('</body>', `${parts.bodyEnd}</body>`)
+  }
+  return out
+}
+
 async function handleGet(
   c: Context,
   discovered: DiscoveredRoute,
@@ -374,22 +394,25 @@ async function handleGet(
       await runtime.loadGraph(route.reads)
       const result = renderRoute(route, routeKey, sessionId, runtime, request)
       let html = result.html
+
+      const headHtml: string[] = []
       if (headExtras) {
         const extra = await headExtras(discovered.filePath)
-        if (extra) html = html.replace('</head>', `${extra}</head>`)
+        if (extra) headHtml.push(extra)
       }
-      if (route.live) {
-        // TODO(V1): replace this string-replace with a sentinel-comment
-        // insertion point (e.g. `<!--stator:head-->` in the layout). The
-        // second thing the framework needs to inject into <head> (CSP nonce,
-        // SSE base URL, hydration manifest, etc.) is when this pattern
-        // becomes untenable — don't add a second .replace() here, build the
-        // sentinel mechanism instead.
-        html = html.replace(
-          '</head>',
-          '<meta name="stator-live" content="true"></head>',
-        )
+      if (route.live) headHtml.push('<meta name="stator-live" content="true">')
+
+      // Auto-inject the client runtime (delegated events + patch application).
+      // Apps never hand-include it — a forgotten <script> is a silently dead
+      // page (events fire nothing, no patches apply). Idempotent: skipped if the
+      // document already references it, so a layout that still carries the tag
+      // (or two passes sharing a doc) never loads it twice.
+      const bodyHtml: string[] = []
+      if (!html.includes('/static/client.js')) {
+        bodyHtml.push('<script src="/static/client.js"></script>')
       }
+
+      html = injectIntoDocument(html, { head: headHtml.join(''), bodyEnd: bodyHtml.join('') })
       applyRenderedEffects(c, result.response)
       return c.html(html)
     } finally {
