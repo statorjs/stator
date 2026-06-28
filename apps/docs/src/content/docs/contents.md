@@ -6,6 +6,7 @@ title: Table of Contents
 
 Automatically managed by Chisel.
 
+- [contents](contents)
 - [index](index)
 
 ### CONCEPTS
@@ -23,6 +24,8 @@ Automatically managed by Chisel.
 - [directives](guides/directives)
 - [dispatching-events](guides/dispatching-events)
 - [forms-and-binding](guides/forms-and-binding)
+- [persistence](guides/persistence)
+- [realtime-sse](guides/realtime-sse)
 - [routing](guides/routing)
 - [scoped-styles](guides/scoped-styles)
 - [templates](guides/templates)
@@ -38,7 +41,8 @@ Automatically managed by Chisel.
 - [01-setup](tutorial/01-setup)
 - [02-your-first-machine](tutorial/02-your-first-machine)
 - [03-rendering-with-read](tutorial/03-rendering-with-read)
-- [04-handling-events](tutorial/04-handling-events)
-- [05-a-client-component](tutorial/05-a-client-component)
-- [06-persisting-state](tutorial/06-persisting-state)
-- [07-going-live-sse](tutorial/07-going-live-sse)
+- [04-layouts](tutorial/04-layouts)
+- [05-handling-events](tutorial/05-handling-events)
+- [06-a-client-component](tutorial/06-a-client-component)
+- [07-persisting-state](tutorial/07-persisting-state)
+- [08-going-live-sse](tutorial/08-going-live-sse)

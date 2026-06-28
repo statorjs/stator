@@ -1,0 +1,132 @@
+---
+title: 1. Project setup
+description: "Start the tutorial: scaffold the Desksmith catalog + cart app we'll build across this section."
+sidebar:
+  order: 1
+---
+
+import { PackageManagers } from 'starlight-package-managers'
+
+This tutorial builds **Desksmith** — a small storefront with a product catalog, an add-to-cart flow, a cart page, a client-only theme toggle, persistence, and live updates. Each page adds one capability, and every step maps to real, working patterns from the `apps/example` app in the Stator repository.
+
+By the end you'll have touched every distinctive part of Stator: machines, server rendering with `read()`, events, a client island, the store, and SSE.
+
+## What we're building
+
+A catalog of desk goods grouped into categories, with an "Add to cart" button on each product, a cart page that lets you change quantities, and a theme toggle that lives entirely in the browser. We'll start with the catalog and grow outward.
+
+### The shape of a Stator app
+
+Desksmith follows the standard layout — state in `machines/`, pages in `routes/`, reusable components in `templates/`:
+
+```
+desksmith/
+├── machines/
+│   ├── products.ts        # the catalog (app-lifecycle)
+│   └── cart.ts            # the cart (session-lifecycle)
+├── routes/
+│   ├── index.stator       # the catalog page
+│   └── cart.stator        # the cart page
+├── templates/
+│   ├── base-layout.stator
+│   ├── customer-layout.stator
+│   ├── product-list.stator
+│   └── theme-toggle.stator
+├── static/
+├── server.ts
+└── sync.ts
+```
+
+This is the **end state** — what you'll have built by the last step. Create each file when the step that introduces it tells you to; don't pre-create them now.
+
+:::caution[Don't create empty machine files]
+Files in `machines/` and `routes/` are discovered automatically — there's no registry to keep in sync. The flip side: Stator validates that **every** file in `machines/` is a real machine, so a blank `machines/cart.ts` errors on boot ("default export is not a stator machine"). Add a machine file only when you're ready to fill it in — which for `machines/` is the next step.
+:::
+
+## Prerequisites & scaffold
+
+Follow [Installation](/introduction/installation/) first: install `@statorjs/stator`, `tsx`, and `typescript`, and create the `server.ts` and `sync.ts` entry points shown there. Add `"type": "module"` and the script aliases to `package.json`:
+
+```json
+{
+  "type": "module",
+  "scripts": {
+    "sync": "tsx sync.ts",
+    "dev": "tsx watch server.ts"
+  }
+}
+```
+
+`"type": "module"` is required — the entry points use top-level `await`, which needs ES modules.
+
+## Configure TypeScript
+
+Stator generates per-component type declarations into `.stator/types/` so your editor and `tsc` can type-check component props. Two settings make that work — `rootDirs` (so the generated declarations resolve alongside your source) and `allowImportingTsExtensions` (the code imports machines with explicit `.ts` paths):
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "rootDirs": [".", ".stator/types"]
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "static", "dist"]
+}
+```
+
+The `.stator/` directory is generated, so add it to `.gitignore`:
+
+```
+.stator/
+dist/
+```
+
+Now install dependencies and generate the type declarations for the first time:
+
+<PackageManagers type="install" />
+
+<PackageManagers type="run" args="sync" />
+
+Re-run `sync` whenever a component's props change.
+
+## The dev server
+
+Your `server.ts` boots the dev server and points it at the three directories. For the tutorial, the in-memory store is fine — we'll swap it for Redis in [step 7](/tutorial/07-persisting-state/):
+
+```ts
+import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { InMemoryStore } from '@statorjs/stator/server'
+import { createDevApp } from '@statorjs/stator/dev'
+
+const here = dirname(fileURLToPath(import.meta.url))
+
+const app = await createDevApp({
+  root: here,
+  machinesDir: resolve(here, 'machines'),
+  routesDir: resolve(here, 'routes'),
+  staticDir: resolve(here, 'static'),
+  store: new InMemoryStore(),
+})
+
+await app.listen(Number(process.env.PORT ?? 3000))
+```
+
+During development, Vite compiles `.stator` files as they're requested — there's no separate build step to run while you work.
+
+## Run it
+
+<PackageManagers type="run" args="dev" />
+
+Visit `http://localhost:3000`. You'll get a 404 until we add a route — that's next.
+
+## What you built · next
+
+A project skeleton with a running dev server. In [step 2](/tutorial/02-your-first-machine/) we define the two machines that hold Desksmith's state.

@@ -4,3 +4,4 @@ packages:
   - "apps/private/*"
 allowBuilds:
   esbuild: true
+  sharp: true

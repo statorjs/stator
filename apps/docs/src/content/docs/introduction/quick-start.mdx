@@ -1,0 +1,85 @@
+---
+title: Quick start
+description: "Build and run a minimal Stator app end to end in a few minutes."
+sidebar:
+  order: 4
+---
+
+import { PackageManagers } from 'starlight-package-managers'
+
+This walks the smallest complete loop in Stator: a machine holds state, a route reads it, an event changes it, and the page updates. It assumes you've done the [installation](/introduction/installation/) setup (a `server.ts` and `sync.ts`).
+
+## What we're building
+
+A counter. One session-scoped machine with a `count`, a page that displays it, and two buttons that send events. When you click, only the count updates — the server sends back a single DOM patch.
+
+## Define a machine
+
+Create `machines/counter.ts`:
+
+```ts
+import { defineMachine } from '@statorjs/stator/server'
+
+type CounterEvents = { type: 'INCREMENT' } | { type: 'DECREMENT' }
+
+export default defineMachine({
+  name: 'CounterMachine',
+  lifecycle: 'session',
+  events: {} as CounterEvents,
+
+  context: { count: 0 },
+  initial: 'idle',
+  states: {
+    idle: {
+      on: {
+        INCREMENT: { do: (ctx) => { ctx.count += 1 } },
+        DECREMENT: { do: (ctx) => { ctx.count -= 1 } },
+      },
+    },
+  },
+
+  selectors: {
+    count: (ctx) => ctx.count,
+  },
+})
+```
+
+`lifecycle: 'session'` means each browser session gets its own counter. `events: {} as CounterEvents` declares the typed event union; `do` mutates a draft of the context; `selectors` are the read surface.
+
+## Write a route that reads it
+
+Create `routes/index.stator`:
+
+```astro
+---
+import CounterMachine from '../machines/counter.ts'
+
+const [counter] = Stator.reads([CounterMachine])
+---
+<main>
+  <h1>Count: {read(counter, c => c.count)}</h1>
+  <button on:click={() => counter.send({ type: 'DECREMENT' })}>−</button>
+  <button on:click={() => counter.send({ type: 'INCREMENT' })}>+</button>
+</main>
+```
+
+`Stator.reads([CounterMachine])` hands the route a live instance of the machine. `read(counter, c => c.count)` binds the `<h1>`'s text to the `count` selector — that's the slot that will update.
+
+## Change state with an event
+
+The `on:click` handlers send a typed event with `counter.send(...)`. There's no fetch to write, no client store to update: the click POSTs the event, the machine transitions on the server, and the recompute pass diffs the `count` binding.
+
+## Run it
+
+Generate the type declarations, then start the dev server:
+
+<PackageManagers type="run" args="sync" />
+
+<PackageManagers type="run" args="dev" />
+
+Open the page and click. In your browser's network panel you'll see each click return a tiny patch list targeting just the count's slot — not the whole page. That's "the DOM renders where its state lives" in practice.
+
+## Where to go next
+
+- [The mental model](/introduction/mental-model/) — why this works the way it does.
+- [Tutorial](/tutorial/01-setup/) — build a real catalog-and-cart app step by step.

@@ -1,6 +1,6 @@
 ---
 title: Stator
-description: A server-canonical web framework where state machines are the unit of composition and the DOM renders where its state lives.
+description: "A server-canonical web framework where state machines are the unit of composition and the DOM renders where its state lives."
 template: splash
 hero:
   tagline: State machines as the unit of composition. The DOM renders where its state lives.
