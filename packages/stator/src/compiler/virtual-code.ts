@@ -47,23 +47,22 @@ const CLIENT_IMPORTS =
   "import { StatorElement, use, machine, defineElement, bind, effect, dispatch } from '@statorjs/stator/client';\n"
 
 /**
- * Ambient declarations the language server injects **once** into the virtual TS
- * project (not per file — that would clash on the global JSX namespace). Keeps
- * the per-file TSX free of false errors from the `Stator` macros and non-standard
- * JSX (directives, custom elements). Deliberately permissive in v1.
+ * Per-file ambient scaffold prepended to every virtual TSX. Declares the `Stator`
+ * macro surface (so `Stator.props`/`reads`/… resolve) and a permissive JSX
+ * namespace (so directives + custom elements don't flood false errors). Declared
+ * *locally* — module-scoped, not `declare global` — so many `.stator` files don't
+ * clash on one global JSX namespace. Deliberately loose in v1 (`reads` → `any`);
+ * tightening to real `InstanceOf` typing is the next refinement.
  */
-export const STATOR_LS_GLOBALS = `export {};
-declare global {
-  namespace JSX {
-    interface IntrinsicElements { [name: string]: any }
-    interface ElementChildrenAttribute { children: {} }
-  }
-  const Stator: {
-    props<P>(): P;
-    reads<const T extends readonly unknown[]>(defs: T): { -readonly [K in keyof T]: any };
-    request: any;
-    response: { status: number; headers: Record<string, string>; cookies: any };
-  };
+const STATOR_AMBIENT = `declare const Stator: {
+  props<P>(): P;
+  reads<const T extends readonly unknown[]>(defs: T): { -readonly [K in keyof T]: any };
+  request: any;
+  response: { status: number; headers: Record<string, string>; cookies: any };
+};
+namespace JSX {
+  interface IntrinsicElements { [name: string]: any }
+  interface ElementChildrenAttribute { children: {} }
 }
 `
 
@@ -85,7 +84,7 @@ export function toVirtualCode(source: string): VirtualCodeResult {
  *  template expressions see the frontmatter's bindings. */
 function buildServerTsx(regions: ScannedRegions): VirtualFile {
   const mappings: VirtualMapping[] = []
-  let code = TEMPLATE_IMPORTS
+  let code = TEMPLATE_IMPORTS + STATOR_AMBIENT
 
   if (regions.frontmatter && regions.frontmatter.content.trim()) {
     push(mappings, regions.frontmatter.contentOffset, code.length, regions.frontmatter.content.length)
@@ -102,10 +101,13 @@ function buildServerTsx(regions: ScannedRegions): VirtualFile {
     tpl = tpl.slice(doctype[0].length)
   }
 
-  code += ';(<>'
+  // `export default function` gives importers a default export (`import X from
+  // './x.stator'`) and puts the template in a scope that closes over the
+  // frontmatter bindings.
+  code += 'export default function () {\n  return (<>'
   push(mappings, tplOffset, code.length, tpl.length)
   code += tpl
-  code += '</>);\n'
+  code += '</>);\n}\n'
 
   return { lang: 'tsx', code, mappings }
 }
@@ -115,12 +117,17 @@ function buildServerTsx(regions: ScannedRegions): VirtualFile {
  *  resolution — `bind:text={theme.label}` → the class field — is a later phase.) */
 function buildClientTsx(regions: ScannedRegions): VirtualFile {
   const mappings: VirtualMapping[] = []
-  let code = TEMPLATE_IMPORTS + CLIENT_IMPORTS
+  let code = TEMPLATE_IMPORTS + CLIENT_IMPORTS + STATOR_AMBIENT
 
   for (const script of regions.scripts) {
     push(mappings, script.contentOffset, code.length, script.content.length)
     code += script.content + '\n'
   }
+
+  // A client component is also used as `<Tag/>` elsewhere, so its importers need
+  // a default export too. The named class export above still gets full TS
+  // intelligence; this stub just satisfies the import.
+  code += '\nexport default function () { return null as any; }\n'
 
   return { lang: 'tsx', code, mappings }
 }
