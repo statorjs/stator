@@ -1,0 +1,59 @@
+{
+  "name": "stator-vscode",
+  "displayName": "Stator",
+  "description": "Language support for .stator files (syntax highlighting; LSP coming).",
+  "version": "0.0.1",
+  "private": true,
+  "publisher": "statorjs",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.84.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "stator",
+    "statorjs"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/statorjs/stator",
+    "directory": "editors/vscode"
+  },
+  "scripts": {
+    "package": "vsce package --no-dependencies",
+    "publish:vsce": "vsce publish --no-dependencies",
+    "publish:ovsx": "ovsx publish --no-dependencies"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "stator",
+        "aliases": [
+          "Stator",
+          "stator"
+        ],
+        "extensions": [
+          ".stator"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "stator",
+        "scopeName": "source.stator",
+        "path": "./syntaxes/stator.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.frontmatter.stator": "typescript",
+          "meta.embedded.block.script.stator": "typescript",
+          "meta.embedded.block.style.stator": "css",
+          "source.ts": "typescript",
+          "source.tsx": "typescriptreact",
+          "source.css": "css"
+        }
+      }
+    ]
+  }
+}

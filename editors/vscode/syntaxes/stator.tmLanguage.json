@@ -1,0 +1,84 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Stator",
+  "scopeName": "source.stator",
+  "patterns": [
+    { "include": "#frontmatter" },
+    { "include": "#style" },
+    { "include": "#script" },
+    { "include": "source.tsx" }
+  ],
+  "repository": {
+    "frontmatter": {
+      "comment": "The `---` fence at the very top of the file: server-side TypeScript (imports, Stator.props/reads/request/response).",
+      "begin": "\\A(---)[ \\t]*$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.frontmatter.begin.stator" }
+      },
+      "end": "^(---)[ \\t]*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.frontmatter.end.stator" }
+      },
+      "name": "meta.embedded.block.frontmatter.stator",
+      "contentName": "source.ts",
+      "patterns": [{ "include": "source.ts" }]
+    },
+    "style": {
+      "comment": "A <style> block: scoped component CSS. Highlight the contents as CSS.",
+      "begin": "(<)(style)\\b([^>]*)(>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.stator" },
+        "2": { "name": "entity.name.tag.style.stator" },
+        "3": { "patterns": [{ "include": "#tag-attributes" }] },
+        "4": { "name": "punctuation.definition.tag.end.stator" }
+      },
+      "end": "(</)(style)[ \\t]*(>)",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.stator" },
+        "2": { "name": "entity.name.tag.style.stator" },
+        "3": { "name": "punctuation.definition.tag.end.stator" }
+      },
+      "name": "meta.embedded.block.style.stator",
+      "contentName": "source.css",
+      "patterns": [{ "include": "source.css" }]
+    },
+    "script": {
+      "comment": "A <script> block: client component code (or a literal script). Highlight the contents as TypeScript.",
+      "begin": "(<)(script)\\b([^>]*)(>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.stator" },
+        "2": { "name": "entity.name.tag.script.stator" },
+        "3": { "patterns": [{ "include": "#tag-attributes" }] },
+        "4": { "name": "punctuation.definition.tag.end.stator" }
+      },
+      "end": "(</)(script)[ \\t]*(>)",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.stator" },
+        "2": { "name": "entity.name.tag.script.stator" },
+        "3": { "name": "punctuation.definition.tag.end.stator" }
+      },
+      "name": "meta.embedded.block.script.stator",
+      "contentName": "source.ts",
+      "patterns": [{ "include": "source.ts" }]
+    },
+    "tag-attributes": {
+      "comment": "Attributes on <style>/<script> open tags (e.g. is:inline, src, type, lang).",
+      "patterns": [
+        {
+          "match": "([a-zA-Z_:][a-zA-Z0-9_.:-]*)",
+          "name": "entity.other.attribute-name.stator"
+        },
+        {
+          "begin": "\"",
+          "end": "\"",
+          "name": "string.quoted.double.stator"
+        },
+        {
+          "begin": "'",
+          "end": "'",
+          "name": "string.quoted.single.stator"
+        }
+      ]
+    }
+  }
+}

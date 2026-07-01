@@ -2,6 +2,7 @@ packages:
   - "packages/*"
   - "apps/*"
   - "apps/private/*"
+  - "editors/*"
 allowBuilds:
   esbuild: true
   sharp: true
