@@ -6,8 +6,10 @@
  *
  * See spec: stator-compiler-and-vite-plugin-implementation-plan.
  */
-export { splitStator } from './split.ts'
-export type { ParsedStator } from './split.ts'
+export { splitStator, scanRegions } from './split.ts'
+export type { ParsedStator, SourceRegion, ScannedRegions } from './split.ts'
+export { toVirtualCode, STATOR_LS_GLOBALS } from './virtual-code.ts'
+export type { VirtualCodeResult, VirtualFile, VirtualMapping } from './virtual-code.ts'
 export { lowerTemplate } from './lower.ts'
 export type { LowerMeta, LowerOptions } from './lower.ts'
 export { compile } from './compile.ts'

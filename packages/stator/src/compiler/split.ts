@@ -90,3 +90,66 @@ export function splitStator(source: string): ParsedStator {
 
   return { frontmatter, template: rest.trim(), styles, scripts, scriptOffsets, templateOffset }
 }
+
+/** A region's inner text plus the absolute source offset where that text begins.
+ *  Unlike `splitStator` (which trims and drops offsets), this keeps exact
+ *  positions so the language-server emit can map generated code back to source. */
+export interface SourceRegion {
+  contentOffset: number
+  content: string
+}
+
+export interface ScannedRegions {
+  /** The `---` frontmatter content (server TS), or null when there's no fence. */
+  frontmatter: SourceRegion | null
+  /** The contiguous template body — everything from the body start up to the
+   *  first trailing `<style>` / component `<script>` block. Assumes the
+   *  conventional layout (template first, blocks after). */
+  template: SourceRegion
+  /** Each bare `<style>` block's CSS content, in source order. */
+  styles: SourceRegion[]
+  /** Each component (non-literal) `<script>` block's TS content, in source order.
+   *  `src` / `is:inline` scripts are excluded — same classification as `splitStator`. */
+  scripts: SourceRegion[]
+}
+
+/**
+ * Scan a `.stator` source into regions with exact source offsets — the
+ * position-preserving companion to `splitStator`, used by the language-server
+ * emit. Shares this module's patterns + `hasAttr` classification so the LS and
+ * the runtime compiler never disagree about what's a region.
+ */
+export function scanRegions(source: string): ScannedRegions {
+  let bodyStart = 0
+  let frontmatter: SourceRegion | null = null
+  const fm = FRONTMATTER_RE.exec(source)
+  if (fm) {
+    const prefix = /^---[ \t]*\r?\n/.exec(fm[0])![0]
+    frontmatter = { contentOffset: prefix.length, content: fm[1] ?? '' }
+    bodyStart = fm[0].length
+  }
+
+  let firstBlock = source.length
+  const styles: SourceRegion[] = []
+  for (const m of source.matchAll(STYLE_RE)) {
+    const start = m.index
+    styles.push({ contentOffset: start + '<style>'.length, content: m[1] ?? '' })
+    if (start < firstBlock) firstBlock = start
+  }
+  const scripts: SourceRegion[] = []
+  for (const m of source.matchAll(SCRIPT_RE)) {
+    if (hasAttr(m[1] ?? '', 'src') || hasAttr(m[1] ?? '', 'is:inline')) continue
+    const start = m.index
+    const openLen = m[0].indexOf('>') + 1
+    scripts.push({ contentOffset: start + openLen, content: m[2] ?? '' })
+    if (start < firstBlock) firstBlock = start
+  }
+
+  const templateEnd = Math.max(bodyStart, firstBlock)
+  return {
+    frontmatter,
+    template: { contentOffset: bodyStart, content: source.slice(bodyStart, templateEnd) },
+    styles,
+    scripts,
+  }
+}
