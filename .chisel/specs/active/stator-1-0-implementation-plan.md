@@ -144,7 +144,9 @@ the main scope lever and is largely independent.
   [[cross-machine-event-delivery-model]]).
 - Horizontal scaling (Redis pub/sub backplane on `fanOut`).
 - Statechart richness (nested/parallel/history/invoke) — extension points only.
-- Editor LSP beyond syntax highlighting.
+- Editor LSP beyond syntax highlighting. Planned as a Volar-based server + VSCode
+  extension in [[editor-tooling-lsp-and-vscode]]; that spec scopes highlighting +
+  LSP as its own v1 and defers Stator-specific intelligence / formatting.
 - **Owning the HTTP layer.** Decided 2026-06-21: keep **Hono for 1.0 as a thin
   runtime adapter**, not as the router. Stator's own matcher is the routing
   authority (rest params + specificity sort; GET/API dispatch and SSE/POST
@@ -169,7 +171,8 @@ the main scope lever and is largely independent.
   control-flow callback forms (`when`/`each`/`match`). Owned by
   [[v1-compiler-against-real-templates]].
 - **Editor tooling in 1.0 or after** — syntax highlighting is cheap; an LSP is
-  derivative work, likely 1.x.
+  derivative work, likely 1.x. Scoped separately now in
+  [[editor-tooling-lsp-and-vscode]] (Volar-based; highlighting + LSP as its v1).
 - **Phase ordering of 5 vs. 3** — app-machine persistence is small and independent;
   could slot earlier if it removes a sharp edge sooner.
 
