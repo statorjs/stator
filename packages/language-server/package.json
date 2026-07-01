@@ -10,7 +10,9 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./plugin": "./src/language-plugin.ts"
+    "./plugin": "./src/language-plugin.ts",
+    "./server": "./dist/server.cjs",
+    "./package.json": "./package.json"
   },
   "files": [
     "bin",
