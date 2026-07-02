@@ -51,12 +51,15 @@ const AMBIENT_TYPE_IMPORTS =
   "import type { InstanceOf as __SInstanceOf, AnyMachineDef as __SMachineDef } from '@statorjs/stator/machine';\n"
 
 /**
- * Per-file ambient scaffold prepended to every virtual TSX. Declares the `Stator`
- * macro surface (so `Stator.props`/`reads`/… resolve) and a permissive JSX
- * namespace (so directives + custom elements don't flood false errors). Declared
- * *locally* — module-scoped, not `declare global` — so many `.stator` files don't
- * clash on one global JSX namespace. `reads` is typed through `InstanceOf` so a
- * route's `Stator.reads([...])` bindings infer their machine instance types.
+ * Per-file ambient scaffold prepended to every virtual TSX. `Stator` (the macro
+ * surface, module-scoped) makes `Stator.props`/`reads`/… resolve — `reads` typed
+ * through `InstanceOf` so a route's bindings infer their machine instance types.
+ * The **global** JSX namespace is permissive (`extends Record<string, any>`), so
+ * directives + custom elements don't flood false errors; it must be `declare
+ * global` because TS resolves `JSX.IntrinsicElements` globally, and `extends
+ * Record` (rather than an own index signature) lets every file's copy merge
+ * without a duplicate-index-signature clash. Real per-element JSX typing — the
+ * Astro `astro-jsx.d.ts` approach — is a Phase 2 refinement.
  */
 const STATOR_AMBIENT = `declare const Stator: {
   props<P>(): P;
@@ -64,9 +67,10 @@ const STATOR_AMBIENT = `declare const Stator: {
   request: any;
   response: { status: number; headers: Record<string, string>; cookies: any };
 };
-namespace JSX {
-  interface IntrinsicElements { [name: string]: any }
-  interface ElementChildrenAttribute { children: {} }
+declare global {
+  namespace JSX {
+    interface IntrinsicElements extends Record<string, any> {}
+  }
 }
 `
 
@@ -108,7 +112,7 @@ function buildServerTsx(regions: ScannedRegions): VirtualFile {
   // `export default function` gives importers a default export (`import X from
   // './x.stator'`) and puts the template in a scope that closes over the
   // frontmatter bindings.
-  code += 'export default function () {\n  return (<>'
+  code += 'export default function (_props: any) {\n  return (<>'
   push(mappings, tplOffset, code.length, tpl.length)
   code += tpl
   code += '</>);\n}\n'
@@ -131,7 +135,7 @@ function buildClientTsx(regions: ScannedRegions): VirtualFile {
   // A client component is also used as `<Tag/>` elsewhere, so its importers need
   // a default export too. The named class export above still gets full TS
   // intelligence; this stub just satisfies the import.
-  code += '\nexport default function () { return null as any; }\n'
+  code += '\nexport default function (_props: any) { return null as any; }\n'
 
   return { lang: 'tsx', code, mappings }
 }
