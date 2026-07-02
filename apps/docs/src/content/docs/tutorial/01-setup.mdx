@@ -61,7 +61,7 @@ Follow [Installation](/introduction/installation/) first: install `@statorjs/sta
 
 ## Configure TypeScript
 
-Stator generates per-component type declarations into `.stator/types/` so your editor and `tsc` can type-check component props. Three settings make that work — `rootDirs` (so the generated declarations resolve alongside your source), `allowImportingTsExtensions` (the code imports machines with explicit `.ts` paths), and including `**/*.stator` (so the [editor language server](/introduction/installation/) treats your components with these options rather than defaults):
+Stator generates per-component type declarations into `.stator/types/` so your editor and `tsc` can type-check component props. A few settings make that work — `rootDirs` (so the generated declarations resolve alongside your source), `allowImportingTsExtensions` (the code imports machines with explicit `.ts` paths), `jsx: preserve` (the `.stator` template body is JSX), and including `**/*.stator` (so the [editor language server](/introduction/installation/) applies these options to your components rather than TS defaults):
 
 ```json
 // tsconfig.json
@@ -72,6 +72,7 @@ Stator generates per-component type declarations into `.stator/types/` so your e
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM"],
     "strict": true,
+    "jsx": "preserve",
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "rootDirs": [".", ".stator/types"]
