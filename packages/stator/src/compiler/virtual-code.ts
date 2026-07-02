@@ -13,8 +13,9 @@
  * disagree about `.stator` syntax — the drift trap in embedded-language tooling.
  *
  * v1 scope: correct region mappings + a useful TSX shell. The ambient typing
- * (`Stator`, JSX intrinsics — see `STATOR_LS_GLOBALS`) is intentionally loose and
- * refined against real in-editor feedback; the mappings are the load-bearing part.
+ * (`Stator`, JSX intrinsics — see `STATOR_AMBIENT`) is intentionally permissive
+ * on JSX and refined against real in-editor feedback; the mappings are the
+ * load-bearing part.
  */
 
 import { scanRegions, type ScannedRegions } from './split.ts'
@@ -45,18 +46,21 @@ const TEMPLATE_IMPORTS =
   "import { read, each, when, match, on, classList, styleList, raw } from '@statorjs/stator/template';\n"
 const CLIENT_IMPORTS =
   "import { StatorElement, use, machine, defineElement, bind, effect, dispatch } from '@statorjs/stator/client';\n"
+// Aliased so they never collide with a component's own `InstanceOf` import.
+const AMBIENT_TYPE_IMPORTS =
+  "import type { InstanceOf as __SInstanceOf, AnyMachineDef as __SMachineDef } from '@statorjs/stator/machine';\n"
 
 /**
  * Per-file ambient scaffold prepended to every virtual TSX. Declares the `Stator`
  * macro surface (so `Stator.props`/`reads`/… resolve) and a permissive JSX
  * namespace (so directives + custom elements don't flood false errors). Declared
  * *locally* — module-scoped, not `declare global` — so many `.stator` files don't
- * clash on one global JSX namespace. Deliberately loose in v1 (`reads` → `any`);
- * tightening to real `InstanceOf` typing is the next refinement.
+ * clash on one global JSX namespace. `reads` is typed through `InstanceOf` so a
+ * route's `Stator.reads([...])` bindings infer their machine instance types.
  */
 const STATOR_AMBIENT = `declare const Stator: {
   props<P>(): P;
-  reads<const T extends readonly unknown[]>(defs: T): { -readonly [K in keyof T]: any };
+  reads<const T extends readonly __SMachineDef[]>(defs: T): { -readonly [K in keyof T]: __SInstanceOf<T[K]> };
   request: any;
   response: { status: number; headers: Record<string, string>; cookies: any };
 };
@@ -84,7 +88,7 @@ export function toVirtualCode(source: string): VirtualCodeResult {
  *  template expressions see the frontmatter's bindings. */
 function buildServerTsx(regions: ScannedRegions): VirtualFile {
   const mappings: VirtualMapping[] = []
-  let code = TEMPLATE_IMPORTS + STATOR_AMBIENT
+  let code = TEMPLATE_IMPORTS + AMBIENT_TYPE_IMPORTS + STATOR_AMBIENT
 
   if (regions.frontmatter && regions.frontmatter.content.trim()) {
     push(mappings, regions.frontmatter.contentOffset, code.length, regions.frontmatter.content.length)
@@ -117,7 +121,7 @@ function buildServerTsx(regions: ScannedRegions): VirtualFile {
  *  resolution — `bind:text={theme.label}` → the class field — is a later phase.) */
 function buildClientTsx(regions: ScannedRegions): VirtualFile {
   const mappings: VirtualMapping[] = []
-  let code = TEMPLATE_IMPORTS + CLIENT_IMPORTS + STATOR_AMBIENT
+  let code = TEMPLATE_IMPORTS + CLIENT_IMPORTS + AMBIENT_TYPE_IMPORTS + STATOR_AMBIENT
 
   for (const script of regions.scripts) {
     push(mappings, script.contentOffset, code.length, script.content.length)

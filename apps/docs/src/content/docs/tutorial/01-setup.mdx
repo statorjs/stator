@@ -61,7 +61,7 @@ Follow [Installation](/introduction/installation/) first: install `@statorjs/sta
 
 ## Configure TypeScript
 
-Stator generates per-component type declarations into `.stator/types/` so your editor and `tsc` can type-check component props. Two settings make that work — `rootDirs` (so the generated declarations resolve alongside your source) and `allowImportingTsExtensions` (the code imports machines with explicit `.ts` paths):
+Stator generates per-component type declarations into `.stator/types/` so your editor and `tsc` can type-check component props. Three settings make that work — `rootDirs` (so the generated declarations resolve alongside your source), `allowImportingTsExtensions` (the code imports machines with explicit `.ts` paths), and including `**/*.stator` (so the [editor language server](/introduction/installation/) treats your components with these options rather than defaults):
 
 ```json
 // tsconfig.json
@@ -76,10 +76,12 @@ Stator generates per-component type declarations into `.stator/types/` so your e
     "noEmit": true,
     "rootDirs": [".", ".stator/types"]
   },
-  "include": ["**/*.ts"],
+  "include": ["**/*.ts", "**/*.stator"],
   "exclude": ["node_modules", "static", "dist"]
 }
 ```
+
+`tsc` ignores the `**/*.stator` glob (it only compiles the generated `.ts`), but the language server uses it to give your `.stator` files completions and type errors with the same options as the rest of the project.
 
 The `.stator/` directory is generated, so add it to `.gitignore`:
 
