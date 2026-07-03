@@ -37,9 +37,11 @@ lock and persistence wiring (below).
 
 ## Success Criteria
 
-- A transition can declare `effect: async (ctx, event) => CompletionEvent | null`
+- A transition can declare
+  `effect: async (ctx, event, meta: { effectId: string }) => CompletionEvent | null`
   where the returned event is **typed against the machine's declared events**
-  (returning an undeclared event type is a compile error).
+  (returning an undeclared event type is a compile error) and `effectId` is a
+  unique per-invocation id for idempotency keys / log correlation.
 - The checkout shape works end-to-end: `SUBMIT → 'submitting'` (sync commit,
   patches in the POST response) → effect runs → `CHARGE_OK | CHARGE_FAILED`
   dispatched → `'confirmed' | 'reviewing'`, with the completion visible via
@@ -162,23 +164,31 @@ legal — pinning still comes from the existing server-capability signals).
 
 ## Open Questions
 
-- **Failure default:** if an effect throws and the author declared no failure
-  event, do we (a) log-and-drop, or (b) require every `effect` to be
-  infallible by construction (author catches, always returns an event)?
-  Leaning (b) enforced by types (`effect` returns `CompletionEvent | null`,
-  not `Promise<void>`), with log-and-drop as the runtime backstop.
-- **Effect context surface:** does `effect` receive only `(ctx, ev)` snapshots,
-  or also a capability object (e.g. `reads` of other machines at completion
-  time)? Leaning snapshots-only for 1.0 — anything else can be read by the
-  completion event's own `do`/guards.
-- **Deduplication/idempotency helper:** should the framework stamp effects
-  with an id so authors can build idempotent handlers, anticipating 1.x
-  durability (retries imply at-least-once)? Cheap to add now, hard to retrofit
-  into authored effects later.
-- **App-machine effects:** allowed in 1.0, or session-lifecycle only? App
-  machines have no session lock; completion dispatch is simpler but touches
-  the app-persistence work in Phase 5. Leaning: allowed, since Phase 5's
-  persistence makes the commit path symmetric.
+All four resolved 2026-07-03:
+
+- ~~**Failure default**~~ — **(b) infallible by construction.** The type is
+  `effect: (ctx, ev, meta) => Promise<CompletionEvent | null>` — authors catch
+  and always return an event (or null for fire-and-forget); a throw is the
+  runtime backstop: logged and dropped, never crashes the host. The type
+  system is the forcing function for thinking about the failure path.
+- ~~**Effect context surface**~~ — **snapshots-only.** `(ctx, ev)` are
+  commit-time `structuredClone`s (same discipline as actions). No capability
+  object: anything the completion needs from live state is read by the
+  completion event's own `do`/guards, which run under a real dispatch context.
+- ~~**Idempotency ids**~~ — **yes, stamped now.** The host generates a unique
+  id per effect invocation and passes it as the third argument:
+  `effect: (ctx, ev, meta: { effectId: string }) => …`. Authors thread it to
+  external calls as an idempotency key; 1.x durability (retries ⇒
+  at-least-once) then composes without changing authored effects. Also useful
+  today for log correlation.
+- ~~**App-machine effects**~~ — **symmetric API, staged implementation.**
+  `effect:` is legal on both lifecycles in 1.0 — app flows are emit-triggered
+  and have no HTTP edge, so session-only would leave app machines with no
+  async story and re-bifurcate the event model along the lifecycle axis.
+  Implementation lands in two steps: session effects first, then (after
+  Phase 5's app-machine persistence + fanOut-from-non-POST) the app-effect
+  scheduling path in MachineStore. App completions are simpler than session
+  ones: the actor is in-process and sends are atomic, so no lock is involved.
 
 ## Implementation Notes
 
