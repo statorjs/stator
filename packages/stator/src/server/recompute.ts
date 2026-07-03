@@ -1,25 +1,8 @@
 import { renderBranchBody } from '../template/conditional.ts'
 import { renderListBody } from '../template/each.ts'
+import type { Patch } from '../wire/index.ts'
 import { type RenderState, runInRender } from './render-context.ts'
 import type { SessionRuntime } from './session-runtime.ts'
-
-/**
- * Wire patch. Addressing is a discriminated `target` (slot positions vs.
- * element identities) and the op describes what to do at that target. The
- * two dimensions compose orthogonally — see WIRE.md for the full contract.
- *
- * Reserved future ops (not yet emitted, documented for the wire spec):
- *   - 'attr-add' / 'attr-remove' on element targets (per-class toggles)
- *   - 'insert' / 'remove' / 'move' on slot targets (keyed list diffs)
- *   - 'prop' on element targets (IDL property writes that have no attr)
- */
-export type SlotTarget = { kind: 'slot'; id: string }
-export type ElementTarget = { kind: 'element'; id: string }
-
-export type Patch =
-  | { target: SlotTarget; op: 'text'; value: string }
-  | { target: SlotTarget; op: 'html'; value: string }
-  | { target: ElementTarget; op: 'attr'; name: string; value: string }
 
 /** A patch paired with its source slot id — the slot in the binding tree
  *  this patch came from. Used internally for scope-subsumption. The wire

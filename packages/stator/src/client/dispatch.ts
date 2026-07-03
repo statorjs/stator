@@ -1,4 +1,6 @@
 import type { AnyMachineDef, EventOf } from '../engine/index.ts'
+import { applyDirectives, applyPatches } from '../wire/apply.ts'
+import type { WireEnvelope } from '../wire/index.ts'
 
 /**
  * Commit an event to a SERVER machine over the existing `/__events` wire — the
@@ -34,31 +36,8 @@ export async function dispatch<D extends AnyMachineDef>(
     console.error('stator: dispatch failed', res.status)
     return false
   }
-  const data = (await res.json()) as { patches?: Patch[] }
+  const data = (await res.json()) as WireEnvelope
   applyPatches(data.patches ?? [])
+  applyDirectives(data.directives ?? [])
   return true
-}
-
-type Patch =
-  | { target: { kind: 'slot'; id: string }; op: 'text'; value: string }
-  | { target: { kind: 'slot'; id: string }; op: 'html'; value: string }
-  | {
-      target: { kind: 'element'; id: string }
-      op: 'attr'
-      name: string
-      value: string
-    }
-
-function applyPatches(patches: Patch[]): void {
-  for (const p of patches) {
-    if (p.target.kind === 'slot') {
-      const el = document.querySelector(`[data-slot="${p.target.id}"]`)
-      if (!el) continue
-      if (p.op === 'text') el.textContent = p.value
-      else if (p.op === 'html') el.innerHTML = p.value
-    } else if (p.target.kind === 'element' && p.op === 'attr') {
-      const el = document.querySelector(`[data-stator-id="${p.target.id}"]`)
-      if (el) el.setAttribute(p.name, p.value)
-    }
-  }
 }

@@ -17,26 +17,8 @@
  *      patching. See "Observability hooks" below for the contract.
  */
 
-type SlotTarget = { kind: 'slot'; id: string }
-type ElementTarget = { kind: 'element'; id: string }
-
-type Patch =
-  | { target: SlotTarget; op: 'text'; value: string }
-  | { target: SlotTarget; op: 'html'; value: string }
-  | { target: ElementTarget; op: 'attr'; name: string; value: string }
-
-type Directive =
-  | { type: 'navigate'; to: string }
-  | { type: 'reload' }
-  | { type: 'push-url'; to: string }
-  | { type: 'replace-url'; to: string }
-  | { type: 'focus'; target: { kind: 'slot' | 'element'; id: string } }
-  | {
-      type: 'scroll'
-      target: { kind: 'slot' | 'element'; id: string }
-      behavior?: 'smooth' | 'auto'
-    }
-  | { type: 'event'; name: string; detail?: unknown }
+import { applyDirectives, applyPatches } from '../wire/apply.ts'
+import type { WireEnvelope } from '../wire/index.ts'
 
 const EVENT_TYPES = ['click', 'submit', 'change', 'input'] as const
 
@@ -78,7 +60,7 @@ function initLiveChannel(): void {
   })
 
   sse.addEventListener('message', (e) => {
-    let data: { patches?: Patch[]; directives?: Directive[] }
+    let data: WireEnvelope
     try {
       data = JSON.parse(e.data)
     } catch (err) {
@@ -233,7 +215,7 @@ async function applyEnvelopeFromResponse(
   startedAt: number,
   source: 'post' | 'sse',
 ): Promise<void> {
-  let data: { patches?: Patch[]; directives?: Directive[] }
+  let data: WireEnvelope
   try {
     data = await res.json()
   } catch (err) {
@@ -253,71 +235,6 @@ async function applyEnvelopeFromResponse(
   if (data.directives && data.directives.length > 0) {
     applyDirectives(data.directives)
   }
-}
-
-function applyPatches(patches: Patch[]): void {
-  for (const patch of patches) {
-    let element: Element | null = null
-    if (patch.target.kind === 'slot') {
-      element = document.querySelector(`[data-slot="${patch.target.id}"]`)
-      if (element) {
-        if (patch.op === 'text') element.textContent = patch.value
-        else if (patch.op === 'html') element.innerHTML = patch.value
-      }
-    } else if (patch.target.kind === 'element') {
-      element = document.querySelector(`[data-stator-id="${patch.target.id}"]`)
-      if (element && patch.op === 'attr') element.setAttribute(patch.name, patch.value)
-    }
-    emit('stator:patch-applied', { patch, element, timestamp: Date.now() })
-  }
-}
-
-function applyDirectives(directives: Directive[]): void {
-  for (const directive of directives) {
-    emit('stator:directive-applied', { directive, timestamp: Date.now() })
-    switch (directive.type) {
-      case 'navigate':
-        location.href = directive.to
-        return // stop processing further directives; we're leaving
-      case 'reload':
-        location.reload()
-        return
-      case 'push-url':
-        history.pushState({}, '', directive.to)
-        break
-      case 'replace-url':
-        history.replaceState({}, '', directive.to)
-        break
-      case 'focus': {
-        const el = resolveTarget(directive.target)
-        if (el && 'focus' in el && typeof (el as HTMLElement).focus === 'function') {
-          ;(el as HTMLElement).focus()
-        }
-        break
-      }
-      case 'scroll': {
-        const el = resolveTarget(directive.target)
-        if (el && 'scrollIntoView' in el) {
-          ;(el as HTMLElement).scrollIntoView({
-            behavior: directive.behavior ?? 'auto',
-          })
-        }
-        break
-      }
-      case 'event':
-        emit(directive.name, directive.detail)
-        break
-      default:
-        console.error('stator: unknown directive type', directive)
-    }
-  }
-}
-
-function resolveTarget(target: { kind: 'slot' | 'element'; id: string }): Element | null {
-  if (target.kind === 'slot') {
-    return document.querySelector(`[data-slot="${target.id}"]`)
-  }
-  return document.querySelector(`[data-stator-id="${target.id}"]`)
 }
 
 if (document.readyState === 'loading') {

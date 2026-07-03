@@ -1,3 +1,10 @@
+export type {
+  ElementTarget,
+  Patch,
+  PatchTarget,
+  SlotTarget,
+  WireEnvelope,
+} from '../wire/index.ts'
 export type { CachedStoreOptions } from './cached-store.ts'
 export { CachedStore } from './cached-store.ts'
 export type { CreateAppConfig, StatorApp } from './create-app.ts'
@@ -26,7 +33,6 @@ export type { InstanceHandle } from './instance-proxy.ts'
 export { createInstanceProxy, defForProxy } from './instance-proxy.ts'
 export { logger, scopedLogger } from './logger.ts'
 export { MachineStore } from './machine-store.ts'
-export type { ElementTarget, Patch, SlotTarget } from './recompute.ts'
 export { recompute } from './recompute.ts'
 export { RedisStore } from './redis-store.ts'
 export type { RenderResult } from './render.ts'

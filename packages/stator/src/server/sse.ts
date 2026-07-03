@@ -1,5 +1,6 @@
+import type { Patch } from '../wire/index.ts'
 import { scopedLogger } from './logger.ts'
-import { type Patch, recompute } from './recompute.ts'
+import { recompute } from './recompute.ts'
 import type { RenderState } from './render-context.ts'
 import type { RouteDefinition, RouteRequest } from './routing.ts'
 import type { SessionRuntime } from './session-runtime.ts'

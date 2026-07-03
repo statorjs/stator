@@ -1,4 +1,5 @@
 import type { HtmlFragment } from '../template/types.ts'
+import type { WireEnvelope } from '../wire/index.ts'
 import type { AnyMachineDef, EventOf } from './define-machine.ts'
 
 /** Machine context passed to a route's render function. Keyed by machine name. */
@@ -117,29 +118,12 @@ export function isStatorRoute(v: unknown): v is RouteDefinition {
 /* API routes (defineApiRoute)                                         */
 /* ------------------------------------------------------------------ */
 
-import type { Patch } from './recompute.ts'
-
-/** A client directive describing a side effect the client should perform
- *  after applying patches. See the response-directives spec for the full list. */
-export type Directive =
-  | { type: 'navigate'; to: string }
-  | { type: 'reload' }
-  | { type: 'push-url'; to: string }
-  | { type: 'replace-url'; to: string }
-  | { type: 'focus'; target: { kind: 'slot' | 'element'; id: string } }
-  | {
-      type: 'scroll'
-      target: { kind: 'slot' | 'element'; id: string }
-      behavior?: 'smooth' | 'auto'
-    }
-  | { type: 'event'; name: string; detail?: unknown }
+export type { Directive } from '../wire/index.ts'
 
 /** Envelope shape API route handlers return when they want the framework
- *  to synthesize an HTTP response. Returning a raw Response is also OK. */
-export interface ApiRouteEnvelope {
-  patches?: Patch[]
-  directives?: Directive[]
-}
+ *  to synthesize an HTTP response. Returning a raw Response is also OK.
+ *  Same shape as the wire envelope the client receives. */
+export type ApiRouteEnvelope = WireEnvelope
 
 export type ApiRouteResult = Response | ApiRouteEnvelope
 
