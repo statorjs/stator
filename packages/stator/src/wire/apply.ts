@@ -28,6 +28,21 @@ export function applyPatches(patches: Patch[]): void {
       if (patch.op === 'text') element.textContent = patch.value
       else if (patch.op === 'html') element.innerHTML = patch.value
       else if (patch.op === 'attr') element.setAttribute(patch.name, patch.value)
+      // Keyed-list ops address element children by index, sequentially: each
+      // op sees the DOM as left by the previous one (see wire/index.ts).
+      else if (patch.op === 'insert') {
+        const tpl = document.createElement('template')
+        tpl.innerHTML = patch.value
+        element.insertBefore(tpl.content, element.children[patch.index] ?? null)
+      } else if (patch.op === 'remove') {
+        element.children[patch.index]?.remove()
+      } else if (patch.op === 'move') {
+        const node = element.children[patch.from]
+        if (node) {
+          node.remove()
+          element.insertBefore(node, element.children[patch.to] ?? null)
+        }
+      }
     }
     emit('stator:patch-applied', { patch, element, timestamp: Date.now() })
   }

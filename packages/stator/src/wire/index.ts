@@ -20,15 +20,22 @@ export type PatchTarget = SlotTarget | ElementTarget
  * Wire patch. Addressing is a discriminated `target` and the op describes
  * what to do at that target.
  *
+ * The keyed-list ops (`insert`/`remove`/`move`) address element children of a
+ * list slot **by index, sequentially**: each op's indices refer to the DOM
+ * state after every preceding op in the batch has been applied. The server
+ * emits them from a replay simulation, so a batch is deterministic.
+ *
  * Reserved future ops (not yet emitted, documented for the wire spec):
  *   - 'attr-add' / 'attr-remove' on element targets (per-class toggles)
- *   - 'insert' / 'remove' / 'move' on slot targets (keyed list diffs)
  *   - 'prop' on element targets (IDL property writes that have no attr)
  */
 export type Patch =
   | { target: SlotTarget; op: 'text'; value: string }
   | { target: SlotTarget; op: 'html'; value: string }
   | { target: ElementTarget; op: 'attr'; name: string; value: string }
+  | { target: SlotTarget; op: 'insert'; index: number; value: string }
+  | { target: SlotTarget; op: 'remove'; index: number }
+  | { target: SlotTarget; op: 'move'; from: number; to: number }
 
 /** A client directive describing a side effect the client should perform
  *  after applying patches. See the response-directives spec for the full list. */

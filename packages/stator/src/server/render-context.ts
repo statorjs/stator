@@ -40,6 +40,21 @@ export interface ListBinding extends BindingBase {
   itemRenderer: ErasedItemRenderer
 }
 
+/** A keyed list's key selector, item type erased (same variance argument as
+ *  ErasedSelector). */
+// biome-ignore lint/suspicious/noExplicitAny: contravariant parameter — see ErasedSelector
+export type ErasedKeyFn = (item: any) => unknown
+
+export interface KeyedListBinding extends BindingBase {
+  kind: 'list-keyed'
+  /** Re-invoked per item for inserts and initial render. */
+  itemRenderer: ErasedItemRenderer
+  /** Derives each item's identity key (validated to string | number). */
+  keyFn: ErasedKeyFn
+  /** The previous render's keys, in order — the diff baseline. */
+  lastKeys: string[]
+}
+
 export interface BranchBinding extends BindingBase {
   kind: 'branch'
   /** The selector value reduced to a stable key — re-render only fires when
@@ -56,7 +71,7 @@ export interface BranchBinding extends BindingBase {
 
 /** Discriminated on `kind`, so per-kind fields are required where they apply —
  *  recompute narrows on the discriminant instead of asserting optionals. */
-export type Binding = TextBinding | AttrBinding | ListBinding | BranchBinding
+export type Binding = TextBinding | AttrBinding | ListBinding | KeyedListBinding | BranchBinding
 
 interface Scope {
   prefix: string
@@ -124,6 +139,31 @@ export function allocElementId(state: RenderState): ElementId {
 
 export function pushListScope(state: RenderState, listSlotId: SlotId, iterIndex: number): void {
   state.scopeStack.push({ prefix: `${listSlotId}:i${iterIndex}`, counter: 0 })
+}
+
+/**
+ * Keyed-list scope: descendant slot ids are derived from the item's *key*, not
+ * its position — so a row's inner slot ids survive reordering, and a patch can
+ * address "the row for p1, wherever it is now". This is the item-identity
+ * primitive keyed `each` is built on.
+ */
+export function pushKeyedScope(state: RenderState, listSlotId: SlotId, token: string): void {
+  state.scopeStack.push({ prefix: `${listSlotId}:k${token}`, counter: 0 })
+}
+
+/** Keyed scope prefix for a key token (shared by render and recompute). */
+export function keyedScopePrefix(listSlotId: SlotId, token: string): string {
+  return `${listSlotId}:k${token}`
+}
+
+/**
+ * Encode an item key into a slot-id-safe token. Injective: only `[A-Za-z0-9-]`
+ * pass through (NOT `_`, which is the escape character); everything else
+ * becomes `_<codepoint hex>`. Keys land in `data-slot` attributes and CSS
+ * attribute selectors, so the charset must be quote- and bracket-free.
+ */
+export function keyToken(key: string): string {
+  return key.replace(/[^A-Za-z0-9-]/gu, (c) => `_${c.codePointAt(0)!.toString(16)}`)
 }
 
 export function popListScope(state: RenderState): void {

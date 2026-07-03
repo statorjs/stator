@@ -75,13 +75,19 @@ type Patch =
   | { target: { kind: "slot"; id: string };    op: "text"; value: string }
   | { target: { kind: "slot"; id: string };    op: "html"; value: string }
   | { target: { kind: "element"; id: string }; op: "attr"; name: string; value: string }
+  | { target: { kind: "slot"; id: string };    op: "insert"; index: number; value: string }
+  | { target: { kind: "slot"; id: string };    op: "remove"; index: number }
+  | { target: { kind: "slot"; id: string };    op: "move"; from: number; to: number }
 ```
 
 Semantics:
 
 - **`text` on slot** — replace the slot element's `textContent`.
-- **`html` on slot** — replace the slot element's `innerHTML`. Used for `each` list re-renders and `when`/`match` branch swaps. The new HTML may itself contain slot markers + element ids; those become the new live targets after application.
+- **`html` on slot** — replace the slot element's `innerHTML`. Used for unkeyed `each` list re-renders and `when`/`match` branch swaps. The new HTML may itself contain slot markers + element ids; those become the new live targets after application.
 - **`attr` on element** — `setAttribute(name, value)` on the element. To unset an attribute, omit it from the value or pass empty string (current convention; see "Reserved ops" for the future explicit unset).
+- **`insert` / `remove` / `move` on slot** — keyed-list ops, emitted by `each(items, fn, { key })`. They address the slot element's **element children by index** and apply **sequentially**: each op's indices refer to the DOM state after every preceding op in the batch (the server emits them from a replay simulation, so a batch is deterministic). `insert` parses `value` and inserts it before the child at `index` (append when `index` equals the child count); `remove` deletes the child at `index`; `move` detaches the child at `from` and re-inserts it so it lands at `to`. Because addressing is by element-child index, a keyed item must render exactly one root element — the server enforces this at render.
+
+Keyed lists exist to preserve identity: a retained row is *never* re-rendered by these ops (focus, selection, and CSS transitions survive reorders). Content inside retained rows updates through the rows' own nested slot bindings, whose slot ids are derived from the item's **key**, not its position (`s0:k<token>:s1`), so they stay addressable wherever the row moves.
 
 ### Reserved ops (not yet emitted)
 
@@ -92,11 +98,6 @@ The wire shape must allow these without rev-bumping. Server emitters that don't 
 | `attr-remove` | element | Explicit attribute removal (currently overloaded into `attr` with empty value) |
 | `attr-add` | element | Per-class / per-style toggles for finer-grained class:list updates |
 | `prop` | element | IDL property writes that don't have an attribute equivalent (e.g. `input.value` once it's been user-edited) |
-| `insert` | slot | Keyed list insert at a specific index, without re-rendering the parent |
-| `remove` | slot | Keyed list remove |
-| `move` | slot | Keyed list reorder |
-
-The keyed list ops (`insert`/`remove`/`move`) are the path toward preserving focus, selection, and CSS transitions inside lists during reorders — an explicit V1 concern. They will require an `each` API extension (a `key:` selector) before they can be emitted.
 
 ## Patch ordering and scope subsumption
 
@@ -106,9 +107,9 @@ Patches in a single response form a logical batch. The client applies them seque
 
 When a list (`each`) or branch (`when`/`match`) body is replaced via an `html` op on slot `sN`, the new HTML already contains the fresh values of every binding inside that scope. The server **must not** also emit text or attr patches whose source slot is a descendant of `sN` (i.e. whose slot id starts with `sN:`).
 
-This is a wire-correctness rule, not an optimization. If a stale descendant patch is emitted after a scope replacement:
-- Today: it no-ops, because descendant slot ids don't exist in the freshly-rendered HTML.
-- Future (with finer-grained patches like `insert`/`remove`): it could target an unrelated element due to id reuse, producing incorrect DOM state.
+The same rule applies to keyed removals: when a keyed row is dropped via a `remove` op, patches sourced from slots inside that row's key scope (`sN:k<token>:…`) must not be emitted — their targets are deleted by the remove.
+
+This is a wire-correctness rule, not an optimization. A stale descendant patch emitted after a scope replacement either no-ops (the slot id no longer exists) or, worse, targets an unrelated element due to id reuse, producing incorrect DOM state.
 
 The server enforces this in `recompute.ts` via an explicit subsumption pass.
 
@@ -120,7 +121,9 @@ Clients must not assume any specific ordering between *unrelated* patches in the
 
 ## Slot and element id scheme
 
-Slot ids are scoped path strings. The root scope generates `s0`, `s1`, etc. Inside an `each(items, …)` iteration, a child scope is pushed and slot ids become `<list-slot-id>:i<iteration-index>:s0`, `s1`, etc. Nested lists nest further: `s0:i0:s2:i1:s0`.
+Slot ids are scoped path strings. The root scope generates `s0`, `s1`, etc. Inside an unkeyed `each(items, …)` iteration, a child scope is pushed and slot ids become `<list-slot-id>:i<iteration-index>:s0`, `s1`, etc. Nested lists nest further: `s0:i0:s2:i1:s0`.
+
+Inside a **keyed** `each(items, fn, { key })` iteration the scope is derived from the item's key instead of its position: `<list-slot-id>:k<token>:s0`, where `<token>` is the key encoded to the slot-id-safe charset `[A-Za-z0-9-]` (other characters become `_<codepoint-hex>`; the encoding is injective). Key-derived scopes are what let a patch address "the row for p1, wherever it is now" after reorders.
 
 This scheme makes scope-descendant tests cheap (`startsWith(scope + ":")`) and gives every binding a stable identity for the duration of a render.
 

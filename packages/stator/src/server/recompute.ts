@@ -1,7 +1,13 @@
 import { renderBranchBody } from '../template/conditional.ts'
-import { renderListBody } from '../template/each.ts'
+import { coerceKeys, renderKeyedItem, renderListBody } from '../template/each.ts'
 import type { Patch } from '../wire/index.ts'
-import { type RenderState, runInRender } from './render-context.ts'
+import {
+  keyedScopePrefix,
+  keyToken,
+  type RenderState,
+  runInRender,
+  unregisterBindingsForScope,
+} from './render-context.ts'
 import type { SessionRuntime } from './session-runtime.ts'
 
 /** A patch paired with its source slot id — the slot in the binding tree
@@ -31,6 +37,9 @@ export function recompute(
   if (!proxy) return []
 
   const pending: PendingPatch[] = []
+  // Keyed-list scopes torn down this pass (removed rows) — any patch already
+  // emitted for a slot inside one targets DOM the remove op deletes.
+  const removedScopes: string[] = []
   const slotIds = state.byMachine.get(machineName)
   if (!slotIds) return []
 
@@ -81,6 +90,53 @@ export function recompute(
         })
         binding.lastValue = newArray
       }
+    } else if (binding.kind === 'list-keyed') {
+      // Keyed diff: shape changes become per-item insert/remove/move ops from
+      // a replay simulation (`work` mirrors what the client's DOM will look
+      // like after each emitted op — see the wire contract). Content inside
+      // retained items updates through the items' own nested bindings; the
+      // keyed path never re-renders a retained row.
+      const newArray = newValue as readonly unknown[]
+      const newKeys = coerceKeys(newArray, binding.keyFn, slotId)
+      const oldKeys = binding.lastKeys
+      if (!stringArraysEqual(newKeys, oldKeys)) {
+        const target = { kind: 'slot', id: slotId } as const
+        const newKeySet = new Set(newKeys)
+        const work = [...oldKeys]
+        // Removals right-to-left so earlier indices stay valid within the pass.
+        for (let i = work.length - 1; i >= 0; i--) {
+          const key = work[i]!
+          if (newKeySet.has(key)) continue
+          pending.push({ patch: { target, op: 'remove', index: i }, sourceSlot: slotId })
+          const scope = keyedScopePrefix(slotId, keyToken(key))
+          removedScopes.push(`${scope}:`)
+          unregisterBindingsForScope(state, scope)
+          work.splice(i, 1)
+        }
+        // Settle each position left-to-right: an existing key moves up, a new
+        // key renders under its key scope and inserts.
+        for (let i = 0; i < newKeys.length; i++) {
+          const key = newKeys[i]!
+          if (work[i] === key) continue
+          const from = work.indexOf(key, i + 1)
+          if (from !== -1) {
+            pending.push({ patch: { target, op: 'move', from, to: i }, sourceSlot: slotId })
+            work.splice(from, 1)
+            work.splice(i, 0, key)
+          } else {
+            const itemHtml = runInRender(state, () =>
+              renderKeyedItem(state, slotId, newArray[i], i, key, binding.itemRenderer),
+            )
+            pending.push({
+              patch: { target, op: 'insert', index: i, value: itemHtml },
+              sourceSlot: slotId,
+            })
+            work.splice(i, 0, key)
+          }
+        }
+        binding.lastKeys = newKeys
+      }
+      binding.lastValue = newArray
     } else if (binding.kind === 'branch') {
       const newKey = binding.branchKeyFn(newValue)
       if (!Object.is(newKey, binding.lastBranchKey)) {
@@ -100,16 +156,26 @@ export function recompute(
     }
   }
 
-  return subsumeScopes(pending)
+  return subsumeScopes(pending, removedScopes)
+}
+
+/** Positional string-array equality — the keyed diff's "did anything change". */
+function stringArraysEqual(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
 }
 
 /**
  * Drop any patch whose source slot is a descendant of an 'html'-op patch's
- * scope. Descendants share the prefix `<scope-slot-id>:` per our slot-id
- * scheme (see allocSlotId / pushListScope in render-context.ts).
+ * scope, or of a keyed-list scope removed this pass. Descendants share the
+ * prefix `<scope-slot-id>:` per our slot-id scheme (see allocSlotId /
+ * pushListScope / pushKeyedScope in render-context.ts).
  */
-function subsumeScopes(pending: PendingPatch[]): Patch[] {
-  const scopePrefixes: string[] = []
+function subsumeScopes(pending: PendingPatch[], removedScopes: string[]): Patch[] {
+  const scopePrefixes: string[] = [...removedScopes]
   for (const p of pending) {
     if (p.patch.op === 'html') scopePrefixes.push(`${p.sourceSlot}:`)
   }

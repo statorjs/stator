@@ -206,11 +206,12 @@ capability-portability compile errors (consumes Phases 1–2). Largest surface a
 Sub-staged **3a** (server compiler, no `<script>`) then **3b** (client plane) —
 detailed build plan in [[stator-compiler-and-vite-plugin-implementation-plan]].
 
-**Phase 4 — Keyed `each`. ⬜ Pending.** [[keyed-each-and-list-item-identity]]. Per-item
-insert/remove/move (wire format already reserves the ops). Authoring API decided
-2026-07-03: explicit options argument — `each(items, fn, { key: item => item.id })`;
-no `key` keeps positional behavior. Prereq: the shared wire module (work list #3),
-since the ops land in the currently-triplicated `Patch` union.
+**Phase 4 — Keyed `each`. ✅ Done (2026-07-03).** [[keyed-each-and-list-item-identity]]
+(shipped). `each(items, fn, { key })`; per-item insert/remove/move ops emitted from
+a replay simulation; key-derived slot scopes (`s0:k<token>`) give rows identity so
+inner bindings survive reorders; retained rows never re-render (content flows
+through nested bindings); single-root-element and unique-key rules enforced at
+render. Wire ops implemented in the shared wire module and documented in WIRE.md.
 
 **Phase 5 — Single-replica cross-machine robustness. ⬜ Pending, reduced 2026-07-03.**
 App-machine persistence (small; extend `persistTouched` + boot hydration to app
