@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { loadProductionHead } from '@statorjs/stator/build'
 import {
   CachedStore,
   createApp,
@@ -38,21 +39,15 @@ if (redisUrl) {
   logger.warn({ store: 'in-memory' }, 'sessions will not survive restart')
 }
 
-let hasCss = false
-try {
-  await stat(resolve(dist, 'static', 'components.css'))
-  hasCss = true
-} catch {
-  // no scoped component styles
-}
-
 const app = await createApp({
   machinesDir: resolve(dist, 'machines'),
   routesDir: resolve(dist, 'routes'),
   staticDir: resolve(dist, 'static'),
   store,
   sessionTtlSeconds: Number(process.env.SESSION_TTL_SECONDS ?? 86400),
-  headExtras: hasCss ? () => '<link rel="stylesheet" href="/static/components.css">' : undefined,
+  // Links components.css and injects each route's island module scripts
+  // from stator-manifest.json (both written by buildApp).
+  headExtras: await loadProductionHead(dist),
 })
 
 await app.listen(port)

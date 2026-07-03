@@ -3,3 +3,4 @@
  * `import { stator } from '@statorjs/stator/vite'` and add it to `plugins`.
  */
 export { stator } from './plugin.ts'
+export { machineStub } from './stub.ts'

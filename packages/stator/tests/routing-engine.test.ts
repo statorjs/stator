@@ -11,6 +11,12 @@ function params(file: string) {
 }
 
 describe('routing: file path → url pattern', () => {
+  it('maps compiled .stator.ts routes to the same URLs as their .stator source', () => {
+    expect(path('index.stator.ts')).toBe('/')
+    expect(path('about.stator.ts')).toBe('/about')
+    expect(path('shop/[id].stator.ts')).toBe('/shop/:id')
+  })
+
   it('maps index and static segments', () => {
     expect(path('index.stator')).toBe('/')
     expect(path('about.stator')).toBe('/about')

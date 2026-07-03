@@ -196,7 +196,10 @@ export function filePathToRoute(
   const dirSegments = dirname(rel)
     .split(sep)
     .filter((s) => s && s !== '.')
-  const fileBase = basename(rel, ext)
+  // Strip a residual `.stator` too: production builds compile route pages to
+  // sibling `<name>.stator.ts` files, which must map to the same URL as the
+  // `<name>.stator` source did in dev.
+  const fileBase = basename(rel, ext).replace(/\.stator$/, '')
   const segments = fileBase === 'index' ? dirSegments : [...dirSegments, fileBase]
 
   if (segments.length === 0) return { urlPath: '/', paramNames: [] }

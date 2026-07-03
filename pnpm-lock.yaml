@@ -203,6 +203,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.13.0
         version: 1.19.14(hono@4.12.18)
+      '@statorjs/stator':
+        specifier: workspace:*
+        version: 'link:'
       '@types/node':
         specifier: ^22.7.0
         version: 22.19.19

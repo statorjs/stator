@@ -1,0 +1,13 @@
+<count-stepper>
+  <button type="button" on:click={bump}>+1</button>
+</count-stepper>
+
+<script>
+  import Counter from '../machines/counter.ts'
+
+  export class CountStepper extends StatorElement {
+    bump() {
+      void dispatch(Counter, { type: 'INCREMENT' })
+    }
+  }
+</script>

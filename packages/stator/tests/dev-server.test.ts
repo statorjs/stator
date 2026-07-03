@@ -83,6 +83,23 @@ describe('dev server: .stator end to end', () => {
     )
   })
 
+  it('stubs machine imports for the browser but serves them whole for SSR', async () => {
+    app ??= await createDevApp({
+      root,
+      machinesDir: resolve(root, 'machines'),
+      routesDir: resolve(root, 'routes'),
+    })
+
+    // Browser-plane transform: the machine collapses to its identity stub.
+    const browser = await app.vite.transformRequest('/machines/counter.ts')
+    expect(browser?.code).toContain('CounterMachine')
+    expect(browser?.code).not.toContain('INCREMENT')
+
+    // SSR-plane transform: the real module, untouched.
+    const ssr = await app.vite.transformRequest('/machines/counter.ts', { ssr: true })
+    expect(ssr?.code).toContain('INCREMENT')
+  })
+
   it('injects the Vite HMR client so the browser can receive reload signals', async () => {
     app ??= await createDevApp({
       root,

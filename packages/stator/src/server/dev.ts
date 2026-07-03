@@ -5,7 +5,7 @@ import { getRequestListener } from '@hono/node-server'
 import type { Hono } from 'hono'
 import { createServer as createViteServer, type ViteDevServer } from 'vite'
 import { compile } from '../compiler/index.ts'
-import { stator } from '../vite/index.ts'
+import { machineStub, stator } from '../vite/index.ts'
 import { logger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
@@ -52,7 +52,10 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
     root: resolve(config.root),
     appType: 'custom',
     server: { middlewareMode: true },
-    plugins: [stator()],
+    // machineStub keeps server machines out of browser module graphs: island
+    // imports of a machine resolve to a `{ name }` stub (SSR loads are
+    // untouched — `options.ssr` gates it).
+    plugins: [stator(), machineStub({ machinesDir: resolve(config.machinesDir) })],
     // The framework's own source is TS that Vite must transform, not externalize.
     ssr: { noExternal: [/@statorjs\/stator/] },
     logLevel: 'warn',
