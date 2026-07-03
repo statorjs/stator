@@ -189,10 +189,15 @@ vitest suite is the regression gate. Highest risk, highest leverage.
 unchanged — the work is the typed surface + the identity-vs-value import
 distinction. Rides on Phase 1's typed events.
 
-**Phase 3 — `.stator` compiler + Vite. 🔨 3a done; 3b done except the production
-plane (6c prod build + identity-import stubbing, and 6d). Decided 2026-07-03:
-Vite build with per-island Rollup inputs + an asset manifest the server injects
-from; stubbing via a client-scoped resolve plugin.** [[v1-compiler-against-real-templates]] +
+**Phase 3 — `.stator` compiler + Vite. 🔨 3a done; 3b done including the production
+plane (6c shipped 2026-07-03: `buildApp` bundles islands via one Vite build with
+per-island inputs, hashed assets under `dist/static/assets/`, route→island
+reachability in `dist/stator-manifest.json`, `loadProductionHead` injects at
+serve; `machineStub` resolve plugin stubs server-machine imports to `{ name }`
+in BOTH the prod client build and dev browser plane, gated on `!options.ssr`.
+Also fixed: `.stator.ts` compiled routes now map to their source URLs, and the
+build compiles route pages under the route capability set). Remaining: 6d
+(collision check + the `{key}Changed` additive).** [[v1-compiler-against-real-templates]] +
 the client half of [[client-scripts-directives-and-isomorphic-machines]]. TS-AST
 transform → server module + client entry + scoped CSS, hosted as a Vite plugin
 (build spike validated the orchestration and the `lang.css` constraint). `on:` /
