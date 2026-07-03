@@ -1,13 +1,9 @@
 import { createActor, type Snapshot } from '../engine/index.ts'
 import type { MachineDef } from './define-machine.ts'
+import { type DispatchContext, recordTouch, withDispatchContext } from './dispatch-context.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
 import { buildDispatchEvent, type MachineStore } from './machine-store.ts'
 import { serverReadsResolver } from './reads-helpers.ts'
-import {
-  recordTouch,
-  withDispatchContext,
-  type DispatchContext,
-} from './dispatch-context.ts'
 
 /**
  * Per-request scope for session-lifecycle machine actors. Created at the
@@ -97,11 +93,7 @@ export class SessionRuntime {
 
         sourceHandle.actor.on(sub.event as never, (emitted: any) => {
           targetHandle.actor.send(
-            buildDispatchEvent(
-              emitted,
-              sub.dispatch,
-              crossLifecycle ? sid : undefined,
-            ) as never,
+            buildDispatchEvent(emitted, sub.dispatch, crossLifecycle ? sid : undefined) as never,
           )
           recordTouch(targetName)
         })
@@ -129,10 +121,7 @@ export class SessionRuntime {
    *
    * Throws if the origin machine isn't loaded — call `loadGraph` first.
    */
-  processEvent(
-    machineName: string,
-    event: { type: string; [k: string]: unknown },
-  ): Set<string> {
+  processEvent(machineName: string, event: { type: string; [k: string]: unknown }): Set<string> {
     const handle = this.actors.get(machineName)
     if (!handle) {
       throw new Error(
@@ -177,4 +166,3 @@ export class SessionRuntime {
     this.actors.clear()
   }
 }
-

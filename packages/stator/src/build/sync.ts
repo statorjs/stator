@@ -1,5 +1,6 @@
-import { readdir, readFile, writeFile, mkdir, rm } from 'node:fs/promises'
-import { join, sep, relative, dirname } from 'node:path'
+import type { Dirent } from 'node:fs'
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { dirname, join, relative, sep } from 'node:path'
 import { generateDts } from '../compiler/dts.ts'
 
 /**
@@ -38,7 +39,7 @@ export async function syncTypes(root: string): Promise<SyncResult> {
     // Mirror the source path under .stator/types: templates/x.stator →
     // .stator/types/templates/x.stator.d.ts.
     const rel = relative(root, file)
-    const target = join(outDir, rel + '.d.ts')
+    const target = join(outDir, `${rel}.d.ts`)
     await mkdir(dirname(target), { recursive: true })
     await writeFile(target, dts)
     written++
@@ -48,7 +49,7 @@ export async function syncTypes(root: string): Promise<SyncResult> {
 
 async function walk(dir: string): Promise<string[]> {
   const out: string[] = []
-  let entries
+  let entries: Dirent[]
   try {
     entries = await readdir(dir, { withFileTypes: true })
   } catch {

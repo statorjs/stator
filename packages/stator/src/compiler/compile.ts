@@ -1,17 +1,17 @@
 import ts from 'typescript'
-import { splitStator } from './split.ts'
-import { lowerTemplate, type LowerMeta } from './lower.ts'
-import { scopeHash } from './hash.ts'
-import { scopeCss } from './styles.ts'
-import { CompileError, locAt, type DiagnosticLocation } from './diagnostics.ts'
+import { emitClientModule } from './client-emit.ts'
 import {
-  analyzeScriptClasses,
   analyzeClient,
+  analyzeScriptClasses,
+  type ClientDirective,
   isCustomElementTag,
   pascalToKebab,
-  type ClientDirective,
 } from './client-script.ts'
-import { emitClientModule } from './client-emit.ts'
+import { CompileError, type DiagnosticLocation, locAt } from './diagnostics.ts'
+import { scopeHash } from './hash.ts'
+import { type LowerMeta, lowerTemplate } from './lower.ts'
+import { splitStator } from './split.ts'
+import { scopeCss } from './styles.ts'
 
 /**
  * Assemble a `.stator` source into the server `.ts` module the runtime
@@ -66,7 +66,8 @@ export interface CompileOptions {
 }
 
 export function compile(source: string, opts: CompileOptions = {}): CompileResult {
-  const { frontmatter, template, styles, scripts, scriptOffsets, templateOffset } = splitStator(source)
+  const { frontmatter, template, styles, scripts, scriptOffsets, templateOffset } =
+    splitStator(source)
   const kind = opts.kind ?? 'component'
 
   const hasStyles = styles.length > 0
@@ -92,7 +93,13 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
     )
   }
 
-  const meta: LowerMeta = { usesChildren: false, regions: new Set(), components: new Set(), customElements: new Set(), refs: new Set() }
+  const meta: LowerMeta = {
+    usesChildren: false,
+    regions: new Set(),
+    components: new Set(),
+    customElements: new Set(),
+    refs: new Set(),
+  }
   const htmlExpr = lowerTemplate(template, {
     scopeAttr,
     source,
@@ -105,9 +112,7 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
 
   const fm = processFrontmatter(frontmatter, kind, source, opts.id)
   const serverCode =
-    kind === 'route'
-      ? emitRoute(fm, htmlExpr, meta)
-      : emitComponent(fm, htmlExpr, meta)
+    kind === 'route' ? emitRoute(fm, htmlExpr, meta) : emitComponent(fm, htmlExpr, meta)
 
   return { serverCode, scopeHash: hash, css, scripts, isClient: false, clientCode: '' }
 }
@@ -137,8 +142,11 @@ function compileClient(
   // markers. (Client templates have no read() — server state isn't in scope.)
   const directives: ClientDirective[] = []
   const meta: LowerMeta = {
-    usesChildren: false, regions: new Set(), components: new Set(),
-    customElements: new Set(), refs: new Set(),
+    usesChildren: false,
+    regions: new Set(),
+    components: new Set(),
+    customElements: new Set(),
+    refs: new Set(),
   }
   const innerExpr = lowerTemplate(root.inner, {
     scopeAttr: ctx.scopeAttr,
@@ -188,7 +196,10 @@ function extractClientRoot(template: string, file?: string): { tag: string; inne
   const sf = ts.createSourceFile('t.tsx', wrapped, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   let fragment: ts.JsxFragment | undefined
   const find = (n: ts.Node): void => {
-    if (ts.isJsxFragment(n)) { fragment = n; return }
+    if (ts.isJsxFragment(n)) {
+      fragment = n
+      return
+    }
     ts.forEachChild(n, find)
   }
   find(sf)
@@ -306,7 +317,7 @@ function processFrontmatter(
         }
         const ids = arg.elements.map((el) => el.getText(sf))
         reads.push(...ids)
-        const bound = '[' + ids.map((id) => `__ctx[${id}.name]`).join(', ') + ']'
+        const bound = `[${ids.map((id) => `__ctx[${id}.name]`).join(', ')}]`
         repls.push([n.getStart(sf), n.getEnd(), bound])
         return
       }
@@ -327,7 +338,7 @@ function processFrontmatter(
     for (const [start, end, replacement] of repls) {
       text = text.slice(0, start - stmtStart) + replacement + text.slice(end - stmtStart)
     }
-    body.push('  ' + text)
+    body.push(`  ${text}`)
   }
 
   return { hoisted: hoisted.join('\n'), body: body.join('\n'), propsType, reads, pragmas }
@@ -346,7 +357,7 @@ function emitComponent(fm: FrontmatterParts, htmlExpr: string, meta: LowerMeta):
   if (fm.body) lines.push(fm.body)
   lines.push(`  return ${htmlExpr}`)
   lines.push('}')
-  return lines.join('\n') + '\n'
+  return `${lines.join('\n')}\n`
 }
 
 function emitRoute(fm: FrontmatterParts, htmlExpr: string, _meta: LowerMeta): string {
@@ -361,7 +372,7 @@ function emitRoute(fm: FrontmatterParts, htmlExpr: string, _meta: LowerMeta): st
   lines.push(`    return ${htmlExpr}`)
   lines.push('  },')
   lines.push('})')
-  return lines.join('\n') + '\n'
+  return `${lines.join('\n')}\n`
 }
 
 /** Parse `// @stator <flag>` comment pragmas from the frontmatter text. */
@@ -373,8 +384,7 @@ function parsePragmas(
 ): Set<string> {
   const out = new Set<string>()
   const re = /\/\/\s*@stator\s+(\S+)/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(fm)) !== null) {
+  for (const m of fm.matchAll(re)) {
     const flag = m[1]!
     if (!VALID_PRAGMAS.has(flag)) {
       throw new CompileError(

@@ -1,13 +1,9 @@
 import type { Context } from 'hono'
 import { setCookie } from 'hono/cookie'
-import { z } from 'zod'
-
+import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
-import { SessionRuntime } from './session-runtime.ts'
-import { recompute, type Patch } from './recompute.ts'
-import { renderRoute } from './render.ts'
-import { fanOut } from './sse.ts'
-import { getOrCreateSessionId } from './session.ts'
+import type { RenderedResponseEffects } from './render.ts'
+import type { DiscoveredRoute } from './route-discovery.ts'
 import { buildRouteRequest } from './route-request.ts'
 import type {
   ApiRouteDefinition,
@@ -16,9 +12,9 @@ import type {
   Directive,
   RouteRequest,
 } from './routing.ts'
-import type { DiscoveredRoute } from './route-discovery.ts'
-import type { RenderedResponseEffects } from './render.ts'
-import { scopedLogger } from './logger.ts'
+import { getOrCreateSessionId } from './session.ts'
+import { SessionRuntime } from './session-runtime.ts'
+import { fanOut } from './sse.ts'
 
 const apiLog = scopedLogger('api')
 
@@ -76,22 +72,12 @@ export async function runApiRoute(
 
       // Track which machines got touched so we can persist + fan-out.
       const touched = new Set<string>()
-      const recordedPatches: Patch[] = []
-
-      // Pre-event renderState placeholder; created lazily on first dispatch
-      // because not all API routes dispatch events.
-      let renderState: import('./render-context.ts').RenderState | null = null
 
       const helpers: ApiRouteHelpers = {
         dispatch: async (machine, event) => {
-          if (!renderState) {
-            // First dispatch: capture the originating page's bindings if
-            // this route corresponds to a visible page. For now, skip the
-            // pre-event render — API routes don't have a render target to
-            // diff against, so they only produce patches that we don't
-            // currently capture. (Patches from API-route dispatches would
-            // need a target page; that's a future spec.)
-          }
+          // API routes have no render target to diff against, so dispatches
+          // here don't produce patches. (Patches from API-route dispatches
+          // would need a target page; that's a future spec.)
           // The target machine is addressed by its def; read the name off it.
           const dispatchedTouched = runtime.processEvent(machine.name, event)
           for (const name of dispatchedTouched) touched.add(name)
@@ -165,10 +151,7 @@ function synthesizeResponse(
 /** Apply rendered response effects (cookies, headers, status) to a Hono
  *  context. Used for GET routes that wrote to the response side-effect
  *  surface during render. */
-export function applyRenderedEffects(
-  c: Context,
-  effects: RenderedResponseEffects,
-): void {
+export function applyRenderedEffects(c: Context, effects: RenderedResponseEffects): void {
   effects.headers.forEach((value, key) => {
     c.header(key, value)
   })

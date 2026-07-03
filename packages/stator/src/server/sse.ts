@@ -1,8 +1,8 @@
-import { recompute, type Patch } from './recompute.ts'
+import { scopedLogger } from './logger.ts'
+import { type Patch, recompute } from './recompute.ts'
 import type { RenderState } from './render-context.ts'
 import type { RouteDefinition, RouteRequest } from './routing.ts'
 import type { SessionRuntime } from './session-runtime.ts'
-import { scopedLogger } from './logger.ts'
 
 const sseLog = scopedLogger('sse')
 
@@ -36,9 +36,7 @@ export interface Connection {
 const connections = new Map<string, Connection>()
 let nextId = 0
 
-export function registerConnection(
-  init: Omit<Connection, 'id' | 'closed'>,
-): Connection {
+export function registerConnection(init: Omit<Connection, 'id' | 'closed'>): Connection {
   const id = `sse${nextId++}`
   const conn: Connection = { ...init, id, closed: false }
   connections.set(id, conn)
@@ -114,10 +112,7 @@ export async function fanOut(touched: ReadonlySet<string>): Promise<void> {
       // Bumped from debug to warn — silent push failures were why "30-50%
       // delivery" was invisible in production logs.
       failed++
-      sseLog.warn(
-        { id: conn.id, sid: conn.sessionId, err: String(err) },
-        'sse push failed',
-      )
+      sseLog.warn({ id: conn.id, sid: conn.sessionId, err: String(err) }, 'sse push failed')
     }
   }
 

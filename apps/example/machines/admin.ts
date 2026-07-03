@@ -1,4 +1,4 @@
-import { defineMachine, activeConnectionCount } from '@statorjs/stator/server'
+import { activeConnectionCount, defineMachine } from '@statorjs/stator/server'
 import CartMachine from './cart.ts'
 
 type CartItem = { productId: string; quantity: number; unitPrice: number }
@@ -73,10 +73,8 @@ export default defineMachine({
         .map(([sid, snap]) => ({ sid, ...snap }))
         .sort((a, b) => b.lastUpdate - a.lastUpdate),
     activeCartCount: (ctx) => Object.keys(ctx.sessions).length,
-    totalItemsInCarts: (ctx) =>
-      Object.values(ctx.sessions).reduce((s, c) => s + c.itemCount, 0),
-    totalValueInCarts: (ctx) =>
-      Object.values(ctx.sessions).reduce((s, c) => s + c.total, 0),
+    totalItemsInCarts: (ctx) => Object.values(ctx.sessions).reduce((s, c) => s + c.itemCount, 0),
+    totalValueInCarts: (ctx) => Object.values(ctx.sessions).reduce((s, c) => s + c.total, 0),
     // Per-product aggregate: how many of each productId are currently
     // sitting in someone's cart, server-wide.
     countByProduct: (ctx) => {

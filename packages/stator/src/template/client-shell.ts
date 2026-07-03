@@ -17,7 +17,7 @@ export function clientShellAttrs(
   for (const key in decl) {
     const v = props[key]
     if (v == null) continue
-    const name = key.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())
+    const name = key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
     if (decl[key] === 'boolean') {
       if (v) out += ` ${name}`
     } else {

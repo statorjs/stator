@@ -1,19 +1,10 @@
 import {
-  HtmlBuilder,
-  escapeText,
-  escapeAttribute,
-  type ValuePosition,
-} from './parser.ts'
-import {
-  requireCurrentRenderState,
-  registerBinding,
   type RenderState,
+  registerBinding,
+  requireCurrentRenderState,
 } from '../server/render-context.ts'
-import {
-  isHtmlFragment,
-  createHtmlFragment,
-  type HtmlFragment,
-} from './types.ts'
+import { escapeAttribute, escapeText, HtmlBuilder, type ValuePosition } from './parser.ts'
+import { createHtmlFragment, type HtmlFragment, isHtmlFragment } from './types.ts'
 
 /**
  * Wrap a trusted HTML string so it's emitted **verbatim** — bypassing the text
@@ -28,14 +19,15 @@ import {
 export function raw(html: string): HtmlFragment {
   return createHtmlFragment(html)
 }
-import { isReadResult, type ReadResult } from './read.ts'
-import { isEachResult } from './each.ts'
+
 import { isBranchResult } from './conditional.ts'
 import {
-  isDirectiveInvocation,
-  type DirectiveInvocation,
   type DirectiveContext,
+  type DirectiveInvocation,
+  isDirectiveInvocation,
 } from './directives/core.ts'
+import { isEachResult } from './each.ts'
+import { isReadResult, type ReadResult } from './read.ts'
 
 export function html(strings: TemplateStringsArray, ...values: unknown[]): HtmlFragment {
   const state = requireCurrentRenderState()
@@ -107,11 +99,7 @@ function processValue(builder: HtmlBuilder, state: RenderState, value: unknown):
   throw new Error(`stator: cannot interpolate a plain value at ${pos.kind} position`)
 }
 
-function invokeDirective(
-  builder: HtmlBuilder,
-  inv: DirectiveInvocation,
-  elementId: string,
-): void {
+function invokeDirective(builder: HtmlBuilder, inv: DirectiveInvocation, elementId: string): void {
   const ctx: DirectiveContext<unknown> = {
     elementId,
     modifier: inv.modifier,
@@ -140,9 +128,7 @@ function handleRead(
       lastValue: r.value,
       kind: 'text',
     })
-    builder.pushRaw(
-      `<span data-slot="${r.slotId}">${escapeText(stringifyValue(r.value))}</span>`,
-    )
+    builder.pushRaw(`<span data-slot="${r.slotId}">${escapeText(stringifyValue(r.value))}</span>`)
     return
   }
   if (pos.kind === 'attr-value') {

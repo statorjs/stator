@@ -1,15 +1,15 @@
-import type { Plugin } from 'vite'
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { resolve, dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { transform } from 'esbuild'
+import type { Plugin } from 'vite'
 import {
-  compile,
   CompileError,
-  splitStator,
-  declaredRegions,
-  componentImportSpecifier,
   type CompileResult,
+  compile,
+  componentImportSpecifier,
+  declaredRegions,
+  splitStator,
 } from '../compiler/index.ts'
 
 /** Build a region resolver for a file: maps a component identifier used in
@@ -125,7 +125,7 @@ export function stator(): Plugin {
       // the scoped CSS participates in the module graph — the dev server walks
       // the graph after render to inject component CSS into <head>.
       const moduleSource = result.css
-        ? `import ${JSON.stringify(file + '?' + STYLE_QUERY)}\n${result.serverCode}`
+        ? `import ${JSON.stringify(`${file}?${STYLE_QUERY}`)}\n${result.serverCode}`
         : result.serverCode
 
       // The emitted module is TypeScript (type-only imports, prop annotations);
@@ -142,7 +142,7 @@ export function stator(): Plugin {
     handleHotUpdate(ctx) {
       if (!ctx.file.endsWith('.stator')) return
       cache.delete(ctx.file)
-      const affected = ['', '?' + STYLE_QUERY, '?' + CLIENT_QUERY]
+      const affected = ['', `?${STYLE_QUERY}`, `?${CLIENT_QUERY}`]
         .map((q) => ctx.server.moduleGraph.getModuleById(ctx.file + q))
         .filter((m): m is NonNullable<typeof m> => Boolean(m))
       return affected.length > 0 ? affected : undefined

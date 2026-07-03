@@ -1,11 +1,11 @@
-import { pushCollector, popCollector, type CollectedActor } from './use.ts'
+import { type CollectedActor, popCollector, pushCollector } from './use.ts'
 
 const ACTORS = Symbol('stator.actors')
 const DISPOSERS = Symbol('stator.disposers')
 
 /** camelCase author name → kebab DOM attribute (`unitPrice` → `unit-price`). */
 function camelToKebab(name: string): string {
-  return name.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())
+  return name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
 }
 
 /**

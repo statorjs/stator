@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
 import type { IScriptSnapshot } from 'typescript'
+import { describe, expect, it } from 'vitest'
 import { StatorVirtualCode, statorLanguagePlugin } from '../src/language-plugin.ts'
 
 function snap(text: string): IScriptSnapshot {

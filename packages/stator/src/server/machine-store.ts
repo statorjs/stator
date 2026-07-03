@@ -1,7 +1,7 @@
 import { createActor } from '../engine/index.ts'
 import type { MachineDef, SubscribeEvent } from './define-machine.ts'
-import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
 import { recordTouch } from './dispatch-context.ts'
+import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
 import { serverReadsResolver } from './reads-helpers.ts'
 import type { Store } from './store.ts'
 
@@ -100,8 +100,7 @@ export class MachineStore {
   private buildSubscriberIndex(): void {
     for (const def of this.defs.values()) {
       for (const sub of def.subscribes) {
-        const dispatch =
-          typeof sub.dispatch === 'string' ? { type: sub.dispatch } : sub.dispatch
+        const dispatch = typeof sub.dispatch === 'string' ? { type: sub.dispatch } : sub.dispatch
         let list = this.subscribersBySource.get(sub.from.name)
         if (!list) {
           list = []

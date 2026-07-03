@@ -22,8 +22,7 @@ export class RedisStore implements Store {
   private keyPrefix: string
 
   constructor(connection: string | RedisOptions, keyPrefix = 'stator:session') {
-    this.client =
-      typeof connection === 'string' ? new Redis(connection) : new Redis(connection)
+    this.client = typeof connection === 'string' ? new Redis(connection) : new Redis(connection)
     this.keyPrefix = keyPrefix
   }
 
@@ -55,11 +54,7 @@ export class RedisStore implements Store {
       // Pipeline HSET + EXPIRE so the whole hash's TTL refreshes atomically.
       // Any field write extends the session's idle window — see Store
       // interface docs for the per-session TTL semantic.
-      await this.client
-        .multi()
-        .hset(key, name, payload)
-        .expire(key, opts.ttlSeconds)
-        .exec()
+      await this.client.multi().hset(key, name, payload).expire(key, opts.ttlSeconds).exec()
     } else {
       await this.client.hset(key, name, payload)
     }

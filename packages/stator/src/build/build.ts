@@ -1,5 +1,5 @@
-import { cp, readdir, readFile, writeFile, rm, mkdir, stat } from 'node:fs/promises'
-import { resolve, join, relative } from 'node:path'
+import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { join, relative, resolve } from 'node:path'
 import { compile } from '../compiler/index.ts'
 
 /**
@@ -52,7 +52,7 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   for (const file of statorFiles) {
     const source = await readFile(file, 'utf8')
     const result = compile(source, { id: relative(outDir, file) })
-    await writeFile(file + '.ts', result.serverCode)
+    await writeFile(`${file}.ts`, result.serverCode)
     await rm(file)
     if (result.css) css += `/* ${relative(outDir, file)} */\n${result.css}\n`
   }

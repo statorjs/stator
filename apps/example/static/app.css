@@ -45,22 +45,27 @@
   --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
-html { color-scheme: light; }
-html[data-theme="dark"] { color-scheme: dark; }
+html {
+  color-scheme: light;
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
 
 * {
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
 }
 
 body {
   font-family:
-    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    Helvetica, Arial, sans-serif;
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
   color: var(--text);
   background: var(--bg);
   line-height: 1.5;
@@ -78,7 +83,9 @@ main {
   padding: 2.5rem 1.5rem 18rem;
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
   margin: 0;
   letter-spacing: -0.01em;
   font-weight: 600;
@@ -316,7 +323,9 @@ h3 {
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-sm);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .product-card:hover {
@@ -332,7 +341,7 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: "Georgia", "Times New Roman", serif;
   font-weight: 500;
   font-size: 1.6rem;
   letter-spacing: 0.08em;
@@ -399,7 +408,10 @@ button {
   font-size: 0.9rem;
   font-family: inherit;
   color: var(--text);
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
 }
 
 button:hover {
@@ -507,7 +519,7 @@ button:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: "Georgia", "Times New Roman", serif;
   font-weight: 500;
   font-size: 0.95rem;
   letter-spacing: 0.06em;
@@ -821,4 +833,3 @@ button:hover {
   text-align: right;
   width: 80px;
 }
-

@@ -31,7 +31,11 @@ type Directive =
   | { type: 'push-url'; to: string }
   | { type: 'replace-url'; to: string }
   | { type: 'focus'; target: { kind: 'slot' | 'element'; id: string } }
-  | { type: 'scroll'; target: { kind: 'slot' | 'element'; id: string }; behavior?: 'smooth' | 'auto' }
+  | {
+      type: 'scroll'
+      target: { kind: 'slot' | 'element'; id: string }
+      behavior?: 'smooth' | 'auto'
+    }
   | { type: 'event'; name: string; detail?: unknown }
 
 const EVENT_TYPES = ['click', 'submit', 'change', 'input'] as const
@@ -116,7 +120,7 @@ function handleEvent(e: Event): void {
         let descriptor: { machine: string; event: { type: string } }
         try {
           descriptor = JSON.parse(descriptorAttr)
-        } catch (err) {
+        } catch {
           console.error('stator: malformed event descriptor on form', form, descriptorAttr)
           return
         }
@@ -129,7 +133,11 @@ function handleEvent(e: Event): void {
       // accessibility, or focus management. Auto-intercepting every form
       // would silently change HTML semantics in ways the developer never
       // asked for.
-      if (form.hasAttribute('data-stator-enhance') && form.action && form.method.toLowerCase() === 'post') {
+      if (
+        form.hasAttribute('data-stator-enhance') &&
+        form.action &&
+        form.method.toLowerCase() === 'post'
+      ) {
         e.preventDefault()
         void submitForm(form)
         return
@@ -148,7 +156,7 @@ function handleEvent(e: Event): void {
   let descriptor: { machine: string; event: { type: string } }
   try {
     descriptor = JSON.parse(raw)
-  } catch (err) {
+  } catch {
     console.error('stator: malformed event descriptor on', el, raw)
     return
   }

@@ -1,9 +1,15 @@
-import { describe, it, expect } from 'vitest'
-import { lowerTemplate, type LowerMeta } from '../src/compiler/lower.ts'
+import { describe, expect, it } from 'vitest'
 import { compile } from '../src/compiler/compile.ts'
+import { type LowerMeta, lowerTemplate } from '../src/compiler/lower.ts'
 
 function meta(): LowerMeta {
-  return { usesChildren: false, regions: new Set(), components: new Set(), customElements: new Set(), refs: new Set() }
+  return {
+    usesChildren: false,
+    regions: new Set(),
+    components: new Set(),
+    customElements: new Set(),
+    refs: new Set(),
+  }
 }
 
 describe('compiler: children (stage 2)', () => {
@@ -24,9 +30,7 @@ describe('compiler: children (stage 2)', () => {
   })
 
   it('routes child="x" caller content into the named bag, default otherwise', () => {
-    const out = lowerTemplate(
-      '<Layout><div child="banner">Sale</div><p>body</p></Layout>',
-    )
+    const out = lowerTemplate('<Layout><div child="banner">Sale</div><p>body</p></Layout>')
     expect(out).toBe(
       'html`${Layout({ children: { default: html`<p>body</p>`, "banner": html`<div>Sale</div>` } })}`',
     )

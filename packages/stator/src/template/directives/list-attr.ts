@@ -1,11 +1,11 @@
 import {
   allocSlotId,
+  type RenderState,
   registerBinding,
   requireCurrentRenderState,
-  type RenderState,
 } from '../../server/render-context.ts'
 import { isReadResult, type ReadResult } from '../read.ts'
-import { defineDirective, invoke, type DirectiveInvocation } from './core.ts'
+import { type DirectiveInvocation, defineDirective, invoke } from './core.ts'
 
 /**
  * Shared shape for compound-attribute directives (`class:list`, `style:list`).

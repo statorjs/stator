@@ -1,14 +1,14 @@
 import {
-  html,
-  read,
-  each,
-  on,
-  when,
-  match,
   classList,
-  styleList,
-  type InstanceOf,
+  each,
   type HtmlFragment,
+  html,
+  type InstanceOf,
+  match,
+  on,
+  read,
+  styleList,
+  when,
 } from '@statorjs/stator/template'
 import type PollsMachine from '../machines/polls.ts'
 import type VoterMachine from '../machines/voter.ts'
@@ -56,17 +56,22 @@ export default function pollPage(
             const poll = (p.byId as (id: string) => Poll | undefined)(pollId)
             if (!poll) return ''
             const total = poll.options.reduce((s, o) => s + o.count, 0)
-            return total + ' vote' + (total === 1 ? '' : 's')
+            return `${total} vote${total === 1 ? '' : 's'}`
           })}
         </p>
       </header>
 
       ${match(
-        read(voter, (v) => ((v.votedFor as (id: string) => string | null)(pollId) ? 'voted' : 'voting')),
+        read(voter, (v) =>
+          (v.votedFor as (id: string) => string | null)(pollId) ? 'voted' : 'voting',
+        ),
         {
           voting: () => html`<ul class="vote-options">
             ${each(
-              read(polls, (p) => (p.byId as (id: string) => Poll | undefined)(pollId)?.options ?? []),
+              read(
+                polls,
+                (p) => (p.byId as (id: string) => Poll | undefined)(pollId)?.options ?? [],
+              ),
               (option) => html`<li class="vote-option">
                 <button
                   ${on('click', () =>
@@ -97,7 +102,10 @@ export default function pollPage(
 
             <ul class="results-list">
               ${each(
-                read(polls, (p) => (p.byId as (id: string) => Poll | undefined)(pollId)?.options ?? []),
+                read(
+                  polls,
+                  (p) => (p.byId as (id: string) => Poll | undefined)(pollId)?.options ?? [],
+                ),
                 (option) => html`<li class="results-row">
                   <div class="results-row-head">
                     <span class="results-row-text">${option.text}</span>
@@ -118,7 +126,7 @@ export default function pollPage(
                           if (total === 0) return '0%'
                           const o = poll.options.find((oo) => oo.id === option.id)
                           const pct = ((o?.count ?? 0) / total) * 100
-                          return pct.toFixed(1) + '%'
+                          return `${pct.toFixed(1)}%`
                         }),
                       })}
                     ></div>

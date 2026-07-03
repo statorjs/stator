@@ -1,17 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
+import { createRenderState, type RenderState, runInRender } from '../src/server/render-context.ts'
 import { SessionRuntime } from '../src/server/session-runtime.ts'
 import { InMemoryStore } from '../src/server/store.ts'
-import {
-  createRenderState,
-  runInRender,
-  type RenderState,
-} from '../src/server/render-context.ts'
+import { on } from '../src/template/directives/on.ts'
+import { each, renderListBody } from '../src/template/each.ts'
 import { html } from '../src/template/html.ts'
 import { read } from '../src/template/read.ts'
-import { each, renderListBody } from '../src/template/each.ts'
-import { on } from '../src/template/directives/on.ts'
 import type { InstanceOf } from '../src/template/types.ts'
 
 function makeCart() {
@@ -88,8 +84,9 @@ describe('html templating', () => {
   it('renders an attr-value read with a stator id on the parent', async () => {
     const { cart, state, runtime } = await buildRuntime()
     try {
-      const out = runInRender(state, () =>
-        html`<button class="${read(cart, (c) => (c.contains('p1') ? 'in' : ''))}">x</button>`,
+      const out = runInRender(
+        state,
+        () => html`<button class="${read(cart, (c) => (c.contains('p1') ? 'in' : ''))}">x</button>`,
       )
       expect(out.html).toContain('data-stator-id="e0"')
       expect(out.html).toContain('class=""')
@@ -105,8 +102,10 @@ describe('html templating', () => {
   it('attaches an on() directive to its parent as data-event-click', async () => {
     const { cart, state, runtime } = await buildRuntime()
     try {
-      const out = runInRender(state, () =>
-        html`<button ${on('click', () => cart.send({ type: 'ADD', productId: 'p1', unitPrice: 5 }))}>Add</button>`,
+      const out = runInRender(
+        state,
+        () =>
+          html`<button ${on('click', () => cart.send({ type: 'ADD', productId: 'p1', unitPrice: 5 }))}>Add</button>`,
       )
       expect(out.html).toContain('data-stator-id="e0"')
       expect(out.html).toContain('data-event-click="')
@@ -124,10 +123,17 @@ describe('html templating', () => {
       runtime.processEvent('CartMachine', { type: 'ADD', productId: 'p1', unitPrice: 5 })
       runtime.processEvent('CartMachine', { type: 'ADD', productId: 'p2', unitPrice: 7 })
 
-      const out = runInRender(state, () =>
-        html`<ul>${each(read(cart, (c) => c.items as Array<{ productId: string; quantity: number }>), (item) => html`<li>${item.productId} x${item.quantity}</li>`)}</ul>`,
+      const out = runInRender(
+        state,
+        () =>
+          html`<ul>${each(
+            read(cart, (c) => c.items as Array<{ productId: string; quantity: number }>),
+            (item) => html`<li>${item.productId} x${item.quantity}</li>`,
+          )}</ul>`,
       )
-      expect(out.html).toMatch(/<ul><span data-slot="s0" data-list="true" style="display:contents">.*<\/span><\/ul>/)
+      expect(out.html).toMatch(
+        /<ul><span data-slot="s0" data-list="true" style="display:contents">.*<\/span><\/ul>/,
+      )
       expect(out.html).toContain('<li>p1 x1</li>')
       expect(out.html).toContain('<li>p2 x1</li>')
       const listBinding = state.bindings.get('s0')!
@@ -142,8 +148,9 @@ describe('html templating', () => {
   it('a recompute-like loop produces a text patch when a selector value changes', async () => {
     const { cart, state, runtime } = await buildRuntime()
     try {
-      const fragment = runInRender(state, () =>
-        html`<header>Cart: ${read(cart, (c) => c.itemCount)}</header>`,
+      const fragment = runInRender(
+        state,
+        () => html`<header>Cart: ${read(cart, (c) => c.itemCount)}</header>`,
       )
       expect(fragment.html).toContain('<span data-slot="s0">0</span>')
 
@@ -170,8 +177,14 @@ describe('html templating', () => {
     try {
       runtime.processEvent('CartMachine', { type: 'ADD', productId: 'p1', unitPrice: 5 })
 
-      runInRender(state, () =>
-        html`<ul>${each(read(cart, (c) => c.items as Array<{ productId: string; quantity: number }>), (item, idx) => html`<li>${item.productId} qty=${read(cart, (c) => c.items[idx]?.quantity ?? 0)}</li>`)}</ul>`,
+      runInRender(
+        state,
+        () =>
+          html`<ul>${each(
+            read(cart, (c) => c.items as Array<{ productId: string; quantity: number }>),
+            (item, idx) =>
+              html`<li>${item.productId} qty=${read(cart, (c) => c.items[idx]?.quantity ?? 0)}</li>`,
+          )}</ul>`,
       )
       expect(state.bindings.has('s0:i0:s0')).toBe(true)
 

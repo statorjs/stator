@@ -1,15 +1,15 @@
 import {
-  requireCurrentRenderState,
   allocSlotId,
-  pushListScope,
   popListScope,
-  registerBinding,
-  unregisterBindingsForScope,
+  pushListScope,
   type RenderState,
+  registerBinding,
+  requireCurrentRenderState,
   type SlotId,
+  unregisterBindingsForScope,
 } from '../server/render-context.ts'
 import { isReadResult, type ReadResult } from './read.ts'
-import { isHtmlFragment, type HtmlFragment } from './types.ts'
+import { type HtmlFragment, isHtmlFragment } from './types.ts'
 
 export interface EachResult {
   readonly __isEachResult: true
@@ -19,9 +19,7 @@ export interface EachResult {
 
 export function isEachResult(v: unknown): v is EachResult {
   return (
-    typeof v === 'object' &&
-    v !== null &&
-    (v as Record<string, unknown>).__isEachResult === true
+    typeof v === 'object' && v !== null && (v as Record<string, unknown>).__isEachResult === true
   )
 }
 

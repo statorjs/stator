@@ -1,7 +1,7 @@
-import { describe, it, expect, afterAll } from 'vitest'
-import { resolve, dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { readFile, rm, stat } from 'node:fs/promises'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { afterAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../src/build/build.ts'
 
 /**

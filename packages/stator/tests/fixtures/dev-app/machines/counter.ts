@@ -8,7 +8,15 @@ export default defineMachine({
   events: {} as Events,
   context: { count: 0 },
   initial: 'idle',
-  states: { idle: { on: { INCREMENT: (ctx) => { ctx.count += 1 } } } },
+  states: {
+    idle: {
+      on: {
+        INCREMENT: (ctx) => {
+          ctx.count += 1
+        },
+      },
+    },
+  },
   selectors: {
     count: (ctx) => ctx.count,
     label: (ctx) => `count is ${ctx.count}`,

@@ -8,7 +8,7 @@
 
   <!-- Inline theme application BEFORE stylesheet to prevent FOUC -->
   <script>
-    (function () {
+    (() => {
       try {
         var saved = localStorage.getItem('stator-theme');
         if (saved === 'light' || saved === 'dark') {
@@ -596,7 +596,7 @@
 
   <!-- Theme toggle behavior -->
   <script>
-    (function () {
+    (() => {
       var THEME_KEY = 'stator-theme';
       var root = document.documentElement;
       var buttons = document.querySelectorAll('[data-theme-value]');
@@ -613,7 +613,7 @@
           root.removeAttribute('data-theme');
           try { localStorage.removeItem(THEME_KEY); } catch (e) {}
         }
-        buttons.forEach(function (b) {
+        buttons.forEach((b) => {
           b.setAttribute('aria-pressed', b.dataset.themeValue === value ? 'true' : 'false');
         });
       }
@@ -623,8 +623,8 @@
                   : 'auto';
       apply(initial);
 
-      buttons.forEach(function (b) {
-        b.addEventListener('click', function () { apply(b.dataset.themeValue); });
+      buttons.forEach((b) => {
+        b.addEventListener('click', () => { apply(b.dataset.themeValue); });
       });
     })();
   </script>

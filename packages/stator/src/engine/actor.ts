@@ -1,10 +1,4 @@
-import type {
-  ActionHelpers,
-  EventObject,
-  MachineDef,
-  Snapshot,
-  TransitionConfig,
-} from './types.ts'
+import type { ActionHelpers, EventObject, MachineDef, Snapshot, TransitionConfig } from './types.ts'
 
 /** The actor surface the rest of the framework consumes. Designed to the
  *  framework's actual needs — not XState's actor protocol. */
@@ -20,7 +14,10 @@ export interface Actor<C, E extends EventObject> {
   subscribe(listener: (snapshot: Snapshot<C>) => void): { unsubscribe(): void }
   /** Listen for a declared emit. Returns a remover. Used by cross-machine
    *  subscription wiring. */
-  on(emitName: string, listener: (event: { type: string; [k: string]: unknown }) => void): () => void
+  on(
+    emitName: string,
+    listener: (event: { type: string; [k: string]: unknown }) => void,
+  ): () => void
   /** Compact snapshot for the Store / client hydration seed. */
   getPersistedSnapshot(): Snapshot<C>
 }
@@ -106,9 +103,7 @@ export function createActor<C extends object, E extends EventObject, S extends s
       // The `on` map narrows the event per key; internally we treat every
       // transition uniformly against the full event union (the runtime event
       // IS the narrowed type for this key, so the coercion is sound).
-      type RawTransition =
-        | ((ctx: C, ev: E, h: ActionHelpers) => void)
-        | TransitionConfig<C, E, S>
+      type RawTransition = ((ctx: C, ev: E, h: ActionHelpers) => void) | TransitionConfig<C, E, S>
       const entry = node?.on?.[event.type as E['type']] as
         | RawTransition
         | RawTransition[]

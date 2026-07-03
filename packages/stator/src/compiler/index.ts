@@ -6,33 +6,34 @@
  *
  * See spec: stator-compiler-and-vite-plugin-implementation-plan.
  */
-export { splitStator, scanRegions } from './split.ts'
-export type { ParsedStator, SourceRegion, ScannedRegions } from './split.ts'
-export { toVirtualCode } from './virtual-code.ts'
-export type { VirtualCodeResult, VirtualFile, VirtualMapping } from './virtual-code.ts'
-export { lowerTemplate } from './lower.ts'
-export type { LowerMeta, LowerOptions } from './lower.ts'
-export { compile } from './compile.ts'
-export type { CompileResult, CompileOptions } from './compile.ts'
-export { scopeCss } from './styles.ts'
-export { scopeHash } from './hash.ts'
-export { declaredRegions, componentImportSpecifier } from './regions.ts'
-export { generateDts } from './dts.ts'
-export { emitClientModule, rewriteMembers } from './client-emit.ts'
+
 export type { EmitClientInput } from './client-emit.ts'
+export { emitClientModule, rewriteMembers } from './client-emit.ts'
+export type {
+  ClientAnalysis,
+  ClientDirective,
+  ClientElement,
+  ScriptClass,
+} from './client-script.ts'
 export {
   analyzeClient,
   analyzeScriptClasses,
   inferDeps,
+  isCustomElementTag,
   kebabToPascal,
   pascalToKebab,
-  isCustomElementTag,
 } from './client-script.ts'
-export type {
-  ClientElement,
-  ClientAnalysis,
-  ScriptClass,
-  ClientDirective,
-} from './client-script.ts'
-export { CompileError, locAt, offsetToLineCol, codeFrame } from './diagnostics.ts'
+export type { CompileOptions, CompileResult } from './compile.ts'
+export { compile } from './compile.ts'
 export type { DiagnosticLocation } from './diagnostics.ts'
+export { CompileError, codeFrame, locAt, offsetToLineCol } from './diagnostics.ts'
+export { generateDts } from './dts.ts'
+export { scopeHash } from './hash.ts'
+export type { LowerMeta, LowerOptions } from './lower.ts'
+export { lowerTemplate } from './lower.ts'
+export { componentImportSpecifier, declaredRegions } from './regions.ts'
+export type { ParsedStator, ScannedRegions, SourceRegion } from './split.ts'
+export { scanRegions, splitStator } from './split.ts'
+export { scopeCss } from './styles.ts'
+export type { VirtualCodeResult, VirtualFile, VirtualMapping } from './virtual-code.ts'
+export { toVirtualCode } from './virtual-code.ts'

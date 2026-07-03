@@ -1,7 +1,7 @@
-import { describe, it, expect, afterAll } from 'vitest'
-import { resolve, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { readFile, writeFile } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { afterAll, describe, expect, it } from 'vitest'
 import { createDevApp, type DevApp } from '../src/server/dev.ts'
 
 /**
@@ -133,7 +133,10 @@ describe('dev server: .stator end to end', () => {
       expect(before).toMatch(/<title[^>]*>dev-app<\/title>/)
 
       // Edit the template on disk; the watcher should rebuild the app graph.
-      await writeFile(file, original.replace('<title>dev-app</title>', '<title>edited-live</title>'))
+      await writeFile(
+        file,
+        original.replace('<title>dev-app</title>', '<title>edited-live</title>'),
+      )
 
       // Poll until the rebuilt app serves the change (chokidar + rebuild are async).
       let after = ''

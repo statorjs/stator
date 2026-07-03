@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { CachedStore } from '../src/server/cached-store.ts'
 import type { Store } from '../src/server/store.ts'
 

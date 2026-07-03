@@ -62,7 +62,9 @@
     "vite": "^6.0.0 || ^7.0.0"
   },
   "peerDependenciesMeta": {
-    "vite": { "optional": true }
+    "vite": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@hono/node-server": "^1.13.0",

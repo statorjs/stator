@@ -1,4 +1,4 @@
-import { html, type HtmlFragment } from '@statorjs/stator/template'
+import { type HtmlFragment, html } from '@statorjs/stator/template'
 
 /**
  * Plain HTML form posting to /new. The framework's POST handler

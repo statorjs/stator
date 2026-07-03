@@ -1,9 +1,4 @@
-import {
-  createActor,
-  type Actor,
-  type MachineDef,
-  type Snapshot,
-} from '../engine/index.ts'
+import { type Actor, createActor, type MachineDef, type Snapshot } from '../engine/index.ts'
 
 /**
  * The client-side reactive handle for a machine. Returned by `use()`, held as a

@@ -1,5 +1,5 @@
-import type { AnyMachineDef, EventOf, MachineDef } from './define-machine.ts'
 import type { HtmlFragment } from '../template/types.ts'
+import type { AnyMachineDef, EventOf, MachineDef } from './define-machine.ts'
 
 /** Machine context passed to a route's render function. Keyed by machine name. */
 export type RouteContext = Record<string, unknown>
@@ -109,9 +109,7 @@ export function defineRoute<TReads extends ReadonlyArray<MachineDef<any, any>>>(
 
 export function isStatorRoute(v: unknown): v is RouteDefinition {
   return (
-    typeof v === 'object' &&
-    v !== null &&
-    (v as Record<string, unknown>).__isStatorRoute === true
+    typeof v === 'object' && v !== null && (v as Record<string, unknown>).__isStatorRoute === true
   )
 }
 
@@ -160,12 +158,18 @@ export interface ApiRouteHelpers {
 export interface ApiRouteDefinition {
   readonly __isStatorApiRoute: true
   reads: MachineDef<any, any>[]
-  handler: (request: RouteRequest, helpers: ApiRouteHelpers) => Promise<ApiRouteResult> | ApiRouteResult
+  handler: (
+    request: RouteRequest,
+    helpers: ApiRouteHelpers,
+  ) => Promise<ApiRouteResult> | ApiRouteResult
 }
 
 export interface DefineApiRouteConfig<TReads extends ReadonlyArray<MachineDef<any, any>>> {
   reads?: TReads
-  handler: (request: RouteRequest, helpers: ApiRouteHelpers) => Promise<ApiRouteResult> | ApiRouteResult
+  handler: (
+    request: RouteRequest,
+    helpers: ApiRouteHelpers,
+  ) => Promise<ApiRouteResult> | ApiRouteResult
 }
 
 export function defineApiRoute<TReads extends ReadonlyArray<MachineDef<any, any>>>(

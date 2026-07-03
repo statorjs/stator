@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import * as clientApi from '../src/client/index.ts'
 import { emitClientModule, rewriteMembers } from '../src/compiler/client-emit.ts'
 import type { ClientDirective } from '../src/compiler/client-script.ts'
-import * as clientApi from '../src/client/index.ts'
 
 describe('compiler: rewriteMembers', () => {
   const members = new Set(['qty', 'inc', 'count'])
@@ -40,13 +40,15 @@ export class QuantityStepper extends StatorElement {
       directives,
       members,
     })
-    expect(out).toContain("import { StatorElement, defineElement, use, machine, bind, effect, dispatch }")
+    expect(out).toContain(
+      'import { StatorElement, defineElement, use, machine, bind, effect, dispatch }',
+    )
     expect(out).toContain('export class QuantityStepper extends StatorElement')
     expect(out).toContain('class __QuantityStepperImpl extends QuantityStepper')
     expect(out).toContain('this.querySelector(\'[data-b="b0"]\')')
     expect(out).toContain('addEventListener("click", (e) => this.dec(e))')
     expect(out).toContain('bind([this.qty], () => (this.qty.count)')
-    expect(out).toContain("defineElement(__QuantityStepperImpl, \"quantity-stepper\")")
+    expect(out).toContain('defineElement(__QuantityStepperImpl, "quantity-stepper")')
   })
 
   it('the emitted module runs end-to-end in the DOM', () => {

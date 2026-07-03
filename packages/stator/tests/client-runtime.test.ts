@@ -1,15 +1,22 @@
 // @vitest-environment happy-dom
-import { describe, it, expect } from 'vitest'
-import { machine } from '../src/client/machine.ts'
-import { use, type ClientInstance } from '../src/client/use.ts'
-import { StatorElement, defineElement } from '../src/client/element.ts'
+import { describe, expect, it } from 'vitest'
 import { bind } from '../src/client/bind.ts'
+import { defineElement, StatorElement } from '../src/client/element.ts'
+import { machine } from '../src/client/machine.ts'
+import { type ClientInstance, use } from '../src/client/use.ts'
 
 describe('client runtime (3b stage 0)', () => {
   it('machine() desugars to a usable single-state machine', () => {
     const Qty = machine({
       count: 1,
-      on: { INC: (s: any) => { s.count++ }, DEC: (s: any) => { s.count = Math.max(1, s.count - 1) } },
+      on: {
+        INC: (s: any) => {
+          s.count++
+        },
+        DEC: (s: any) => {
+          s.count = Math.max(1, s.count - 1)
+        },
+      },
       select: { atMax: (s: any) => s.count >= 3 },
     })
     expect(Qty.name).toBe('ClientMachine')
@@ -20,7 +27,11 @@ describe('client runtime (3b stage 0)', () => {
   it('use() exposes live context + selectors and send() drives them', () => {
     const Qty = machine({
       count: 1,
-      on: { INC: (s: any) => { s.count++ } },
+      on: {
+        INC: (s: any) => {
+          s.count++
+        },
+      },
       select: { doubled: (s: any) => s.count * 2 },
     })
     const inst = use(Qty) as ClientInstance & { count: number; doubled: number }
@@ -36,7 +47,11 @@ describe('client runtime (3b stage 0)', () => {
     const Cart = machine({
       unitPrice: 0,
       count: 1,
-      on: { INC: (s: any) => { s.count++ } },
+      on: {
+        INC: (s: any) => {
+          s.count++
+        },
+      },
       select: { lineTotal: (s: any) => s.unitPrice * s.count },
     })
     const inst = use(Cart, { unitPrice: 12 }) as ClientInstance & { lineTotal: number }
@@ -49,15 +64,29 @@ describe('client runtime (3b stage 0)', () => {
   it('StatorElement owns actor lifecycle and bind() updates the DOM', () => {
     const Qty = machine({
       count: 1,
-      on: { INC: (s: any) => { s.count++ } },
+      on: {
+        INC: (s: any) => {
+          s.count++
+        },
+      },
     })
 
     class QuantityStepper extends StatorElement {
       qty = use(Qty) as ClientInstance & { count: number }
-      inc() { this.qty.send('INC') }
+      inc() {
+        this.qty.send('INC')
+      }
       protected setup() {
         const out = this.querySelector('[data-ref="count"]')!
-        this.track(bind([this.qty], () => this.qty.count, (v) => { out.textContent = String(v) }))
+        this.track(
+          bind(
+            [this.qty],
+            () => this.qty.count,
+            (v) => {
+              out.textContent = String(v)
+            },
+          ),
+        )
         const btn = this.querySelector('[data-ref="inc"]')!
         btn.addEventListener('click', () => this.inc())
       }

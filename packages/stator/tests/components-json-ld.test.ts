@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { JsonLd, ldToString } from '../src/components/json-ld.ts'
 import { raw } from '../src/template/html.ts'
 import { isHtmlFragment } from '../src/template/types.ts'

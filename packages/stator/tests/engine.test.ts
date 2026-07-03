@@ -1,11 +1,9 @@
-import { describe, it, expect } from 'vitest'
-import { defineMachine, createActor } from '../src/engine/index.ts'
+import { describe, expect, it } from 'vitest'
+import { createActor, defineMachine } from '../src/engine/index.ts'
 
 describe('engine: defineMachine + createActor', () => {
   it('runs inline actions with per-transition narrowing', () => {
-    type Events =
-      | { type: 'SET'; field: 'name' | 'city'; value: string }
-      | { type: 'CLEAR' }
+    type Events = { type: 'SET'; field: 'name' | 'city'; value: string } | { type: 'CLEAR' }
 
     const M = defineMachine({
       name: 'Form',
@@ -17,8 +15,13 @@ describe('engine: defineMachine + createActor', () => {
         editing: {
           on: {
             // ev is narrowed to the SET member — ev.field / ev.value are typed
-            SET: (ctx, ev) => { ctx[ev.field] = ev.value },
-            CLEAR: (ctx) => { ctx.name = ''; ctx.city = '' },
+            SET: (ctx, ev) => {
+              ctx[ev.field] = ev.value
+            },
+            CLEAR: (ctx) => {
+              ctx.name = ''
+              ctx.city = ''
+            },
           },
         },
       },
@@ -54,13 +57,17 @@ describe('engine: defineMachine + createActor', () => {
       states: {
         shipping: {
           on: {
-            SET_FIELD: (ctx, ev) => { ctx[ev.field] = ev.value },
+            SET_FIELD: (ctx, ev) => {
+              ctx[ev.field] = ev.value
+            },
             SUBMIT_SHIPPING: { to: 'payment', when: (ctx) => ctx.name.trim() !== '' },
           },
         },
         payment: {
           on: {
-            SET_FIELD: (ctx, ev) => { ctx[ev.field] = ev.value },
+            SET_FIELD: (ctx, ev) => {
+              ctx[ev.field] = ev.value
+            },
             SUBMIT_PAYMENT: { to: 'complete', when: (ctx) => /^\d{4}$/.test(ctx.card) },
           },
         },
@@ -104,7 +111,9 @@ describe('engine: defineMachine + createActor', () => {
               // first-time add → ITEM_ADDED; repeat → QTY_CHANGED
               {
                 when: (ctx, ev) => !ctx.items.some((i) => i.id === ev.id),
-                do: (ctx, ev) => { ctx.items.push({ id: ev.id, qty: 1 }) },
+                do: (ctx, ev) => {
+                  ctx.items.push({ id: ev.id, qty: 1 })
+                },
                 emit: 'ITEM_ADDED',
               },
               {
@@ -149,7 +158,12 @@ describe('engine: defineMachine + createActor', () => {
       states: {
         idle: {
           on: {
-            ADD: { do: (ctx, ev) => { ctx.items.push(ev.item) }, emit: 'ITEM_ADDED' },
+            ADD: {
+              do: (ctx, ev) => {
+                ctx.items.push(ev.item)
+              },
+              emit: 'ITEM_ADDED',
+            },
           },
         },
       },
@@ -177,7 +191,15 @@ describe('engine: defineMachine + createActor', () => {
       events: {} as Events,
       context: { n: 0 },
       initial: 'go',
-      states: { go: { on: { INC: (ctx) => { ctx.n += 1 } } } },
+      states: {
+        go: {
+          on: {
+            INC: (ctx) => {
+              ctx.n += 1
+            },
+          },
+        },
+      },
     })
 
     const a = createActor(M).start()
@@ -198,7 +220,15 @@ describe('engine: defineMachine + createActor', () => {
       events: {} as Events,
       context: { n: 0 },
       initial: 'go',
-      states: { go: { on: { INC: (ctx) => { ctx.n += 1 } } } },
+      states: {
+        go: {
+          on: {
+            INC: (ctx) => {
+              ctx.n += 1
+            },
+          },
+        },
+      },
     })
 
     const a = createActor(M).start()
@@ -223,8 +253,10 @@ describe('engine: defineMachine + createActor', () => {
       initial: 'ready',
       states: { ready: {} },
       selectors: {
-        byId: (ctx) => (id: string): Product | undefined =>
-          ctx.items.find((p) => p.id === id),
+        byId:
+          (ctx) =>
+          (id: string): Product | undefined =>
+            ctx.items.find((p) => p.id === id),
       },
     })
 

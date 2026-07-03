@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
-import { resolve, dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { describe, expect, it } from 'vitest'
 import { discoverMachines } from '../src/server/discovery.ts'
 import { discoverRoutes } from '../src/server/route-discovery.ts'
 

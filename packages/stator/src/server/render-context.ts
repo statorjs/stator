@@ -83,7 +83,7 @@ function topScope(state: RenderState): Scope {
 
 export function allocSlotId(state: RenderState): SlotId {
   const scope = topScope(state)
-  const id = `${scope.prefix ? scope.prefix + ':' : ''}s${scope.counter++}`
+  const id = `${scope.prefix ? `${scope.prefix}:` : ''}s${scope.counter++}`
   return id
 }
 
@@ -120,7 +120,7 @@ export function registerBinding(state: RenderState, binding: Binding): void {
 export function unregisterBindingsForScope(state: RenderState, scopePrefix: string): void {
   const toRemove: SlotId[] = []
   for (const slotId of state.bindings.keys()) {
-    if (slotId.startsWith(scopePrefix + ':')) {
+    if (slotId.startsWith(`${scopePrefix}:`)) {
       toRemove.push(slotId)
     }
   }

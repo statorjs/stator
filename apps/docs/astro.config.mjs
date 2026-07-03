@@ -1,5 +1,5 @@
-import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
+import { defineConfig } from 'astro/config'
 
 // Sidebar groups mirror the chisel docs categories under src/content/docs.
 // Each group autogenerates from its directory; intra-group order comes from

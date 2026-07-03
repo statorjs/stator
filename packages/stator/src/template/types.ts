@@ -6,11 +6,10 @@ import type { EventDescriptor } from '../server/render-context.ts'
  * (each selector as a property carrying its return type, callable if it returns
  * a function) plus the framework-provided `send` / `state` / `snapshot`.
  */
-export type InstanceOf<TDef extends AnyMachineDef> = SelectorsOf<TDef> &
-  InstanceCommon
+export type InstanceOf<TDef extends AnyMachineDef> = SelectorsOf<TDef> & InstanceCommon
 
 export interface InstanceCommon<TStateKey extends string = string> {
-  send(event: { type: string; [k: string]: unknown }): EventDescriptor | void
+  send(event: { type: string; [k: string]: unknown }): EventDescriptor | undefined
   readonly state: TStateKey
   readonly snapshot: unknown
 }
@@ -29,8 +28,6 @@ export function createHtmlFragment(html: string): HtmlFragment {
 
 export function isHtmlFragment(v: unknown): v is HtmlFragment {
   return (
-    typeof v === 'object' &&
-    v !== null &&
-    (v as Record<string, unknown>).__isHtmlFragment === true
+    typeof v === 'object' && v !== null && (v as Record<string, unknown>).__isHtmlFragment === true
   )
 }

@@ -1,11 +1,11 @@
-import { createRenderState, runInRender, type RenderState } from './render-context.ts'
-import type { SessionRuntime } from './session-runtime.ts'
+import { createRenderState, type RenderState, runInRender } from './render-context.ts'
 import type {
   RouteDefinition,
-  RouteRequest,
   RouteRenderContext,
+  RouteRequest,
   RouteResponseContext,
 } from './routing.ts'
+import type { SessionRuntime } from './session-runtime.ts'
 
 export interface RenderResult {
   html: string
@@ -19,7 +19,12 @@ export interface RenderResult {
 export interface RenderedResponseEffects {
   status: number
   headers: Headers
-  cookies: Array<{ name: string; value: string; options: import('./routing.ts').RouteCookieOptions | undefined; deleted: boolean }>
+  cookies: Array<{
+    name: string
+    value: string
+    options: import('./routing.ts').RouteCookieOptions | undefined
+    deleted: boolean
+  }>
 }
 
 /**
@@ -37,8 +42,12 @@ function createResponseContext(): {
     cookies: [],
   }
   const ctx: RouteResponseContext = {
-    get status() { return effects.status },
-    set status(s: number) { effects.status = s },
+    get status() {
+      return effects.status
+    },
+    set status(s: number) {
+      effects.status = s
+    },
     headers: effects.headers,
     cookies: {
       set(name, value, options) {
@@ -91,9 +100,7 @@ export function renderRoute(
     }
     const proxy = runtime.proxyFor(def.name)
     if (!proxy) {
-      throw new Error(
-        `stator: route reads "${def.name}" but it's not loaded into the runtime`,
-      )
+      throw new Error(`stator: route reads "${def.name}" but it's not loaded into the runtime`)
     }
     ;(renderCtx as Record<string, unknown>)[def.name] = proxy
   }

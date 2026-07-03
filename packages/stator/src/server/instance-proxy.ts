@@ -1,10 +1,10 @@
 import type { Actor, MachineDef } from '../engine/index.ts'
+import type { InstanceOf } from '../template/types.ts'
 import {
-  getCurrentRenderState,
   createEventDescriptor,
   type EventDescriptor,
+  getCurrentRenderState,
 } from './render-context.ts'
-import type { InstanceOf } from '../template/types.ts'
 
 export interface InstanceHandle<TDef extends MachineDef = MachineDef> {
   readonly def: TDef
@@ -35,11 +35,12 @@ export function createInstanceProxy<TDef extends MachineDef>(
   Object.defineProperty(proxy, 'send', {
     enumerable: false,
     configurable: false,
-    value: (event: { type: string; [k: string]: unknown }): EventDescriptor | void => {
+    value: (event: { type: string; [k: string]: unknown }): EventDescriptor | undefined => {
       if (getCurrentRenderState()) {
         return createEventDescriptor(def.name, event)
       }
       actor.send(event as never)
+      return undefined
     },
   })
 

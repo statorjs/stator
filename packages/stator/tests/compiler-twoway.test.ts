@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
-import { describe, it, expect } from 'vitest'
-import { compile } from '../src/compiler/compile.ts'
+import { describe, expect, it } from 'vitest'
 import * as clientApi from '../src/client/index.ts'
+import { compile } from '../src/compiler/compile.ts'
 
 const SEARCH = `<search-box>
   <input bind:value={draft.query} />
@@ -23,7 +23,7 @@ describe('compiler: two-way bind:value (3b stage 6b)', () => {
     expect(clientCode).toContain('.value !== s')
     // DOM → state (@set on input, IME-guarded)
     expect(clientCode).toContain('addEventListener("input"')
-    expect(clientCode).toContain("if (e.isComposing) return")
+    expect(clientCode).toContain('if (e.isComposing) return')
     expect(clientCode).toContain(`send({ type: '@set', key: "query", value:`)
   })
 

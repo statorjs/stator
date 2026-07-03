@@ -1,8 +1,8 @@
-import { describe, it, expect, afterAll } from 'vitest'
-import ts from 'typescript'
-import { resolve, dirname } from 'node:path'
+import { readFile, rm, writeFile } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { readFile, writeFile, rm } from 'node:fs/promises'
+import ts from 'typescript'
+import { afterAll, describe, expect, it } from 'vitest'
 import { generateDts } from '../src/compiler/dts.ts'
 
 /**
@@ -14,7 +14,7 @@ import { generateDts } from '../src/compiler/dts.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const cardStator = resolve(here, 'fixtures/typegen/card.stator')
-const cardDts = cardStator + '.d.ts'
+const cardDts = `${cardStator}.d.ts`
 
 afterAll(async () => {
   await rm(cardDts, { force: true })
@@ -39,13 +39,17 @@ function typecheck(callerSource: string, extraFiles: Record<string, string>): st
     useCaseSensitiveFileNames: () => true,
     getNewLine: () => '\n',
   }
-  const program = ts.createProgram(['/caller.ts'], {
-    noEmit: true,
-    strict: true,
-    moduleResolution: ts.ModuleResolutionKind.Bundler,
-    target: ts.ScriptTarget.ES2022,
-    skipLibCheck: true,
-  }, host)
+  const program = ts.createProgram(
+    ['/caller.ts'],
+    {
+      noEmit: true,
+      strict: true,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      target: ts.ScriptTarget.ES2022,
+      skipLibCheck: true,
+    },
+    host,
+  )
   return ts
     .getPreEmitDiagnostics(program)
     .map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'))

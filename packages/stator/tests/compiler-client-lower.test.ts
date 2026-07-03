@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
-import { lowerTemplate, type LowerMeta } from '../src/compiler/lower.ts'
-import { inferDeps, type ClientDirective } from '../src/compiler/client-script.ts'
+import { describe, expect, it } from 'vitest'
+import { type ClientDirective, inferDeps } from '../src/compiler/client-script.ts'
+import { type LowerMeta, lowerTemplate } from '../src/compiler/lower.ts'
 
 function meta(): LowerMeta {
   return {
@@ -71,10 +71,7 @@ describe('compiler: client-component lowering', () => {
   })
 
   it('keeps ref: (data-ref) alongside collected client directives', () => {
-    const { shell, directives } = lowerClient(
-      '<input ref:field bind:value={draft.q} />',
-      ['draft'],
-    )
+    const { shell, directives } = lowerClient('<input ref:field bind:value={draft.q} />', ['draft'])
     expect(shell).toBe('html`<input data-ref="field" data-b="b0" />`')
     expect(directives[0]).toMatchObject({ kind: 'bind', target: 'value', deps: ['draft'] })
   })

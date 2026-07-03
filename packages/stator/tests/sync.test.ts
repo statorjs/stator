@@ -1,7 +1,7 @@
-import { describe, it, expect, afterAll } from 'vitest'
-import { resolve, dirname, join } from 'node:path'
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { mkdir, writeFile, rm, stat, readFile } from 'node:fs/promises'
+import { afterAll, describe, expect, it } from 'vitest'
 import { syncTypes } from '../src/build/sync.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -10,7 +10,12 @@ const root = resolve(here, '.tmp-sync-app')
 afterAll(() => rm(root, { recursive: true, force: true }))
 
 async function exists(p: string): Promise<boolean> {
-  try { await stat(p); return true } catch { return false }
+  try {
+    await stat(p)
+    return true
+  } catch {
+    return false
+  }
 }
 
 describe('build: syncTypes', () => {

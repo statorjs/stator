@@ -31,14 +31,12 @@ export function generateDts(
       ? '{ children?: any }'
       : 'Record<string, never>'
 
-  const lines = [
-    "import type { HtmlFragment } from '@statorjs/stator/template'",
-  ]
+  const lines = ["import type { HtmlFragment } from '@statorjs/stator/template'"]
   if (hoisted) lines.push(hoisted)
   lines.push('')
   lines.push(`declare const _default: (props: ${propsT}) => HtmlFragment`)
   lines.push('export default _default')
-  return lines.join('\n') + '\n'
+  return `${lines.join('\n')}\n`
 }
 
 /** Collect the import/type/interface declarations from frontmatter (for the

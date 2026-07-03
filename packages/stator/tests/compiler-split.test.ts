@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { splitStator } from '../src/compiler/split.ts'
 
 describe('compiler: splitStator', () => {
@@ -20,7 +20,7 @@ import type CartMachine from '../machines/cart.ts'
 </script>
 `
     const r = splitStator(src)
-    expect(r.frontmatter).toContain("import { read }")
+    expect(r.frontmatter).toContain('import { read }')
     expect(r.frontmatter).toContain('import type CartMachine')
     expect(r.template).toBe('<div class="cart">Total: {read(cart, c => c.total)}</div>')
     expect(r.styles).toEqual(['.cart { color: red; }'])

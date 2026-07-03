@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
-import { lowerTemplate, type LowerMeta } from '../src/compiler/lower.ts'
+import { describe, expect, it } from 'vitest'
 import { CompileError } from '../src/compiler/diagnostics.ts'
+import { type LowerMeta, lowerTemplate } from '../src/compiler/lower.ts'
 
 function meta(): LowerMeta {
   return {

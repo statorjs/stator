@@ -41,19 +41,23 @@ export default defineMachine({
   states: {
     shipping: {
       on: {
-        SET_FIELD: (ctx, ev) => { setField(ctx, ev) },
+        SET_FIELD: (ctx, ev) => {
+          setField(ctx, ev)
+        },
         SUBMIT_SHIPPING: { to: 'payment', when: shippingValid },
       },
     },
     payment: {
       on: {
-        SET_FIELD: (ctx, ev) => { setField(ctx, ev) },
+        SET_FIELD: (ctx, ev) => {
+          setField(ctx, ev)
+        },
         BACK: { to: 'shipping' },
         SUBMIT_PAYMENT: {
           to: 'complete',
           when: (ctx) => /^\d{4}$/.test(ctx.paymentLast4),
           do: (ctx) => {
-            ctx.orderNumber = 'ORD-' + Math.random().toString(36).slice(2, 8).toUpperCase()
+            ctx.orderNumber = `ORD-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
           },
           emit: 'ORDER_PLACED',
         },

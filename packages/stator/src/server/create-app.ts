@@ -1,11 +1,11 @@
 import { resolve } from 'node:path'
 import { serve } from '@hono/node-server'
 import { discoverMachines } from './discovery.ts'
-import { discoverRoutes } from './route-discovery.ts'
-import { MachineStore } from './machine-store.ts'
 import { buildHonoApp } from './http.ts'
-import { InMemoryStore, type Store } from './store.ts'
 import { logger } from './logger.ts'
+import { MachineStore } from './machine-store.ts'
+import { discoverRoutes } from './route-discovery.ts'
+import { InMemoryStore, type Store } from './store.ts'
 
 export interface CreateAppConfig {
   machinesDir: string

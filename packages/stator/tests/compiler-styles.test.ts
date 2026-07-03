@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { scopeCss } from '../src/compiler/styles.ts'
 
 const H = 'abcd1234'

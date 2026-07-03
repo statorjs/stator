@@ -1,7 +1,7 @@
 import { defineRoute } from '../../../src/server/routing.ts'
+import { on } from '../../../src/template/directives/on.ts'
 import { html } from '../../../src/template/html.ts'
 import { read } from '../../../src/template/read.ts'
-import { on } from '../../../src/template/directives/on.ts'
 import CounterMachine from '../machines/counter.ts'
 
 export const GET = defineRoute({

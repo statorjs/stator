@@ -1,6 +1,6 @@
 import ts from 'typescript'
+import type { ClientDirective, ClientElement } from './client-script.ts'
 import { CompileError } from './diagnostics.ts'
-import type { ClientElement, ClientDirective } from './client-script.ts'
 
 /**
  * Phase 3b stage 5 — emit the client entry module for a client component: the
@@ -43,7 +43,7 @@ export function emitClientModule(input: EmitClientInput): string {
     const node = `n${i++}`
     lines.push(`    const ${node} = this.querySelector('[data-b="${marker}"]')`)
     lines.push(`    if (${node}) {`)
-    for (const d of group) lines.push('      ' + wireDirective(node, d, members))
+    for (const d of group) lines.push(`      ${wireDirective(node, d, members)}`)
     lines.push('    }')
   }
 
@@ -146,7 +146,13 @@ function stripClientPrimitiveImports(script: string): string {
 /** Prefix class-member identifiers in an expression with `this.` (skipping the
  *  property-name side of member access, so `qty.count` → `this.qty.count`). */
 export function rewriteMembers(expr: string, members: Set<string>): string {
-  const sf = ts.createSourceFile('e.ts', `(${expr})`, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const sf = ts.createSourceFile(
+    'e.ts',
+    `(${expr})`,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  )
   const repls: Array<[start: number, end: number]> = []
   const visit = (n: ts.Node): void => {
     if (ts.isIdentifier(n)) {
@@ -168,7 +174,7 @@ export function rewriteMembers(expr: string, members: Set<string>): string {
   let text = `(${expr})`
   repls.sort((a, b) => b[0] - a[0])
   for (const [start, end] of repls) {
-    text = text.slice(0, start) + 'this.' + text.slice(start, end) + text.slice(end)
+    text = `${text.slice(0, start)}this.${text.slice(start, end)}${text.slice(end)}`
   }
   return text.slice(1, -1) // remove the wrapping parens
 }

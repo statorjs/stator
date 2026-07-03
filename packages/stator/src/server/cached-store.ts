@@ -92,7 +92,7 @@ export class CachedStore implements Store {
   }
 
   async deleteSession(sid: string): Promise<void> {
-    const prefix = sid + ':'
+    const prefix = `${sid}:`
     for (const k of [...this.cache.keys()]) {
       if (k.startsWith(prefix)) this.cache.delete(k)
     }

@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
-import { lowerTemplate } from '../src/compiler/lower.ts'
+import { describe, expect, it } from 'vitest'
 import { CompileError } from '../src/compiler/diagnostics.ts'
+import { lowerTemplate } from '../src/compiler/lower.ts'
 
 describe('compiler: component invocation (stage 1)', () => {
   it('lowers a self-closing component to a call with props', () => {

@@ -1,12 +1,12 @@
-import { resolve, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { stat } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
+  CachedStore,
   createApp,
   InMemoryStore,
-  RedisStore,
-  CachedStore,
   logger,
+  RedisStore,
   type Store,
 } from '@statorjs/stator/server'
 
@@ -49,9 +49,7 @@ const app = await createApp({
   staticDir: resolve(dist, 'static'),
   store,
   sessionTtlSeconds: Number(process.env.SESSION_TTL_SECONDS ?? 86400),
-  headExtras: hasCss
-    ? () => '<link rel="stylesheet" href="/static/components.css">'
-    : undefined,
+  headExtras: hasCss ? () => '<link rel="stylesheet" href="/static/components.css">' : undefined,
 })
 
 await app.listen(port)

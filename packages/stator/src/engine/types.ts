@@ -60,33 +60,20 @@ export interface TransitionConfig<
   emit?: string | string[]
 }
 
-export type Transition<
-  C,
-  E extends EventObject,
-  S extends string,
-  R = Record<string, any>,
-> = Action<C, E, R> | TransitionConfig<C, E, S, R>
+export type Transition<C, E extends EventObject, S extends string, R = Record<string, any>> =
+  | Action<C, E, R>
+  | TransitionConfig<C, E, S, R>
 
 /** The `on` map: each event type maps to a transition (or an ordered array of
  *  guarded candidates — first whose `when` passes wins) whose action/guard see
  *  the event NARROWED to exactly that type. This is the Option A payoff. */
-export type OnMap<
-  C,
-  E extends EventObject,
-  S extends string,
-  R = Record<string, any>,
-> = {
+export type OnMap<C, E extends EventObject, S extends string, R = Record<string, any>> = {
   [K in E['type']]?:
     | Transition<C, Extract<E, { type: K }>, S, R>
     | Array<Transition<C, Extract<E, { type: K }>, S, R>>
 }
 
-export interface StateNode<
-  C,
-  E extends EventObject,
-  S extends string,
-  R = Record<string, any>,
-> {
+export interface StateNode<C, E extends EventObject, S extends string, R = Record<string, any>> {
   on?: OnMap<C, E, S, R>
 }
 
@@ -184,8 +171,6 @@ export type EventOf<D extends AnyMachineDef> =
 
 export function isStatorMachine(v: unknown): v is AnyMachineDef {
   return (
-    typeof v === 'object' &&
-    v !== null &&
-    (v as Record<string, unknown>).__isStatorMachine === true
+    typeof v === 'object' && v !== null && (v as Record<string, unknown>).__isStatorMachine === true
   )
 }

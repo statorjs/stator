@@ -44,9 +44,7 @@ export default defineMachine({
     ITEM_QUANTITY_CHANGED: { payload: cartSnapshot },
     CART_CLEARED: { payload: cartSnapshot },
   },
-  subscribes: [
-    { from: CheckoutMachine, event: 'ORDER_PLACED', dispatch: 'CLEAR' },
-  ],
+  subscribes: [{ from: CheckoutMachine, event: 'ORDER_PLACED', dispatch: 'CLEAR' }],
 
   context: { items: [] } as CartContext,
 
@@ -60,7 +58,8 @@ export default defineMachine({
             when: (ctx, ev) => !ctx.items.some((i) => i.productId === ev.productId),
             do: (ctx, ev, { reads }) => {
               const product = reads.ProductsMachine.byId(ev.productId)
-              if (product) ctx.items.push({ productId: ev.productId, quantity: 1, unitPrice: product.price })
+              if (product)
+                ctx.items.push({ productId: ev.productId, quantity: 1, unitPrice: product.price })
             },
             emit: 'ITEM_ADDED',
           },
@@ -73,7 +72,9 @@ export default defineMachine({
           },
         ],
         REMOVE_ITEM: {
-          do: (ctx, ev) => { ctx.items = ctx.items.filter((i) => i.productId !== ev.productId) },
+          do: (ctx, ev) => {
+            ctx.items = ctx.items.filter((i) => i.productId !== ev.productId)
+          },
           emit: 'ITEM_REMOVED',
         },
         INCREMENT: {
@@ -103,7 +104,12 @@ export default defineMachine({
             emit: 'ITEM_QUANTITY_CHANGED',
           },
         ],
-        CLEAR: { do: (ctx) => { ctx.items = [] }, emit: 'CART_CLEARED' },
+        CLEAR: {
+          do: (ctx) => {
+            ctx.items = []
+          },
+          emit: 'CART_CLEARED',
+        },
       },
     },
   },
@@ -112,8 +118,7 @@ export default defineMachine({
     items: (ctx) => ctx.items,
     itemCount: (ctx) => ctx.items.reduce((s, i) => s + i.quantity, 0),
     total: (ctx) => ctx.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0),
-    contains: (ctx) => (productId: string) =>
-      ctx.items.some((i) => i.productId === productId),
+    contains: (ctx) => (productId: string) => ctx.items.some((i) => i.productId === productId),
     isEmpty: (ctx) => ctx.items.length === 0,
   },
 })

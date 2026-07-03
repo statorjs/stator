@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { compile } from '../src/compiler/compile.ts'
 import { CompileError } from '../src/compiler/diagnostics.ts'
-import { declaredRegions, componentImportSpecifier } from '../src/compiler/regions.ts'
+import { componentImportSpecifier, declaredRegions } from '../src/compiler/regions.ts'
 
 describe('compiler: declaredRegions / import resolution', () => {
   it('extracts named regions from a component', () => {
@@ -29,9 +29,7 @@ import Layout from './layout.stator'
 
   it('passes when the region is declared', () => {
     const regions = new Set(['banner'])
-    expect(() =>
-      compile(src, { id: 'page.stator', resolveRegions: () => regions }),
-    ).not.toThrow()
+    expect(() => compile(src, { id: 'page.stator', resolveRegions: () => regions })).not.toThrow()
   })
 
   it('errors with a located message when the region is undeclared', () => {

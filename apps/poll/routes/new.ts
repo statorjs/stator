@@ -1,4 +1,4 @@
-import { defineRoute, defineApiRoute } from '@statorjs/stator/server'
+import { defineApiRoute, defineRoute } from '@statorjs/stator/server'
 import VoterMachine from '../machines/voter.ts'
 import layout from '../templates/layout.ts'
 import newPollPage from '../templates/new-poll-page.ts'

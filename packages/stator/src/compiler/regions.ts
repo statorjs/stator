@@ -22,12 +22,11 @@ export function declaredRegions(source: string): Set<string> {
   )
   const regions = new Set<string>()
   const visit = (node: ts.Node): void => {
-    const tagName =
-      ts.isJsxElement(node)
-        ? node.openingElement.tagName.getText(sf)
-        : ts.isJsxSelfClosingElement(node)
-          ? node.tagName.getText(sf)
-          : undefined
+    const tagName = ts.isJsxElement(node)
+      ? node.openingElement.tagName.getText(sf)
+      : ts.isJsxSelfClosingElement(node)
+        ? node.tagName.getText(sf)
+        : undefined
     if (tagName === 'children') {
       const attrs = ts.isJsxElement(node)
         ? node.openingElement.attributes
@@ -60,7 +59,13 @@ export function componentImportSpecifier(
   frontmatter: string,
   componentName: string,
 ): string | null {
-  const sf = ts.createSourceFile('fm.ts', frontmatter, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const sf = ts.createSourceFile(
+    'fm.ts',
+    frontmatter,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  )
   for (const stmt of sf.statements) {
     if (!ts.isImportDeclaration(stmt)) continue
     const clause = stmt.importClause

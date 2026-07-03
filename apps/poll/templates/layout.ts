@@ -1,4 +1,4 @@
-import { html, type HtmlFragment } from '@statorjs/stator/template'
+import { type HtmlFragment, html } from '@statorjs/stator/template'
 
 /**
  * Pure HTML shell. The poll demo has no shared header reads (no cart-count

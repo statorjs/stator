@@ -127,7 +127,6 @@ export default defineMachine({
   selectors: {
     all: (ctx) => ctx.products,
     byId: (ctx) => (id: string) => ctx.products.find((p) => p.id === id),
-    byCategory: (ctx) => (cat: Category) =>
-      ctx.products.filter((p) => p.category === cat),
+    byCategory: (ctx) => (cat: Category) => ctx.products.filter((p) => p.category === cat),
   },
 })

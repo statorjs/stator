@@ -1,11 +1,11 @@
-import { resolve, dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  CachedStore,
   createApp,
   InMemoryStore,
-  RedisStore,
-  CachedStore,
   logger,
+  RedisStore,
   type Store,
 } from '@statorjs/stator/server'
 
@@ -20,10 +20,7 @@ if (redisUrl) {
     memoryTtlSeconds: 300,
     maxEntries: 10_000,
   })
-  logger.info(
-    { store: 'redis+cache', url: redactUrl(redisUrl) },
-    'persistence adapter selected',
-  )
+  logger.info({ store: 'redis+cache', url: redactUrl(redisUrl) }, 'persistence adapter selected')
 } else {
   store = new InMemoryStore()
   logger.warn(

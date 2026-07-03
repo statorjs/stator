@@ -1,8 +1,4 @@
-import {
-  allocElementId,
-  type RenderState,
-  type ElementId,
-} from '../server/render-context.ts'
+import { allocElementId, type ElementId, type RenderState } from '../server/render-context.ts'
 
 type Mode =
   | 'text'
@@ -63,9 +59,7 @@ export class HtmlBuilder {
   /** Append raw HTML at the current position (text content only). */
   pushRaw(s: string): void {
     if (this.mode !== 'text' && this.mode !== 'attr_value_dq' && this.mode !== 'attr_value_sq') {
-      throw new Error(
-        `stator: cannot insert content at this position (parser mode: ${this.mode})`,
-      )
+      throw new Error(`stator: cannot insert content at this position (parser mode: ${this.mode})`)
     }
     this.chunks.push(s)
   }
@@ -125,11 +119,7 @@ export class HtmlBuilder {
     }
     if (!this.currentElementId) {
       this.currentElementId = allocElementId(this.state)
-      this.chunks.splice(
-        this.tagOpenInsertIdx,
-        0,
-        ` data-stator-id="${this.currentElementId}"`,
-      )
+      this.chunks.splice(this.tagOpenInsertIdx, 0, ` data-stator-id="${this.currentElementId}"`)
       this.tagOpenInsertIdx += 1
     }
     return this.currentElementId
@@ -290,10 +280,7 @@ function isWhitespace(c: string): boolean {
 }
 
 export function escapeText(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 export function escapeAttribute(s: string): string {

@@ -1,13 +1,13 @@
 import { readdir } from 'node:fs/promises'
-import { resolve, relative, extname, basename, dirname, sep } from 'node:path'
+import { basename, dirname, extname, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import {
-  isStatorRoute,
-  isStatorApiRoute,
-  type RouteDefinition,
-  type ApiRouteDefinition,
-} from './routing.ts'
 import type { ModuleLoader } from './discovery.ts'
+import {
+  type ApiRouteDefinition,
+  isStatorApiRoute,
+  isStatorRoute,
+  type RouteDefinition,
+} from './routing.ts'
 
 const nativeLoader: ModuleLoader = (file) => import(/* @vite-ignore */ pathToFileURL(file).href)
 
@@ -88,7 +88,16 @@ export async function discoverRoutes(
     }
 
     const { urlPath, paramNames } = filePathToRoute(absDir, filePath)
-    routes.push({ urlPath, paramNames, filePath, GET: get, POST: post, PUT: put, PATCH: patch, DELETE: del })
+    routes.push({
+      urlPath,
+      paramNames,
+      filePath,
+      GET: get,
+      POST: post,
+      PUT: put,
+      PATCH: patch,
+      DELETE: del,
+    })
   }
 
   return sortRoutes(mergeByUrlPath(routes))
@@ -154,12 +163,10 @@ export function sortRoutes(routes: DiscoveredRoute[]): DiscoveredRoute[] {
 async function walkRouteFiles(dir: string): Promise<string[]> {
   const out: string[] = []
   // A missing routes dir means "no routes yet", not an error.
-  const entries = await readdir(dir, { withFileTypes: true }).catch(
-    (e: NodeJS.ErrnoException) => {
-      if (e.code === 'ENOENT') return []
-      throw e
-    },
-  )
+  const entries = await readdir(dir, { withFileTypes: true }).catch((e: NodeJS.ErrnoException) => {
+    if (e.code === 'ENOENT') return []
+    throw e
+  })
   for (const e of entries) {
     const full = resolve(dir, e.name)
     if (e.isDirectory()) {
@@ -186,7 +193,9 @@ export function filePathToRoute(
 ): { urlPath: string; paramNames: string[] } {
   const ext = extname(filePath)
   const rel = relative(absDir, filePath)
-  const dirSegments = dirname(rel).split(sep).filter((s) => s && s !== '.')
+  const dirSegments = dirname(rel)
+    .split(sep)
+    .filter((s) => s && s !== '.')
   const fileBase = basename(rel, ext)
   const segments = fileBase === 'index' ? dirSegments : [...dirSegments, fileBase]
 
@@ -210,5 +219,5 @@ export function filePathToRoute(
     return seg
   })
 
-  return { urlPath: '/' + urlSegments.join('/'), paramNames }
+  return { urlPath: `/${urlSegments.join('/')}`, paramNames }
 }

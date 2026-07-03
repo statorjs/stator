@@ -1,10 +1,7 @@
-import {
-  runInRender,
-  type RenderState,
-} from './render-context.ts'
-import type { SessionRuntime } from './session-runtime.ts'
-import { renderListBody } from '../template/each.ts'
 import { renderBranchBody } from '../template/conditional.ts'
+import { renderListBody } from '../template/each.ts'
+import { type RenderState, runInRender } from './render-context.ts'
+import type { SessionRuntime } from './session-runtime.ts'
 
 /**
  * Wire patch. Addressing is a discriminated `target` (slot positions vs.
@@ -90,9 +87,7 @@ export function recompute(
       const oldArray = binding.lastValue as readonly unknown[]
       if (!arrayShallowEqual(newArray, oldArray)) {
         const fn = binding.itemRenderer!
-        const newInner = runInRender(state, () =>
-          renderListBody(state, slotId, newArray, fn),
-        )
+        const newInner = runInRender(state, () => renderListBody(state, slotId, newArray, fn))
         pending.push({
           patch: { target: { kind: 'slot', id: slotId }, op: 'html', value: newInner },
           sourceSlot: slotId,
@@ -103,9 +98,7 @@ export function recompute(
       const newKey = binding.branchKeyFn!(newValue)
       if (!Object.is(newKey, binding.lastBranchKey)) {
         const renderer = binding.branchRenderFn!(newValue)
-        const newInner = runInRender(state, () =>
-          renderBranchBody(state, slotId, renderer),
-        )
+        const newInner = runInRender(state, () => renderBranchBody(state, slotId, renderer))
         pending.push({
           patch: { target: { kind: 'slot', id: slotId }, op: 'html', value: newInner },
           sourceSlot: slotId,
@@ -127,7 +120,7 @@ export function recompute(
 function subsumeScopes(pending: PendingPatch[]): Patch[] {
   const scopePrefixes: string[] = []
   for (const p of pending) {
-    if (p.patch.op === 'html') scopePrefixes.push(p.sourceSlot + ':')
+    if (p.patch.op === 'html') scopePrefixes.push(`${p.sourceSlot}:`)
   }
   if (scopePrefixes.length === 0) return pending.map((p) => p.patch)
 
@@ -137,7 +130,7 @@ function subsumeScopes(pending: PendingPatch[]): Patch[] {
     for (const prefix of scopePrefixes) {
       // The html patch itself isn't a descendant of its own scope — skip
       // the exact match.
-      if (p.sourceSlot + ':' === prefix) continue
+      if (`${p.sourceSlot}:` === prefix) continue
       if (p.sourceSlot.startsWith(prefix)) {
         inside = true
         break

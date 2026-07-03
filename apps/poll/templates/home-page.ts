@@ -1,10 +1,10 @@
 import {
-  html,
-  read,
   each,
-  when,
-  type InstanceOf,
   type HtmlFragment,
+  html,
+  type InstanceOf,
+  read,
+  when,
 } from '@statorjs/stator/template'
 import type PollsMachine from '../machines/polls.ts'
 
@@ -15,9 +15,7 @@ type Poll = {
   createdAt: number
 }
 
-export default function homePage(
-  polls: InstanceOf<typeof PollsMachine>,
-): HtmlFragment {
+export default function homePage(polls: InstanceOf<typeof PollsMachine>): HtmlFragment {
   return html`<section class="page page--home">
   <header class="page-header">
     <h1>What do you want to ask?</h1>

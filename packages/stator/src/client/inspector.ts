@@ -145,12 +145,16 @@ function mount(): void {
   const toggle = q('.stator-inspector-toggle')
 
   const setOpen = (open: boolean) => {
-    try { localStorage.setItem(STORAGE_KEY, open ? 'true' : 'false') } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEY, open ? 'true' : 'false')
+    } catch {}
     ;(drawer as HTMLElement).hidden = !open
     ;(toggle as HTMLElement).hidden = open
   }
   let initiallyOpen = true
-  try { initiallyOpen = localStorage.getItem(STORAGE_KEY) !== 'false' } catch {}
+  try {
+    initiallyOpen = localStorage.getItem(STORAGE_KEY) !== 'false'
+  } catch {}
   setOpen(initiallyOpen)
 
   toggle.addEventListener('click', () => setOpen(true))
@@ -170,9 +174,12 @@ function mount(): void {
     expand.hidden = true
     expand.textContent = JSON.stringify(detail, null, 2)
     row.appendChild(expand)
-    ;(row.querySelector('.stator-inspector-summary') as HTMLElement).addEventListener('click', () => {
-      expand.hidden = !expand.hidden
-    })
+    ;(row.querySelector('.stator-inspector-summary') as HTMLElement).addEventListener(
+      'click',
+      () => {
+        expand.hidden = !expand.hidden
+      },
+    )
     body.insertBefore(row, body.firstChild)
     while (body.children.length > MAX_ENTRIES) body.removeChild(body.lastChild as Node)
   }

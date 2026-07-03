@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { lowerTemplate, CompileError } from '../src/compiler/lower.ts'
+import { describe, expect, it } from 'vitest'
+import { CompileError, lowerTemplate } from '../src/compiler/lower.ts'
 
 describe('compiler: lowerTemplate (JSX → html`` expression)', () => {
   it('lowers text and a read interpolation', () => {
@@ -23,9 +23,9 @@ describe('compiler: lowerTemplate (JSX → html`` expression)', () => {
   })
 
   it('lowers on: directives to on(event, handler) calls', () => {
-    expect(
-      lowerTemplate('<button on:click={() => cart.send({ type: "ADD" })}>Add</button>'),
-    ).toBe('html`<button ${on("click", () => cart.send({ type: "ADD" }))}>Add</button>`')
+    expect(lowerTemplate('<button on:click={() => cart.send({ type: "ADD" })}>Add</button>')).toBe(
+      'html`<button ${on("click", () => cart.send({ type: "ADD" }))}>Add</button>`',
+    )
   })
 
   it('lowers class:list and style:list directives', () => {

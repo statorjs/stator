@@ -5,29 +5,30 @@
  * (inline transitions, typed events), runs identically server- and client-side.
  * See spec: custom-isomorphic-state-machine-engine.
  */
-export { defineMachine } from './define-machine.ts'
-export type { DefineMachineConfig } from './define-machine.ts'
-export { createActor } from './actor.ts'
+
 export type { Actor, CreateActorOptions } from './actor.ts'
-export { isStatorMachine } from './types.ts'
+export { createActor } from './actor.ts'
+export type { DefineMachineConfig } from './define-machine.ts'
+export { defineMachine } from './define-machine.ts'
 export type {
-  ActionHelpers,
   Action,
+  ActionHelpers,
   AnyMachineDef,
-  Guard,
   Capabilities,
   EmitDeclaration,
   EmitsConfig,
   EventObject,
   EventOf,
+  Guard,
   InstanceOf,
   Lifecycle,
   MachineDef,
   ReadsMap,
+  SelectorMap,
   Snapshot,
   StateNode,
   SubscribeEntry,
   Transition,
   TransitionConfig,
-  SelectorMap,
 } from './types.ts'
+export { isStatorMachine } from './types.ts'

@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { compile } from '../src/compiler/compile.ts'
-import { CompileError, offsetToLineCol, codeFrame } from '../src/compiler/diagnostics.ts'
+import { CompileError, codeFrame, offsetToLineCol } from '../src/compiler/diagnostics.ts'
 
 describe('compiler: diagnostics', () => {
   it('offsetToLineCol returns 1-based line/column', () => {

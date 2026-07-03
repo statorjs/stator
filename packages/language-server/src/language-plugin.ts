@@ -10,13 +10,13 @@
  * never disagree about the file.
  */
 
+import { toVirtualCode, type VirtualMapping } from '@statorjs/stator/compiler'
 import type { CodeMapping, LanguagePlugin, VirtualCode } from '@volar/language-core'
 import { forEachEmbeddedCode } from '@volar/language-core'
-import type { IScriptSnapshot } from 'typescript'
-import type { URI } from 'vscode-uri'
-import { toVirtualCode, type VirtualMapping } from '@statorjs/stator/compiler'
 // Activates the `typescript` field on LanguagePlugin (module augmentation).
 import type {} from '@volar/typescript'
+import type { IScriptSnapshot } from 'typescript'
+import type { URI } from 'vscode-uri'
 
 const TSX_SCRIPT_KIND = 4 // ts.ScriptKind.TSX
 const DEFERRED_SCRIPT_KIND = 7 // ts.ScriptKind.Deferred

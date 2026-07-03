@@ -13,8 +13,8 @@ import {
   createTypeScriptProject,
   loadTsdkByPath,
 } from '@volar/language-server/node'
-import { create as createTypeScriptServices } from 'volar-service-typescript'
 import { create as createCssService } from 'volar-service-css'
+import { create as createTypeScriptServices } from 'volar-service-typescript'
 import { statorLanguagePlugin } from './language-plugin.ts'
 
 const connection = createConnection()

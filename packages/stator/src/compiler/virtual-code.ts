@@ -18,8 +18,8 @@
  * load-bearing part.
  */
 
-import { scanRegions, type ScannedRegions } from './split.ts'
 import { analyzeScriptClasses } from './client-script.ts'
+import { type ScannedRegions, scanRegions } from './split.ts'
 
 /** A contiguous run mapping generated code back to source, 1:1 over its length. */
 export interface VirtualMapping {
@@ -94,9 +94,14 @@ function buildServerTsx(regions: ScannedRegions): VirtualFile {
   const mappings: VirtualMapping[] = []
   let code = TEMPLATE_IMPORTS + AMBIENT_TYPE_IMPORTS + STATOR_AMBIENT
 
-  if (regions.frontmatter && regions.frontmatter.content.trim()) {
-    push(mappings, regions.frontmatter.contentOffset, code.length, regions.frontmatter.content.length)
-    code += regions.frontmatter.content + '\n'
+  if (regions.frontmatter?.content.trim()) {
+    push(
+      mappings,
+      regions.frontmatter.contentOffset,
+      code.length,
+      regions.frontmatter.content.length,
+    )
+    code += `${regions.frontmatter.content}\n`
   }
 
   // A leading <!doctype> is static HTML, not JSX — drop it from the shell (no
@@ -129,7 +134,7 @@ function buildClientTsx(regions: ScannedRegions): VirtualFile {
 
   for (const script of regions.scripts) {
     push(mappings, script.contentOffset, code.length, script.content.length)
-    code += script.content + '\n'
+    code += `${script.content}\n`
   }
 
   // A client component is also used as `<Tag/>` elsewhere, so its importers need
@@ -144,10 +149,17 @@ function buildCssFile(style: { contentOffset: number; content: string }): Virtua
   return {
     lang: 'css',
     code: style.content,
-    mappings: [{ sourceOffset: style.contentOffset, generatedOffset: 0, length: style.content.length }],
+    mappings: [
+      { sourceOffset: style.contentOffset, generatedOffset: 0, length: style.content.length },
+    ],
   }
 }
 
-function push(mappings: VirtualMapping[], sourceOffset: number, generatedOffset: number, length: number): void {
+function push(
+  mappings: VirtualMapping[],
+  sourceOffset: number,
+  generatedOffset: number,
+  length: number,
+): void {
   if (length > 0) mappings.push({ sourceOffset, generatedOffset, length })
 }

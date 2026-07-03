@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
-import { resolve, dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { describe, expect, it } from 'vitest'
 import { createApp } from '../src/server/create-app.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -73,9 +73,7 @@ describe('HTTP layer', () => {
     expect(post.status).toBe(200)
 
     // The dispatch persisted the touched machine: a fresh GET shows count 1.
-    const after = await app.fetch(
-      new Request('http://localhost/', { headers: { Cookie: cookie } }),
-    )
+    const after = await app.fetch(new Request('http://localhost/', { headers: { Cookie: cookie } }))
     const html = await after.text()
     expect(html).toContain('<span data-slot="s0">count is 1</span>')
   })

@@ -5,6 +5,7 @@
  */
 declare module '*.stator' {
   import type { HtmlFragment } from '@statorjs/stator/template'
+
   const component: (props?: any) => HtmlFragment
   export default component
 }

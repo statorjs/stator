@@ -76,14 +76,20 @@ export default defineMachine({
       on: {
         CREATE_POLL: {
           do: (ctx, ev) => {
-            const question = String(ev.question ?? '').trim().slice(0, 200)
+            const question = String(ev.question ?? '')
+              .trim()
+              .slice(0, 200)
             const rawOptions = Array.isArray(ev.options) ? (ev.options as unknown[]) : []
             if (!question || rawOptions.length < 2) {
               ctx.lastCreatedPollId = null
               return
             }
             const options: PollOption[] = rawOptions
-              .map((o) => String(o ?? '').trim().slice(0, 100))
+              .map((o) =>
+                String(o ?? '')
+                  .trim()
+                  .slice(0, 100),
+              )
               .filter((t) => t.length > 0)
               .slice(0, 6)
               .map((text) => ({ id: genOptionId(), text, count: 0 }))
@@ -132,8 +138,7 @@ export default defineMachine({
   },
 
   selectors: {
-    all: (ctx) =>
-      Object.values(ctx.polls).sort((a, b) => b.createdAt - a.createdAt),
+    all: (ctx) => Object.values(ctx.polls).sort((a, b) => b.createdAt - a.createdAt),
     byId: (ctx) => (id: string) => ctx.polls[id],
     totalCount: (ctx) => Object.keys(ctx.polls).length,
     totalVotes: (ctx) =>

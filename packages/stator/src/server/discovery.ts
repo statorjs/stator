@@ -1,5 +1,5 @@
 import { readdir } from 'node:fs/promises'
-import { resolve, extname } from 'node:path'
+import { extname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { isStatorMachine, type MachineDef } from './define-machine.ts'
 
@@ -94,7 +94,7 @@ function topoSort(defs: MachineDef<any, any>[]): MachineDef<any, any>[] {
     const c = color.get(def) ?? WHITE
     if (c === BLACK) return
     if (c === GRAY) {
-      const startIdx = path.findIndex((d) => d === def)
+      const startIdx = path.indexOf(def)
       const cycle = [...path.slice(startIdx), def].map((d) => d.name).join(' -> ')
       throw new Error(`stator: dependency cycle detected: ${cycle}`)
     }

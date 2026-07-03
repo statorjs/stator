@@ -1,13 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { lowerTemplate } from '../src/compiler/lower.ts'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
+import { recompute } from '../src/server/recompute.ts'
+import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import { SessionRuntime } from '../src/server/session-runtime.ts'
 import { InMemoryStore } from '../src/server/store.ts'
-import { createRenderState, runInRender } from '../src/server/render-context.ts'
-import { recompute } from '../src/server/recompute.ts'
-import { html, read, each, when, match, on, classList, styleList } from '../src/template/index.ts'
+import { classList, each, html, match, on, read, styleList, when } from '../src/template/index.ts'
 import type { HtmlFragment } from '../src/template/types.ts'
-import { lowerTemplate } from '../src/compiler/lower.ts'
 
 /**
  * The Phase 3a gate: a compiled `.stator` template must produce byte-identical
@@ -29,7 +29,9 @@ function makeCart() {
     states: {
       idle: {
         on: {
-          ADD: (ctx, ev) => { ctx.items.push({ id: ev.id, qty: 1 }) },
+          ADD: (ctx, ev) => {
+            ctx.items.push({ id: ev.id, qty: 1 })
+          },
           BUMP: (ctx, ev) => {
             const it = ctx.items.find((i) => i.id === ev.id)
             if (it) it.qty += 1

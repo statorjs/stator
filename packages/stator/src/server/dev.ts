@@ -1,10 +1,10 @@
-import { createServer as createViteServer, type ViteDevServer } from 'vite'
-import { getRequestListener } from '@hono/node-server'
-import { createServer as createHttpServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
-import { resolve, relative } from 'node:path'
-import { stator } from '../vite/index.ts'
+import { createServer as createHttpServer } from 'node:http'
+import { relative, resolve } from 'node:path'
+import { getRequestListener } from '@hono/node-server'
+import { createServer as createViteServer, type ViteDevServer } from 'vite'
 import { compile } from '../compiler/index.ts'
+import { stator } from '../vite/index.ts'
 import { logger } from './logger.ts'
 import type { Store } from './store.ts'
 
@@ -57,8 +57,7 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
 
   // Load the runtime through Vite so it shares an instance with the templates.
   const runtime = (await vite.ssrLoadModule('@statorjs/stator/server')) as any
-  const loader = (file: string) =>
-    vite.ssrLoadModule(file) as Promise<Record<string, unknown>>
+  const loader = (file: string) => vite.ssrLoadModule(file) as Promise<Record<string, unknown>>
 
   const root = resolve(config.root)
   const machinesDir = resolve(config.machinesDir)
@@ -86,7 +85,7 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
       const r = await compiledFor(f)
       if (r.css) css += `/* ${f} */\n${r.css}\n`
       if (r.isClient) {
-        const url = '/' + relative(root, f).replace(/\\/g, '/') + '?' + 'stator&type=client'
+        const url = `/${relative(root, f).replace(/\\/g, '/')}?stator&type=client`
         scripts.push(`<script type="module" src="${url}"></script>`)
       }
     }
@@ -120,7 +119,13 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
     routes = await runtime.discoverRoutes(routesDir, loader)
   }
   const rebuildServer = async (): Promise<void> => {
-    app = await runtime.buildHonoApp({ routes, store, staticDir: config.staticDir, headExtras, inspector: inspectorOn })
+    app = await runtime.buildHonoApp({
+      routes,
+      store,
+      staticDir: config.staticDir,
+      headExtras,
+      inspector: inspectorOn,
+    })
   }
 
   await rebuildStore()
@@ -173,7 +178,10 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
       })
       return new Promise((resolveFn) => {
         server.listen(port, () => {
-          logger.info({ port, mode: 'dev', machines: machineCount, routes: routes.length }, 'listening')
+          logger.info(
+            { port, mode: 'dev', machines: machineCount, routes: routes.length },
+            'listening',
+          )
           resolveFn()
         })
       })

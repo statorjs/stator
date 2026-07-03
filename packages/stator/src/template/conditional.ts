@@ -1,15 +1,15 @@
 import {
-  requireCurrentRenderState,
   allocSlotId,
-  pushListScope,
   popListScope,
-  registerBinding,
-  unregisterBindingsForScope,
+  pushListScope,
   type RenderState,
+  registerBinding,
+  requireCurrentRenderState,
   type SlotId,
+  unregisterBindingsForScope,
 } from '../server/render-context.ts'
 import { isReadResult, type ReadResult } from './read.ts'
-import { isHtmlFragment, type HtmlFragment } from './types.ts'
+import { type HtmlFragment, isHtmlFragment } from './types.ts'
 
 /**
  * A conditional fragment. Same wire shape as EachResult — a position-marker
@@ -25,9 +25,7 @@ export interface BranchResult {
 
 export function isBranchResult(v: unknown): v is BranchResult {
   return (
-    typeof v === 'object' &&
-    v !== null &&
-    (v as Record<string, unknown>).__isBranchResult === true
+    typeof v === 'object' && v !== null && (v as Record<string, unknown>).__isBranchResult === true
   )
 }
 
@@ -60,10 +58,7 @@ export function renderBranchBody(
  * only when the truthiness of `cond` flips — toggling between two truthy
  * values does not cause a swap.
  */
-export function when<T>(
-  cond: T | ReadResult<T>,
-  fn: () => HtmlFragment,
-): BranchResult {
+export function when<T>(cond: T | ReadResult<T>, fn: () => HtmlFragment): BranchResult {
   const state = requireCurrentRenderState()
 
   let value: T

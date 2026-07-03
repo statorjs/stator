@@ -1,23 +1,21 @@
-import { Hono, type Context } from 'hono'
-import { streamSSE } from 'hono/streaming'
-import { z } from 'zod'
 import { readFile } from 'node:fs/promises'
-import { resolve, dirname, extname } from 'node:path'
+import { dirname, extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
-
+import { type Context, Hono } from 'hono'
+import { streamSSE } from 'hono/streaming'
+import { z } from 'zod'
+import { applyRenderedEffects, runApiRoute } from './api-route.ts'
+import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
-import type { DiscoveredRoute } from './route-discovery.ts'
-import { HTTP_METHODS } from './route-discovery.ts'
-import { renderRoute } from './render.ts'
 import { recompute } from './recompute.ts'
+import { renderRoute } from './render.ts'
+import type { DiscoveredRoute } from './route-discovery.ts'
+import { buildRouteRequest } from './route-request.ts'
+import type { RouteDefinition } from './routing.ts'
 import { getOrCreateSessionId } from './session.ts'
 import { SessionRuntime } from './session-runtime.ts'
-import type { RouteDefinition } from './routing.ts'
 import { fanOut, registerConnection, unregisterConnection } from './sse.ts'
-import { scopedLogger } from './logger.ts'
-import { buildRouteRequest } from './route-request.ts'
-import { runApiRoute, applyRenderedEffects } from './api-route.ts'
 
 const httpLog = scopedLogger('http')
 
@@ -81,7 +79,7 @@ function compileMatcher(route: DiscoveredRoute): RouteMatcher {
     const seg = parts[i]!
     if (seg.startsWith('*')) {
       // Absorb the preceding `/` and match the (possibly empty) remainder.
-      pattern = pattern.replace(/\/$/, '') + '(?:/(.*))?'
+      pattern = `${pattern.replace(/\/$/, '')}(?:/(.*))?`
     } else if (seg.startsWith(':')) {
       pattern += '([^/]+)'
       if (i < parts.length - 1) pattern += '/'
@@ -178,7 +176,6 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     })
   }
 
-
   // SSE endpoint. The connection's runtime + renderState stay alive for
   // the connection's lifetime — this is the one place per-session state
   // outlives a request, because the connection *is* one (very long) request.
@@ -186,11 +183,11 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     const routeKey = c.req.query('route')
     if (!routeKey) return c.text('missing route param', 400)
     const parsed = parseRouteKey(routeKey)
-    if (!parsed || parsed.method !== 'GET') {
+    if (parsed?.method !== 'GET') {
       return c.text(`malformed route key "${routeKey}"`, 400)
     }
     const matched = matchPath(getMatchers, parsed.path)
-    if (!matched || !matched.route.GET) {
+    if (!matched?.route.GET) {
       return c.text(`unknown route "${routeKey}"`, 404)
     }
     const route = matched.route.GET
@@ -215,13 +212,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     return streamSSE(c, async (stream) => {
       const runtime = new SessionRuntime(sessionId, config.store)
       await runtime.loadGraph(route.reads)
-      const { renderState } = renderRoute(
-        route,
-        routeKey,
-        sessionId,
-        runtime,
-        request,
-      )
+      const { renderState } = renderRoute(route, routeKey, sessionId, runtime, request)
       const conn = registerConnection({
         sessionId,
         routeKey,
@@ -264,11 +255,11 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       return c.json({ error: 'missing X-Stator-Route header' }, 400)
     }
     const parsed = parseRouteKey(routeKey)
-    if (!parsed || parsed.method !== 'GET') {
+    if (parsed?.method !== 'GET') {
       return c.json({ error: `malformed route key "${routeKey}"` }, 400)
     }
     const matched = matchPath(getMatchers, parsed.path)
-    if (!matched || !matched.route.GET) {
+    if (!matched?.route.GET) {
       return c.json({ error: `unknown route "${routeKey}"` }, 404)
     }
     const route = matched.route.GET
@@ -295,13 +286,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         await runtime.loadGraph([...route.reads, originDef])
         runtime.wireSubscriptions()
 
-        const { renderState } = renderRoute(
-          route,
-          routeKey,
-          sessionId,
-          runtime,
-          request,
-        )
+        const { renderState } = renderRoute(route, routeKey, sessionId, runtime, request)
 
         const touched = runtime.processEvent(body.machine, body.event)
 
@@ -336,7 +321,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
   app.get('*', async (c, next) => {
     const matched = matchPath(matchers, c.req.path)
-    if (!matched || !matched.route.GET) return next()
+    if (!matched?.route.GET) return next()
     return handleGet(
       c,
       matched.route,
@@ -394,10 +379,7 @@ async function bundleInspector(): Promise<string> {
  * renders a bare fragment, which can't host the runtime anyway). One
  * consolidated injector rather than stacked `.replace()` calls.
  */
-function injectIntoDocument(
-  html: string,
-  parts: { head?: string; bodyEnd?: string },
-): string {
+function injectIntoDocument(html: string, parts: { head?: string; bodyEnd?: string }): string {
   let out = html
   if (parts.head && out.includes('</head>')) {
     out = out.replace('</head>', `${parts.head}</head>`)

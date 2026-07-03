@@ -1,11 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   analyzeClient,
+  isCustomElementTag,
   kebabToPascal,
   pascalToKebab,
-  isCustomElementTag,
 } from '../src/compiler/client-script.ts'
-import { CompileError } from '../src/compiler/diagnostics.ts'
 
 describe('compiler: client-script name-match (3b stage 1)', () => {
   it('converts kebab ↔ pascal', () => {

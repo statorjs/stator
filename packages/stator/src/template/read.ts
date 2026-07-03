@@ -1,11 +1,7 @@
-import {
-  requireCurrentRenderState,
-  allocSlotId,
-  type SlotId,
-} from '../server/render-context.ts'
-import { defForProxy } from '../server/instance-proxy.ts'
-import type { InstanceOf } from './types.ts'
 import type { MachineDef } from '../server/define-machine.ts'
+import { defForProxy } from '../server/instance-proxy.ts'
+import { allocSlotId, requireCurrentRenderState, type SlotId } from '../server/render-context.ts'
+import type { InstanceOf } from './types.ts'
 
 export interface ReadResult<T = unknown> {
   readonly __isReadResult: true
@@ -21,9 +17,7 @@ export interface ReadResult<T = unknown> {
 
 export function isReadResult(v: unknown): v is ReadResult {
   return (
-    typeof v === 'object' &&
-    v !== null &&
-    (v as Record<string, unknown>).__isReadResult === true
+    typeof v === 'object' && v !== null && (v as Record<string, unknown>).__isReadResult === true
   )
 }
 

@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
 import { resolve } from 'node:path'
-import { sortRoutes, filePathToRoute, type DiscoveredRoute } from '../src/server/route-discovery.ts'
+import { describe, expect, it } from 'vitest'
+import { type DiscoveredRoute, filePathToRoute, sortRoutes } from '../src/server/route-discovery.ts'
 
 const DIR = resolve('/app/routes')
 function path(file: string) {

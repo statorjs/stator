@@ -2,13 +2,18 @@
   "name": "stator-monorepo",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "typecheck": "pnpm -r --if-present run typecheck",
-    "test": "pnpm -r --filter=stator test",
+    "typecheck": "pnpm -r --if-present --filter='!./apps/private/*' run typecheck",
+    "test": "pnpm -r --if-present --filter='!./apps/private/*' run test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
     "dev": "pnpm --filter example dev",
     "build": "pnpm --filter stator build"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.2",
     "typescript": "^5.6.0"
   },
   "engines": {
@@ -16,6 +21,8 @@
     "pnpm": ">=9"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

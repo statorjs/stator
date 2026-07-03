@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { scanRegions } from '../src/compiler/split.ts'
 import { toVirtualCode, type VirtualFile } from '../src/compiler/virtual-code.ts'
 
@@ -27,18 +27,24 @@ const [cart] = Stator.reads([Cart])
 <style>.x { color: red }</style>`
     const r = scanRegions(src)
     // Each region's content sits exactly at its reported offset.
-    expect(src.slice(r.frontmatter!.contentOffset, r.frontmatter!.contentOffset + r.frontmatter!.content.length)).toBe(
-      r.frontmatter!.content,
-    )
+    expect(
+      src.slice(
+        r.frontmatter!.contentOffset,
+        r.frontmatter!.contentOffset + r.frontmatter!.content.length,
+      ),
+    ).toBe(r.frontmatter!.content)
     expect(r.frontmatter!.content).toContain('Stator.reads')
-    expect(src.slice(r.template.contentOffset, r.template.contentOffset + r.template.content.length)).toBe(
-      r.template.content,
-    )
+    expect(
+      src.slice(r.template.contentOffset, r.template.contentOffset + r.template.content.length),
+    ).toBe(r.template.content)
     expect(r.template.content).toContain('read(cart')
     expect(r.styles).toHaveLength(1)
-    expect(src.slice(r.styles[0]!.contentOffset, r.styles[0]!.contentOffset + r.styles[0]!.content.length)).toBe(
-      '.x { color: red }',
-    )
+    expect(
+      src.slice(
+        r.styles[0]!.contentOffset,
+        r.styles[0]!.contentOffset + r.styles[0]!.content.length,
+      ),
+    ).toBe('.x { color: red }')
   })
 
   it('excludes is:inline / src scripts (matches splitStator classification)', () => {

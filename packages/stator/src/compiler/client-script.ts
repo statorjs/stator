@@ -138,7 +138,13 @@ function attrKindOf(coercer: ts.Expression): AttrKind {
 }
 
 export function analyzeScriptClasses(script: string): ScriptClass[] {
-  const sf = ts.createSourceFile('script.ts', script, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const sf = ts.createSourceFile(
+    'script.ts',
+    script,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  )
   const out: ScriptClass[] = []
   for (const stmt of sf.statements) {
     if (
@@ -224,14 +230,17 @@ export interface ClientDirective {
  * member access (so `qty.count` → `qty`, `qty.count + other.x` → `qty, other`).
  */
 export function inferDeps(expr: string, useFields: Set<string>): string[] {
-  const sf = ts.createSourceFile('e.ts', `(${expr})`, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const sf = ts.createSourceFile(
+    'e.ts',
+    `(${expr})`,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  )
   const found = new Set<string>()
   const visit = (n: ts.Node): void => {
     if (ts.isIdentifier(n)) {
-      const isPropName =
-        n.parent &&
-        ts.isPropertyAccessExpression(n.parent) &&
-        n.parent.name === n
+      const isPropName = n.parent && ts.isPropertyAccessExpression(n.parent) && n.parent.name === n
       if (!isPropName && useFields.has(n.text)) found.add(n.text)
     }
     ts.forEachChild(n, visit)

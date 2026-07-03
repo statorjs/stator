@@ -1,4 +1,4 @@
-import { defineMachine, type MachineDef, type EventObject } from '../engine/index.ts'
+import { defineMachine, type EventObject, type MachineDef } from '../engine/index.ts'
 
 /**
  * Terse machine form for component-local client state. Desugars to a single-state

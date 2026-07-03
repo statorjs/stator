@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { compile } from '../src/compiler/compile.ts'
 import { CompileError } from '../src/compiler/diagnostics.ts'
 
@@ -21,7 +21,9 @@ const [cart, products] = Stator.reads([CartMachine, ProductsMachine])
     expect(serverCode).toContain('reads: [CartMachine, ProductsMachine],')
     expect(serverCode).toContain('render: (__ctx, __req) => {')
     // positional binding via runtime machine .name keys
-    expect(serverCode).toContain('const [cart, products] = [__ctx[CartMachine.name], __ctx[ProductsMachine.name]]')
+    expect(serverCode).toContain(
+      'const [cart, products] = [__ctx[CartMachine.name], __ctx[ProductsMachine.name]]',
+    )
     expect(serverCode).toContain('return html`')
   })
 

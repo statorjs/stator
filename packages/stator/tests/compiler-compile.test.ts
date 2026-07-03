@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { compile } from '../src/compiler/compile.ts'
 
 describe('compiler: compile (full server module)', () => {
@@ -71,8 +71,11 @@ const doubled = n * 2
     // An inline <script> is a client component; one with no StatorElement is a
     // malformed component, surfaced rather than silently dropped.
     expect(() =>
-      compile(`<p>x</p>
-<script>console.log('c')</script>`, { id: 'comp.stator' }),
+      compile(
+        `<p>x</p>
+<script>console.log('c')</script>`,
+        { id: 'comp.stator' },
+      ),
     ).toThrow(/no StatorElement subclass/)
   })
 

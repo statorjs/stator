@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest'
-import { createRenderState, runInRender } from '../src/server/render-context.ts'
-import { html, read, each, when, match, on, classList, styleList } from '../src/template/index.ts'
-import type { HtmlFragment } from '../src/template/types.ts'
+import { describe, expect, it } from 'vitest'
 import { lowerTemplate } from '../src/compiler/lower.ts'
+import { createRenderState, runInRender } from '../src/server/render-context.ts'
+import { classList, each, html, match, on, read, styleList, when } from '../src/template/index.ts'
+import type { HtmlFragment } from '../src/template/types.ts'
 
 /**
  * End-to-end children composition through the real runtime: a compiled layout
@@ -38,7 +38,10 @@ describe('compiler: children compose through the runtime', () => {
     const callerFn = new Function(...names, `return (${callerExpr})`)
 
     const state = createRenderState('s1', 'GET /')
-    const out = runInRender(state, () => callerFn(...names.map((n) => (scope as any)[n])) as HtmlFragment)
+    const out = runInRender(
+      state,
+      () => callerFn(...names.map((n) => (scope as any)[n])) as HtmlFragment,
+    )
 
     expect(out.html).toBe(
       '<div class="layout"><header><span>Sale!</span></header><main><p>Body content</p></main></div>',
@@ -55,7 +58,10 @@ describe('compiler: children compose through the runtime', () => {
     // eslint-disable-next-line no-new-func
     const callerFn = new Function(...names, `return (${callerExpr})`)
     const state = createRenderState('s1', 'GET /')
-    const out = runInRender(state, () => callerFn(...names.map((n) => (scope as any)[n])) as HtmlFragment)
+    const out = runInRender(
+      state,
+      () => callerFn(...names.map((n) => (scope as any)[n])) as HtmlFragment,
+    )
     expect(out.html).toBe('<div><p>just body</p></div>')
     delete (scope as any).Card
   })

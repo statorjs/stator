@@ -1,7 +1,7 @@
-import { describe, it, expect, afterAll } from 'vitest'
-import { resolve, dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createServer, type ViteDevServer } from 'vite'
+import { afterAll, describe, expect, it } from 'vitest'
 import { stator } from '../src/vite/plugin.ts'
 
 /**
@@ -38,7 +38,7 @@ describe('vite plugin: .stator', () => {
     expect(serverMod!.code).toContain('stator&type=style')
 
     // Style virtual: scoped CSS, transformed through Vite's CSS pipeline.
-    const styleId = file + '?stator&type=style&lang.css'
+    const styleId = `${file}?stator&type=style&lang.css`
     const styleMod = await server.transformRequest(styleId)
     expect(styleMod).toBeTruthy()
     // The selectors carry a data-s-<hash> attribute (scoped).
@@ -55,7 +55,7 @@ describe('vite plugin: .stator', () => {
       logLevel: 'error',
     })
     const clientFile = resolve(root, 'toggle-box.stator')
-    const mod = await server.transformRequest(clientFile + '?stator&type=client')
+    const mod = await server.transformRequest(`${clientFile}?stator&type=client`)
     expect(mod).toBeTruthy()
     // The generated client entry: the StatorElement subclass + registration call.
     expect(mod!.code).toContain('class __ToggleBoxImpl')

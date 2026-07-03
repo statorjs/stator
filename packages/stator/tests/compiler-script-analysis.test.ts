@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { analyzeScriptClasses } from '../src/compiler/client-script.ts'
 
 describe('compiler: script class analysis (3b stage 3)', () => {
@@ -30,7 +30,10 @@ describe('compiler: script class analysis (3b stage 3)', () => {
       }
     `
     const c = analyzeScriptClasses(script)[0]!
-    expect([...c.useFields].sort()).toEqual([['a', 'MachineA'], ['b', 'MachineB']])
+    expect([...c.useFields].sort()).toEqual([
+      ['a', 'MachineA'],
+      ['b', 'MachineB'],
+    ])
   })
 
   it('handles multiple islands in one script', () => {

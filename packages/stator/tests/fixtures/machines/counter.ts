@@ -11,8 +11,12 @@ export default defineMachine({
   states: {
     idle: {
       on: {
-        INCREMENT: (ctx) => { ctx.count += 1 },
-        DECREMENT: (ctx) => { ctx.count -= 1 },
+        INCREMENT: (ctx) => {
+          ctx.count += 1
+        },
+        DECREMENT: (ctx) => {
+          ctx.count -= 1
+        },
       },
     },
   },

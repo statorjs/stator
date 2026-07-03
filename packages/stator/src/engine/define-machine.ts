@@ -67,9 +67,7 @@ function normalizeEmits<C, E extends EventObject>(
 function computeCapabilities(reads: readonly AnyMachineDef[]): Capabilities {
   const reasons: string[] = []
   for (const r of reads) {
-    reasons.push(
-      `reads machine "${r.name}" (cross-machine reads resolve server-side only)`,
-    )
+    reasons.push(`reads machine "${r.name}" (cross-machine reads resolve server-side only)`)
   }
   // TODO(capability-pass): also flag secret access and cross-session emit.
   return { serverPinned: reasons.length > 0, reasons }
@@ -82,9 +80,7 @@ export function defineMachine<
   Sel extends SelectorMap<C> = SelectorMap<C>,
   Name extends string = string,
   const TReads extends readonly AnyMachineDef[] = readonly [],
->(
-  config: DefineMachineConfig<C, E, S, Sel, Name, TReads>,
-): MachineDef<C, E, S, Sel, Name> {
+>(config: DefineMachineConfig<C, E, S, Sel, Name, TReads>): MachineDef<C, E, S, Sel, Name> {
   const reads = (config.reads ?? []) as unknown as AnyMachineDef[]
   return {
     __isStatorMachine: true,

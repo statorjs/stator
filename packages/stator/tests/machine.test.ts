@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { SessionRuntime } from '../src/server/session-runtime.ts'
@@ -49,7 +49,8 @@ describe('MachineStore + SessionRuntime', () => {
               do: (ctx, ev) => {
                 const existing = ctx.items.find((i) => i.productId === ev.productId)
                 if (existing) existing.quantity += 1
-                else ctx.items.push({ productId: ev.productId, quantity: 1, unitPrice: ev.unitPrice })
+                else
+                  ctx.items.push({ productId: ev.productId, quantity: 1, unitPrice: ev.unitPrice })
               },
               emit: 'ITEM_ADDED',
             },
@@ -118,7 +119,13 @@ describe('MachineStore + SessionRuntime', () => {
       context: { items: [] as { id: string }[] },
       initial: 'idle',
       states: {
-        idle: { on: { ADD: (ctx, ev) => { ctx.items.push({ id: ev.id }) } } },
+        idle: {
+          on: {
+            ADD: (ctx, ev) => {
+              ctx.items.push({ id: ev.id })
+            },
+          },
+        },
       },
       selectors: { count: (ctx) => ctx.items.length },
     })

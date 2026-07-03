@@ -1,7 +1,7 @@
-import { defineDirective, invoke, type DirectiveInvocation } from './core.ts'
-import { isEventDescriptor, type EventDescriptor } from '../../server/render-context.ts'
+import { type EventDescriptor, isEventDescriptor } from '../../server/render-context.ts'
+import { type DirectiveInvocation, defineDirective, invoke } from './core.ts'
 
-type Handler = () => EventDescriptor | void
+type Handler = () => EventDescriptor | undefined
 
 const onDirective = defineDirective<Handler>({
   name: 'on',

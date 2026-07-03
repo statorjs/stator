@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import * as clientApi from '../src/client/index.ts'
 import { compile } from '../src/compiler/compile.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import * as templateApi from '../src/template/index.ts'
-import * as clientApi from '../src/client/index.ts'
 import type { HtmlFragment } from '../src/template/types.ts'
 
 const CLIENT = `<quantity-stepper>

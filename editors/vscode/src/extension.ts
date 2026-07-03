@@ -1,10 +1,9 @@
 import * as path from 'node:path'
-import * as vscode from 'vscode'
 import {
   LanguageClient,
-  TransportKind,
   type LanguageClientOptions,
   type ServerOptions,
+  TransportKind,
 } from 'vscode-languageclient/node'
 
 let client: LanguageClient | undefined
