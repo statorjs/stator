@@ -53,8 +53,9 @@ lock and persistence wiring (below).
   ordinary events, so guards/state checks handle staleness (a `CHARGE_OK`
   arriving in a state with no handler for it is dropped, per existing engine
   semantics).
-- An effect that throws dispatches the transition's declared failure event (or
-  is logged and dropped if none is declared — see Open Questions).
+- An effect that throws is logged and dropped (the runtime backstop) — the
+  type contract makes effects infallible by construction, so authors return
+  their failure event explicitly (see resolved Open Questions).
 - A client-machine effect runs locally in the browser with the same authoring
   shape, verified in happy-dom.
 - Effects mark the machine's **capability set** appropriately: an effect
@@ -128,9 +129,11 @@ Mechanics, server side:
    completion patch over SSE; non-live pages see the new state on next
    request. This reuses the fanOut-from-non-POST-entry-points work (in the
    0.9 scope) rather than inventing a delivery channel.
-4. `effect` runs with the same dispatch-context capabilities as an API-route
-   handler (it may `reads` via the context captured at commit; it must not
-   assume the actor still exists).
+4. `effect` runs with **no capability object** — snapshots-only (resolved Open
+   Question 2). It is a pure async function of `(ctx, ev, meta)`; it must not
+   assume the actor still exists. Live-state decisions belong in the
+   completion event's own guards/`do`, which run under a real dispatch
+   context.
 
 Client side: `use()`/`StatorElement` schedules the effect on a microtask after
 the transition notification and `send`s the returned event to the local actor.
