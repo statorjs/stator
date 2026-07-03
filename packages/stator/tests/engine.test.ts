@@ -60,7 +60,10 @@ describe('engine: defineMachine + createActor', () => {
             SET_FIELD: (ctx, ev) => {
               ctx[ev.field] = ev.value
             },
-            SUBMIT_SHIPPING: { to: 'payment', when: (ctx) => ctx.name.trim() !== '' },
+            SUBMIT_SHIPPING: {
+              to: 'payment',
+              when: (ctx) => ctx.name.trim() !== '',
+            },
           },
         },
         payment: {
@@ -68,7 +71,10 @@ describe('engine: defineMachine + createActor', () => {
             SET_FIELD: (ctx, ev) => {
               ctx[ev.field] = ev.value
             },
-            SUBMIT_PAYMENT: { to: 'complete', when: (ctx) => /^\d{4}$/.test(ctx.card) },
+            SUBMIT_PAYMENT: {
+              to: 'complete',
+              when: (ctx) => /^\d{4}$/.test(ctx.card),
+            },
           },
         },
         complete: {},
@@ -152,7 +158,9 @@ describe('engine: defineMachine + createActor', () => {
       name: 'Cart',
       lifecycle: 'session',
       events: {} as Events,
-      emits: { ITEM_ADDED: { payload: (ctx) => ({ count: ctx.items.length }) } },
+      emits: {
+        ITEM_ADDED: { payload: (ctx) => ({ count: ctx.items.length }) },
+      },
       context: { items: [] as string[] },
       initial: 'idle',
       states: {

@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noExplicitAny: type-level plumbing — existential machine slots and loose internal defaults require `any`; see the AnyMachineDef comment for the variance argument
 /**
  * Stator's own state-machine engine — core types.
  *
@@ -135,7 +136,7 @@ export interface MachineDef<
   /** Engine internals — the transition graph (R erased post-construction; the
    *  reads typing that matters is enforced at the authoring callsite) and the
    *  initial context. */
-  states: Record<string, StateNode<C, E, S, any>>
+  states: Record<string, StateNode<C, E, S>>
   context: C
   /** Type-level carriers — never read at runtime. */
   readonly __context: C

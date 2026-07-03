@@ -37,7 +37,9 @@ describe('compiler: two-way bind:value (3b stage 6b)', () => {
   })
 
   it('two-way binding works end-to-end: typing updates state and the bound display', () => {
-    const { serverCode, clientCode } = compile(SEARCH, { id: 'search-box.stator' })
+    const { serverCode, clientCode } = compile(SEARCH, {
+      id: 'search-box.stator',
+    })
     void serverCode
 
     const body = clientCode.replace(/^import .*$/gm, '').replace(/^\s*export /gm, '')

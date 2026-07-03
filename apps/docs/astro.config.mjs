@@ -10,9 +10,18 @@ export default defineConfig({
       title: 'Stator',
       description:
         'A server-canonical web framework where state machines are the unit of composition and the DOM renders where its state lives.',
-      social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/statorjs/stator' }],
+      social: [
+        {
+          icon: 'github',
+          label: 'GitHub',
+          href: 'https://github.com/statorjs/stator',
+        },
+      ],
       sidebar: [
-        { label: 'Getting Started', autogenerate: { directory: 'introduction' } },
+        {
+          label: 'Getting Started',
+          autogenerate: { directory: 'introduction' },
+        },
         { label: 'Tutorial', autogenerate: { directory: 'tutorial' } },
         { label: 'Core Concepts', autogenerate: { directory: 'concepts' } },
         { label: 'Guides', autogenerate: { directory: 'guides' } },

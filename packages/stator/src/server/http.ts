@@ -131,7 +131,13 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     const status = c.res.status
     const isLive = c.req.path === '/__sse'
     httpLog[status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info'](
-      { method: c.req.method, path: c.req.path, status, ms, sse: isLive || undefined },
+      {
+        method: c.req.method,
+        path: c.req.path,
+        status,
+        ms,
+        sse: isLive || undefined,
+      },
       isLive ? 'sse open' : 'request',
     )
   })
@@ -427,7 +433,10 @@ async function handleGet(
         bodyHtml.push('<script src="/static/client.js"></script>')
       }
 
-      html = injectIntoDocument(html, { head: headHtml.join(''), bodyEnd: bodyHtml.join('') })
+      html = injectIntoDocument(html, {
+        head: headHtml.join(''),
+        bodyEnd: bodyHtml.join(''),
+      })
       applyRenderedEffects(c, result.response)
       return c.html(html)
     } finally {

@@ -1,5 +1,5 @@
 import type { HtmlFragment } from '../template/types.ts'
-import type { AnyMachineDef, EventOf, MachineDef } from './define-machine.ts'
+import type { AnyMachineDef, EventOf } from './define-machine.ts'
 
 /** Machine context passed to a route's render function. Keyed by machine name. */
 export type RouteContext = Record<string, unknown>
@@ -81,7 +81,7 @@ export type RouteRenderContext = RouteContext & {
 
 export interface RouteDefinition {
   readonly __isStatorRoute: true
-  reads: MachineDef<any, any>[]
+  reads: AnyMachineDef[]
   render: (ctx: RouteRenderContext, request: RouteRequest) => HtmlFragment
   /** When true, the rendered page opens an SSE channel that receives
    *  patches when any of the route's `reads:` machines change state — from
@@ -90,13 +90,13 @@ export interface RouteDefinition {
   live: boolean
 }
 
-export interface DefineRouteConfig<TReads extends ReadonlyArray<MachineDef<any, any>>> {
+export interface DefineRouteConfig<TReads extends ReadonlyArray<AnyMachineDef>> {
   reads: TReads
   render: (ctx: RouteRenderContext, request: RouteRequest) => HtmlFragment
   live?: boolean
 }
 
-export function defineRoute<TReads extends ReadonlyArray<MachineDef<any, any>>>(
+export function defineRoute<TReads extends ReadonlyArray<AnyMachineDef>>(
   config: DefineRouteConfig<TReads>,
 ): RouteDefinition {
   return {
@@ -157,14 +157,14 @@ export interface ApiRouteHelpers {
 
 export interface ApiRouteDefinition {
   readonly __isStatorApiRoute: true
-  reads: MachineDef<any, any>[]
+  reads: AnyMachineDef[]
   handler: (
     request: RouteRequest,
     helpers: ApiRouteHelpers,
   ) => Promise<ApiRouteResult> | ApiRouteResult
 }
 
-export interface DefineApiRouteConfig<TReads extends ReadonlyArray<MachineDef<any, any>>> {
+export interface DefineApiRouteConfig<TReads extends ReadonlyArray<AnyMachineDef>> {
   reads?: TReads
   handler: (
     request: RouteRequest,
@@ -172,7 +172,7 @@ export interface DefineApiRouteConfig<TReads extends ReadonlyArray<MachineDef<an
   ) => Promise<ApiRouteResult> | ApiRouteResult
 }
 
-export function defineApiRoute<TReads extends ReadonlyArray<MachineDef<any, any>>>(
+export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef>>(
   config: DefineApiRouteConfig<TReads>,
 ): ApiRouteDefinition {
   return {

@@ -22,6 +22,15 @@ export interface Actor<C, E extends EventObject> {
   getPersistedSnapshot(): Snapshot<C>
 }
 
+/** The "top type" for an actor — same variance argument as `AnyMachineDef`:
+ *  `C` appears in both co- and contravariant positions, so only `any` admits
+ *  every concrete actor. */
+// biome-ignore lint/suspicious/noExplicitAny: existential slots (see doc comment)
+export type AnyActor = Actor<any, any>
+
+/** The shape delivered to `Actor.on` emit listeners. */
+export type EmittedEvent = { type: string; [k: string]: unknown }
+
 export interface CreateActorOptions<C> {
   /** Hydrate from a persisted snapshot (Store) or a client seed. */
   snapshot?: Snapshot<C>
@@ -58,7 +67,7 @@ export function createActor<C extends object, E extends EventObject, S extends s
     : (structuredClone(def.context) as C)
 
   const subscribers = new Set<(s: Snapshot<C>) => void>()
-  const emitListeners = new Map<string, Set<(e: any) => void>>()
+  const emitListeners = new Map<string, Set<(e: EmittedEvent) => void>>()
   let started = false
 
   const helpers = (): ActionHelpers => opts.resolveHelpers?.() ?? throwingHelpers(def.name)
@@ -163,14 +172,11 @@ export function createActor<C extends object, E extends EventObject, S extends s
     },
 
     on(emitName, listener) {
-      let set = emitListeners.get(emitName)
-      if (!set) {
-        set = new Set()
-        emitListeners.set(emitName, set)
-      }
+      const set = emitListeners.get(emitName) ?? new Set<(e: EmittedEvent) => void>()
+      emitListeners.set(emitName, set)
       set.add(listener)
       return () => {
-        set!.delete(listener)
+        set.delete(listener)
       }
     },
   }

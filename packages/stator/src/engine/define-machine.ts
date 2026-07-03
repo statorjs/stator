@@ -92,7 +92,7 @@ export function defineMachine<
     selectors: (config.selectors ?? {}) as Sel,
     capabilities: computeCapabilities(reads),
     initial: config.initial,
-    states: config.states as Record<string, StateNode<C, E, S, any>>,
+    states: config.states as Record<string, StateNode<C, E, S>>,
     context: config.context,
     __context: undefined as unknown as C,
     __event: undefined as unknown as E,

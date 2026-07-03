@@ -37,7 +37,13 @@ describe('compiler: client-component lowering', () => {
     const { shell, directives } = lowerClient('<span bind:text={qty.count}></span>', ['qty'])
     expect(shell).toBe('html`<span data-b="b0"></span>`')
     expect(directives).toEqual([
-      { marker: 'b0', kind: 'bind', target: 'text', expr: 'qty.count', deps: ['qty'] },
+      {
+        marker: 'b0',
+        kind: 'bind',
+        target: 'text',
+        expr: 'qty.count',
+        deps: ['qty'],
+      },
     ])
   })
 
@@ -56,7 +62,11 @@ describe('compiler: client-component lowering', () => {
     )
     expect(shell).toBe('html`<button data-b="b0">+</button>`')
     expect(directives.map((d) => d.marker)).toEqual(['b0', 'b0'])
-    expect(directives[1]).toMatchObject({ kind: 'bind', target: 'disabled', deps: ['qty'] })
+    expect(directives[1]).toMatchObject({
+      kind: 'bind',
+      target: 'disabled',
+      deps: ['qty'],
+    })
   })
 
   it('assigns sequential markers across elements', () => {
@@ -73,7 +83,11 @@ describe('compiler: client-component lowering', () => {
   it('keeps ref: (data-ref) alongside collected client directives', () => {
     const { shell, directives } = lowerClient('<input ref:field bind:value={draft.q} />', ['draft'])
     expect(shell).toBe('html`<input data-ref="field" data-b="b0" />`')
-    expect(directives[0]).toMatchObject({ kind: 'bind', target: 'value', deps: ['draft'] })
+    expect(directives[0]).toMatchObject({
+      kind: 'bind',
+      target: 'value',
+      deps: ['draft'],
+    })
   })
 
   it('leaves plain attributes and text untouched', () => {

@@ -6,7 +6,7 @@
  * See spec: custom-isomorphic-state-machine-engine.
  */
 
-export type { Actor, CreateActorOptions } from './actor.ts'
+export type { Actor, AnyActor, CreateActorOptions } from './actor.ts'
 export { createActor } from './actor.ts'
 export type { DefineMachineConfig } from './define-machine.ts'
 export { defineMachine } from './define-machine.ts'

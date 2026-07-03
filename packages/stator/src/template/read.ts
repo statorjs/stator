@@ -1,13 +1,18 @@
-import type { MachineDef } from '../server/define-machine.ts'
+import type { AnyMachineDef } from '../server/define-machine.ts'
 import { defForProxy } from '../server/instance-proxy.ts'
-import { allocSlotId, requireCurrentRenderState, type SlotId } from '../server/render-context.ts'
+import {
+  allocSlotId,
+  type ErasedSelector,
+  requireCurrentRenderState,
+  type SlotId,
+} from '../server/render-context.ts'
 import type { InstanceOf } from './types.ts'
 
 export interface ReadResult<T = unknown> {
   readonly __isReadResult: true
   slotId: SlotId
   machineName: string
-  selector: (instance: any) => unknown
+  selector: ErasedSelector
   /** The machine proxy this read was bound against. Re-evaluating
    *  `selector(instance)` always returns fresh state because the proxy
    *  reads through `actor.getSnapshot()` on every access. */
@@ -21,7 +26,7 @@ export function isReadResult(v: unknown): v is ReadResult {
   )
 }
 
-export function read<TDef extends MachineDef<any, any>, TResult>(
+export function read<TDef extends AnyMachineDef, TResult>(
   instance: InstanceOf<TDef>,
   selector: (instance: InstanceOf<TDef>) => TResult,
 ): ReadResult<TResult> {
@@ -38,7 +43,7 @@ export function read<TDef extends MachineDef<any, any>, TResult>(
     __isReadResult: true,
     slotId,
     machineName: def.name,
-    selector: selector as (instance: any) => unknown,
+    selector: selector as ErasedSelector,
     instance,
     value: value as TResult,
   }

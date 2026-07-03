@@ -1,5 +1,6 @@
 import {
   allocSlotId,
+  type ErasedSelector,
   popListScope,
   pushListScope,
   type RenderState,
@@ -64,7 +65,7 @@ export function when<T>(cond: T | ReadResult<T>, fn: () => HtmlFragment): Branch
   let value: T
   let slotId: SlotId
   let machineName: string | null = null
-  let selector: ((instance: any) => unknown) | null = null
+  let selector: ErasedSelector | null = null
 
   if (isReadResult(cond)) {
     value = cond.value as T
@@ -118,7 +119,7 @@ export function match<TKey extends string>(
   let value: TKey
   let slotId: SlotId
   let machineName: string | null = null
-  let selector: ((instance: any) => unknown) | null = null
+  let selector: ErasedSelector | null = null
 
   if (isReadResult(key)) {
     value = key.value as TKey

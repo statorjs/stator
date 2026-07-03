@@ -23,7 +23,11 @@ describe('MachineStore + SessionRuntime', () => {
     const instance = store.appInstance('ProductsMachine')!.proxy as any
 
     expect(instance.all).toEqual([{ id: 'p1', name: 'Notebook', price: 12 }])
-    expect(instance.byId('p1')).toEqual({ id: 'p1', name: 'Notebook', price: 12 })
+    expect(instance.byId('p1')).toEqual({
+      id: 'p1',
+      name: 'Notebook',
+      price: 12,
+    })
     expect(instance.byId('nope')).toBeUndefined()
   })
 
@@ -50,7 +54,11 @@ describe('MachineStore + SessionRuntime', () => {
                 const existing = ctx.items.find((i) => i.productId === ev.productId)
                 if (existing) existing.quantity += 1
                 else
-                  ctx.items.push({ productId: ev.productId, quantity: 1, unitPrice: ev.unitPrice })
+                  ctx.items.push({
+                    productId: ev.productId,
+                    quantity: 1,
+                    unitPrice: ev.unitPrice,
+                  })
               },
               emit: 'ITEM_ADDED',
             },

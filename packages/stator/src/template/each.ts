@@ -1,5 +1,7 @@
 import {
   allocSlotId,
+  type ErasedItemRenderer,
+  type ErasedSelector,
   popListScope,
   pushListScope,
   type RenderState,
@@ -32,7 +34,7 @@ export function each<T>(
   let array: T[]
   let slotId: SlotId
   let machineName: string | null = null
-  let selector: ((instance: any) => unknown) | null = null
+  let selector: ErasedSelector | null = null
 
   if (isReadResult(items)) {
     array = items.value as T[]
@@ -53,7 +55,7 @@ export function each<T>(
       selector,
       lastValue: array,
       kind: 'list',
-      itemRenderer: fn as (item: any, index: number) => HtmlFragment,
+      itemRenderer: fn as ErasedItemRenderer,
     })
   }
 

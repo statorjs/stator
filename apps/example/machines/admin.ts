@@ -35,10 +35,26 @@ export default defineMachine({
     // four semantic events all dispatch to the same updater since admin
     // denormalizes — but the schema-export view preserves each event's
     // domain meaning on the source side.
-    { from: CartMachine, event: 'ITEM_ADDED', dispatch: 'SESSION_CART_CHANGED' },
-    { from: CartMachine, event: 'ITEM_REMOVED', dispatch: 'SESSION_CART_CHANGED' },
-    { from: CartMachine, event: 'ITEM_QUANTITY_CHANGED', dispatch: 'SESSION_CART_CHANGED' },
-    { from: CartMachine, event: 'CART_CLEARED', dispatch: 'SESSION_CART_CHANGED' },
+    {
+      from: CartMachine,
+      event: 'ITEM_ADDED',
+      dispatch: 'SESSION_CART_CHANGED',
+    },
+    {
+      from: CartMachine,
+      event: 'ITEM_REMOVED',
+      dispatch: 'SESSION_CART_CHANGED',
+    },
+    {
+      from: CartMachine,
+      event: 'ITEM_QUANTITY_CHANGED',
+      dispatch: 'SESSION_CART_CHANGED',
+    },
+    {
+      from: CartMachine,
+      event: 'CART_CLEARED',
+      dispatch: 'SESSION_CART_CHANGED',
+    },
   ],
 
   context: { sessions: {} } as AdminContext,

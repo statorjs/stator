@@ -1,10 +1,10 @@
 {
-  "name": "landing",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Static landing page for statorjs.dev. Plain HTML/CSS, deployed to Netlify.",
-  "scripts": {
-    "deploy": "netlify deploy --prod --dir .",
-    "preview": "netlify deploy --dir ."
-  }
+	"name": "landing",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Static landing page for statorjs.dev. Plain HTML/CSS, deployed to Netlify.",
+	"scripts": {
+		"deploy": "netlify deploy --prod --dir .",
+		"preview": "netlify deploy --dir ."
+	}
 }

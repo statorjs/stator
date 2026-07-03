@@ -2,10 +2,13 @@ import { readFile } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
 import { relative, resolve } from 'node:path'
 import { getRequestListener } from '@hono/node-server'
+import type { Hono } from 'hono'
 import { createServer as createViteServer, type ViteDevServer } from 'vite'
 import { compile } from '../compiler/index.ts'
 import { stator } from '../vite/index.ts'
 import { logger } from './logger.ts'
+import type { MachineStore } from './machine-store.ts'
+import type { DiscoveredRoute } from './route-discovery.ts'
 import type { Store } from './store.ts'
 
 /**
@@ -56,7 +59,10 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   })
 
   // Load the runtime through Vite so it shares an instance with the templates.
-  const runtime = (await vite.ssrLoadModule('@statorjs/stator/server')) as any
+  // (Type-only: the static import type is erased, so no second instance.)
+  const runtime = (await vite.ssrLoadModule(
+    '@statorjs/stator/server',
+  )) as typeof import('./index.ts')
   const loader = (file: string) => vite.ssrLoadModule(file) as Promise<Record<string, unknown>>
 
   const root = resolve(config.root)
@@ -102,10 +108,10 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   }
 
   // The app graph is rebuilt on a source change so edits don't need a restart.
-  let store: any
-  let routes: any[] = []
+  let store: MachineStore
+  let routes: DiscoveredRoute[] = []
   let machineCount = 0
-  let app: any
+  let app: Hono
 
   const rebuildStore = async (): Promise<void> => {
     const { defs } = await runtime.discoverMachines(machinesDir, loader)
@@ -179,7 +185,12 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
       return new Promise((resolveFn) => {
         server.listen(port, () => {
           logger.info(
-            { port, mode: 'dev', machines: machineCount, routes: routes.length },
+            {
+              port,
+              mode: 'dev',
+              machines: machineCount,
+              routes: routes.length,
+            },
             'listening',
           )
           resolveFn()

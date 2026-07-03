@@ -67,7 +67,10 @@ const safeJsonLdReplacer: JsonReplacer = (_: string, value: JsonValue): JsonValu
 function isNever(_: never): void {}
 
 function withContext<T extends Thing>(thing: T): WithContext<T> {
-  return { '@context': 'https://schema.org', ...(thing as object) } as WithContext<T>
+  return {
+    '@context': 'https://schema.org',
+    ...(thing as object),
+  } as WithContext<T>
 }
 
 function asGraph(things: Thing[]): Graph {

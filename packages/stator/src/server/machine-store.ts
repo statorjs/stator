@@ -1,5 +1,5 @@
 import { createActor } from '../engine/index.ts'
-import type { MachineDef, SubscribeEvent } from './define-machine.ts'
+import type { AnyMachineDef, SubscribeEvent } from './define-machine.ts'
 import { recordTouch } from './dispatch-context.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
 import { serverReadsResolver } from './reads-helpers.ts'
@@ -39,14 +39,18 @@ export function buildDispatchEvent(
  */
 export class MachineStore {
   private appInstances = new Map<string, InstanceHandle>()
-  private defs = new Map<string, MachineDef<any, any>>()
+  private defs = new Map<string, AnyMachineDef>()
   /** Reverse index over `subscribes`: for each emit source, the list of
    *  subscribing machines + which event they care about + what to dispatch.
    *  Computed once at construction so SessionRuntime.wireSubscriptions is
    *  a single Map lookup per session-machine. */
   private subscribersBySource = new Map<
     string,
-    Array<{ targetName: string; event: string; dispatch: { type: string; [k: string]: unknown } }>
+    Array<{
+      targetName: string
+      event: string
+      dispatch: { type: string; [k: string]: unknown }
+    }>
   >()
 
   /** Default per-session TTL in seconds. Applied on every persistTouched
@@ -55,7 +59,7 @@ export class MachineStore {
   readonly sessionTtlSeconds: number
 
   constructor(
-    defs: MachineDef<any, any>[],
+    defs: AnyMachineDef[],
     readonly persistence: Store,
     opts?: { sessionTtlSeconds?: number },
   ) {
@@ -114,7 +118,9 @@ export class MachineStore {
   bootAppMachines(): void {
     for (const def of this.defs.values()) {
       if (def.lifecycle === 'app' && !this.appInstances.has(def.name)) {
-        const actor = createActor(def, { resolveHelpers: serverReadsResolver(def) }).start()
+        const actor = createActor(def, {
+          resolveHelpers: serverReadsResolver(def),
+        }).start()
         this.appInstances.set(def.name, createInstanceProxy(def, actor))
       }
     }
@@ -130,7 +136,7 @@ export class MachineStore {
       for (const sub of targetHandle.def.subscribes) {
         const sourceHandle = this.appInstances.get(sub.from.name)
         if (!sourceHandle) continue
-        sourceHandle.actor.on(sub.event as never, (emitted: any) => {
+        sourceHandle.actor.on(sub.event as never, (emitted) => {
           targetHandle.actor.send(buildDispatchEvent(emitted, sub.dispatch) as never)
           recordTouch(targetName)
         })
@@ -142,11 +148,11 @@ export class MachineStore {
     return this.appInstances.get(name)
   }
 
-  getDef(name: string): MachineDef<any, any> | undefined {
+  getDef(name: string): AnyMachineDef | undefined {
     return this.defs.get(name)
   }
 
-  allDefs(): MachineDef<any, any>[] {
+  allDefs(): AnyMachineDef[] {
     return [...this.defs.values()]
   }
 

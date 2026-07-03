@@ -298,7 +298,9 @@ function applyDirectives(directives: Directive[]): void {
       case 'scroll': {
         const el = resolveTarget(directive.target)
         if (el && 'scrollIntoView' in el) {
-          ;(el as HTMLElement).scrollIntoView({ behavior: directive.behavior ?? 'auto' })
+          ;(el as HTMLElement).scrollIntoView({
+            behavior: directive.behavior ?? 'auto',
+          })
         }
         break
       }

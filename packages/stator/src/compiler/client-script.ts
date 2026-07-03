@@ -194,7 +194,13 @@ export function analyzeScriptClasses(script: string): ScriptClass[] {
         members.add(member.name.text)
       }
     }
-    out.push({ name: stmt.name.text, useFields, methods, members, staticAttrs })
+    out.push({
+      name: stmt.name.text,
+      useFields,
+      methods,
+      members,
+      staticAttrs,
+    })
   }
   return out
 }

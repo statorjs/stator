@@ -81,6 +81,11 @@ export {
 export { getOrCreateSessionId, SESSION_COOKIE } from './session.ts'
 export { SessionRuntime } from './session-runtime.ts'
 export type { Connection } from './sse.ts'
-export { activeConnectionCount, fanOut, registerConnection, unregisterConnection } from './sse.ts'
+export {
+  activeConnectionCount,
+  fanOut,
+  registerConnection,
+  unregisterConnection,
+} from './sse.ts'
 export type { Store } from './store.ts'
 export { InMemoryStore } from './store.ts'

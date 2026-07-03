@@ -81,7 +81,12 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
   const script = scripts.join('\n')
   if (script.trim()) {
     if (analyzeScriptClasses(script).length > 0) {
-      return compileClient(template, script, { hash, scopeAttr, styles, file: opts.id })
+      return compileClient(template, script, {
+        hash,
+        scopeAttr,
+        styles,
+        file: opts.id,
+      })
     }
     throw new CompileError(
       `stator: this <script> exports no StatorElement subclass. An inline <script> in a ` +
@@ -114,7 +119,14 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
   const serverCode =
     kind === 'route' ? emitRoute(fm, htmlExpr, meta) : emitComponent(fm, htmlExpr, meta)
 
-  return { serverCode, scopeHash: hash, css, scripts, isClient: false, clientCode: '' }
+  return {
+    serverCode,
+    scopeHash: hash,
+    css,
+    scripts,
+    isClient: false,
+    clientCode: '',
+  }
 }
 
 /**
@@ -136,7 +148,13 @@ function compileClient(
   const tags = new Set([root.tag])
   analyzeClient(script, tags, { file: ctx.file })
 
-  const cls = classes.find((c) => pascalToKebab(c.name) === root.tag)!
+  const cls = classes.find((c) => pascalToKebab(c.name) === root.tag)
+  if (!cls) {
+    // analyzeClient validated the tag↔class match just above; reaching here is a bug.
+    throw new CompileError(
+      `stator: internal — no exported class matches root <${root.tag}> after name validation`,
+    )
+  }
 
   // Lower the inner shell in client mode: collect bind:/on:, strip them, inject
   // markers. (Client templates have no read() — server state isn't in scope.)
@@ -341,7 +359,13 @@ function processFrontmatter(
     body.push(`  ${text}`)
   }
 
-  return { hoisted: hoisted.join('\n'), body: body.join('\n'), propsType, reads, pragmas }
+  return {
+    hoisted: hoisted.join('\n'),
+    body: body.join('\n'),
+    propsType,
+    reads,
+    pragmas,
+  }
 }
 
 function emitComponent(fm: FrontmatterParts, htmlExpr: string, meta: LowerMeta): string {

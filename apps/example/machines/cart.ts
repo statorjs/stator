@@ -59,7 +59,11 @@ export default defineMachine({
             do: (ctx, ev, { reads }) => {
               const product = reads.ProductsMachine.byId(ev.productId)
               if (product)
-                ctx.items.push({ productId: ev.productId, quantity: 1, unitPrice: product.price })
+                ctx.items.push({
+                  productId: ev.productId,
+                  quantity: 1,
+                  unitPrice: product.price,
+                })
             },
             emit: 'ITEM_ADDED',
           },

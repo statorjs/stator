@@ -73,9 +73,9 @@ export function recompute(
       if (!valuesEqual(newValue, binding.lastValue)) {
         pending.push({
           patch: {
-            target: { kind: 'element', id: binding.parentId! },
+            target: { kind: 'element', id: binding.parentId },
             op: 'attr',
-            name: binding.attrName!,
+            name: binding.attrName,
             value: stringify(newValue),
           },
           sourceSlot: slotId,
@@ -86,21 +86,29 @@ export function recompute(
       const newArray = newValue as readonly unknown[]
       const oldArray = binding.lastValue as readonly unknown[]
       if (!arrayShallowEqual(newArray, oldArray)) {
-        const fn = binding.itemRenderer!
+        const fn = binding.itemRenderer
         const newInner = runInRender(state, () => renderListBody(state, slotId, newArray, fn))
         pending.push({
-          patch: { target: { kind: 'slot', id: slotId }, op: 'html', value: newInner },
+          patch: {
+            target: { kind: 'slot', id: slotId },
+            op: 'html',
+            value: newInner,
+          },
           sourceSlot: slotId,
         })
         binding.lastValue = newArray
       }
     } else if (binding.kind === 'branch') {
-      const newKey = binding.branchKeyFn!(newValue)
+      const newKey = binding.branchKeyFn(newValue)
       if (!Object.is(newKey, binding.lastBranchKey)) {
-        const renderer = binding.branchRenderFn!(newValue)
+        const renderer = binding.branchRenderFn(newValue)
         const newInner = runInRender(state, () => renderBranchBody(state, slotId, renderer))
         pending.push({
-          patch: { target: { kind: 'slot', id: slotId }, op: 'html', value: newInner },
+          patch: {
+            target: { kind: 'slot', id: slotId },
+            op: 'html',
+            value: newInner,
+          },
           sourceSlot: slotId,
         })
         binding.lastBranchKey = newKey

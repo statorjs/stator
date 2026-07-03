@@ -28,7 +28,12 @@ function makeCart() {
           ADD: (ctx, ev) => {
             const ex = ctx.items.find((i) => i.productId === ev.productId)
             if (ex) ex.quantity += 1
-            else ctx.items.push({ productId: ev.productId, quantity: 1, unitPrice: ev.unitPrice })
+            else
+              ctx.items.push({
+                productId: ev.productId,
+                quantity: 1,
+                unitPrice: ev.unitPrice,
+              })
           },
           REMOVE: (ctx, ev) => {
             ctx.items = ctx.items.filter((i) => i.productId !== ev.productId)
@@ -92,6 +97,7 @@ describe('html templating', () => {
       expect(out.html).toContain('class=""')
       const b = state.bindings.get('s0')!
       expect(b.kind).toBe('attr')
+      if (b.kind !== 'attr') throw new Error('expected attr binding')
       expect(b.attrName).toBe('class')
       expect(b.parentId).toBe('e0')
     } finally {
@@ -120,8 +126,16 @@ describe('html templating', () => {
   it('each() registers a list binding when given a read', async () => {
     const { cart, state, runtime } = await buildRuntime()
     try {
-      runtime.processEvent('CartMachine', { type: 'ADD', productId: 'p1', unitPrice: 5 })
-      runtime.processEvent('CartMachine', { type: 'ADD', productId: 'p2', unitPrice: 7 })
+      runtime.processEvent('CartMachine', {
+        type: 'ADD',
+        productId: 'p1',
+        unitPrice: 5,
+      })
+      runtime.processEvent('CartMachine', {
+        type: 'ADD',
+        productId: 'p2',
+        unitPrice: 7,
+      })
 
       const out = runInRender(
         state,
@@ -138,6 +152,7 @@ describe('html templating', () => {
       expect(out.html).toContain('<li>p2 x1</li>')
       const listBinding = state.bindings.get('s0')!
       expect(listBinding.kind).toBe('list')
+      if (listBinding.kind !== 'list') throw new Error('expected list binding')
       expect(listBinding.machineName).toBe('CartMachine')
       expect(listBinding.itemRenderer).toBeTypeOf('function')
     } finally {
@@ -154,7 +169,11 @@ describe('html templating', () => {
       )
       expect(fragment.html).toContain('<span data-slot="s0">0</span>')
 
-      runtime.processEvent('CartMachine', { type: 'ADD', productId: 'p1', unitPrice: 5 })
+      runtime.processEvent('CartMachine', {
+        type: 'ADD',
+        productId: 'p1',
+        unitPrice: 5,
+      })
 
       const patches: Array<{ slot: string; value?: unknown }> = []
       const slotIds = state.byMachine.get('CartMachine') ?? new Set()
@@ -175,7 +194,11 @@ describe('html templating', () => {
   it('list re-render after item added', async () => {
     const { cart, state, runtime } = await buildRuntime()
     try {
-      runtime.processEvent('CartMachine', { type: 'ADD', productId: 'p1', unitPrice: 5 })
+      runtime.processEvent('CartMachine', {
+        type: 'ADD',
+        productId: 'p1',
+        unitPrice: 5,
+      })
 
       runInRender(
         state,
@@ -188,14 +211,19 @@ describe('html templating', () => {
       )
       expect(state.bindings.has('s0:i0:s0')).toBe(true)
 
-      runtime.processEvent('CartMachine', { type: 'ADD', productId: 'p2', unitPrice: 7 })
+      runtime.processEvent('CartMachine', {
+        type: 'ADD',
+        productId: 'p2',
+        unitPrice: 7,
+      })
 
       const listBinding = state.bindings.get('s0')!
       expect(listBinding.kind).toBe('list')
+      if (listBinding.kind !== 'list') throw new Error('expected list binding')
       const newItems = listBinding.selector(cart) as any[]
       expect(newItems.length).toBe(2)
       const newInner = runInRender(state, () =>
-        renderListBody(state, 's0', newItems, listBinding.itemRenderer!),
+        renderListBody(state, 's0', newItems, listBinding.itemRenderer),
       )
       expect(newInner).toContain('p1 qty=')
       expect(newInner).toContain('p2 qty=')

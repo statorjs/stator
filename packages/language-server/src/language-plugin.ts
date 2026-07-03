@@ -46,7 +46,11 @@ export const statorLanguagePlugin: LanguagePlugin<URI, StatorVirtualCode> = {
   },
   typescript: {
     extraFileExtensions: [
-      { extension: 'stator', isMixedContent: true, scriptKind: DEFERRED_SCRIPT_KIND },
+      {
+        extension: 'stator',
+        isMixedContent: true,
+        scriptKind: DEFERRED_SCRIPT_KIND,
+      },
     ],
     getServiceScript(root) {
       for (const code of forEachEmbeddedCode(root)) {

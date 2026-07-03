@@ -28,7 +28,13 @@ export class QuantityStepper extends StatorElement {
 
   const directives: ClientDirective[] = [
     { marker: 'b0', kind: 'on', event: 'click', expr: 'dec', deps: [] },
-    { marker: 'b1', kind: 'bind', target: 'text', expr: 'qty.count', deps: ['qty'] },
+    {
+      marker: 'b1',
+      kind: 'bind',
+      target: 'text',
+      expr: 'qty.count',
+      deps: ['qty'],
+    },
     { marker: 'b2', kind: 'on', event: 'click', expr: 'inc', deps: [] },
   ]
   const members = new Set(['qty', 'inc', 'dec'])

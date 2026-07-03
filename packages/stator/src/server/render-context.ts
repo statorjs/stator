@@ -1,31 +1,62 @@
+import type { HtmlFragment } from '../template/types.ts'
+
 export type SlotId = string
 export type MachineName = string
 export type SessionId = string
 export type ElementId = string
 
-export type BindingKind = 'text' | 'attr' | 'list' | 'branch'
+export type BindingKind = Binding['kind']
 
-export interface Binding {
+/** A binding-stored selector with its instance type erased. `any` (not
+ *  `unknown`) is deliberate: parameters are contravariant, so a concrete
+ *  `(instance: CartProxy) => T` is only assignable into an `any`-typed slot. */
+// biome-ignore lint/suspicious/noExplicitAny: contravariant parameter — see doc comment
+export type ErasedSelector = (instance: any) => unknown
+
+/** A list binding's per-item renderer, item type erased (same variance argument). */
+// biome-ignore lint/suspicious/noExplicitAny: contravariant parameter — see doc comment
+export type ErasedItemRenderer = (item: any, index: number) => HtmlFragment
+
+interface BindingBase {
   slotId: SlotId
   machineName: MachineName
-  selector: (instance: any) => unknown
+  selector: ErasedSelector
   lastValue: unknown
-  kind: BindingKind
-  attrName?: string
-  parentId?: ElementId
-  /** Only set for kind='list'. Re-invoked per item when the list re-renders. */
-  itemRenderer?: (item: any, index: number) => import('../template/types.ts').HtmlFragment
-  /** Only set for kind='branch'. The selector value reduced to a stable
-   *  key — re-render only fires when the key changes (so `when` doesn't
-   *  re-render on every truthy-to-truthy value transition). */
-  branchKeyFn?: (value: unknown) => unknown
-  /** Only set for kind='branch'. Returns the renderer for a given selector
-   *  value, or null when nothing should be rendered. */
-  branchRenderFn?: (value: unknown) => (() => import('../template/types.ts').HtmlFragment) | null
-  /** Only set for kind='branch'. The last computed key — distinct from
-   *  lastValue, which holds the raw selector result. */
-  lastBranchKey?: unknown
 }
+
+export interface TextBinding extends BindingBase {
+  kind: 'text'
+}
+
+export interface AttrBinding extends BindingBase {
+  kind: 'attr'
+  attrName: string
+  parentId: ElementId
+}
+
+export interface ListBinding extends BindingBase {
+  kind: 'list'
+  /** Re-invoked per item when the list re-renders. */
+  itemRenderer: ErasedItemRenderer
+}
+
+export interface BranchBinding extends BindingBase {
+  kind: 'branch'
+  /** The selector value reduced to a stable key — re-render only fires when
+   *  the key changes (so `when` doesn't re-render on every truthy-to-truthy
+   *  value transition). */
+  branchKeyFn: (value: unknown) => unknown
+  /** Returns the renderer for a given selector value, or null when nothing
+   *  should be rendered. */
+  branchRenderFn: (value: unknown) => (() => HtmlFragment) | null
+  /** The last computed key — distinct from lastValue, which holds the raw
+   *  selector result. */
+  lastBranchKey: unknown
+}
+
+/** Discriminated on `kind`, so per-kind fields are required where they apply —
+ *  recompute narrows on the discriminant instead of asserting optionals. */
+export type Binding = TextBinding | AttrBinding | ListBinding | BranchBinding
 
 interface Scope {
   prefix: string

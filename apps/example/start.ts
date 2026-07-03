@@ -29,7 +29,10 @@ try {
 const redisUrl = process.env.REDIS_URL
 let store: Store
 if (redisUrl) {
-  store = new CachedStore(new RedisStore(redisUrl), { memoryTtlSeconds: 300, maxEntries: 10_000 })
+  store = new CachedStore(new RedisStore(redisUrl), {
+    memoryTtlSeconds: 300,
+    maxEntries: 10_000,
+  })
 } else {
   store = new InMemoryStore()
   logger.warn({ store: 'in-memory' }, 'sessions will not survive restart')

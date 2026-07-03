@@ -42,7 +42,12 @@ export async function dispatch<D extends AnyMachineDef>(
 type Patch =
   | { target: { kind: 'slot'; id: string }; op: 'text'; value: string }
   | { target: { kind: 'slot'; id: string }; op: 'html'; value: string }
-  | { target: { kind: 'element'; id: string }; op: 'attr'; name: string; value: string }
+  | {
+      target: { kind: 'element'; id: string }
+      op: 'attr'
+      name: string
+      value: string
+    }
 
 function applyPatches(patches: Patch[]): void {
   for (const p of patches) {

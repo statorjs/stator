@@ -34,7 +34,10 @@ describe('client runtime (3b stage 0)', () => {
       },
       select: { doubled: (s: any) => s.count * 2 },
     })
-    const inst = use(Qty) as ClientInstance & { count: number; doubled: number }
+    const inst = use(Qty) as ClientInstance & {
+      count: number
+      doubled: number
+    }
     inst.__actor.start()
     expect(inst.count).toBe(1)
     expect(inst.doubled).toBe(2)
@@ -54,7 +57,9 @@ describe('client runtime (3b stage 0)', () => {
       },
       select: { lineTotal: (s: any) => s.unitPrice * s.count },
     })
-    const inst = use(Cart, { unitPrice: 12 }) as ClientInstance & { lineTotal: number }
+    const inst = use(Cart, { unitPrice: 12 }) as ClientInstance & {
+      lineTotal: number
+    }
     inst.__actor.start()
     expect(inst.lineTotal).toBe(12)
     inst.send('INC')

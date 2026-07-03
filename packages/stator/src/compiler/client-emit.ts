@@ -161,7 +161,7 @@ export function rewriteMembers(expr: string, members: Set<string>): string {
       const isDeclName =
         n.parent &&
         (ts.isParameter(n.parent) || ts.isBindingElement(n.parent)) &&
-        (n.parent as any).name === n
+        n.parent.name === n
       if (!isPropName && !isDeclName && members.has(n.text)) {
         repls.push([n.getStart(sf), n.getEnd()])
       }

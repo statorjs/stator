@@ -1,5 +1,5 @@
 import { createActor, type Snapshot } from '../engine/index.ts'
-import type { MachineDef } from './define-machine.ts'
+import type { AnyMachineDef } from './define-machine.ts'
 import { type DispatchContext, recordTouch, withDispatchContext } from './dispatch-context.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
 import { buildDispatchEvent, type MachineStore } from './machine-store.ts'
@@ -35,7 +35,7 @@ export class SessionRuntime {
    * are loaded into this runtime. Idempotent: calling twice with overlapping
    * inputs costs only the de-duped delta.
    */
-  async loadGraph(seeds: ReadonlyArray<MachineDef<any, any>>): Promise<void> {
+  async loadGraph(seeds: ReadonlyArray<AnyMachineDef>): Promise<void> {
     const queue = [...seeds]
     while (queue.length > 0) {
       const def = queue.shift()!
@@ -51,10 +51,10 @@ export class SessionRuntime {
     }
   }
 
-  private async loadOne(def: MachineDef<any, any>): Promise<void> {
+  private async loadOne(def: AnyMachineDef): Promise<void> {
     const persisted = await this.store.persistence.get(this.sessionId, def.name)
     const actor = createActor(def, {
-      snapshot: persisted !== null ? (persisted as Snapshot<any>) : undefined,
+      snapshot: persisted !== null ? (persisted as Snapshot<object>) : undefined,
       resolveHelpers: serverReadsResolver(def),
     }).start()
     this.actors.set(def.name, createInstanceProxy(def, actor))
@@ -91,7 +91,7 @@ export class SessionRuntime {
         const sid = this.sessionId
         const targetName = sub.targetName
 
-        sourceHandle.actor.on(sub.event as never, (emitted: any) => {
+        sourceHandle.actor.on(sub.event as never, (emitted) => {
           targetHandle.actor.send(
             buildDispatchEvent(emitted, sub.dispatch, crossLifecycle ? sid : undefined) as never,
           )

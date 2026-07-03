@@ -88,7 +88,14 @@ export function splitStator(source: string): ParsedStator {
     return ''
   })
 
-  return { frontmatter, template: rest.trim(), styles, scripts, scriptOffsets, templateOffset }
+  return {
+    frontmatter,
+    template: rest.trim(),
+    styles,
+    scripts,
+    scriptOffsets,
+    templateOffset,
+  }
 }
 
 /** A region's inner text plus the absolute source offset where that text begins.
@@ -133,7 +140,10 @@ export function scanRegions(source: string): ScannedRegions {
   const styles: SourceRegion[] = []
   for (const m of source.matchAll(STYLE_RE)) {
     const start = m.index
-    styles.push({ contentOffset: start + '<style>'.length, content: m[1] ?? '' })
+    styles.push({
+      contentOffset: start + '<style>'.length,
+      content: m[1] ?? '',
+    })
     if (start < firstBlock) firstBlock = start
   }
   const scripts: SourceRegion[] = []
@@ -148,7 +158,10 @@ export function scanRegions(source: string): ScannedRegions {
   const templateEnd = Math.max(bodyStart, firstBlock)
   return {
     frontmatter,
-    template: { contentOffset: bodyStart, content: source.slice(bodyStart, templateEnd) },
+    template: {
+      contentOffset: bodyStart,
+      content: source.slice(bodyStart, templateEnd),
+    },
     styles,
     scripts,
   }

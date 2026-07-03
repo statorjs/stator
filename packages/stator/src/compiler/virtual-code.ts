@@ -150,7 +150,11 @@ function buildCssFile(style: { contentOffset: number; content: string }): Virtua
     lang: 'css',
     code: style.content,
     mappings: [
-      { sourceOffset: style.contentOffset, generatedOffset: 0, length: style.content.length },
+      {
+        sourceOffset: style.contentOffset,
+        generatedOffset: 0,
+        length: style.content.length,
+      },
     ],
   }
 }

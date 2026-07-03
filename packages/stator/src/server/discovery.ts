@@ -1,10 +1,10 @@
 import { readdir } from 'node:fs/promises'
 import { extname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { isStatorMachine, type MachineDef } from './define-machine.ts'
+import { type AnyMachineDef, isStatorMachine } from './define-machine.ts'
 
 export interface DiscoveryResult {
-  defs: MachineDef<any, any>[]
+  defs: AnyMachineDef[]
 }
 
 /** How a discovered file is turned into a module. Defaults to native dynamic
@@ -36,7 +36,7 @@ export async function discoverMachines(
     }
   }
 
-  const defs: MachineDef<any, any>[] = []
+  const defs: AnyMachineDef[] = []
   const seenNames = new Set<string>()
 
   for (const file of files) {
@@ -60,7 +60,7 @@ export async function discoverMachines(
   return { defs: topoSort(defs) }
 }
 
-function validateReads(defs: MachineDef<any, any>[], dir: string): void {
+function validateReads(defs: AnyMachineDef[], dir: string): void {
   const byName = new Map(defs.map((d) => [d.name, d]))
   for (const def of defs) {
     for (const dep of def.reads) {
@@ -80,17 +80,17 @@ function validateReads(defs: MachineDef<any, any>[], dir: string): void {
   }
 }
 
-function topoSort(defs: MachineDef<any, any>[]): MachineDef<any, any>[] {
-  const sorted: MachineDef<any, any>[] = []
+function topoSort(defs: AnyMachineDef[]): AnyMachineDef[] {
+  const sorted: AnyMachineDef[] = []
   const WHITE = 0
   const GRAY = 1
   const BLACK = 2
-  const color = new Map<MachineDef<any, any>, number>()
+  const color = new Map<AnyMachineDef, number>()
   for (const d of defs) color.set(d, WHITE)
 
-  const path: MachineDef<any, any>[] = []
+  const path: AnyMachineDef[] = []
 
-  const visit = (def: MachineDef<any, any>): void => {
+  const visit = (def: AnyMachineDef): void => {
     const c = color.get(def) ?? WHITE
     if (c === BLACK) return
     if (c === GRAY) {

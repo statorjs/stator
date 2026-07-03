@@ -27,8 +27,18 @@ type PollsContext = {
 }
 
 type PollsEvents =
-  | { type: 'CREATE_POLL'; question: string; options: string[]; sourceSessionId: string }
-  | { type: 'RECORD_VOTE'; pollId: string; optionId: string; sourceSessionId: string }
+  | {
+      type: 'CREATE_POLL'
+      question: string
+      options: string[]
+      sourceSessionId: string
+    }
+  | {
+      type: 'RECORD_VOTE'
+      pollId: string
+      optionId: string
+      sourceSessionId: string
+    }
 
 function genId(): string {
   return Math.random().toString(36).slice(2, 10)

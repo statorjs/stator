@@ -34,7 +34,9 @@ function runModule(code: string, api: Record<string, unknown>): any {
 
 describe('compiler: client component end-to-end (3b stage 6a)', () => {
   it('server shell renders with the seed attr; client module hydrates and is reactive', () => {
-    const { serverCode, clientCode } = compile(CLIENT, { id: 'quantity-stepper.stator' })
+    const { serverCode, clientCode } = compile(CLIENT, {
+      id: 'quantity-stepper.stator',
+    })
 
     // 1. Render the server shell with a unit-price prop, inside a render context.
     const render = runModule(serverCode, templateApi) as (p: any) => HtmlFragment

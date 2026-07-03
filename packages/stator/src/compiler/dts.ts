@@ -41,7 +41,10 @@ export function generateDts(
 
 /** Collect the import/type/interface declarations from frontmatter (for the
  *  `.d.ts` to re-state) and the `Stator.props<P>()` type argument. */
-function extractFrontmatterTypes(fm: string): { hoisted: string; propsType?: string } {
+function extractFrontmatterTypes(fm: string): {
+  hoisted: string
+  propsType?: string
+} {
   if (!fm.trim()) return { hoisted: '' }
   const sf = ts.createSourceFile('fm.ts', fm, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
   const hoisted: string[] = []

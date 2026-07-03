@@ -16,8 +16,10 @@ export interface MachineConfig {
   name?: string
   /** Transition map for the single implicit state. A bare function is an action;
    *  an object is a full `{ to?, when?, do?, emit? }` transition. */
+  // biome-ignore lint/suspicious/noExplicitAny: the terse form is dynamically shaped — context/event types aren't statically threaded (it desugars through defineMachine)
   on?: Record<string, any>
   /** Derived values, exposed as selectors on the instance. */
+  // biome-ignore lint/suspicious/noExplicitAny: same — ctx is the inferred context of the desugared machine
   select?: Record<string, (ctx: any) => unknown>
   /** Everything else is initial context. */
   [key: string]: unknown

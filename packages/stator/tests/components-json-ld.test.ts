@@ -33,14 +33,20 @@ describe('ldToString', () => {
   })
 
   it('escapes HTML sequences so no </script> can break out', () => {
-    const s = ldToString({ '@type': 'Thing', name: 'a</script><script>alert(1)' })
+    const s = ldToString({
+      '@type': 'Thing',
+      name: 'a</script><script>alert(1)',
+    })
     expect(s).not.toContain('</script>')
     expect(s).toContain('&lt;/script&gt;')
   })
 
   it('omits null values', () => {
     const s = ldToString({ '@type': 'Thing', name: null as unknown as string })
-    expect(JSON.parse(s)).toEqual({ '@context': 'https://schema.org', '@type': 'Thing' })
+    expect(JSON.parse(s)).toEqual({
+      '@context': 'https://schema.org',
+      '@type': 'Thing',
+    })
   })
 
   it('honors the space argument', () => {
@@ -59,7 +65,9 @@ describe('JsonLd', () => {
   })
 
   it('keeps a hostile payload from breaking out of the script element', () => {
-    const f = JsonLd({ json: { '@type': 'Thing', name: '</script><img src=x onerror=alert(1)>' } })
+    const f = JsonLd({
+      json: { '@type': 'Thing', name: '</script><img src=x onerror=alert(1)>' },
+    })
     // Exactly one closing tag — the real one — survives.
     expect(f.html.match(/<\/script>/g)).toHaveLength(1)
   })

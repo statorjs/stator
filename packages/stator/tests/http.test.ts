@@ -146,7 +146,10 @@ describe('HTTP layer', () => {
       new Request('http://localhost/__events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ machine: 'CounterMachine', event: { type: 'INCREMENT' } }),
+        body: JSON.stringify({
+          machine: 'CounterMachine',
+          event: { type: 'INCREMENT' },
+        }),
       }),
     )
     expect(post.status).toBe(400)

@@ -90,7 +90,9 @@ export function renderRoute(
 ): RenderResult {
   const state = createRenderState(sessionId, routeKey)
   const { ctx: responseCtx, effects } = createResponseContext()
-  const renderCtx: RouteRenderContext = { response: responseCtx } as RouteRenderContext
+  const renderCtx: RouteRenderContext = {
+    response: responseCtx,
+  } as RouteRenderContext
 
   for (const def of route.reads) {
     if (def.name === 'response') {

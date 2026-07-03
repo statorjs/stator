@@ -116,7 +116,7 @@ export function defineElement(UserClass: typeof StatorElement, tag: string): voi
       } finally {
         popCollector()
       }
-      ;(this as any)[ACTORS] = bucket
+      this[ACTORS] = bucket
     }
   }
   if (!customElements.get(tag)) customElements.define(tag, Wrapped)

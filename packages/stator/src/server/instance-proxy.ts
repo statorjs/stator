@@ -1,4 +1,4 @@
-import type { Actor, MachineDef } from '../engine/index.ts'
+import type { AnyActor, AnyMachineDef, MachineDef } from '../engine/index.ts'
 import type { InstanceOf } from '../template/types.ts'
 import {
   createEventDescriptor,
@@ -8,19 +8,19 @@ import {
 
 export interface InstanceHandle<TDef extends MachineDef = MachineDef> {
   readonly def: TDef
-  readonly actor: Actor<any, any>
+  readonly actor: AnyActor
   readonly proxy: InstanceOf<TDef>
 }
 
-const proxyToDef = new WeakMap<object, MachineDef<any, any>>()
+const proxyToDef = new WeakMap<object, AnyMachineDef>()
 
-export function defForProxy(proxy: object): MachineDef<any, any> | undefined {
+export function defForProxy(proxy: object): AnyMachineDef | undefined {
   return proxyToDef.get(proxy)
 }
 
 export function createInstanceProxy<TDef extends MachineDef>(
   def: TDef,
-  actor: Actor<any, any>,
+  actor: AnyActor,
 ): InstanceHandle<TDef> {
   const proxy = Object.create(null) as Record<string, unknown>
 

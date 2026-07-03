@@ -14,7 +14,10 @@ const [cart, products] = Stator.reads([CartMachine, ProductsMachine])
 ---
 <CustomerLayout cart={cart}><ProductList products={products} cart={cart} /></CustomerLayout>`
 
-    const { serverCode } = compile(src, { id: 'routes/index.stator', kind: 'route' })
+    const { serverCode } = compile(src, {
+      id: 'routes/index.stator',
+      kind: 'route',
+    })
 
     expect(serverCode).toContain("import { defineRoute } from '@statorjs/stator/server'")
     expect(serverCode).toContain('export const GET = defineRoute({')
@@ -34,7 +37,10 @@ import AdminMachine from '../machines/admin.ts'
 const [admin] = Stator.reads([AdminMachine])
 ---
 <div>{read(admin, a => a.activeCartCount)}</div>`
-    const { serverCode } = compile(src, { id: 'routes/admin.stator', kind: 'route' })
+    const { serverCode } = compile(src, {
+      id: 'routes/admin.stator',
+      kind: 'route',
+    })
     expect(serverCode).toContain('live: true,')
   })
 
@@ -44,7 +50,10 @@ const lang = Stator.request.headers.get('accept-language')
 Stator.response.headers.set('x-test', '1')
 ---
 <p>{lang}</p>`
-    const { serverCode } = compile(src, { id: 'routes/x.stator', kind: 'route' })
+    const { serverCode } = compile(src, {
+      id: 'routes/x.stator',
+      kind: 'route',
+    })
     expect(serverCode).toContain("const lang = __req.headers.get('accept-language')")
     expect(serverCode).toContain("__ctx.response.headers.set('x-test', '1')")
   })

@@ -24,7 +24,7 @@ export function serverReadsResolver(def: AnyMachineDef): () => ActionHelpers {
         }),
       }
     }
-    const reads: Record<string, any> = {}
+    const reads: Record<string, unknown> = {}
     for (const r of def.reads) {
       const proxy = dc.runtime.proxyFor(r.name)
       if (!proxy) {

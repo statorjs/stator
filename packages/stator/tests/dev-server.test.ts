@@ -51,11 +51,16 @@ describe('dev server: .stator end to end', () => {
           'X-Stator-Route': 'GET /',
           Cookie: cookie,
         },
-        body: JSON.stringify({ machine: 'CounterMachine', event: { type: 'INCREMENT' } }),
+        body: JSON.stringify({
+          machine: 'CounterMachine',
+          event: { type: 'INCREMENT' },
+        }),
       }),
     )
     expect(post.status).toBe(200)
-    const json = (await post.json()) as { patches: Array<{ op: string; value?: string }> }
+    const json = (await post.json()) as {
+      patches: Array<{ op: string; value?: string }>
+    }
     expect(json.patches.some((p) => p.value === 'count is 1')).toBe(true)
   })
 

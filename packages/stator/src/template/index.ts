@@ -1,13 +1,22 @@
 export { clientShellAttrs } from './client-shell.ts'
 export type { BranchResult } from './conditional.ts'
-export { isBranchResult, match, renderBranchBody, when } from './conditional.ts'
+export {
+  isBranchResult,
+  match,
+  renderBranchBody,
+  when,
+} from './conditional.ts'
 export type {
   Directive,
   DirectiveContext,
   DirectiveDefinition,
   DirectiveInvocation,
 } from './directives/core.ts'
-export { defineDirective, invoke, isDirectiveInvocation } from './directives/core.ts'
+export {
+  defineDirective,
+  invoke,
+  isDirectiveInvocation,
+} from './directives/core.ts'
 export type { ClassListSpec, StyleListSpec } from './directives/list-attr.ts'
 export { classList, styleList } from './directives/list-attr.ts'
 export { on } from './directives/on.ts'

@@ -12,7 +12,10 @@ function shouldUseSecureCookie(): boolean {
   return process.env.NODE_ENV === 'production'
 }
 
-export function getOrCreateSessionId(c: Context): { sessionId: string; isNew: boolean } {
+export function getOrCreateSessionId(c: Context): {
+  sessionId: string
+  isNew: boolean
+} {
   const existing = getCookie(c, SESSION_COOKIE)
   if (existing) return { sessionId: existing, isNew: false }
   const sessionId = randomUUID()

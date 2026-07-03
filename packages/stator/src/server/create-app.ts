@@ -41,7 +41,12 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
   store.bootAppMachines()
 
   const routes = await discoverRoutes(routesDir)
-  const app = await buildHonoApp({ routes, store, staticDir, headExtras: config.headExtras })
+  const app = await buildHonoApp({
+    routes,
+    store,
+    staticDir,
+    headExtras: config.headExtras,
+  })
 
   return {
     listen(port: number): Promise<void> {

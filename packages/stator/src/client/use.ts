@@ -1,4 +1,10 @@
-import { type Actor, createActor, type MachineDef, type Snapshot } from '../engine/index.ts'
+import {
+  type AnyActor,
+  type AnyMachineDef,
+  createActor,
+  type MachineDef,
+  type Snapshot,
+} from '../engine/index.ts'
 
 /**
  * The client-side reactive handle for a machine. Returned by `use()`, held as a
@@ -12,15 +18,13 @@ import { type Actor, createActor, type MachineDef, type Snapshot } from '../engi
 export interface ClientInstance {
   send(event: { type: string; [k: string]: unknown } | string): void
   /** @internal — the actor a binding subscribes to. */
-  readonly __actor: Actor<any, any>
+  readonly __actor: AnyActor
 }
-
-const ACTOR = Symbol('stator.actor')
 
 /** An actor plus an optional deferred seed thunk — evaluated at the element's
  *  connect (when attributes are available), not at construction. */
 export interface CollectedActor {
-  actor: Actor<any, any>
+  actor: AnyActor
   seedThunk?: () => Record<string, unknown>
 }
 
@@ -51,17 +55,23 @@ export function use(
   seed?: Record<string, unknown> | (() => Record<string, unknown>),
 ): ClientInstance {
   const eager = typeof seed === 'object' ? seed : undefined
-  const snapshot: Snapshot<any> | undefined = eager
-    ? { value: [def.initial], context: { ...(def.context as object), ...eager } }
+  const snapshot: Snapshot<object> | undefined = eager
+    ? {
+        value: [def.initial],
+        context: { ...(def.context as object), ...eager },
+      }
     : undefined
-  const actor = createActor(def as MachineDef<any, any, any>, { snapshot })
+  const actor = createActor(def as AnyMachineDef, { snapshot })
 
   // Register with the element under construction so its lifecycle owns the actor.
   const bucket = collectors[collectors.length - 1]
-  if (bucket) bucket.push({ actor, seedThunk: typeof seed === 'function' ? seed : undefined })
+  if (bucket)
+    bucket.push({
+      actor,
+      seedThunk: typeof seed === 'function' ? seed : undefined,
+    })
 
   const inst = Object.create(null) as Record<string | symbol, unknown>
-  ;(inst as any)[ACTOR] = actor
 
   // Selectors + context keys as live getters reading the current snapshot.
   const selectorNames = Object.keys(def.selectors)
@@ -71,7 +81,7 @@ export function use(
       enumerable: true,
       get: () => {
         const ctx = actor.getSnapshot().context
-        const sel = (def.selectors as Record<string, (c: any) => unknown>)[key]
+        const sel = def.selectors[key]
         return sel ? sel(ctx) : (ctx as Record<string, unknown>)[key]
       },
     })
@@ -91,6 +101,6 @@ export function use(
 }
 
 /** Extract the actor from a `use()` instance (for the binding loop). */
-export function actorOf(inst: ClientInstance): Actor<any, any> {
-  return (inst as any)[ACTOR]
+export function actorOf(inst: ClientInstance): AnyActor {
+  return inst.__actor
 }
