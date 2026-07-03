@@ -14,6 +14,7 @@ import type { DiscoveredRoute } from './route-discovery.ts'
 import { buildRouteRequest } from './route-request.ts'
 import type { RouteDefinition } from './routing.ts'
 import { getOrCreateSessionId } from './session.ts'
+import { withSessionLock } from './session-lock.ts'
 import { SessionRuntime } from './session-runtime.ts'
 import { fanOut, registerConnection, unregisterConnection } from './sse.ts'
 
@@ -40,27 +41,6 @@ const eventSchema = z.object({
     })
     .passthrough(),
 })
-
-/**
- * Per-session async lock. Serializes event processing for a single session
- * so two concurrent POSTs can't race against each other's load → mutate →
- * persist cycle. GETs are read-only and do not acquire the lock.
- */
-const sessionLocks = new Map<string, Promise<unknown>>()
-
-function withSessionLock<T>(sid: string, fn: () => Promise<T>): Promise<T> {
-  const prev = sessionLocks.get(sid) ?? Promise.resolve()
-  const next = prev.then(fn, fn)
-  const settled = next.then(
-    () => undefined,
-    () => undefined,
-  )
-  sessionLocks.set(sid, settled)
-  void settled.then(() => {
-    if (sessionLocks.get(sid) === settled) sessionLocks.delete(sid)
-  })
-  return next
-}
 
 /** Compiled matcher: turns `/p/:id` into a regex that captures params. */
 interface RouteMatcher {

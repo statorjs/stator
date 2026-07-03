@@ -13,30 +13,11 @@ import type {
   RouteRequest,
 } from './routing.ts'
 import { getOrCreateSessionId } from './session.ts'
+import { withSessionLock } from './session-lock.ts'
 import { SessionRuntime } from './session-runtime.ts'
 import { fanOut } from './sse.ts'
 
 const apiLog = scopedLogger('api')
-
-/**
- * Per-session async lock for API routes. Same shape as the /__events lock
- * so two concurrent mutations against the same session serialize cleanly.
- */
-const sessionLocks = new Map<string, Promise<unknown>>()
-
-function withSessionLock<T>(sid: string, fn: () => Promise<T>): Promise<T> {
-  const prev = sessionLocks.get(sid) ?? Promise.resolve()
-  const next = prev.then(fn, fn)
-  const settled = next.then(
-    () => undefined,
-    () => undefined,
-  )
-  sessionLocks.set(sid, settled)
-  void settled.then(() => {
-    if (sessionLocks.get(sid) === settled) sessionLocks.delete(sid)
-  })
-  return next
-}
 
 /**
  * Run an API route handler under a fresh SessionRuntime, marshal the
