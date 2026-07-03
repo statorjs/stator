@@ -2,7 +2,7 @@
 title: Stator 1.0 implementation plan
 status: draft
 created: 2026-06-17
-updated: 2026-06-17
+updated: 2026-07-03
 area: runtime
 ---
 
@@ -39,12 +39,104 @@ app→session delivery are explicitly 1.x.
   statechart usage across all demos. See [[custom-isomorphic-state-machine-engine]].
 - **Cross-machine: single-replica robust (a + c).** App-machine persistence and
   richer `subscribes:` are in 1.0; the inbox / app→session delivery (b + d) is the
-  1.x tentpole. Rationale below.
+  1.x tentpole. Rationale below. *(Revised 2026-07-03: richer declarative
+  `subscribes:` deferred to 1.x; persistence stays. See the decision record.)*
 - **Horizontal scaling: deferred to 1.x**, via a Redis pub/sub backplane on the
   existing `fanOut` choke point. Acceptable for 1.0; the current framework is
   already single-process.
 - **Keyed `each`: in 1.0.** Inputs-in-lists is common enough to ship; the wire
   format already reserves insert/remove/move ops.
+
+## Decision record (2026-07-03 review session)
+
+A full project review (positioning, 1.0-readiness, code architecture) produced
+a second round of decisions. These govern the remaining work and supersede
+earlier bullets where they conflict.
+
+**Architecture — one-way doors:**
+
+- **Async I/O: minimal engine effects.** A transition may declare an `effect`
+  whose completion dispatches a follow-up event through the normal event path.
+  No invoke/spawn; engine core stays sync. Spec:
+  [[engine-effects-async-i-o-from-machine-transitions]]. This must land before
+  the proving demo (checkout needs it).
+- **Grammar: JSX-parseability is permanent.** `.stator` templates must parse
+  as TSX, forever — it is what makes the compiler and the Volar LSP cheap.
+  Modifier-style needs (`on:click.prevent`) are met by **typed wrapper
+  combinators** (`on:click={prevent(handler)}`), never new syntax. Document as
+  a design principle.
+- **Renders and selectors stay synchronous as a documented contract.** The
+  module-global render/dispatch contexts are therefore sound; async lives only
+  in effects and API-route handlers.
+- **Packaging: raw TS as a declared stance.** `@statorjs/stator` keeps
+  shipping `.ts` source; "Vite/tsx-native" is documented explicitly.
+  Fix `files`/`repository` metadata. The language server keeps its `dist`
+  build (VSCode needs CJS).
+- **Client production build: Vite build + manifest.** Islands become Rollup
+  inputs; a manifest maps component → hashed asset URL and the server injects
+  script tags from it. Identity-import stubbing (server-machine import →
+  `{ name }` in browser bundles) via a client-scoped Vite resolve plugin.
+- **Public API: 7 stable subpaths** (`server`, `template`, `client`,
+  `machine`, `components`, `dev`, `build`); `compiler` and `vite` are
+  documented-but-internal and may change in minors.
+
+**Scope:**
+
+- **Keyed `each` authoring API:** explicit options argument —
+  `each(items, fn, { key: item => item.id })`; omitting `key` keeps today's
+  positional behavior. Works identically in `.stator` templates and raw
+  tagged-template `html` calls.
+- **Phase 5 reduced:** app-machine persistence IN; richer declarative
+  `subscribes:` (source/predicate/transform) deferred to 1.x.
+- **IN:** `fanOut` from non-POST entry points (webhooks/cron; the demo's live
+  stock wants it); LSP surfacing of compiler semantic diagnostics + extension
+  published to Marketplace/Open VSX with install docs; `apps/poll` rewritten
+  in `.stator`; a minimal `create-stator` scaffolder.
+- **Kept as-is:** `schema-dts` stays a regular dependency; session IDs stay
+  raw UUIDs (documented stance; cookie-flag tests added).
+
+**Release engineering:**
+
+- **Versioning: the demo gates 1.0.0.** The remaining work list ships as
+  0.9.x; 1.0.0 is cut only after the Allbirds demo proves the API needs no
+  breaking changes. CHANGELOG starts at 0.9.
+- **CI:** GitHub Actions — typecheck + full test run, including the
+  language-server suite (the root `pnpm test` filter currently drops it), with
+  a real Redis service container for `RedisStore` integration tests
+  (auto-skip locally when no `REDIS_URL`).
+- **Lint/format: Biome**, wired into CI.
+- **API reference: hand-written** for the 7 stable subpaths (no typedoc — it
+  would expose unblessed internals).
+- **`.send` vs `.dispatch`: closed.** Two methods, as implemented — `send` is
+  local/same-plane, `dispatch` crosses the wire.
+
+## 0.9 push — ordered work list (2026-07-03)
+
+Dependency-ordered; items reference the phases below where they overlap.
+
+1. **CI + Biome** — protects everything after it.
+2. **Session-lock unification** — `http.ts` and `api-route.ts` hold two
+   independent `sessionLocks` maps, so `/__events` and API-route mutations on
+   the same session do not serialize against each other. One shared lock
+   module + a concurrent-events test.
+3. **Wire module extraction** — the `Patch` union is declared in three places
+   (`recompute.ts`, `client/runtime.ts`, `client/dispatch.ts`) and `Directive`
+   in two, with two near-identical `applyPatches`. Single `wire/` module
+   before any new patch ops exist.
+4. **Prod client build + identity stubbing** (Phase 3 remainder, 6c/6d) — per
+   the Vite-build-plus-manifest decision.
+5. **Keyed `each`** (Phase 4) — on top of the wire module.
+6. **Engine effects** — [[engine-effects-async-i-o-from-machine-transitions]].
+7. **Phase 5 (reduced)** — app-machine persistence + `fanOut` from non-POST
+   entry points (effects' completion delivery reuses the latter).
+8. **Robustness test sweep** — SSE end-to-end (fan-out, cross-session,
+   reconnect, push failure), Redis integration, XSS/escaping assertions,
+   cookie flags, malformed `/__events` branches, `client/dispatch.ts`.
+9. **Narrative + packaging pass** — root README + `packages/stator/README`
+   rewrite (both still describe the XState POC), WIRE.md SSE section, package
+   metadata, hand-written API reference, docs home page, LSP diagnostics +
+   extension publish + install docs, `apps/poll` rewrite, `create-stator`.
+10. **Allbirds proving demo** — the 1.0.0 gate.
 
 ## Cross-machine boundary, in depth
 
@@ -91,15 +183,16 @@ capability layers (server-pinned vs portable); compact snapshot serialization +
 client hydration seed. Migrate the runtime and demos off XState; the existing
 vitest suite is the regression gate. Highest risk, highest leverage.
 
-**Phase 2 — Typed machine-mediated dispatch. 🔨 Server half done; client half rides
-3b.** [[typed-events-and-machine-mediated-dispatch]].
+**Phase 2 — Typed machine-mediated dispatch. ✅ Done (client half landed with 3b).** [[typed-events-and-machine-mediated-dispatch]].
 `Machine.send` / `Machine.dispatch` off the imported def; kills the magic-string
 `dispatch('Name', ...)` (used in the poll demo and the spike). Wire format
 unchanged — the work is the typed surface + the identity-vs-value import
 distinction. Rides on Phase 1's typed events.
 
-**Phase 3 — `.stator` compiler + Vite. 🔨 3a done; 3b in progress (6c identity-import
-stubbing + prod build, and 6d remain).** [[v1-compiler-against-real-templates]] +
+**Phase 3 — `.stator` compiler + Vite. 🔨 3a done; 3b done except the production
+plane (6c prod build + identity-import stubbing, and 6d). Decided 2026-07-03:
+Vite build with per-island Rollup inputs + an asset manifest the server injects
+from; stubbing via a client-scoped resolve plugin.** [[v1-compiler-against-real-templates]] +
 the client half of [[client-scripts-directives-and-isomorphic-machines]]. TS-AST
 transform → server module + client entry + scoped CSS, hosted as a Vite plugin
 (build spike validated the orchestration and the `lang.css` constraint). `on:` /
@@ -109,20 +202,27 @@ Sub-staged **3a** (server compiler, no `<script>`) then **3b** (client plane) �
 detailed build plan in [[stator-compiler-and-vite-plugin-implementation-plan]].
 
 **Phase 4 — Keyed `each`. ⬜ Pending.** [[keyed-each-and-list-item-identity]]. Per-item
-insert/remove/move (wire format already reserves the ops); the compiler extracts
-`key` from the `each` callback.
+insert/remove/move (wire format already reserves the ops). Authoring API decided
+2026-07-03: explicit options argument — `each(items, fn, { key: item => item.id })`;
+no `key` keeps positional behavior. Prereq: the shared wire module (work list #3),
+since the ops land in the currently-triplicated `Patch` union.
 
-**Phase 5 — Single-replica cross-machine robustness. ⬜ Pending.** App-machine persistence
-(small; extend `persistTouched` + boot hydration to app machines —
-[[app-machine-state-persistence]]) and richer declarative `subscribes:`
-(source/predicate/transform as data, not opaque callback —
-[[cross-machine-effects-source-predicate-transform]]). Optional: `fanOut` from
-non-POST entry points.
+**Phase 5 — Single-replica cross-machine robustness. ⬜ Pending, reduced 2026-07-03.**
+App-machine persistence (small; extend `persistTouched` + boot hydration to app
+machines — [[app-machine-state-persistence]]) and `fanOut` from non-POST entry
+points (promoted from optional: engine-effect completion delivery and the demo's
+live stock both use it). Richer declarative `subscribes:`
+([[cross-machine-effects-source-predicate-transform]]) deferred to 1.x.
 
-**Phase 6 — Polish. ⬜ Pending** (public developer docs being planned now —
-`.chisel/docs` → Astro Starlight). Observability promotion ([[observability-primitives-promoted]]);
-editor syntax highlighting; rewrite the example apps in `.stator` (compiler spec
-success criterion); docs incl. the single-replica boundary.
+**Phase 6 — Polish. 🔨 Substantially advanced.** Done: Starlight docs site
+(29 pages: intro, 8-part tutorial, concepts, guides), editor syntax
+highlighting **plus** the Volar LSP + VSCode extension (Phases 0–1d of
+[[editor-tooling-lsp-and-vscode]] — pulled forward from 1.x), dev inspector
+toolbar, `apps/example` rewritten in `.stator`. Remaining (work list #8–9):
+robustness test sweep; README/WIRE rewrite; package metadata; hand-written API
+reference; docs home page; LSP semantic diagnostics + marketplace publish +
+install docs; `apps/poll` rewrite; `create-stator`; single-replica boundary
+page.
 
 **Real-world proving demo (after 3b).** Decided 2026-06-21: build a deep,
 realistic **ecommerce storefront emulating Allbirds** as the framework's
@@ -144,9 +244,15 @@ the main scope lever and is largely independent.
   [[cross-machine-event-delivery-model]]).
 - Horizontal scaling (Redis pub/sub backplane on `fanOut`).
 - Statechart richness (nested/parallel/history/invoke) — extension points only.
-- Editor LSP beyond syntax highlighting. Planned as a Volar-based server + VSCode
-  extension in [[editor-tooling-lsp-and-vscode]]; that spec scopes highlighting +
-  LSP as its own v1 and defers Stator-specific intelligence / formatting.
+- Richer declarative `subscribes:` (source/predicate/transform as data —
+  [[cross-machine-effects-source-predicate-transform]]). Deferred 2026-07-03;
+  callback subscribes cover 1.0.
+- Durable effects (survive process death; outbox semantics) — rides the inbox
+  work. 1.0 effects are at-most-once, non-durable
+  ([[engine-effects-async-i-o-from-machine-transitions]]).
+- Editor intelligence beyond the shipped LSP: per-element attribute typing,
+  directive-aware completions, formatting ([[editor-tooling-lsp-and-vscode]]
+  Phase 2). *(The base LSP itself shipped ahead of schedule — see Phase 6.)*
 - **Owning the HTTP layer.** Decided 2026-06-21: keep **Hono for 1.0 as a thin
   runtime adapter**, not as the router. Stator's own matcher is the routing
   authority (rest params + specificity sort; GET/API dispatch and SSE/POST
@@ -161,28 +267,37 @@ the main scope lever and is largely independent.
 
 ## Open Questions
 
-- **Engine decisions that gate Phase 1** (owned by [[custom-isomorphic-state-machine-engine]]):
-  delayed transitions in 1.0?; event-declaration syntax; extension-point internal
-  shape; selector typing scope.
-- **`.send` vs `.dispatch`** — one method (transport inferred from call-site
-  location) or two (transport explicit). Owned by
-  [[typed-events-and-machine-mediated-dispatch]].
-- **`.stator` body grammar depth** — how much JSX the parser handles; pin the
-  control-flow callback forms (`when`/`each`/`match`). Owned by
-  [[v1-compiler-against-real-templates]].
-- **Editor tooling in 1.0 or after** — syntax highlighting is cheap; an LSP is
-  derivative work, likely 1.x. Scoped separately now in
-  [[editor-tooling-lsp-and-vscode]] (Volar-based; highlighting + LSP as its v1).
-- **Phase ordering of 5 vs. 3** — app-machine persistence is small and independent;
-  could slot earlier if it removes a sharp edge sooner.
+All resolved as of 2026-07-03:
+
+- ~~**Engine decisions that gate Phase 1**~~ — resolved by the shipped engine
+  ([[custom-isomorphic-state-machine-engine]]): no delayed transitions in 1.0;
+  flat `states`/`on` with typed event unions.
+- ~~**`.send` vs `.dispatch`**~~ — **two methods**, as implemented: `send` is
+  local/same-plane, `dispatch` crosses the wire.
+- ~~**`.stator` body grammar depth**~~ — **JSX-parseability is a permanent
+  constraint** (decision record above); combinators over modifier syntax.
+- ~~**Editor tooling in 1.0 or after**~~ — shipped early: highlighting + Volar
+  LSP + VSCode extension are in; semantic diagnostics + marketplace publish
+  are in the 0.9 work list; deeper intelligence is 1.x.
+- ~~**Phase ordering of 5 vs. 3**~~ — settled by the ordered work list:
+  Phase 5 (reduced) lands after effects, before the robustness sweep.
+
+Remaining open design questions live in
+[[engine-effects-async-i-o-from-machine-transitions]] (failure default, effect
+context surface, idempotency ids, app-machine effects).
 
 ## Implementation Notes
 
-Planning document; updated as phases complete. **Status (2026-06-25):** Phases
-0–1 done (custom engine shipped, XState removed); Phase 2 server-side dispatch
-done, client half deferred into 3b; Phase 3a done and 3b in progress (server
-shell + client module + dev injection landed; 6c identity-import stubbing + prod
-build, and the 6d collision check, remain). Phases 4–6 pending. Per-phase specs
-carry the detail; see the ✅/🔨/⬜ markers in the phased plan above. Predecessor:
-the design thread that produced the client/dispatch/engine specs and validated the
-client model, build pipeline, and forms+validation via spikes in `apps/private/`.
+Planning document; updated as phases complete. **Status (2026-07-03):** Phases
+0–2 done; Phase 3 done except the production client plane (6c prod build +
+identity-import stubbing, 6d); Phase 6 substantially advanced (docs site, LSP +
+extension, example rewritten). A full project review on 2026-07-03 produced the
+decision record and the ordered 0.9 work list above, which now govern
+sequencing; the Allbirds demo gates the 1.0.0 version. New spec spun out:
+[[engine-effects-async-i-o-from-machine-transitions]]. Predecessor: the design
+thread that produced the client/dispatch/engine specs and validated the client
+model, build pipeline, and forms+validation via spikes in `apps/private/`.
+
+**Status (2026-06-25, superseded):** Phases 0–1 done (custom engine shipped,
+XState removed); Phase 2 server-side dispatch done, client half deferred into
+3b; Phase 3a done and 3b in progress. Phases 4–6 pending.
