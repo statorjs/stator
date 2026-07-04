@@ -1,0 +1,11 @@
+#!/bin/sh
+# Full gate before anything reaches origin/CI. Bypass: git push --no-verify
+echo "stator: pre-push gate — typecheck + tests"
+pnpm typecheck && pnpm test
+status=$?
+if [ $status -ne 0 ]; then
+  echo ""
+  echo "stator: pre-push gate failed — nothing was pushed."
+  echo "  bypass (rarely): git push --no-verify"
+  exit $status
+fi

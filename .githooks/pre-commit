@@ -1,0 +1,11 @@
+#!/bin/sh
+# Lint + format check on STAGED files only (fast). Bypass: git commit --no-verify
+pnpm exec biome check --staged --no-errors-on-unmatched
+status=$?
+if [ $status -ne 0 ]; then
+  echo ""
+  echo "stator: biome failed on staged files."
+  echo "  fix:    pnpm lint:fix   (then re-stage)"
+  echo "  bypass: git commit --no-verify"
+  exit $status
+fi

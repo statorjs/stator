@@ -11,7 +11,8 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "dev": "pnpm --filter example dev",
-    "build": "pnpm --filter stator build"
+    "build": "pnpm --filter stator build",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.2",
