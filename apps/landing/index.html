@@ -330,11 +330,15 @@
   context: { history: [] <span class="c-k">as</span> <span class="c-t">string</span>[] },
   initial: <span class="c-s">'idle'</span>,
   states: {
-    idle: { on: { RUN: { guard: <span class="c-s">'valid'</span>, actions: <span class="c-s">'record'</span> } } },
+    idle: {
+      on: {
+        RUN: {
+          when: (ctx, ev) =&gt; ev.query.<span class="c-f">trim</span>().length &gt;= <span class="c-n">3</span>,  <span class="c-c">// guard</span>
+          do:   (ctx, ev) =&gt; { ctx.history.<span class="c-f">unshift</span>(ev.query) }, <span class="c-c">// action</span>
+        },
+      },
+    },
   },
-
-  guards:  { <span class="c-f">valid</span>:  (ctx, ev) =&gt; ev.query.<span class="c-f">trim</span>().length &gt;= <span class="c-n">3</span> },
-  actions: { <span class="c-f">record</span>: (ctx, ev) =&gt; { ctx.history.<span class="c-f">unshift</span>(ev.query) } },
 
   selectors: {
     summary: (ctx) =&gt; ctx.history.<span class="c-f">join</span>(<span class="c-s">' · '</span>) || <span class="c-s">'none yet'</span>,
@@ -350,7 +354,23 @@
           client script applies each patch by id. There's no exposed RPC surface:
           you send an event to a machine, and the machine decides what happens.
         </p>
+        <p>
+          And because the machine never learns the UI exists, §1's complaint —
+          <em>test a transition and you need a fake DOM</em> — dissolves. This is
+          the entire test for the guard above. No renderer, no mock server, no
+          fake DOM; every business rule in your app tests at this speed.
+        </p>
       </div>
+
+      <p class="code-cap">machines/search.test.ts</p>
+<pre class="code"><code><span class="c-k">import</span> { createActor } <span class="c-k">from</span> <span class="c-s">'@statorjs/stator/machine'</span>
+<span class="c-k">import</span> SearchMachine <span class="c-k">from</span> <span class="c-s">'./search.ts'</span>
+
+<span class="c-k">const</span> actor = <span class="c-f">createActor</span>(SearchMachine).<span class="c-f">start</span>()
+actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, query: <span class="c-s">'ok'</span> })            <span class="c-c">// guard blocks: too short</span>
+actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, query: <span class="c-s">'standing desk'</span> })
+
+<span class="c-f">expect</span>(actor.<span class="c-f">getSnapshot</span>().context.history).<span class="c-f">toEqual</span>([<span class="c-s">'standing desk'</span>])</code></pre>
     </section>
 
     <!-- §5 LIVE -->
