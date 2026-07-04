@@ -1,7 +1,7 @@
 {
   "name": "stator-vscode",
   "displayName": "Stator",
-  "description": "Language support for .stator files (syntax highlighting; LSP coming).",
+  "description": "Language support for .stator files: syntax highlighting plus a Volar-based language server (completions, hover, diagnostics).",
   "version": "0.0.1",
   "private": true,
   "publisher": "statorjs",

@@ -1,6 +1,6 @@
 {
   "name": "@statorjs/stator",
-  "version": "0.1.0",
+  "version": "0.9.0",
   "description": "Server-canonical web framework: business logic in composable state machines, UI as a thin renderer binding machine outputs to DOM positions. Ships TypeScript source (Vite/tsx-native by design).",
   "license": "MIT",
   "type": "module",
