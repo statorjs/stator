@@ -27,7 +27,7 @@ function makeMachine(effectSpy?: (id: string) => void) {
         on: {
           GO: {
             to: 'working',
-            effect: async (_ctx, ev, meta) => {
+            effect: async (_ctx, ev, meta): Promise<Events | null> => {
               effectSpy?.(meta.effectId)
               await tick()
               return ev.fail ? { type: 'NOPE', reason: 'bad' } : { type: 'OK', id: meta.effectId }
@@ -145,7 +145,7 @@ describe('engine effects: local default scheduling (client plane / unit tests)',
           on: {
             GO: {
               to: 'working',
-              effect: async () => {
+              effect: async (): Promise<{ type: 'OK' } | null> => {
                 await tick()
                 return { type: 'OK' }
               },

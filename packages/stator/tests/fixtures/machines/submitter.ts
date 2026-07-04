@@ -23,7 +23,7 @@ export default defineMachine({
       on: {
         SUBMIT: {
           to: 'pending',
-          effect: async (_ctx, ev, meta) => {
+          effect: async (_ctx, ev, meta): Promise<Events | null> => {
             await new Promise((r) => setTimeout(r, ev.delayMs ?? 10))
             return ev.shouldFail
               ? { type: 'FAILED', reason: 'declined' }

@@ -61,6 +61,13 @@ export interface EffectMeta {
  * Effects are infallible by construction: catch inside and return your
  * declared failure event. A throw is the runtime backstop — logged and
  * dropped, never a crash. See the engine-effects spec.
+ *
+ * Authoring note: annotate the effect's return type with your machine's event
+ * union — `effect: async (ctx, ev, meta): Promise<Events | null> => …`.
+ * TypeScript defers context-sensitive arrows during `defineMachine`'s generic
+ * inference, so an unannotated return widens its event literals and fails to
+ * typecheck (loudly — never silently unchecked). The annotation restores full
+ * checking: an undeclared completion event type is a compile error.
  */
 export type Effect<C, E extends EventObject, EAll extends EventObject = EventObject> = (
   ctx: C,
