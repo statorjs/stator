@@ -132,10 +132,20 @@ Dependency-ordered; items reference the phases below where they overlap.
 8. **Robustness test sweep** — SSE end-to-end (fan-out, cross-session,
    reconnect, push failure), Redis integration, XSS/escaping assertions,
    cookie flags, malformed `/__events` branches, `client/dispatch.ts`.
-9. **Narrative + packaging pass** — root README + `packages/stator/README`
-   rewrite (both still describe the XState POC), WIRE.md SSE section, package
-   metadata, hand-written API reference, docs home page, LSP diagnostics +
-   extension publish + install docs, `apps/poll` rewrite, `create-stator`.
+9. **Narrative + packaging pass — ✅ done 2026-07-04** (except two
+   remainders): READMEs rewritten for the 1.0 surface (raw-TS stance
+   documented); WIRE.md SSE section current; package metadata + `files`
+   allowlists; `apps/poll` rewritten in `.stator` (verified over HTTP);
+   `create-stator` scaffolder (verified end-to-end via file: install —
+   caught and fixed two consumer packaging bugs: @hono/node-server was a
+   devDep, pino-pretty now optional); docs: marketing splash, hand-written
+   API reference (7 subpaths), guides for effects/keyed lists/app
+   machines/production/editor setup, tutorial chapter 9 (async effects),
+   stale claims fixed; versions bumped (framework + create-stator 0.9.0,
+   language-server 0.1.0) + CHANGELOG started.
+   **Remainders:** LSP semantic diagnostics (surface compiler errors in the
+   editor — needs its own focused pass) and marketplace/npm publishing
+   (needs credentials).
 10. **Allbirds proving demo** — the 1.0.0 gate.
 
 ## Cross-machine boundary, in depth
