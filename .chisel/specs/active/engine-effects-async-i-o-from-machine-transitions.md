@@ -195,4 +195,27 @@ All four resolved 2026-07-03:
 
 ## Implementation Notes
 
-<!-- Updated during/after implementation: what changed from the plan and why -->
+**Session plane shipped 2026-07-03** (stage 1 of 2). As designed, plus:
+
+- Engine: `CreateActorOptions.onEffect` is the host-scheduler injection point
+  (mirrors `resolveHelpers`). When omitted, the actor runs the effect locally
+  on a microtask and sends the completion to itself — which IS the client
+  plane and the unit-test behavior, no client wiring needed.
+- Server: `SessionRuntime` queues invocations (`drainPendingEffects`);
+  `server/effects.ts` schedules after the entry point persists — I/O runs
+  lock-free (proven by test: a 150ms effect doesn't delay a concurrent
+  event), completion re-enters via lock → fresh hydrate → process → persist →
+  `fanOut` (which was already callable from any context).
+- App machines: `bootAppMachines` wires an explicit warn-and-drop `onEffect`
+  until the Phase 5 stage lands — dropped loudly rather than half-run without
+  fan-out/persistence.
+- **TS inference caveat:** `defineMachine`'s generic inference defers
+  context-sensitive arrows, so an effect's returned event literals widen and
+  fail typecheck unless the author annotates the return —
+  `effect: async (ctx, ev, meta): Promise<Events | null> => …`. The failure
+  is loud (never silently unchecked) and the annotation restores the full
+  contract (undeclared completion types are compile errors — verified).
+  Documented on the `Effect` type.
+
+**Remaining (stage 2, after Phase 5):** the app-plane scheduler in
+MachineStore (completion → in-process send + recordTouch + fanOut + persist).
