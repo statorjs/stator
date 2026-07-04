@@ -143,9 +143,13 @@ Dependency-ordered; items reference the phases below where they overlap.
    machines/production/editor setup, tutorial chapter 9 (async effects),
    stale claims fixed; versions bumped (framework + create-stator 0.9.0,
    language-server 0.1.0) + CHANGELOG started.
-   **Remainders:** LSP semantic diagnostics (surface compiler errors in the
-   editor — needs its own focused pass) and marketplace/npm publishing
-   (needs credentials).
+   **LSP semantic diagnostics shipped 2026-07-04:** the root virtual code
+   now carries an identity mapping (verification-only), and a stator
+   diagnostics service runs the real `compile()` over the source, mapping
+   `CompileError`s to editor squiggles — the editor and the Vite build can
+   no longer disagree. Unit-tested against real compiler failures; in-editor
+   behavior ready for manual verification. **Sole remainder:**
+   npm/marketplace publishing (needs credentials).
 10. **Allbirds proving demo** — the 1.0.0 gate.
 
 ## Cross-machine boundary, in depth
