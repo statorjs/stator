@@ -1,0 +1,14 @@
+---
+import Counter from '../machines/counter.ts'
+import Layout from '../templates/layout.stator'
+
+const [counter] = Stator.reads([Counter])
+---
+<Layout>
+  <section class="counter">
+    <h1>Hello, Stator</h1>
+    <p class="count">{read(counter, (c) => c.label)}</p>
+    <button on:click={() => counter.send({ type: 'INCREMENT' })}>+1</button>
+    <button on:click={() => counter.send({ type: 'RESET' })}>reset</button>
+  </section>
+</Layout>

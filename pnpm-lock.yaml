@@ -130,6 +130,8 @@ importers:
         specifier: ^0.24.0
         version: 0.24.2
 
+  packages/create-stator: {}
+
   packages/language-server:
     dependencies:
       '@statorjs/stator':
@@ -172,6 +174,9 @@ importers:
 
   packages/stator:
     dependencies:
+      '@hono/node-server':
+        specifier: ^1.13.0
+        version: 1.19.14(hono@4.12.18)
       esbuild:
         specifier: ^0.24.0
         version: 0.24.2
@@ -200,9 +205,6 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
-      '@hono/node-server':
-        specifier: ^1.13.0
-        version: 1.19.14(hono@4.12.18)
       '@statorjs/stator':
         specifier: workspace:*
         version: 'link:'

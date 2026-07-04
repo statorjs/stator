@@ -1,0 +1,23 @@
+{
+  "name": "create-stator",
+  "version": "0.1.0",
+  "description": "Scaffold a new Stator app: pnpm create stator my-app",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "create-stator": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "template"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/statorjs/stator.git",
+    "directory": "packages/create-stator"
+  },
+  "homepage": "https://github.com/statorjs/stator#readme",
+  "engines": {
+    "node": ">=20"
+  }
+}

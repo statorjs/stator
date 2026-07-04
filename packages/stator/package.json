@@ -69,6 +69,7 @@
     "build:client": "esbuild src/client/runtime.ts --bundle --format=iife --target=es2020 --outfile=dist/client.js"
   },
   "dependencies": {
+    "@hono/node-server": "^1.13.0",
     "esbuild": "^0.24.0",
     "hono": "^4.6.0",
     "ioredis": "^5.10.1",
@@ -88,7 +89,6 @@
     }
   },
   "devDependencies": {
-    "@hono/node-server": "^1.13.0",
     "@statorjs/stator": "workspace:*",
     "@types/node": "^22.7.0",
     "happy-dom": "^15.0.0",
