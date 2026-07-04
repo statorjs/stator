@@ -1,8 +1,29 @@
 {
   "name": "@statorjs/stator",
   "version": "0.1.0",
+  "description": "Server-canonical web framework: business logic in composable state machines, UI as a thin renderer binding machine outputs to DOM positions. Ships TypeScript source (Vite/tsx-native by design).",
   "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/statorjs/stator.git",
+    "directory": "packages/stator"
+  },
+  "homepage": "https://github.com/statorjs/stator#readme",
+  "bugs": "https://github.com/statorjs/stator/issues",
+  "keywords": [
+    "framework",
+    "server-canonical",
+    "state-machine",
+    "ssr",
+    "sse",
+    "islands",
+    "vite"
+  ],
+  "files": [
+    "src",
+    "README.md"
+  ],
   "exports": {
     "./server": {
       "types": "./src/server/index.ts",

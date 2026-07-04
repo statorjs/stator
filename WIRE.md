@@ -129,16 +129,26 @@ This scheme makes scope-descendant tests cheap (`startsWith(scope + ":")`) and g
 
 Element ids are flat sequential identifiers (`e0`, `e1`, …) allocated on demand by the parser when an element acquires an attribute binding, a directive, or an event handler. Element ids do not encode scope — descendancy of an element-targeted patch is determined via the *binding's* slot id, which the server tracks internally during recompute.
 
+## The SSE push channel
+
+Routes declared `live: true` open `GET /__sse?route=<route-key>`. The framing
+is standard event-stream `data:` lines; each frame's payload is the same
+envelope a POST response carries — `{ patches: [...] }` (and optionally
+`directives`). Patches are diffed per connection against that connection's own
+binding baseline, so successive pushes are deltas, not resets. Comment frames
+(`: open`, `: keep-alive`) hold the connection through proxies; clients ignore
+them per the SSE spec.
+
 ## What's not in the wire protocol (yet)
 
-- **SSE / push channel** — V1. When added, the patch shape above is the unit of push; the framing differs (event-stream `data:` lines) but each frame's payload is `{ patches: [...] }`.
-- **Multi-event POSTs** — currently one event per POST. Batching is V1+ if needed.
+- **Multi-event POSTs** — currently one event per POST. Batching is 1.x if needed.
 - **Versioning** — the shape is unversioned; additive changes (new ops, new target kinds) are forward-compatible per the "ignore unknown" client rule.
-- **Per-machine event schemas** — Zod validates `{ machine: string, event: { type: string, … } }` at the wire edge today. Per-machine event payload validation is V1 work tied to typed-event plumbing.
+- **Per-machine event schemas** — Zod validates `{ machine: string, event: { type: string, … } }` at the wire edge today. Per-machine event payload validation is 1.x work tied to typed-event plumbing.
 
 ## Implementation references
 
+- Wire types + client appliers: `packages/stator/src/wire/`
 - Server emitter: `packages/stator/src/server/recompute.ts`
-- Client applier: `packages/stator/src/client/runtime.ts`
+- SSE fan-out: `packages/stator/src/server/sse.ts`
 - Slot id allocation: `packages/stator/src/server/render-context.ts`
 - Element id allocation: `packages/stator/src/template/parser.ts`

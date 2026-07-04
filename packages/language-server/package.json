@@ -4,6 +4,12 @@
   "description": "Volar-based language server for .stator files.",
   "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/statorjs/stator.git",
+    "directory": "packages/language-server"
+  },
+  "homepage": "https://github.com/statorjs/stator#readme",
   "bin": {
     "stator-language-server": "./bin/stator-language-server.js"
   },
