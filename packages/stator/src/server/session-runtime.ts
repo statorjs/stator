@@ -153,14 +153,19 @@ export class SessionRuntime {
     return ctx.touched
   }
 
-  /** Write the current persisted snapshot for each touched session machine
-   *  back to the Store. App-machine touches (rare; the POC doesn't emit
-   *  events to app machines) are not persisted. */
+  /** Write the current persisted snapshot for each touched machine back to
+   *  its store: session machines to the session Store, app machines (touched
+   *  via session→app subscriptions) to the AppStore when they opted in. */
   async persistTouched(touched: ReadonlySet<string>): Promise<void> {
     const ttlSeconds = this.store.sessionTtlSeconds
     for (const name of touched) {
       const handle = this.actors.get(name)
-      if (!handle) continue
+      if (!handle) {
+        // Not a session machine in this runtime — an app machine reached via
+        // subscription. Safe no-op unless it opted into persistence.
+        await this.store.persistAppMachine(name)
+        continue
+      }
       const snapshot = handle.actor.getPersistedSnapshot()
       // Every set refreshes the session's whole expiry — the user is
       // active, so all of their machines stay alive together.

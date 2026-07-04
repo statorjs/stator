@@ -41,7 +41,7 @@ function makeList() {
 async function buildRuntime(initial: Row[]) {
   const List = makeList()
   const store = new MachineStore([List], new InMemoryStore())
-  store.bootAppMachines()
+  await store.bootAppMachines()
   const runtime = new SessionRuntime('s1', store)
   await runtime.loadGraph([List])
   runtime.processEvent('ListMachine', { type: 'SET', rows: initial })

@@ -1,4 +1,5 @@
-import type { EffectInvocation } from '../engine/index.ts'
+import type { AnyMachineDef, EffectInvocation } from '../engine/index.ts'
+import { dispatchToApp } from './app-dispatch.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import { withSessionLock } from './session-lock.ts'
@@ -6,6 +7,47 @@ import { SessionRuntime } from './session-runtime.ts'
 import { fanOut } from './sse.ts'
 
 const effectLog = scopedLogger('effect')
+
+/**
+ * Install the APP-plane effect scheduler on a MachineStore (injected
+ * post-construction — see MachineStore.setAppEffectScheduler). App
+ * completions are simpler than session ones: the actor is long-lived and
+ * in-process, so the completion goes through `dispatchToApp` — atomic send,
+ * persist opted-in machines, fan out. No lock involved.
+ *
+ * `createApp` and the dev server call this; a hand-rolled server that
+ * constructs MachineStore directly should too.
+ */
+export function wireAppEffects(store: MachineStore): void {
+  store.setAppEffectScheduler((invocation) => {
+    void runAppEffect(invocation, store)
+  })
+}
+
+async function runAppEffect(invocation: EffectInvocation, store: MachineStore): Promise<void> {
+  const { machineName, effectId } = invocation
+  let completion: Awaited<ReturnType<EffectInvocation['run']>>
+  try {
+    completion = await invocation.run()
+  } catch (err) {
+    effectLog.error(
+      { machine: machineName, effectId, err: String(err) },
+      'effect threw — effects must catch and return their failure event; dropped',
+    )
+    return
+  }
+  if (!completion) return
+  try {
+    const def = store.getDef(machineName)
+    if (!def) return // graph changed under us (dev reload) — drop
+    await dispatchToApp(store, def as AnyMachineDef, completion as never)
+  } catch (err) {
+    effectLog.error(
+      { machine: machineName, effectId, err: String(err) },
+      'effect completion dispatch failed',
+    )
+  }
+}
 
 /**
  * Server-plane effect scheduling for SESSION machines.

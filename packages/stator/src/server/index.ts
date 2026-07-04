@@ -5,6 +5,9 @@ export type {
   SlotTarget,
   WireEnvelope,
 } from '../wire/index.ts'
+export { dispatchToApp } from './app-dispatch.ts'
+export type { AppStore } from './app-store.ts'
+export { InMemoryAppStore } from './app-store.ts'
 export type { CachedStoreOptions } from './cached-store.ts'
 export { CachedStore } from './cached-store.ts'
 export type { CreateAppConfig, StatorApp } from './create-app.ts'
@@ -27,6 +30,7 @@ export {
   recordTouch,
   withDispatchContext,
 } from './dispatch-context.ts'
+export { scheduleSessionEffects, wireAppEffects } from './effects.ts'
 export type { HttpConfig } from './http.ts'
 export { buildHonoApp } from './http.ts'
 export type { InstanceHandle } from './instance-proxy.ts'
@@ -34,7 +38,7 @@ export { createInstanceProxy, defForProxy } from './instance-proxy.ts'
 export { logger, scopedLogger } from './logger.ts'
 export { MachineStore } from './machine-store.ts'
 export { recompute } from './recompute.ts'
-export { RedisStore } from './redis-store.ts'
+export { RedisAppStore, RedisStore } from './redis-store.ts'
 export type { RenderResult } from './render.ts'
 export { renderRoute } from './render.ts'
 export type {

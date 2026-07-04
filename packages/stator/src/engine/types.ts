@@ -174,6 +174,9 @@ export interface MachineDef<
   readonly __isStatorMachine: true
   name: Name
   lifecycle: Lifecycle
+  /** APP machines only: snapshot persists through the AppStore across
+   *  restarts (opt-in; see DefineMachineConfig.persist). */
+  persist: boolean
   reads: AnyMachineDef[]
   subscribes: SubscribeEntry[]
   /** Normalized: every declared emit, possibly with a payload selector. */

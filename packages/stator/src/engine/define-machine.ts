@@ -35,6 +35,11 @@ export interface DefineMachineConfig<
   /** Transitions see `helpers.reads` typed as `ReadsMap<TReads>`. */
   states: Record<S, StateNode<C, E, S, ReadsMap<TReads>>>
   selectors?: Sel
+  /** APP machines only: persist this machine's snapshot through the AppStore
+   *  so its state survives restarts. Opt-in — caches and other
+   *  reset-on-restart machines should leave it off. Session machines always
+   *  persist through the session Store; setting this on one is an error. */
+  persist?: boolean
 }
 
 function normalizeEmits<C, E extends EventObject>(
@@ -82,10 +87,18 @@ export function defineMachine<
   const TReads extends readonly AnyMachineDef[] = readonly [],
 >(config: DefineMachineConfig<C, E, S, Sel, Name, TReads>): MachineDef<C, E, S, Sel, Name> {
   const reads = (config.reads ?? []) as unknown as AnyMachineDef[]
+  if (config.persist && config.lifecycle === 'session') {
+    throw new Error(
+      `stator: machine "${config.name}" sets persist: true but is session-lifecycle — ` +
+        `session machines always persist through the session Store. ` +
+        `\`persist\` opts an APP machine into AppStore persistence.`,
+    )
+  }
   return {
     __isStatorMachine: true,
     name: config.name,
     lifecycle: config.lifecycle as Lifecycle,
+    persist: config.persist ?? false,
     reads,
     subscribes: config.subscribes ?? [],
     emits: normalizeEmits<C, E>(config.emits),

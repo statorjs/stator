@@ -1,6 +1,8 @@
 import { resolve } from 'node:path'
 import { serve } from '@hono/node-server'
+import type { AppStore } from './app-store.ts'
 import { discoverMachines } from './discovery.ts'
+import { wireAppEffects } from './effects.ts'
 import { buildHonoApp } from './http.ts'
 import { logger } from './logger.ts'
 import { MachineStore } from './machine-store.ts'
@@ -14,6 +16,10 @@ export interface CreateAppConfig {
   /** Persistence adapter for session-lifecycle machine state. Defaults to
    *  InMemoryStore — fine for dev, V1 adapters swap in here. */
   store?: Store
+  /** Persistence for `persist: true` app-lifecycle machines (no TTL, one
+   *  blob per machine). Defaults to in-memory (restart-wipe); pass
+   *  RedisAppStore for durable app state. */
+  appStore?: AppStore
   /** Per-session TTL in seconds. Every set to any of the session's
    *  machines refreshes this expiry. Defaults to 24h (86400). */
   sessionTtlSeconds?: number
@@ -37,8 +43,10 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
   const persistence = config.store ?? new InMemoryStore()
   const store = new MachineStore(defs, persistence, {
     sessionTtlSeconds: config.sessionTtlSeconds,
+    appStore: config.appStore,
   })
-  store.bootAppMachines()
+  await store.bootAppMachines()
+  wireAppEffects(store)
 
   const routes = await discoverRoutes(routesDir)
   const app = await buildHonoApp({

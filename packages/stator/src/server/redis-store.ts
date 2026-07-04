@@ -1,4 +1,5 @@
 import Redis, { type RedisOptions } from 'ioredis'
+import type { AppStore } from './app-store.ts'
 import type { Store } from './store.ts'
 
 /**
@@ -76,5 +77,40 @@ export class RedisStore implements Store {
   /** Underlying ioredis client, exposed for health checks / introspection. */
   get raw(): Redis {
     return this.client
+  }
+}
+
+/**
+ * Redis-backed AppStore: one plain key per app machine name, JSON snapshot,
+ * NO TTL — app state is process-equivalent persistence (see app-store.ts).
+ * Single-writer assumption; multi-replica coordination is out of scope.
+ */
+export class RedisAppStore implements AppStore {
+  private client: Redis
+  private keyPrefix: string
+
+  constructor(connection: string | RedisOptions, keyPrefix = 'stator:app') {
+    this.client = typeof connection === 'string' ? new Redis(connection) : new Redis(connection)
+    this.keyPrefix = keyPrefix
+  }
+
+  async loadAppMachine(name: string): Promise<unknown | null> {
+    const raw = await this.client.get(`${this.keyPrefix}:${name}`)
+    if (raw === null) return null
+    try {
+      return JSON.parse(raw)
+    } catch {
+      // Corrupted blob — treat as missing; the boot path logs and starts fresh.
+      return null
+    }
+  }
+
+  async saveAppMachine(name: string, snapshot: unknown): Promise<void> {
+    await this.client.set(`${this.keyPrefix}:${name}`, JSON.stringify(snapshot))
+  }
+
+  /** Close the connection. Call on graceful shutdown. */
+  async close(): Promise<void> {
+    await this.client.quit()
   }
 }

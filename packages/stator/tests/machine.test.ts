@@ -5,7 +5,7 @@ import { SessionRuntime } from '../src/server/session-runtime.ts'
 import { InMemoryStore } from '../src/server/store.ts'
 
 describe('MachineStore + SessionRuntime', () => {
-  it('builds an app-lifecycle machine and exposes selectors via the proxy', () => {
+  it('builds an app-lifecycle machine and exposes selectors via the proxy', async () => {
     const ProductsMachine = defineMachine({
       name: 'ProductsMachine',
       lifecycle: 'app',
@@ -19,7 +19,7 @@ describe('MachineStore + SessionRuntime', () => {
     })
 
     const store = new MachineStore([ProductsMachine], new InMemoryStore())
-    store.bootAppMachines()
+    await store.bootAppMachines()
     const instance = store.appInstance('ProductsMachine')!.proxy as any
 
     expect(instance.all).toEqual([{ id: 'p1', name: 'Notebook', price: 12 }])
@@ -77,7 +77,7 @@ describe('MachineStore + SessionRuntime', () => {
 
     const persistence = new InMemoryStore()
     const store = new MachineStore([CartMachine], persistence)
-    store.bootAppMachines()
+    await store.bootAppMachines()
 
     // First "request" — initial state, one ADD, persist.
     {

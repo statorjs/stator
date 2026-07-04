@@ -6,6 +6,7 @@ import type { Hono } from 'hono'
 import { createServer as createViteServer, type ViteDevServer } from 'vite'
 import { compile } from '../compiler/index.ts'
 import { machineStub, stator } from '../vite/index.ts'
+import type { AppStore } from './app-store.ts'
 import { logger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
@@ -35,6 +36,8 @@ export interface DevAppConfig {
   routesDir: string
   staticDir?: string
   store?: Store
+  /** Persistence for `persist: true` app machines. Defaults to in-memory. */
+  appStore?: AppStore
   sessionTtlSeconds?: number
   /** Auto-inject the dev inspector toolbar. On by default; set false to disable. */
   inspector?: boolean
@@ -121,8 +124,10 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
     machineCount = defs.length
     store = new runtime.MachineStore(defs, config.store ?? new runtime.InMemoryStore(), {
       sessionTtlSeconds: config.sessionTtlSeconds,
+      appStore: config.appStore,
     })
-    store.bootAppMachines()
+    await store.bootAppMachines()
+    runtime.wireAppEffects(store)
   }
   const rebuildRoutes = async (): Promise<void> => {
     routes = await runtime.discoverRoutes(routesDir, loader)

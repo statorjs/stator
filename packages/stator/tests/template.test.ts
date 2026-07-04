@@ -62,7 +62,7 @@ async function buildRuntime(): Promise<{
 }> {
   const Cart = makeCart()
   const store = new MachineStore([Cart], new InMemoryStore())
-  store.bootAppMachines()
+  await store.bootAppMachines()
   const runtime = new SessionRuntime('s1', store)
   await runtime.loadGraph([Cart])
   const cart = runtime.proxyFor('CartMachine') as InstanceOf<ReturnType<typeof makeCart>>

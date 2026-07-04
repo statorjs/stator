@@ -1,4 +1,5 @@
-import { createActor } from '../engine/index.ts'
+import { createActor, type EffectInvocation, type Snapshot } from '../engine/index.ts'
+import { type AppStore, InMemoryAppStore } from './app-store.ts'
 import type { AnyMachineDef, SubscribeEvent } from './define-machine.ts'
 import { recordTouch } from './dispatch-context.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
@@ -61,12 +62,23 @@ export class MachineStore {
    *  sessions expire as a whole. Adapters honor this on `set()`. */
   readonly sessionTtlSeconds: number
 
+  /** Persistence for `persist: true` APP machines (no TTL, one blob per
+   *  machine). Defaults to in-memory (restart-wipe) — pass RedisAppStore for
+   *  durable app state. */
+  readonly appStore: AppStore
+
+  /** Host-injected scheduler for app-machine effects (see server/effects.ts
+   *  wireAppEffects). Set after construction to avoid an import cycle;
+   *  unwired effects are dropped loudly. */
+  private appEffectScheduler: ((invocation: EffectInvocation) => void) | null = null
+
   constructor(
     defs: AnyMachineDef[],
     readonly persistence: Store,
-    opts?: { sessionTtlSeconds?: number },
+    opts?: { sessionTtlSeconds?: number; appStore?: AppStore },
   ) {
     this.sessionTtlSeconds = opts?.sessionTtlSeconds ?? 86400
+    this.appStore = opts?.appStore ?? new InMemoryAppStore()
     for (const def of defs) {
       if (this.defs.has(def.name)) {
         throw new Error(`stator: duplicate machine name "${def.name}"`)
@@ -118,26 +130,66 @@ export class MachineStore {
     }
   }
 
-  bootAppMachines(): void {
+  async bootAppMachines(): Promise<void> {
     for (const def of this.defs.values()) {
       if (def.lifecycle === 'app' && !this.appInstances.has(def.name)) {
+        const snapshot = def.persist ? await this.loadAppSnapshot(def.name) : undefined
         const actor = createActor(def, {
+          snapshot,
           resolveHelpers: serverReadsResolver(def),
-          // Stage 1 of the effects rollout covers session machines only; the
-          // app-plane scheduler lands with Phase 5 (persistence + fan-out).
-          // Explicitly dropped rather than half-run: the engine's local
-          // default would mutate app state with no fan-out or persistence.
+          // App effects run through the host scheduler wired by
+          // wireAppEffects (server/effects.ts) — injected post-construction
+          // to avoid an import cycle. Unwired: dropped loudly rather than
+          // half-run without fan-out or persistence.
           onEffect: (invocation) => {
-            storeLog.warn(
-              { machine: invocation.machineName, effectId: invocation.effectId },
-              'app-machine effects are not scheduled yet (lands with Phase 5) — effect dropped',
-            )
+            if (this.appEffectScheduler) this.appEffectScheduler(invocation)
+            else
+              storeLog.warn(
+                { machine: invocation.machineName, effectId: invocation.effectId },
+                'app-machine effect dropped — no scheduler wired (call wireAppEffects(store))',
+              )
           },
         }).start()
         this.appInstances.set(def.name, createInstanceProxy(def, actor))
       }
     }
     this.wireAppSubscriptions()
+  }
+
+  /** Load + validate a persisted app snapshot. Corrupt or unloadable state
+   *  logs loud and boots fresh — restart-fresh is the safe default. */
+  private async loadAppSnapshot(name: string): Promise<Snapshot<object> | undefined> {
+    try {
+      const raw = await this.appStore.loadAppMachine(name)
+      if (raw === null) return undefined
+      const snap = raw as Snapshot<object>
+      if (!Array.isArray(snap.value) || typeof snap.context !== 'object' || snap.context === null) {
+        throw new Error('snapshot shape invalid (expected { value: string[], context: object })')
+      }
+      return snap
+    } catch (err) {
+      storeLog.error(
+        { machine: name, err: String(err) },
+        'persisted app-machine snapshot unusable — booting fresh',
+      )
+      return undefined
+    }
+  }
+
+  /** Install the app-effect scheduler (see server/effects.ts wireAppEffects). */
+  setAppEffectScheduler(scheduler: (invocation: EffectInvocation) => void): void {
+    this.appEffectScheduler = scheduler
+  }
+
+  /** Persist one app machine's snapshot, if it opted in. Safe no-op for
+   *  session machines, non-persist app machines, and unknown names — callers
+   *  pass raw touched-set entries. */
+  async persistAppMachine(name: string): Promise<void> {
+    const def = this.defs.get(name)
+    if (def?.lifecycle !== 'app' || !def.persist) return
+    const handle = this.appInstances.get(name)
+    if (!handle) return
+    await this.appStore.saveAppMachine(name, handle.actor.getPersistedSnapshot())
   }
 
   /** Wire app→app subscription listeners. Session-involved subscriptions
