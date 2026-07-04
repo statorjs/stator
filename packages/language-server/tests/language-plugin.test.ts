@@ -40,6 +40,21 @@ const [cart] = Stator.reads([CartMachine])
     expect(read(css)).toBe('.x { color: red }')
   })
 
+  it('the root code carries an identity mapping gated to verification only', () => {
+    // This is what routes the stator diagnostics service to the source doc
+    // with 1:1 positions, without inviting TS/CSS features onto it.
+    const src = `<main>hi</main>`
+    const vc = new StatorVirtualCode(snap(src))
+    expect(vc.mappings).toHaveLength(1)
+    const m = vc.mappings[0]!
+    expect(m.sourceOffsets).toEqual([0])
+    expect(m.generatedOffsets).toEqual([0])
+    expect(m.lengths).toEqual([src.length])
+    expect(m.data.verification).toBe(true)
+    expect(m.data.completion).toBe(false)
+    expect(m.data.semantic).toBe(false)
+  })
+
   it('getServiceScript picks the tsx embed as the TS script', () => {
     const src = `<main>hi</main>`
     const vc = new StatorVirtualCode(snap(src))

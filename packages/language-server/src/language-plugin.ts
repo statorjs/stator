@@ -67,8 +67,10 @@ export class StatorVirtualCode implements VirtualCode {
   id = 'root'
   languageId = 'stator'
   snapshot: IScriptSnapshot
-  // The source doc is addressed through the embedded codes' mappings (which map
-  // embedded offsets ↔ real .stator offsets), so the root itself needs none.
+  // TS/CSS features are served by the embedded codes' mappings. The root
+  // itself carries one identity mapping with `verification` only, which makes
+  // it visible to the stator diagnostics service (full source, positions
+  // passing through 1:1) without inviting TS/CSS features onto it.
   mappings: CodeMapping[] = []
   embeddedCodes: VirtualCode[] = []
 
@@ -80,6 +82,21 @@ export class StatorVirtualCode implements VirtualCode {
   update(snapshot: IScriptSnapshot): void {
     this.snapshot = snapshot
     const text = snapshot.getText(0, snapshot.getLength())
+    this.mappings = [
+      {
+        sourceOffsets: [0],
+        generatedOffsets: [0],
+        lengths: [text.length],
+        data: {
+          verification: true,
+          completion: false,
+          semantic: false,
+          navigation: false,
+          structure: false,
+          format: false,
+        },
+      },
+    ]
     const vc = toVirtualCode(text)
     this.embeddedCodes = [
       embed('tsx', 'typescriptreact', vc.tsx.code, vc.tsx.mappings),

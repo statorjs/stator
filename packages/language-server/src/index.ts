@@ -15,6 +15,7 @@ import {
 } from '@volar/language-server/node'
 import { create as createCssService } from 'volar-service-css'
 import { create as createTypeScriptServices } from 'volar-service-typescript'
+import { createStatorDiagnosticsService } from './diagnostics.ts'
 import { statorLanguagePlugin } from './language-plugin.ts'
 
 const connection = createConnection()
@@ -34,7 +35,11 @@ connection.onInitialize((params) => {
     createTypeScriptProject(tsdk.typescript, tsdk.diagnosticMessages, () => ({
       languagePlugins: [statorLanguagePlugin],
     })),
-    [...createTypeScriptServices(tsdk.typescript), createCssService()],
+    [
+      ...createTypeScriptServices(tsdk.typescript),
+      createCssService(),
+      createStatorDiagnosticsService(),
+    ],
   )
 })
 
