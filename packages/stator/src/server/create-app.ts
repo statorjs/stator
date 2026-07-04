@@ -32,6 +32,9 @@ export interface StatorApp {
   listen(port: number): Promise<void>
   /** For tests — get the underlying Hono fetch handler. */
   fetch: (request: Request) => Response | Promise<Response>
+  /** The machine registry + app actors — pass to `dispatchToApp` for
+   *  server-originated events (webhooks, cron). */
+  store: MachineStore
 }
 
 export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
@@ -66,5 +69,6 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
       })
     },
     fetch: (request: Request) => app.fetch(request),
+    store,
   }
 }
