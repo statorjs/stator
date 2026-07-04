@@ -1200,3 +1200,27 @@ svg {
 		margin-bottom: 0;
 	}
 }
+
+/* The brand hover: the rotor turns, the stator holds still — which is the
+   whole pitch. Keyed rotor so the rotation reads. */
+.header__rotor {
+	transform-box: view-box;
+	transform-origin: 16px 16px;
+	transition: transform 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.header__brand:hover .header__rotor,
+.header__brand:focus-visible .header__rotor {
+	transform: rotate(300deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.header__rotor {
+		transition: none;
+	}
+
+	.header__brand:hover .header__rotor,
+	.header__brand:focus-visible .header__rotor {
+		transform: none;
+	}
+}
