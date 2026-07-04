@@ -6,6 +6,7 @@
   "scripts": {
     "typecheck": "pnpm -r --if-present --filter='!./apps/private/*' run typecheck",
     "test": "pnpm -r --if-present --filter='!./apps/private/*' run test",
+    "test:redis": "REDIS_URL=\"${REDIS_URL:-redis://localhost:6379}\" pnpm --filter @statorjs/stator exec vitest run tests/redis-store.test.ts",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
