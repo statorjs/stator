@@ -1,4 +1,11 @@
-import type { ActionHelpers, EventObject, MachineDef, Snapshot, TransitionConfig } from './types.ts'
+import type {
+  ActionHelpers,
+  EffectInvocation,
+  EventObject,
+  MachineDef,
+  Snapshot,
+  TransitionConfig,
+} from './types.ts'
 
 /** The actor surface the rest of the framework consumes. Designed to the
  *  framework's actual needs — not XState's actor protocol. */
@@ -39,6 +46,20 @@ export interface CreateActorOptions<C> {
    *  machine never dereferences it). This injection is what keeps the engine
    *  isomorphic — it imports no server-only module. */
   resolveHelpers?: () => ActionHelpers
+  /** Host-provided effect scheduler. When set, the actor hands each pending
+   *  effect to the host instead of running it (the server queues effects and
+   *  runs them after the session lock releases, dispatching completions
+   *  through the full event path). When omitted, the actor schedules the
+   *  effect locally on a microtask and sends its completion event to itself —
+   *  the client-plane (and unit-test) behavior. */
+  onEffect?: (invocation: EffectInvocation) => void
+}
+
+/** Unique per-invocation effect id — usable as an idempotency key, so it must
+ *  be unique across process restarts (randomUUID, not a counter). */
+function newEffectId(): string {
+  const uuid = globalThis.crypto?.randomUUID?.()
+  return uuid ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 /** Helpers that throw on any `reads` access — used when no resolver is wired
@@ -153,6 +174,38 @@ export function createActor<C extends object, E extends EventObject, S extends s
           const emitted = { type: name, ...payload }
           const listeners = emitListeners.get(name)
           if (listeners) for (const fn of listeners) fn(emitted)
+        }
+      }
+
+      // Effects surface after commit with commit-time snapshots (same clone
+      // discipline as actions). The engine never awaits them — the host
+      // schedules (server), or the local default runs on a microtask (client,
+      // unit tests) and sends the completion back to this actor.
+      if (config.effect) {
+        const effect = config.effect
+        const effectId = newEffectId()
+        const ctxSnapshot = structuredClone(context)
+        const evSnapshot = structuredClone(event)
+        const invocation: EffectInvocation = {
+          machineName: def.name,
+          effectId,
+          run: () => Promise.resolve(effect(ctxSnapshot, evSnapshot as never, { effectId })),
+        }
+        if (opts.onEffect) {
+          opts.onEffect(invocation)
+        } else {
+          void invocation
+            .run()
+            .then((completion) => {
+              if (completion) actor.send(completion as E)
+            })
+            .catch((err) => {
+              console.error(
+                `stator: effect ${effectId} of "${def.name}" threw — effects must catch and ` +
+                  `return their failure event. Dropped.`,
+                err,
+              )
+            })
         }
       }
 

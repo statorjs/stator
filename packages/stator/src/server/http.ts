@@ -6,6 +6,7 @@ import { type Context, Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
 import { applyRenderedEffects, runApiRoute } from './api-route.ts'
+import { scheduleSessionEffects } from './effects.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import { recompute } from './recompute.ts'
@@ -284,6 +285,11 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         await runtime.persistTouched(touched)
 
         await fanOut(touched)
+
+        // Fire-and-forget: the effects' I/O runs after this callback returns
+        // (the lock is never held across it); completions re-enter via the
+        // normal event path in server/effects.ts.
+        scheduleSessionEffects(runtime, config.store, sessionId)
 
         return c.json({ patches, directives: [] })
       } finally {

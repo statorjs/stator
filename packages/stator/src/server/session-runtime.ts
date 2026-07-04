@@ -1,4 +1,4 @@
-import { createActor, type Snapshot } from '../engine/index.ts'
+import { createActor, type EffectInvocation, type Snapshot } from '../engine/index.ts'
 import type { AnyMachineDef } from './define-machine.ts'
 import { type DispatchContext, recordTouch, withDispatchContext } from './dispatch-context.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
@@ -23,6 +23,9 @@ import { serverReadsResolver } from './reads-helpers.ts'
 export class SessionRuntime {
   private actors = new Map<string, InstanceHandle>()
   private wired = false
+  /** Effects surfaced during processEvent, queued until the entry point has
+   *  persisted and released the session lock (see server/effects.ts). */
+  private pendingEffects: EffectInvocation[] = []
 
   constructor(
     readonly sessionId: string,
@@ -56,8 +59,18 @@ export class SessionRuntime {
     const actor = createActor(def, {
       snapshot: persisted !== null ? (persisted as Snapshot<object>) : undefined,
       resolveHelpers: serverReadsResolver(def),
+      // Server plane: never run effects inline — queue them for the entry
+      // point to schedule after persist + lock release.
+      onEffect: (invocation) => this.pendingEffects.push(invocation),
     }).start()
     this.actors.set(def.name, createInstanceProxy(def, actor))
+  }
+
+  /** Hand queued effect invocations to the scheduler, clearing the queue. */
+  drainPendingEffects(): EffectInvocation[] {
+    const drained = this.pendingEffects
+    this.pendingEffects = []
+    return drained
   }
 
   /**

@@ -1,5 +1,6 @@
 import type { Context } from 'hono'
 import { setCookie } from 'hono/cookie'
+import { scheduleSessionEffects } from './effects.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import type { RenderedResponseEffects } from './render.ts'
@@ -77,6 +78,9 @@ export async function runApiRoute(
         await runtime.persistTouched(touched)
         await fanOut(touched)
       }
+      // Effects queued by dispatched events run after this callback returns
+      // (never under the session lock); see server/effects.ts.
+      scheduleSessionEffects(runtime, store, sessionId)
 
       // Escape hatch: handler returned a real Response. Pass through.
       if (result instanceof Response) return result

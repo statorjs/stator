@@ -44,12 +44,47 @@ export type Guard<C, E extends EventObject, R = Record<string, any>> = (
   helpers: ActionHelpers<R>,
 ) => boolean
 
-/** Object form of a transition. A bare `Action` is sugar for `{ do: fn }`. */
+/** Passed to an effect alongside the snapshots. `effectId` is unique per
+ *  invocation — thread it to external calls as an idempotency key (1.x
+ *  durability implies at-least-once) and use it for log correlation. */
+export interface EffectMeta {
+  effectId: string
+}
+
+/**
+ * An effect: async I/O declared on a transition, run by the HOST after the
+ * transition commits (the engine itself never performs I/O). Receives
+ * commit-time `structuredClone` snapshots of context and event — never live
+ * state — plus meta. Returns the completion event to dispatch (typed against
+ * the machine's full event union), or null for fire-and-forget.
+ *
+ * Effects are infallible by construction: catch inside and return your
+ * declared failure event. A throw is the runtime backstop — logged and
+ * dropped, never a crash. See the engine-effects spec.
+ */
+export type Effect<C, E extends EventObject, EAll extends EventObject = EventObject> = (
+  ctx: C,
+  ev: E,
+  meta: EffectMeta,
+) => Promise<EAll | null>
+
+/** A scheduled effect surfaced to the host: everything needed to run it and
+ *  dispatch its completion. `run` closes over the commit-time snapshots. */
+export interface EffectInvocation {
+  machineName: string
+  effectId: string
+  run: () => Promise<EventObject | null>
+}
+
+/** Object form of a transition. A bare `Action` is sugar for `{ do: fn }`.
+ *  `E` is the event narrowed to this `on` key; `EAll` is the machine's full
+ *  event union (what an effect's completion event is typed against). */
 export interface TransitionConfig<
   C,
   E extends EventObject,
   S extends string,
   R = Record<string, any>,
+  EAll extends EventObject = EventObject,
 > {
   /** Target state. Omit for a self-transition (action only, no state change). */
   to?: S
@@ -59,19 +94,25 @@ export interface TransitionConfig<
   do?: Action<C, E, R>
   /** Declared emit(s) to fire after the action commits. */
   emit?: string | string[]
+  /** Async I/O, host-scheduled after commit. See `Effect`. */
+  effect?: Effect<C, E, EAll>
 }
 
-export type Transition<C, E extends EventObject, S extends string, R = Record<string, any>> =
-  | Action<C, E, R>
-  | TransitionConfig<C, E, S, R>
+export type Transition<
+  C,
+  E extends EventObject,
+  S extends string,
+  R = Record<string, any>,
+  EAll extends EventObject = EventObject,
+> = Action<C, E, R> | TransitionConfig<C, E, S, R, EAll>
 
 /** The `on` map: each event type maps to a transition (or an ordered array of
  *  guarded candidates — first whose `when` passes wins) whose action/guard see
  *  the event NARROWED to exactly that type. This is the Option A payoff. */
 export type OnMap<C, E extends EventObject, S extends string, R = Record<string, any>> = {
   [K in E['type']]?:
-    | Transition<C, Extract<E, { type: K }>, S, R>
-    | Array<Transition<C, Extract<E, { type: K }>, S, R>>
+    | Transition<C, Extract<E, { type: K }>, S, R, E>
+    | Array<Transition<C, Extract<E, { type: K }>, S, R, E>>
 }
 
 export interface StateNode<C, E extends EventObject, S extends string, R = Record<string, any>> {

@@ -2,8 +2,11 @@ import { createActor } from '../engine/index.ts'
 import type { AnyMachineDef, SubscribeEvent } from './define-machine.ts'
 import { recordTouch } from './dispatch-context.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
+import { scopedLogger } from './logger.ts'
 import { serverReadsResolver } from './reads-helpers.ts'
 import type { Store } from './store.ts'
+
+const storeLog = scopedLogger('machine-store')
 
 /**
  * Compose the event a subscriber actually receives. Order of precedence:
@@ -120,6 +123,16 @@ export class MachineStore {
       if (def.lifecycle === 'app' && !this.appInstances.has(def.name)) {
         const actor = createActor(def, {
           resolveHelpers: serverReadsResolver(def),
+          // Stage 1 of the effects rollout covers session machines only; the
+          // app-plane scheduler lands with Phase 5 (persistence + fan-out).
+          // Explicitly dropped rather than half-run: the engine's local
+          // default would mutate app state with no fan-out or persistence.
+          onEffect: (invocation) => {
+            storeLog.warn(
+              { machine: invocation.machineName, effectId: invocation.effectId },
+              'app-machine effects are not scheduled yet (lands with Phase 5) — effect dropped',
+            )
+          },
         }).start()
         this.appInstances.set(def.name, createInstanceProxy(def, actor))
       }
