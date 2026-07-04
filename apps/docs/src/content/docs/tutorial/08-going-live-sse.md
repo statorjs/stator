@@ -48,14 +48,12 @@ Be precise about what you're getting:
 - **Single-replica fan-out.** The fan-out is in-process — every connection lives on the same server instance.
 
 :::caution[1.x]
-Multi-replica fan-out (a Redis pub/sub backplane), the durable inbox (reaching sessions with no open connection, and server-originated state *transitions*), and horizontal scaling are deferred to [1.x](/introduction/why-stator/#the-10--1x-boundary). On a single replica, live cross-session display updates work today.
+Multi-replica fan-out (a Redis pub/sub backplane), the durable inbox (reaching sessions with no open connection, and server-originated transitions of *session* machines), and horizontal scaling are deferred to [1.x](/introduction/why-stator/#the-10--1x-boundary). On a single replica, live cross-session display updates work today — and server code *can* transition [app machines](/guides/app-machines/) directly via `dispatchToApp`.
 :::
 
-## What you built · next
+## Next
 
-You've built **Desksmith** end to end: typed machines for the catalog and cart, a server-rendered catalog with slot-level patches, a shared layout composed with `<children>`, a full cart (add, adjust quantities, remove, clear), a client-only theme toggle, durable persistence on Redis, and a live route that fans updates across sessions. That's the whole distinctive surface of Stator in one app.
-
-From here:
-
-- [Core Concepts](/concepts/state-machines/) — the "why it works this way" behind each piece you used.
-- [Guides](/guides/templates/) — task-focused references for templates, directives, forms, routing, and more.
+Desksmith renders, reacts, persists, and broadcasts — but it still can't take
+money. The final chapter adds checkout with a real async call, and with it
+the one pattern behind all I/O in Stator:
+[async effects](/tutorial/09-async-effects/).

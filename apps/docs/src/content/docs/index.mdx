@@ -1,0 +1,89 @@
+---
+title: Stator
+description: "A server-canonical web framework where state machines are the unit of composition and the DOM renders where its state lives."
+template: splash
+hero:
+  tagline: State machines as the unit of composition. The DOM renders where its state lives.
+  actions:
+    - text: Get started
+      link: /introduction/quick-start/
+      icon: right-arrow
+    - text: Why Stator?
+      link: /introduction/why-stator/
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components'
+
+## Your business logic doesn't know the UI exists
+
+Most frameworks put canonical state in the browser and spend the rest of their
+API surface keeping it honest with the server. Stator inverts that: a typed
+state machine on the server is the single source of truth, templates declare
+exactly what they read from it, and every interaction is an event. The server
+diffs what changed and sends the DOM a few small patches. No hydration, no
+client store, no second copy of the truth.
+
+If you're a TypeScript developer building the kind of software that is
+fundamentally *sessions and server state* — shops, dashboards, admin tools,
+multi-step flows — you've been shipping a SPA plus an API to build what is,
+architecturally, one program. Stator lets you write that one program.
+
+<CardGrid stagger>
+  <Card title="UI-blind machines" icon="setting">
+    Business logic lives in `defineMachine` — typed events, guarded
+    transitions, async effects — with zero knowledge of templates or the DOM.
+    You can read a checkout flow like a spec, and test it without rendering
+    anything.
+  </Card>
+  <Card title="Server-canonical reactivity" icon="random">
+    `read(machine, selector)` binds a DOM position to state. When an event
+    changes the answer, that position gets a patch — over the POST response,
+    or pushed live to every connected session via SSE. Fine-grained updates
+    without owning a client state stack.
+  </Card>
+  <Card title="Islands without coloring" icon="laptop">
+    When state genuinely belongs in the browser — a theme toggle, a quantity
+    stepper — the same machine engine runs there as a custom element. No
+    `"use client"` pragma: a file is a client island because of what it
+    structurally is, and the compiler keeps server code out of your bundles.
+  </Card>
+  <Card title="Honest by construction" icon="approve-check">
+    Events are typed against each machine's declared union, on both sides of
+    the wire. Escaping is automatic. The server–client boundary is a line you
+    can point to in every file.
+  </Card>
+</CardGrid>
+
+## When to reach for it — and when not to
+
+**A strong fit:** server-authoritative apps — carts and checkouts, internal
+tools, live dashboards, guarded multi-step flows. Anything where the database
+is the truth and users share a view of it.
+
+**Not the tool:** offline-first or local-first apps, canvas-heavy interactive
+surfaces where nearly everything is client state, static content sites, or
+systems that must run multi-replica from day one (horizontal scaling is a 1.x
+path, designed but not shipped).
+
+The longer version, including the tradeoffs you accept, is in
+[Why Stator?](/introduction/why-stator/)
+
+## Sixty seconds of Stator
+
+```
+---
+import Cart from '../machines/cart.ts'
+
+const [cart] = Stator.reads([Cart])
+---
+
+<p>Items: {read(cart, (c) => c.itemCount)}</p>
+<button on:click={() => cart.send({ type: 'ADD', productId: 'p1' })}>
+  Add to cart
+</button>
+```
+
+The button POSTs a typed event. `CartMachine` transitions. The `<p>` gets a
+text patch. That's the whole model — the [tutorial](/tutorial/01-setup/)
+builds a real app on it in eight short chapters.

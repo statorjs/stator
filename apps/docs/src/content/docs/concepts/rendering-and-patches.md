@@ -35,8 +35,10 @@ type Patch =
 
 Targets and ops are independent dimensions, which is what keeps the format small and extensible: new capabilities are new ops or new targets, not a new message type.
 
+`insert` / `remove` / `move` on slot targets are the [keyed-list](/guides/keyed-lists/) ops: emitted from a server-side diff, applied sequentially against the list's element children by index. An unkeyed list still re-renders its body via one `html` patch.
+
 :::note[1.x]
-`insert` / `remove` / `move` on slot targets (keyed list diffs), `attr-add` / `attr-remove`, and `prop` on element targets are reserved in the format but not yet emitted. Keyed-list patches arrive with the keyed-`each` work; today a changed list re-renders its body via an `html` patch.
+`attr-add` / `attr-remove` and `prop` on element targets are reserved in the format but not yet emitted.
 :::
 
 ## Scope subsumption

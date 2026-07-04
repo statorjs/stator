@@ -47,7 +47,7 @@ Reach for something else if you need heavy **offline / local-first** behavior, m
 
 What ships in 1.0:
 
-- The custom isomorphic engine, typed machine-mediated dispatch, the `.stator` compiler, server rendering with slot patches, client islands, file-based routing, API routes, per-session persistence (in-memory or Redis), and **opt-in SSE with cross-session fan-out on a single replica**.
+- The custom isomorphic engine (with [async effects](/guides/effects/)), typed machine-mediated dispatch, the `.stator` compiler, server rendering with slot patches, [keyed lists](/guides/keyed-lists/), client islands with a [production build](/guides/production/), file-based routing, API routes, per-session persistence (in-memory or Redis), [opt-in app-machine persistence](/guides/app-machines/), server-originated dispatch for webhooks and cron, and **opt-in SSE with cross-session fan-out on a single replica**.
 
 What is deferred to 1.x:
 

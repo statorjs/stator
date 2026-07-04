@@ -46,7 +46,10 @@ Use `when` for one condition, `match` to pick one of several by value.
 ```
 
 :::note
-Keyed list identity (`key={...}`, per-item insert/move patches) is still landing — today a changed list re-renders its body. See [Rendering and patches](/concepts/rendering-and-patches/#the-targetop-wire-format).
+By default a changed list re-renders its body. Pass a `key` —
+`each(items, fn, { key: (i) => i.id })` — and changes become per-item
+insert/remove/move patches instead, so rows keep focus and transitions across
+reorders. See [Keyed lists](/guides/keyed-lists/).
 :::
 
 ## Trusted HTML with raw()

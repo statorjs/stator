@@ -9,9 +9,17 @@ import { PackageManagers } from 'starlight-package-managers'
 
 This page gets a Stator project onto disk and the dev loop running.
 
-:::note[No scaffolder yet]
-Stator does not ship a `create-stator` scaffolder or a global `stator` CLI in 1.0. You wire a project by hand — it's a few small files, shown below. The `apps/example` app in the repository is the canonical reference layout.
-:::
+## The fast path
+
+```bash
+pnpm create stator my-app
+cd my-app && pnpm install && pnpm dev
+```
+
+The scaffold is a complete working app — a counter machine, a `.stator` page,
+and the full script set (`dev`, `typecheck`, `build`, `start`). The rest of
+this page is a tour of what `create-stator` just wired for you — or
+instructions for wiring it by hand.
 
 ## Requirements
 
