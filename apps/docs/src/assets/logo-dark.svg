@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <title>Stator</title>
   <!-- Stator & rotor: stationary ring with inward poles, air gap, rotor.
        The frame drives the rotor without touching it. -->
   <circle cx="16" cy="16" r="11.6" fill="none" stroke="#eae8e2" stroke-width="3.8"/>
