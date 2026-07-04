@@ -1,0 +1,11 @@
+---
+// @stator live
+import PollsMachine from '../machines/polls.ts'
+import HomePage from '../templates/home-page.stator'
+import Layout from '../templates/layout.stator'
+
+const [polls] = Stator.reads([PollsMachine])
+---
+<Layout>
+  <HomePage polls={polls} />
+</Layout>

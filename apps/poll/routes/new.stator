@@ -1,0 +1,7 @@
+---
+import Layout from '../templates/layout.stator'
+import NewPollPage from '../templates/new-poll-page.stator'
+---
+<Layout>
+  <NewPollPage />
+</Layout>

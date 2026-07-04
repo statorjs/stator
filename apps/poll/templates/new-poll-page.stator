@@ -1,29 +1,4 @@
-import { type HtmlFragment, html } from '@statorjs/stator/template'
-
-/**
- * Plain HTML form posting to /new. The framework's POST handler
- * (defineApiRoute in routes/new.ts) parses the FormData, dispatches
- * CREATE_POLL to VoterMachine, returns a navigate directive.
- *
- * The `data-stator-enhance` attribute opts the form into client-runtime
- * interception. Without it, the form would still work (browser submits,
- * server returns 303 to `/`), but the user would see a full-page
- * navigation rather than the framework applying the navigate directive
- * client-side.
- *
- * Works two ways:
- *   - No JS or no enhance attribute: the form submits normally, server
- *     returns a 303 to `/`.
- *   - With JS and enhance attribute: the client runtime intercepts,
- *     POSTs as FormData with Accept: application/json, applies the
- *     navigate directive client-side.
- *
- * The "add option" button is the one piece of inline JS that's genuinely
- * client-only — it adds input rows dynamically with no server round trip.
- * The form starts with two rows so the no-JS path still works.
- */
-export default function newPollPage(): HtmlFragment {
-  return html`<section class="page page--new">
+<section class="page page--new">
   <header class="page-header">
     <h1>New poll</h1>
     <p class="page-lede">Two to six options. Plain text only.</p>
@@ -56,7 +31,7 @@ export default function newPollPage(): HtmlFragment {
     </div>
   </form>
 
-  <script>
+  <script is:inline>
     (function () {
       var rows = document.querySelector('.option-rows')
       var addBtn = document.getElementById('add-option')
@@ -84,5 +59,4 @@ export default function newPollPage(): HtmlFragment {
       renumber()
     })()
   </script>
-</section>`
-}
+</section>

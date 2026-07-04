@@ -1,0 +1,13 @@
+---
+// @stator live
+import PollsMachine from '../../machines/polls.ts'
+import VoterMachine from '../../machines/voter.ts'
+import Layout from '../../templates/layout.stator'
+import PollPage from '../../templates/poll-page.stator'
+
+const [polls, voter] = Stator.reads([PollsMachine, VoterMachine])
+const { params } = Stator.request
+---
+<Layout>
+  <PollPage polls={polls} voter={voter} pollId={params.id ?? ''} />
+</Layout>

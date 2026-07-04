@@ -1,13 +1,9 @@
-import { defineApiRoute, defineRoute } from '@statorjs/stator/server'
+import { defineApiRoute } from '@statorjs/stator/server'
 import VoterMachine from '../machines/voter.ts'
-import layout from '../templates/layout.ts'
-import newPollPage from '../templates/new-poll-page.ts'
 
-export const GET = defineRoute({
-  reads: [VoterMachine],
-  render: () => layout(newPollPage()),
-})
-
+/** POST half of /new — merges with new.stator's GET at the same URL.
+ *  Parses the form, dispatches CREATE_POLL (VoterMachine emits POLL_CREATED,
+ *  which PollsMachine subscribes to), returns a navigate directive. */
 export const POST = defineApiRoute({
   reads: [VoterMachine],
   handler: async (request, { dispatch }) => {
@@ -24,10 +20,6 @@ export const POST = defineApiRoute({
       }
     }
 
-    // VoterMachine emits POLL_CREATED, which PollsMachine subscribes to.
-    // The framework's cross-machine subscription path runs the actual
-    // create transition there. Dispatch is addressed by the imported machine
-    // def (no magic string); the event is typed against VoterMachine's events.
     await dispatch(VoterMachine, {
       type: 'CREATE_POLL',
       question,

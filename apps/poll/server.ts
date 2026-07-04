@@ -1,13 +1,7 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
-  CachedStore,
-  createApp,
-  InMemoryStore,
-  logger,
-  RedisStore,
-  type Store,
-} from '@statorjs/stator/server'
+import { createDevApp } from '@statorjs/stator/dev'
+import { CachedStore, InMemoryStore, logger, RedisStore, type Store } from '@statorjs/stator/server'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -29,7 +23,10 @@ if (redisUrl) {
   )
 }
 
-const app = await createApp({
+// Dev server: Vite compiles `.stator` pages on the way in. Production runs
+// `pnpm build && pnpm start` (precompiled dist, no Vite).
+const app = await createDevApp({
+  root: here,
   machinesDir: resolve(here, 'machines'),
   routesDir: resolve(here, 'routes'),
   staticDir: resolve(here, 'static'),
