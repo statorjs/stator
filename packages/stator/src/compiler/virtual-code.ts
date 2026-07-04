@@ -48,8 +48,14 @@ const TEMPLATE_IMPORTS =
 const CLIENT_IMPORTS =
   "import { StatorElement, use, machine, defineElement, bind, effect, dispatch } from '@statorjs/stator/client';\n"
 // Aliased so they never collide with a component's own `InstanceOf` import.
+// NOTE: `InstanceOf` comes from /template, not /machine — the template flavor
+// includes `send`/`state`/`snapshot` (what a route-level binding actually is,
+// and what authors type props with). The engine flavor is selectors-only (the
+// read-only view actions get via `helpers.reads`) and would make every
+// `Stator.reads` binding unassignable to component props.
 const AMBIENT_TYPE_IMPORTS =
-  "import type { InstanceOf as __SInstanceOf, AnyMachineDef as __SMachineDef } from '@statorjs/stator/machine';\n"
+  "import type { AnyMachineDef as __SMachineDef } from '@statorjs/stator/machine';\n" +
+  "import type { InstanceOf as __SInstanceOf } from '@statorjs/stator/template';\n"
 
 /**
  * Per-file ambient scaffold prepended to every virtual TSX. `Stator` (the macro
