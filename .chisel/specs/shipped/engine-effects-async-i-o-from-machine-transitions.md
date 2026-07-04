@@ -1,6 +1,6 @@
 ---
 title: 'Engine effects: async I/O from machine transitions'
-status: draft
+status: shipped
 created: 2026-07-03
 updated: 2026-07-03
 area: runtime
@@ -217,5 +217,8 @@ All four resolved 2026-07-03:
   contract (undeclared completion types are compile errors — verified).
   Documented on the `Effect` type.
 
-**Remaining (stage 2, after Phase 5):** the app-plane scheduler in
-MachineStore (completion → in-process send + recordTouch + fanOut + persist).
+**Stage 2 (app plane) shipped 2026-07-03** with Phase 5: `wireAppEffects(store)`
+installs the scheduler (post-construction injection to avoid an import cycle);
+completions dispatch through `dispatchToApp` — atomic in-process send, persist
+opted-in machines, fanOut. Both `createApp` and the dev server wire it. The
+spec is fully implemented.

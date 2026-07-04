@@ -1,8 +1,8 @@
 ---
 title: App-machine state persistence
-status: draft
+status: shipped
 created: 2026-05-21
-updated: 2026-05-21
+updated: 2026-07-03
 area: persistence
 ---
 
@@ -72,4 +72,29 @@ A simpler-but-coarser path: write on a fixed interval (every N seconds). Loses u
 
 ## Implementation Notes
 
-(Not implemented. The poll demo ships with the existing in-memory app-machine semantics; restart wipes polls. Documented as a known limitation in the demo's README.)
+Shipped 2026-07-03, as designed with one deliberate divergence:
+
+- **AppStore interface** as sketched (`loadAppMachine`/`saveAppMachine`),
+  sibling of the session Store — `src/server/app-store.ts`. Implementations:
+  `InMemoryAppStore` (default) and `RedisAppStore` (one plain key per machine,
+  JSON snapshot, no TTL). File-based dev store not built (in-memory default
+  covers dev; Redis covers deploys).
+- **Opt-in `persist: true`** on `defineMachine`; setting it on a session
+  machine is a define-time error.
+- **Boot hydration** in `bootAppMachines` (now async); shape-validated with
+  the specced recovery: unusable snapshot → log loud, boot fresh.
+- **Write trigger — divergence from the sketch.** The sketch (predating
+  `recordTouch`) proposed subscribe+debounce because "app machines aren't
+  touched per-session-request". They are now: app touches flow through the
+  dispatch-context touched set exactly like session touches. So persistence is
+  event-driven via `persistTouched` (session→app subscription path) and
+  `dispatchToApp` (server-originated path) — writes happen only on actual
+  transitions, symmetric with session persistence, no debounce timers.
+- **`dispatchToApp(store, Machine, event)`** (`src/server/app-dispatch.ts`)
+  ships alongside: the server-originated entry point for webhooks/cron and
+  app-effect completions — atomic send, persist opted-in touched machines,
+  `fanOut` to live SSE connections. This also completes the plan's
+  "fanOut from non-POST entry points" item.
+- Resolved open questions: recovery = log-loud-start-fresh (as picked);
+  debounce = moot under event-driven writes; multi-replica remains flagged
+  out of scope (single-writer).

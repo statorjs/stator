@@ -213,12 +213,17 @@ inner bindings survive reorders; retained rows never re-render (content flows
 through nested bindings); single-root-element and unique-key rules enforced at
 render. Wire ops implemented in the shared wire module and documented in WIRE.md.
 
-**Phase 5 — Single-replica cross-machine robustness. ⬜ Pending, reduced 2026-07-03.**
-App-machine persistence (small; extend `persistTouched` + boot hydration to app
-machines — [[app-machine-state-persistence]]) and `fanOut` from non-POST entry
-points (promoted from optional: engine-effect completion delivery and the demo's
-live stock both use it). Richer declarative `subscribes:`
-([[cross-machine-effects-source-predicate-transform]]) deferred to 1.x.
+**Phase 5 — Single-replica cross-machine robustness. ✅ Done (reduced scope,
+2026-07-03).** [[app-machine-state-persistence]] shipped: opt-in `persist: true`
+app machines persist through the new `AppStore` (InMemory + Redis), boot
+hydration with log-loud-start-fresh recovery, event-driven writes via the
+touched set. `dispatchToApp` is the server-originated entry point (webhooks,
+cron, effect completions) — send + persist + `fanOut`, closing the
+"fanOut from non-POST entry points" item. Engine effects
+([[engine-effects-async-i-o-from-machine-transitions]], also shipped) landed in
+two stages around this: session plane first, app plane on top of it. Richer
+declarative `subscribes:` ([[cross-machine-effects-source-predicate-transform]])
+remains deferred to 1.x.
 
 **Phase 6 — Polish. 🔨 Substantially advanced.** Done: Starlight docs site
 (29 pages: intro, 8-part tutorial, concepts, guides), editor syntax
