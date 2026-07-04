@@ -10,6 +10,11 @@ export default defineConfig({
       title: 'Stator',
       description:
         'A server-canonical web framework where state machines are the unit of composition and the DOM renders where its state lives.',
+      logo: {
+        light: './src/assets/logo-light.svg',
+        dark: './src/assets/logo-dark.svg',
+      },
+      favicon: '/favicon.svg',
       social: [
         {
           icon: 'github',

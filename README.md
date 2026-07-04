@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+  <img src="assets/logo-light.svg" alt="Stator logo — a stator ring with inward poles around a rotor" width="56" height="56">
+</picture>
+
 # stator
 
 > A server-canonical web framework where business logic lives in composable
