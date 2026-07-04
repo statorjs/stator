@@ -19,6 +19,7 @@
  */
 
 import { analyzeScriptClasses } from './client-script.ts'
+import { componentPropsType, extractFrontmatterTypes } from './dts.ts'
 import { type ScannedRegions, scanRegions } from './split.ts'
 
 /** A contiguous run mapping generated code back to source, 1:1 over its length. */
@@ -116,8 +117,16 @@ function buildServerTsx(regions: ScannedRegions): VirtualFile {
 
   // `export default function` gives importers a default export (`import X from
   // './x.stator'`) and puts the template in a scope that closes over the
-  // frontmatter bindings.
-  code += 'export default function (_props: any) {\n  return (<>'
+  // frontmatter bindings. The param is typed from `Stator.props<P>()` (same
+  // extraction as the .d.ts generator), so `<Component bad={...}/>` in OTHER
+  // .stator files is checked in-editor — TS validates value-based JSX against
+  // the component function's first parameter. Named prop types resolve
+  // because the frontmatter is emitted into this same module above.
+  const propsT = componentPropsType(
+    extractFrontmatterTypes(regions.frontmatter?.content ?? '').propsType,
+    regions.template.content,
+  )
+  code += `export default function (_props: ${propsT}) {\n  return (<>`
   push(mappings, tplOffset, code.length, tpl.length)
   code += tpl
   code += '</>);\n}\n'

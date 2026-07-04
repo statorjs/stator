@@ -84,6 +84,44 @@ const [cart] = Stator.reads([CartMachine])
     assertMappingsFaithful(src, styles[0]!)
   })
 
+  it('types the default export from Stator.props<P>() so importers get prop checking', () => {
+    const component = `---
+const { cart } = Stator.props<{ cart: { itemCount: number } }>()
+---
+<p>{cart.itemCount}</p>
+`
+    const { tsx } = toVirtualCode(component)
+    expect(tsx.code).toContain('export default function (_props: { cart: { itemCount: number } })')
+  })
+
+  it('named props types work — the reference resolves in the same virtual module', () => {
+    const component = `---
+interface CardProps { title: string }
+const { title } = Stator.props<CardProps>()
+---
+<h2>{title}</h2>
+`
+    const { tsx } = toVirtualCode(component)
+    // The interface is in the emitted frontmatter, so the annotation resolves.
+    expect(tsx.code).toContain('interface CardProps { title: string }')
+    expect(tsx.code).toContain('export default function (_props: CardProps)')
+  })
+
+  it('a component with <children> gets a children bag; prop-less components accept none', () => {
+    const layout = `---
+const { cart } = Stator.props<{ cart: number }>()
+---
+<main><children /></main>
+`
+    expect(toVirtualCode(layout).tsx.code).toContain(
+      'export default function (_props: { cart: number } & { children?: any })',
+    )
+    const plain = `<footer>bye</footer>\n`
+    expect(toVirtualCode(plain).tsx.code).toContain(
+      'export default function (_props: Record<string, never>)',
+    )
+  })
+
   it('maps a template token back to its exact source position', () => {
     const { tsx } = toVirtualCode(src)
     // Find `cart` inside the template's read() in the generated code, map it back.

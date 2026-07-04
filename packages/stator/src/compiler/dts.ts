@@ -21,15 +21,7 @@ export function generateDts(
 
   const { frontmatter, template } = splitStator(source)
   const { hoisted, propsType } = extractFrontmatterTypes(frontmatter)
-  const usesChildren = /<children[\s/>]/.test(template)
-
-  const propsT = propsType
-    ? usesChildren
-      ? `${propsType} & { children?: any }`
-      : propsType
-    : usesChildren
-      ? '{ children?: any }'
-      : 'Record<string, never>'
+  const propsT = componentPropsType(propsType, template)
 
   const lines = ["import type { HtmlFragment } from '@statorjs/stator/template'"]
   if (hoisted) lines.push(hoisted)
@@ -39,9 +31,23 @@ export function generateDts(
   return `${lines.join('\n')}\n`
 }
 
+/**
+ * The full props type for a component's public signature: the
+ * `Stator.props<P>()` type argument (verbatim source text — inline literal or
+ * a named reference), widened with a children bag when the body renders
+ * `<children>`. A component that declares no props accepts none
+ * (`Record<string, never>`). Shared by the `.d.ts` generator (tsc) and the
+ * language-server virtual emit (editor), so the two can't disagree.
+ */
+export function componentPropsType(propsType: string | undefined, template: string): string {
+  const usesChildren = /<children[\s/>]/.test(template)
+  if (propsType) return usesChildren ? `${propsType} & { children?: any }` : propsType
+  return usesChildren ? '{ children?: any }' : 'Record<string, never>'
+}
+
 /** Collect the import/type/interface declarations from frontmatter (for the
  *  `.d.ts` to re-state) and the `Stator.props<P>()` type argument. */
-function extractFrontmatterTypes(fm: string): {
+export function extractFrontmatterTypes(fm: string): {
   hoisted: string
   propsType?: string
 } {
