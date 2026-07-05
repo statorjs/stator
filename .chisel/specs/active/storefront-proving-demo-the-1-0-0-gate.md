@@ -251,6 +251,20 @@ reviewed before cutting 1.0.0.)
   reproduced — server was innocent, probe wasn't; harness now uses one
   persistent pump. This bug class was invisible to curl verification —
   browser verification caught it, vindicating the house framing.
+- **Step 5 verification round 2 (Tony) → SECOND framework bug, deeper:**
+  after the initial-sync fix, the settle STILL never arrived. Root cause:
+  SSE connection runtimes hold session actors hydrated at connect and never
+  refreshed — mutations happen in OTHER runtimes (POSTs, effect completions)
+  and exist only in the Store; fan-out recomputed against the frozen actor,
+  saw no change, pushed nothing. App machines worked (proxyFor falls back to
+  the live shared instance) which is why window 2 updated and why the poll
+  app never caught it — SESSION-machine live reads were unexercised until
+  this checkout. Fix: fan-out now judges applicability per machine (app →
+  every connection; session → only the owning session's connections, judged
+  by sessionId now threaded from all four dispatch paths) and REHYDRATES
+  session actors from the Store before recomputing. Two regression tests:
+  same-session delivery, cross-session isolation. Verified live: an open
+  /checkout SSE stream received sync → "Underway ⚓" settle patch.
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.
