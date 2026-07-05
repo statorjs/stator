@@ -81,6 +81,26 @@ describe('subscription cycle guards', () => {
     ).toThrowError(/emit cascade exceeded .* hops[\s\S]*CycleA —ping→ CycleB/)
   })
 
+  it('an undefined `from` (circular-import symptom) gets the named diagnosis', () => {
+    // Cross-file subscription cycles do NOT crash at import time — Vite SSR
+    // and tsx interop both resolve the mid-cycle binding to `undefined`
+    // silently (verified empirically). The store must convert that into a
+    // circular-import diagnosis instead of an opaque TypeError.
+    const Broken = defineMachine({
+      name: 'BrokenSub',
+      lifecycle: 'session',
+      events: {} as { type: 'X' },
+      context: {},
+      initial: 'idle',
+      states: { idle: {} },
+      subscribes: [{ from: undefined as never, event: 'ping', dispatch: 'X' }],
+      selectors: {},
+    })
+    expect(() => new MachineStore([Broken] as never, new InMemoryStore())).toThrowError(
+      /circular import between machine modules/,
+    )
+  })
+
   it('an acyclic graph stays silent and works', () => {
     const Source = defineMachine({
       name: 'DagSource',

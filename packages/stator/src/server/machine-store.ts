@@ -140,6 +140,20 @@ export class MachineStore {
   private validateSubscriptions(): void {
     for (const def of this.defs.values()) {
       for (const sub of def.subscribes) {
+        if (sub.from == null) {
+          // The classic cause: a circular import between machine modules.
+          // Bundler/loader interop (Vite SSR, tsx) resolves the mid-cycle
+          // binding to `undefined` SILENTLY — no TDZ error — so this check
+          // is where the mistake first becomes visible. Name it properly.
+          throw new Error(
+            `stator: machine "${def.name}" declares a subscription whose \`from\` is undefined. ` +
+              `This is almost always a circular import between machine modules — the module ` +
+              `defining "${def.name}" and the module defining its subscription source import ` +
+              `each other, and the loader resolved the mid-cycle binding to undefined. ` +
+              `Break the module cycle (e.g. move one machine or the subscription), ` +
+              `or define the mutually-subscribing machines in one module.`,
+          )
+        }
         if (!this.defs.has(sub.from.name)) {
           throw new Error(
             `stator: machine "${def.name}" subscribes to unknown machine "${sub.from.name}"`,

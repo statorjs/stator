@@ -177,11 +177,19 @@ snapshot (read atomic with commit — solves create-then-redirect exactly);
 (2) frozen-at-entry snapshot for pure readers (JSON endpoints), taken
 synchronously under the lock, documented point-in-time.
 
-**Separate 1.0 robustness finding:** emit/subscription cascades have NO cycle
-protection (session-runtime wireSubscriptions → synchronous on→send). A
-subscribes-cycle (A emits→B dispatches→B emits→A…) recurses to stack overflow
-today, snapshot or no snapshot. Wants a depth cap or wire-time cycle check
-before 1.0.
+**Separate 1.0 robustness finding — FIXED 2026-07-05, three layers:** emit
+cascades had no cycle protection. Now: (1) runtime depth cap (32 hops) with a
+diagnosable emit trail; (2) wire-time graph DFS warning for resolvable
+cycles; (3) undefined-`from` diagnosis. Layer 3 exists because Tony's Vite
+instinct proved right and the original TDZ claim wrong: cross-file
+subscription cycles do NOT crash at import — Vite SSR and tsx interop both
+resolve the mid-cycle binding to `undefined` SILENTLY (verified empirically
+with a two-file probe), so the graph warning can't even see the edge. The
+store now converts that into a named circular-import error at construction.
+Also agreed: cycle feedback stays boot-time (a) — plus a 1.x `stator check`
+CLI (b) running store-construction validations for CI. `waitFor`-in-effects
+noted as a 1.x coordination primitive (needs timeout/deadline design; await
+cycles hang silently — not a substitute for the cascade cap).
 
 ## Friction log
 
