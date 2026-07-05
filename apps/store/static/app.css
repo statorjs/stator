@@ -531,3 +531,114 @@ a:focus-visible {
     justify-self: end;
   }
 }
+
+/* checkout */
+.checkout {
+  max-width: 620px;
+}
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 24px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.panel-title {
+  font-size: 18px;
+  font-weight: 650;
+}
+.panel-lede {
+  color: var(--body);
+  font-size: 14.5px;
+  margin: 0;
+}
+.panel-hint {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--body);
+  margin: 0;
+}
+.panel-error {
+  color: var(--buoy);
+  font-size: 14px;
+  border-left: 2px solid var(--buoy);
+  padding-left: 10px;
+  margin: 0;
+}
+.panel-pending {
+  border-left: 3px solid var(--harbor);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13.5px;
+  color: var(--body);
+}
+.field input,
+.field select {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--canvas);
+  color: var(--ink);
+}
+.field input:focus-visible,
+.field select:focus-visible {
+  outline: 2px solid var(--harbor);
+  outline-offset: 1px;
+}
+.panel-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+}
+.btn-ghost {
+  font: inherit;
+  font-size: 14px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: none;
+  color: var(--body);
+  cursor: pointer;
+}
+.btn-ghost:hover {
+  border-color: var(--harbor);
+  color: var(--ink);
+}
+.review-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--body);
+}
+.review-lines li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.review-total {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 650;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  margin: 0;
+}
+.mono {
+  font-family: var(--mono);
+  font-size: 0.95em;
+}
+a.btn-primary {
+  display: inline-block;
+}

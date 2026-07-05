@@ -1,0 +1,134 @@
+---
+// @stator live
+import { formatPrice } from '../lib/catalog-data.ts'
+import { CARD_TOKENS } from '../lib/payments.ts'
+import CartMachine from '../machines/cart.ts'
+import Layout from '../templates/layout.stator'
+
+const [cart] = Stator.reads([CartMachine])
+---
+<Layout cart={cart}>
+  <section class="checkout">
+    <header class="browse-head">
+      <p class="eyebrow">CHECKOUT</p>
+      <h1>Clearing the harbor.</h1>
+      <p class="count">demo checkout — the details below are prefilled and fake; nothing is charged, shipped, or stored beyond this session</p>
+    </header>
+
+    {match(read(cart, (c) => c.state), {
+      open: () => (
+        <div class="panel">
+          <p class="panel-lede">
+            The manifest holds <strong>{read(cart, (c) => c.count)}</strong> item(s) —
+            subtotal {read(cart, (c) => formatPrice(c.subtotal))}.
+          </p>
+          <div class="panel-actions">
+            <a class="link" href="/cart">Edit the manifest</a>
+            <button class="btn-primary" type="button" on:click={() => cart.send({ type: 'BEGIN_CHECKOUT' })}>
+              Begin checkout
+            </button>
+          </div>
+          <p class="panel-hint">The button is guarded: with an empty manifest, nothing happens.</p>
+        </div>
+      ),
+      contact: () => (
+        <form class="panel" method="post" action="/checkout/contact">
+          <h2 class="panel-title">1 · Who's it for?</h2>
+          <label class="field">
+            <span>Name</span>
+            <input name="name" value="Wendell Byrd" required />
+          </label>
+          <label class="field">
+            <span>Email</span>
+            <input name="email" type="email" value="wendell@example.harbor" required />
+          </label>
+          <div class="panel-actions">
+            <button class="btn-ghost" type="button" on:click={() => cart.send({ type: 'BACK' })}>Back</button>
+            <button class="btn-primary" type="submit">Continue to shipping</button>
+          </div>
+        </form>
+      ),
+      shipping: () => (
+        <form class="panel" method="post" action="/checkout/shipping">
+          <h2 class="panel-title">2 · Where's it headed?</h2>
+          <label class="field">
+            <span>Street address</span>
+            <input name="address" value="3 Quay Lane, Berth 9" required />
+          </label>
+          <label class="field">
+            <span>Home port</span>
+            <select name="port">
+              <option>Gullhaven</option>
+              <option>Saltcreek</option>
+              <option>Half Fathom Bay</option>
+            </select>
+          </label>
+          <div class="panel-actions">
+            <button class="btn-ghost" type="button" on:click={() => cart.send({ type: 'BACK' })}>Back</button>
+            <button class="btn-primary" type="submit">Continue to review</button>
+          </div>
+        </form>
+      ),
+      review: () => (
+        <form class="panel" method="post" action="/checkout/submit">
+          <h2 class="panel-title">3 · Review and settle up</h2>
+          {when(read(cart, (c) => c.error !== ''), () => (
+            <p class="panel-error">{read(cart, (c) => c.error)}</p>
+          ))}
+          <ul class="review-lines">
+            {each(
+              read(cart, (c) => c.display),
+              (line) => (
+                <li>
+                  <span>{line.qty}× {line.name} — {line.colorwayLabel}, {line.size === 'one-size' ? 'one size' : `EU ${line.size}`}</span>
+                  <span class="mono">{formatPrice(line.lineTotal)}</span>
+                </li>
+              ),
+              { key: (line) => line.sku },
+            )}
+          </ul>
+          <p class="review-total">
+            <span>Total</span>
+            <span class="mono">{read(cart, (c) => formatPrice(c.subtotal))}</span>
+          </p>
+          <label class="field">
+            <span>Card</span>
+            <select name="token">
+              <option value={CARD_TOKENS.ok}>Harbor Card — always approves</option>
+              <option value={CARD_TOKENS.declined}>Kraken Card — always declines</option>
+            </select>
+          </label>
+          <div class="panel-actions">
+            <button class="btn-ghost" type="button" on:click={() => cart.send({ type: 'BACK' })}>Back</button>
+            <button class="btn-primary" type="submit">Place the order</button>
+          </div>
+        </form>
+      ),
+      submitting: () => (
+        <div class="panel panel-pending">
+          <h2 class="panel-title">Radioing the bank…</h2>
+          <p class="panel-lede">
+            The charge runs as an engine effect: the machine committed to
+            <code class="mono"> submitting</code> instantly, and the settle event
+            will arrive over this page's live channel.
+          </p>
+        </div>
+      ),
+      confirmed: () => (
+        <div class="panel">
+          <h2 class="panel-title">Underway. ⚓</h2>
+          <p class="panel-lede">
+            Receipt <code class="mono">{read(cart, (c) => c.lastOrder?.receiptId ?? '')}</code> ·
+            {read(cart, (c) => formatPrice(c.lastOrder?.amountCents ?? 0))}
+          </p>
+          <p class="panel-lede">{read(cart, (c) => c.lastOrder?.summary ?? '')}</p>
+          <div class="panel-actions">
+            <button class="btn-primary" type="button" on:click={() => cart.send({ type: 'NEW_ORDER' })}>
+              Start a new manifest
+            </button>
+          </div>
+        </div>
+      ),
+    })}
+  </section>
+</Layout>

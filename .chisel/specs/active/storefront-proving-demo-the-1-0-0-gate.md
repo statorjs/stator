@@ -164,6 +164,18 @@ reviewed before cutting 1.0.0.)
   curl sees raw source. Cried wolf on a "framework bug" for half an hour
   before reading Vite's middleware. Probes of dev-plane module URLs must send
   that header (now noted in dev.ts).
+- **Step 4:** `ApiRouteHelpers` exposes only `dispatch` — a handler cannot
+  READ another machine's state, so the submit route couldn't compose a
+  server-authoritative amount from a separate CheckoutMachine. Resolved by
+  better modeling (cart + checkout are ONE order-draft machine; the charge
+  effect computes its amount from its own context), and arguably the
+  limitation pushed toward the right design. Still: a read/`snapshot` helper
+  is a fair 1.0-consideration for flows where merging machines isn't right.
+- **Step 4 (works-as-designed):** the full effect arc verified over the wire
+  — instant `submitting` commit, decline → review with error, approve →
+  confirmed with receipt + cleared manifest, guards silently dropping
+  empty-cart begins and bad emails. Effect return annotation (`Promise<Events
+  | null>`) required exactly as documented; no surprises.
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.

@@ -60,6 +60,7 @@ const [cart] = Stator.reads([CartMachine])
         <div class="cart-sub">
           <span class="cart-sub-label">Subtotal</span>
           <span class="cart-sub-amount">{read(cart, (c) => formatPrice(c.subtotal))}</span>
+          <a class="btn-primary" href="/checkout">Checkout</a>
         </div>
       </footer>
     ))}
