@@ -140,6 +140,29 @@ proof render): artifact "content-draft-02-imagery".
    acceptable (params are Record<string,string>); 1.x idea: sync-generated
    typed `Stator.request` per route from the filename.
 
+## Analysis: ApiRouteHelpers read/`snapshot` (2026-07-05, deferred)
+
+Considered with Tony after step 4. The boundary: dispatch-only makes API
+routes WRITE-ONLY; commands don't need reads, responses do. Pattern families
+where a read is genuinely necessary and merging machines is wrong:
+
+1. **Non-HTML representations** — JSON endpoints, feeds, exports, webhook
+   status responses. Nothing to merge; the route just can't see the state it
+   must serialize. Any headless surface hits this on day one.
+2. **Create-then-redirect-to-id** — needs post-dispatch state. Shipped
+   evidence: poll `new.ts` navigates to `/` instead of the created poll.
+3. **Cross-lifecycle** — session handler consulting app state (reserve-on-add
+   stock checks). Merging is structurally impossible.
+4. **Cross-cutting session machines** — auth/quota/flags gating synchronous
+   handler work (presigned URLs, 403s). Merging duplicates identity.
+
+NOT needed for: form→dispatch→navigate, machine-owned side effects
+(effects), machine reactions (emits), UI (page reads).
+
+Disposition: not for the demo; not 1.0-blocking IF docs state "API routes
+are command endpoints in 1.0"; top of the 1.x list. Sketch: `snapshot(machine)`
+— read-only, scoped to declared `reads`, post-dispatch view, lifecycle-aware.
+
 ## Friction log
 
 (Running record of every paper cut, workaround, or API wish encountered —
