@@ -9,6 +9,11 @@ import type { Store } from './store.ts'
 
 const storeLog = scopedLogger('machine-store')
 
+/** Hard backstop for synchronous emit→subscribe cascades. Deep enough for
+ *  any legitimate finite ping-pong; shallow enough to abort a cycle long
+ *  before the call stack does, with a diagnosable trail. */
+export const MAX_CASCADE_DEPTH = 32
+
 /**
  * Compose the event a subscriber actually receives. Order of precedence:
  *   1. Payload from the source's emit selector (fields like `productId`, `items`).
@@ -87,6 +92,49 @@ export class MachineStore {
     }
     this.validateSubscriptions()
     this.buildSubscriberIndex()
+    this.warnOnSubscriptionCycles()
+  }
+
+  /**
+   * Machine-level cycles in the `subscribes:` graph, one representative path
+   * per cycle (`['A', 'B', 'A']`). A machine-level cycle is a *potential*
+   * runtime loop, not a certain one — guards or state targeting may break it
+   * — so construction warns rather than rejects; the runtime cascade depth
+   * cap (see SessionRuntime.wireSubscriptions) is the hard backstop.
+   */
+  findSubscriptionCycles(): string[][] {
+    const cycles: string[][] = []
+    const visiting = new Set<string>()
+    const done = new Set<string>()
+    const path: string[] = []
+
+    const visit = (name: string): void => {
+      if (done.has(name)) return
+      if (visiting.has(name)) {
+        cycles.push([...path.slice(path.indexOf(name)), name])
+        return
+      }
+      visiting.add(name)
+      path.push(name)
+      for (const sub of this.subscribersOf(name)) visit(sub.targetName)
+      path.pop()
+      visiting.delete(name)
+      done.add(name)
+    }
+
+    for (const name of this.defs.keys()) visit(name)
+    return cycles
+  }
+
+  private warnOnSubscriptionCycles(): void {
+    for (const cycle of this.findSubscriptionCycles()) {
+      storeLog.warn(
+        { cycle: cycle.join(' → ') },
+        'stator: subscription cycle — emits between these machines can cascade in a loop. ' +
+          'Ensure a guard breaks the chain; the runtime aborts cascades deeper than ' +
+          `${MAX_CASCADE_DEPTH} hops.`,
+      )
+    }
   }
 
   private validateSubscriptions(): void {

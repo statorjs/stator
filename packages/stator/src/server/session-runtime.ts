@@ -2,7 +2,7 @@ import { createActor, type EffectInvocation, type Snapshot } from '../engine/ind
 import type { AnyMachineDef } from './define-machine.ts'
 import { type DispatchContext, recordTouch, withDispatchContext } from './dispatch-context.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
-import { buildDispatchEvent, type MachineStore } from './machine-store.ts'
+import { buildDispatchEvent, MAX_CASCADE_DEPTH, type MachineStore } from './machine-store.ts'
 import { serverReadsResolver } from './reads-helpers.ts'
 
 /**
@@ -23,6 +23,11 @@ import { serverReadsResolver } from './reads-helpers.ts'
 export class SessionRuntime {
   private actors = new Map<string, InstanceHandle>()
   private wired = false
+  /** Synchronous emit→subscribe cascade depth + trail for THIS runtime. A
+   *  subscription cycle would otherwise recurse to a bare stack overflow;
+   *  the cap converts it into an error that names the loop. */
+  private cascadeDepth = 0
+  private cascadeTrail: string[] = []
   /** Effects surfaced during processEvent, queued until the entry point has
    *  persisted and released the session lock (see server/effects.ts). */
   private pendingEffects: EffectInvocation[] = []
@@ -105,10 +110,23 @@ export class SessionRuntime {
         const targetName = sub.targetName
 
         sourceHandle.actor.on(sub.event as never, (emitted) => {
-          targetHandle.actor.send(
-            buildDispatchEvent(emitted, sub.dispatch, crossLifecycle ? sid : undefined) as never,
-          )
-          recordTouch(targetName)
+          this.cascadeDepth += 1
+          this.cascadeTrail.push(`${sourceName} —${sub.event}→ ${targetName}`)
+          try {
+            if (this.cascadeDepth > MAX_CASCADE_DEPTH) {
+              throw new Error(
+                `stator: emit cascade exceeded ${MAX_CASCADE_DEPTH} hops — ` +
+                  `subscription cycle? Last hops:\n  ${this.cascadeTrail.slice(-6).join('\n  ')}`,
+              )
+            }
+            targetHandle.actor.send(
+              buildDispatchEvent(emitted, sub.dispatch, crossLifecycle ? sid : undefined) as never,
+            )
+            recordTouch(targetName)
+          } finally {
+            this.cascadeDepth -= 1
+            this.cascadeTrail.pop()
+          }
         })
       }
     }
