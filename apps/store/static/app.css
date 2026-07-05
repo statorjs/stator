@@ -642,3 +642,18 @@ a:focus-visible {
 a.btn-primary {
   display: inline-block;
 }
+
+/* stock badges */
+.stock-badges {
+  min-height: 20px;
+  margin: -8px 0 16px;
+}
+.stock-badge {
+  display: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--harbor);
+}
+.stock-badge.is-shown {
+  display: block;
+}

@@ -1,15 +1,22 @@
 ---
-import { CATEGORIES, formatPrice, MATERIALS, type Product } from '../../lib/catalog-data.ts'
+// @stator live
+import { CATEGORIES, formatPrice, MATERIALS, type Product, skuOf } from '../../lib/catalog-data.ts'
+import { stockLabel } from '../../lib/stock.ts'
 import CartMachine from '../../machines/cart.ts'
 import CatalogMachine from '../../machines/catalog.ts'
+import InventoryMachine from '../../machines/inventory.ts'
 import Layout from '../../templates/layout.stator'
 import VariantPicker from '../../templates/variant-picker.stator'
 
-const [catalog, cart] = Stator.reads([CatalogMachine, CartMachine])
+const [catalog, cart, inventory] = Stator.reads([CatalogMachine, CartMachine, InventoryMachine])
 const { params } = Stator.request
 
 const found = catalog.bySlug(String(params.slug))
 const p = found as Product
+const variants = found
+  ? p.colorways.flatMap((c) => p.sizes.map((sz) => ({ sku: skuOf(p.slug, c, sz) })))
+  : []
+const defaultSku = found ? skuOf(p.slug, p.colorways[0]!, p.sizes[0]!) : ''
 ---
 <Layout cart={cart}>
   {when(!found, () => (
@@ -37,6 +44,20 @@ const p = found as Product
         </p>
         <h1>{p.name}</h1>
         <p class="pdp-price">{formatPrice(p.price)}</p>
+        <div class="stock-badges" data-stock-badges>
+          {each(
+            variants,
+            (v) => (
+              <span
+                class={v.sku === defaultSku ? 'stock-badge is-shown' : 'stock-badge'}
+                data-sku={v.sku}
+              >
+                {read(inventory, (i) => stockLabel(i.stock[v.sku]))}
+              </span>
+            ),
+            { key: (v) => v.sku },
+          )}
+        </div>
         <p class="pdp-desc">{p.description}</p>
         <div class="ledger">LEDGER · {p.ledger}</div>
         <p class="pdp-materials">{p.materials.map((m) => MATERIALS[m]).join(' · ')}</p>

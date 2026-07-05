@@ -19,7 +19,13 @@ type Events =
   | { type: 'SET_CONTACT'; name: string; email: string }
   | { type: 'SET_SHIPPING'; address: string; port: string }
   | { type: 'SUBMIT'; token: string }
-  | { type: 'CHARGE_APPROVED'; receiptId: string; amountCents: number; summary: string }
+  | {
+      type: 'CHARGE_APPROVED'
+      receiptId: string
+      amountCents: number
+      summary: string
+      items: Array<{ sku: string; qty: number }>
+    }
   | { type: 'CHARGE_DECLINED'; reason: string }
   | { type: 'BACK' }
   | { type: 'NEW_ORDER' }
@@ -57,6 +63,24 @@ export default defineMachine({
   name: 'CartMachine',
   lifecycle: 'session',
   events: {} as Events,
+  emits: {
+    orderPlaced: {
+      payload: (
+        _ctx,
+        ev: {
+          receiptId: string
+          amountCents: number
+          summary: string
+          items: Array<{ sku: string; qty: number }>
+        },
+      ) => ({
+        receiptId: ev.receiptId,
+        amountCents: ev.amountCents,
+        summary: ev.summary,
+        items: ev.items,
+      }),
+    },
+  },
   context: {
     lines: [] as CartLine[],
     name: '',
@@ -152,13 +176,20 @@ export default defineMachine({
             const summary = ctx.lines
               .map((l) => `${l.qty}× ${productForSku(l.sku)?.product.name ?? l.sku}`)
               .join(', ')
+            const items = ctx.lines.map((l) => ({ sku: l.sku, qty: l.qty }))
             const result = await chargeCard({
               token: ev.token,
               amountCents,
               idempotencyKey: meta.effectId,
             })
             return result.ok
-              ? { type: 'CHARGE_APPROVED', receiptId: result.receiptId, amountCents, summary }
+              ? {
+                  type: 'CHARGE_APPROVED',
+                  receiptId: result.receiptId,
+                  amountCents,
+                  summary,
+                  items,
+                }
               : { type: 'CHARGE_DECLINED', reason: result.reason }
           },
         },
@@ -169,6 +200,7 @@ export default defineMachine({
       on: {
         CHARGE_APPROVED: {
           to: 'confirmed',
+          emit: 'orderPlaced',
           do: (ctx, ev) => {
             ctx.lastOrder = {
               receiptId: ev.receiptId,

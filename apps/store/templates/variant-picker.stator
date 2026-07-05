@@ -94,8 +94,15 @@
       }
     }
 
-    /** State → DOM: recolor the plate via CSS variables, mark selections. */
+    /** State → DOM: recolor the plate via CSS variables, mark selections,
+     *  and reveal the matching server-rendered stock badge. The badges live
+     *  OUTSIDE this island (server-owned truth, kept fresh over SSE) — this
+     *  is the one deliberate reach-out, per the badge-split decision. */
     reflect() {
+      const sku = `${this.attr('slug')}--${this.sel.color}--${this.sel.size}`
+      for (const b of document.querySelectorAll('[data-stock-badges] .stock-badge')) {
+        b.classList.toggle('is-shown', (b as HTMLElement).dataset.sku === sku)
+      }
       const stage = this.refs.stage
       if (stage) stage.style.cssText = plateStyleOf(this.sel.color as string)
       for (const b of this.querySelectorAll('.vp-swatch')) {

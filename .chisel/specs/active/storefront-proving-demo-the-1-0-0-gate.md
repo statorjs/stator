@@ -227,6 +227,17 @@ reviewed before cutting 1.0.0.)
   confirmed with receipt + cleared manifest, guards silently dropping
   empty-cart begins and bad emails. Effect return annotation (`Promise<Events
   | null>`) required exactly as documented; no surprises.
+- **Step 5:** the whole app-plane story worked first try over the wire:
+  cart emit (payload incl. items) → InventoryMachine (persist:true)
+  decrement → low-water app effect → RESTOCK_ARRIVED refill, badges via
+  nested keyed reads (slot ids compose: `s1:i0:s0:k<sku>:s0`). Refill SETS
+  the level rather than adding, so racing restock chains converge without
+  locks — worth documenting as an idempotent-effect pattern. One deliberate
+  smell: the island reaches OUTSIDE its root to toggle badge visibility
+  (`document.querySelectorAll('[data-stock-badges]')`) because islands can't
+  wrap server children — same root cause as the imperative-options entry
+  (step 2). If a third island needs a reach-out, that's the signal to design
+  island/server-children composition for 1.x.
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.
