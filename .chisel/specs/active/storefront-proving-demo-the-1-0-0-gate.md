@@ -238,6 +238,19 @@ reviewed before cutting 1.0.0.)
   wrap server children — same root cause as the imperative-options entry
   (step 2). If a third island needs a reach-out, that's the signal to design
   island/server-children composition for 1.x.
+- **Step 5 browser verification (Tony) → REAL FRAMEWORK BUG, fixed:**
+  live pages had a stale-baseline hole — `/__sse` built its diff baseline by
+  re-rendering at CONNECT time, so any state change between page-GET and SSE
+  connect (an effect settling during the post-submit navigation: the exact
+  checkout case) was permanently invisible; the page hung on "Radioing the
+  bank" while other windows updated. Fix: initial-sync push on connect —
+  every binding force-emits its current value (idempotent; keyed lists reset
+  wholesale via one html patch since positional ops can't assume an unknown
+  DOM). Regression test simulates the missed window. Bonus finding: the SSE
+  test harness itself had an overlapping-reader bug that my probe initially
+  reproduced — server was innocent, probe wasn't; harness now uses one
+  persistent pump. This bug class was invisible to curl verification —
+  browser verification caught it, vindicating the house framing.
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.
