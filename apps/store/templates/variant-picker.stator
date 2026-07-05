@@ -55,6 +55,15 @@
       if (stage) stage.innerHTML = plateSvg(this.attr('silhouette') as Product['silhouette'])
       this.buildOptions()
       this.track(effect([this.sel], () => this.reflect()))
+      // The badges are server-owned truth, patched over the live channel —
+      // watch them so the Add button reacts when stock moves while the
+      // shopper is looking (someone else buys the last pair: button dies).
+      const badges = document.querySelector('[data-stock-badges]')
+      if (badges) {
+        const observer = new MutationObserver(() => this.reflect())
+        observer.observe(badges, { subtree: true, attributes: true, attributeFilter: ['data-stock'] })
+        this.track(() => observer.disconnect())
+      }
     }
 
     /** The option lists vary per product (attrs), and island templates are
@@ -100,8 +109,20 @@
      *  is the one deliberate reach-out, per the badge-split decision. */
     reflect() {
       const sku = `${this.attr('slug')}--${this.sel.color}--${this.sel.size}`
+      let stock = -1
       for (const b of document.querySelectorAll('[data-stock-badges] .stock-badge')) {
-        b.classList.toggle('is-shown', (b as HTMLElement).dataset.sku === sku)
+        const match = (b as HTMLElement).dataset.sku === sku
+        b.classList.toggle('is-shown', match)
+        if (match) stock = Number((b as HTMLElement).dataset.stock ?? '-1')
+      }
+      // Same verdict the server guard will reach — projected onto the button
+      // so it can't lie. (stock === -1 means no badge data; stay enabled and
+      // let the guard decide.)
+      const btn = this.refs.addbtn as HTMLButtonElement | null
+      if (btn) {
+        const out = stock === 0
+        btn.disabled = out
+        btn.textContent = out ? 'Out of stock' : 'Add to cart'
       }
       const stage = this.refs.stage
       if (stage) stage.style.cssText = plateStyleOf(this.sel.color as string)

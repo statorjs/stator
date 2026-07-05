@@ -295,6 +295,21 @@ reviewed before cutting 1.0.0.)
   first-class support (lazy refs or name-based subscribe). (2) Guard-blocked
   ADDs return zero patches — the known silent-drop DX gap now has a second
   concrete case (out-of-stock add shows "Added ✓").
+- **Guard-verdict projection (Tony: "can the guard disable the button?"):**
+  answer shipped for the product page — the server publishes per-variant
+  stock as `data-stock` ATTR BINDINGS (live-patched); the island derives its
+  Add button's disabled state + label from the selected badge and watches
+  the badges with a MutationObserver, so the button dies in real time when
+  someone else buys the last pair. Two framework findings from doing it:
+  (1) **boolean attributes can't be expressed by attr bindings** — the
+  render emits `attr="` before the value and the applier can only
+  setAttribute, never remove, so `disabled={read(...)}` can never
+  un-disable; 1.x wants a first-class boolean-attr/omission mechanism.
+  (2) **selectors can't consult `reads:`** — helpers exist for
+  actions/guards only, so a machine cannot PROJECT a cross-machine verdict
+  ("can take one more" needs cart qty + inventory stock) as display state;
+  cart steppers therefore stay guard-only for now. 1.x: reads-aware
+  selectors or a multi-machine read().
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.

@@ -51,6 +51,7 @@ const defaultSku = found ? skuOf(p.slug, p.colorways[0]!, p.sizes[0]!) : ''
               <span
                 class={v.sku === defaultSku ? 'stock-badge is-shown' : 'stock-badge'}
                 data-sku={v.sku}
+                data-stock={read(inventory, (i) => String(i.stock[v.sku] ?? 0))}
               >
                 {read(inventory, (i) => stockLabel(i.stock[v.sku]))}
               </span>
