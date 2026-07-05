@@ -278,6 +278,23 @@ reviewed before cutting 1.0.0.)
   states must be done via inline-arrow wrappers — concrete function
   references become first-pass inference candidates and collapse
   defineMachine's state-union inference (documented in cart.ts).
+- **Stock enforcement (Tony's catch: oversell went through):** layered per
+  the doctrine — cart guards read live inventory via the engine's
+  cross-machine `reads:` (`when: (ctx, ev, { reads }) => ...` — the shipped
+  mechanism serving exactly its intended purpose, session→app included);
+  SUBMIT is a guarded transition pair (available → charge; short → named
+  error, stay in review); inventory's clamp stays as the floor. Verified
+  incl. the cross-session race: A carts the last 2, B buys them first, A's
+  submit lands in review with "Short on stock: The Longshore." Residual
+  window (stock moving during charge latency) accepted for the demo; the
+  real fix is the reservation saga — exactly the `waitFor`-in-effects 1.x
+  item. TWO wiring findings: (1) mutual machine relationships (cart reads
+  inventory + inventory subscribes cart) are a real module cycle — resolved
+  by post-definition wiring at the importing end (`subscribes.push`), with
+  our new circular-import diagnosis standing guard; 1.x should consider
+  first-class support (lazy refs or name-based subscribe). (2) Guard-blocked
+  ADDs return zero patches — the known silent-drop DX gap now has a second
+  concrete case (out-of-stock add shows "Added ✓").
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.

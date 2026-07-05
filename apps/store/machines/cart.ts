@@ -2,6 +2,7 @@ import { defineMachine } from '@statorjs/stator/server'
 import { COLORWAYS_ORDER, type ColorwayKey, type Product } from '../lib/catalog-data.ts'
 import { chargeCard } from '../lib/payments.ts'
 import { productForSku } from '../lib/sku.ts'
+import InventoryMachine from './inventory.ts'
 
 /**
  * The cart IS the order draft, and checkout states are phases of its
@@ -79,6 +80,16 @@ type CartContext = typeof CONTEXT
  */
 // Client-supplied SKUs are hostile input; this guard is the gate.
 const validSku = (_ctx: CartContext, ev: { sku: string }) => productForSku(ev.sku) !== null
+/** Ceiling check: current line qty + 1 must fit today's shared stock. Best-
+ *  effort by design — stock is app state and can move between add and
+ *  settle; SUBMIT re-checks, and the inventory clamp is the final floor. */
+const canTakeOneMore = (ctx: CartContext, sku: string, stock: Record<string, number>) =>
+  (ctx.lines.find((l) => l.sku === sku)?.qty ?? 0) + 1 <= (stock[sku] ?? 0)
+/** Lines whose quantity exceeds current stock, display-named for the error. */
+const shortages = (ctx: CartContext, stock: Record<string, number>) =>
+  ctx.lines
+    .filter((l) => l.qty > (stock[l.sku] ?? 0))
+    .map((l) => productForSku(l.sku)?.product.name ?? l.sku)
 const addLine = (ctx: CartContext, ev: { sku: string }) => {
   const line = ctx.lines.find((l) => l.sku === ev.sku)
   if (line) line.qty += 1
@@ -103,10 +114,11 @@ const clearLines = (ctx: CartContext) => {
   ctx.lines.length = 0
 }
 
-export default defineMachine({
+const CartMachineDef = defineMachine({
   name: 'CartMachine',
   lifecycle: 'session',
   events: {} as Events,
+  reads: [InventoryMachine],
   emits: {
     orderPlaced: {
       payload: (
@@ -130,8 +142,15 @@ export default defineMachine({
   states: {
     open: {
       on: {
-        ADD: { when: (ctx, ev) => validSku(ctx, ev), do: (ctx, ev) => addLine(ctx, ev) },
-        INCREMENT: { do: (ctx, ev) => incLine(ctx, ev) },
+        ADD: {
+          when: (ctx, ev, { reads }) =>
+            validSku(ctx, ev) && canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
+          do: (ctx, ev) => addLine(ctx, ev),
+        },
+        INCREMENT: {
+          when: (ctx, ev, { reads }) => canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
+          do: (ctx, ev) => incLine(ctx, ev),
+        },
         DECREMENT: { do: (ctx, ev) => decLine(ctx, ev) },
         REMOVE: { do: (ctx, ev) => removeLine(ctx, ev) },
         CLEAR: { do: (ctx) => clearLines(ctx) },
@@ -143,8 +162,15 @@ export default defineMachine({
     },
     contact: {
       on: {
-        ADD: { when: (ctx, ev) => validSku(ctx, ev), do: (ctx, ev) => addLine(ctx, ev) },
-        INCREMENT: { do: (ctx, ev) => incLine(ctx, ev) },
+        ADD: {
+          when: (ctx, ev, { reads }) =>
+            validSku(ctx, ev) && canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
+          do: (ctx, ev) => addLine(ctx, ev),
+        },
+        INCREMENT: {
+          when: (ctx, ev, { reads }) => canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
+          do: (ctx, ev) => incLine(ctx, ev),
+        },
         DECREMENT: { do: (ctx, ev) => decLine(ctx, ev) },
         REMOVE: { do: (ctx, ev) => removeLine(ctx, ev) },
         CLEAR: { do: (ctx) => clearLines(ctx) },
@@ -161,8 +187,15 @@ export default defineMachine({
     },
     shipping: {
       on: {
-        ADD: { when: (ctx, ev) => validSku(ctx, ev), do: (ctx, ev) => addLine(ctx, ev) },
-        INCREMENT: { do: (ctx, ev) => incLine(ctx, ev) },
+        ADD: {
+          when: (ctx, ev, { reads }) =>
+            validSku(ctx, ev) && canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
+          do: (ctx, ev) => addLine(ctx, ev),
+        },
+        INCREMENT: {
+          when: (ctx, ev, { reads }) => canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
+          do: (ctx, ev) => incLine(ctx, ev),
+        },
         DECREMENT: { do: (ctx, ev) => decLine(ctx, ev) },
         REMOVE: { do: (ctx, ev) => removeLine(ctx, ev) },
         CLEAR: { do: (ctx) => clearLines(ctx) },
@@ -179,41 +212,59 @@ export default defineMachine({
     },
     review: {
       on: {
-        ADD: { when: (ctx, ev) => validSku(ctx, ev), do: (ctx, ev) => addLine(ctx, ev) },
-        INCREMENT: { do: (ctx, ev) => incLine(ctx, ev) },
+        ADD: {
+          when: (ctx, ev, { reads }) =>
+            validSku(ctx, ev) && canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
+          do: (ctx, ev) => addLine(ctx, ev),
+        },
+        INCREMENT: {
+          when: (ctx, ev, { reads }) => canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
+          do: (ctx, ev) => incLine(ctx, ev),
+        },
         DECREMENT: { do: (ctx, ev) => decLine(ctx, ev) },
         REMOVE: { do: (ctx, ev) => removeLine(ctx, ev) },
         CLEAR: { do: (ctx) => clearLines(ctx) },
-        SUBMIT: {
-          to: 'submitting',
-          do: (ctx) => {
-            ctx.error = ''
+        SUBMIT: [
+          {
+            when: (ctx, _ev, { reads }) =>
+              shortages(ctx, reads.InventoryMachine.stock).length === 0,
+            to: 'submitting',
+            do: (ctx) => {
+              ctx.error = ''
+            },
+            // The completion event carries everything the settle transitions
+            // need — receipt, amount, summary — so approve can also clear the
+            // manifest without losing the order record.
+            effect: async (ctx, ev, meta): Promise<Events | null> => {
+              const amountCents = subtotalOf(ctx.lines)
+              const summary = ctx.lines
+                .map((l) => `${l.qty}× ${productForSku(l.sku)?.product.name ?? l.sku}`)
+                .join(', ')
+              const items = ctx.lines.map((l) => ({ sku: l.sku, qty: l.qty }))
+              const result = await chargeCard({
+                token: ev.token,
+                amountCents,
+                idempotencyKey: meta.effectId,
+              })
+              return result.ok
+                ? {
+                    type: 'CHARGE_APPROVED',
+                    receiptId: result.receiptId,
+                    amountCents,
+                    summary,
+                    items,
+                  }
+                : { type: 'CHARGE_DECLINED', reason: result.reason }
+            },
           },
-          // The completion event carries everything the settle transitions
-          // need — receipt, amount, summary — so approve can also clear the
-          // manifest without losing the order record.
-          effect: async (ctx, ev, meta): Promise<Events | null> => {
-            const amountCents = subtotalOf(ctx.lines)
-            const summary = ctx.lines
-              .map((l) => `${l.qty}× ${productForSku(l.sku)?.product.name ?? l.sku}`)
-              .join(', ')
-            const items = ctx.lines.map((l) => ({ sku: l.sku, qty: l.qty }))
-            const result = await chargeCard({
-              token: ev.token,
-              amountCents,
-              idempotencyKey: meta.effectId,
-            })
-            return result.ok
-              ? {
-                  type: 'CHARGE_APPROVED',
-                  receiptId: result.receiptId,
-                  amountCents,
-                  summary,
-                  items,
-                }
-              : { type: 'CHARGE_DECLINED', reason: result.reason }
+          {
+            // Stock moved under the manifest since it was assembled — say so
+            // and stay in review.
+            do: (ctx, _ev, { reads }) => {
+              ctx.error = `Short on stock: ${shortages(ctx, reads.InventoryMachine.stock).join(', ')}. Adjust quantities and try again.`
+            },
           },
-        },
+        ],
         BACK: { to: 'shipping' },
       },
     },
@@ -244,7 +295,8 @@ export default defineMachine({
         // A shopper who keeps shopping starts the next manifest — nobody
         // returns to the receipt to press reset first.
         ADD: {
-          when: (ctx, ev) => validSku(ctx, ev),
+          when: (ctx, ev, { reads }) =>
+            validSku(ctx, ev) && canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
           to: 'open',
           do: (ctx, ev) => {
             ctx.error = ''
@@ -285,3 +337,18 @@ export default defineMachine({
       }),
   },
 })
+
+/**
+ * The other half of the cart↔inventory relationship. Inventory subscribes to
+ * the cart's `orderPlaced`, but declaring that in inventory.ts would import
+ * cart.ts while cart.ts imports inventory.ts for `reads:` — a module cycle
+ * the loader silently resolves to `undefined`. The importing end owns the
+ * wiring instead; the store still validates the emit name at construction.
+ */
+InventoryMachine.subscribes.push({
+  from: CartMachineDef,
+  event: 'orderPlaced',
+  dispatch: 'ORDER_PLACED',
+})
+
+export default CartMachineDef

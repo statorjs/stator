@@ -1,6 +1,5 @@
 import { defineMachine } from '@statorjs/stator/server'
 import { LOW_WATER, REFILL_LEVEL, RESTOCK_ETA_MS, seedStock } from '../lib/stock.ts'
-import CartMachine from './cart.ts'
 
 type Events =
   | { type: 'ORDER_PLACED'; items: Array<{ sku: string; qty: number }> }
@@ -50,7 +49,11 @@ export default defineMachine({
       },
     },
   },
-  subscribes: [{ from: CartMachine, event: 'orderPlaced', dispatch: 'ORDER_PLACED' }],
+  // NOTE: the orderPlaced subscription is attached in cart.ts. Declaring it
+  // here would need `from: CartMachine` while cart.ts needs `reads:
+  // [InventoryMachine]` — a module cycle the loader resolves to undefined
+  // (and the store now diagnoses). Mutual machine relationships wire the
+  // second half post-definition at the importing end.
   selectors: {
     stock: (ctx) => ctx.stock,
     lowSkus: (ctx) => Object.keys(ctx.stock).filter((sku) => ctx.stock[sku]! <= LOW_WATER),
