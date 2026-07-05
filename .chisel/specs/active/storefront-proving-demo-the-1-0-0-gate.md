@@ -84,6 +84,18 @@ extra that covers new surface (recursive composition).
 - `AdminMachine` (session, the gateway): BECOME_ADMIN (dev toggle),
   REQUEST_RESTOCK guarded on isAdmin, emits `restockRequested`.
 
+## Imagery (decided 2026-07-04)
+
+No photography. Products are hand-drawn SVG **catalog plates** — flat
+side-profile line art with region fills (upper/sole/accent) as CSS variables:
+one drawing per product covers every colorway; the variant island recolors
+the plate live; zero licensing exposure; tiny payloads; fits the chandlery
+register. Style proven with a rendered 4-colorway Longshore (3 iterations,
+sharp render-and-check loop). ~13 plates total, drawn during build steps 1–2.
+Fallback: catalog schema references images by key, so AI-generated photos can
+replace plates later without data changes. Content sheet (brand, catalog,
+proof render): artifact "content-draft-02-imagery".
+
 ## Pages
 
 `/` (featured + categories) · `/c/[category]` (facets + pagination) ·
