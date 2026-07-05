@@ -48,23 +48,33 @@ async function openSse(app: StatorApp, routeKey: string, cookie: string) {
   const reader = res.body!.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
+  // ONE persistent pump appends to the buffer; readUntil only polls it.
+  // (Racing reader.read() against timers abandons reads, and a subsequent
+  // overlapping read() throws — the old harness silently died that way.)
+  const pump = (async () => {
+    try {
+      while (true) {
+        const result = await reader.read()
+        if (result.done) break
+        buffer += decoder.decode(result.value, { stream: true })
+      }
+    } catch {
+      // stream closed/aborted — fine
+    }
+  })()
   return {
-    /** Read until `predicate(buffer)` or timeout; returns the buffer. */
+    /** Poll until `predicate(buffer)` or timeout; returns the buffer. */
     async readUntil(predicate: (text: string) => boolean, timeoutMs = 3000): Promise<string> {
       const deadline = Date.now() + timeoutMs
       while (!predicate(buffer) && Date.now() < deadline) {
-        const result = await Promise.race([
-          reader.read(),
-          new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), deadline - Date.now())),
-        ])
-        if (result === 'timeout' || result.done) break
-        buffer += decoder.decode(result.value, { stream: true })
+        await new Promise((r) => setTimeout(r, 15))
       }
       return buffer
     },
     close() {
       abort.abort()
       reader.cancel().catch(() => {})
+      void pump
     },
   }
 }
@@ -121,13 +131,35 @@ describe('SSE: cross-session fan-out', () => {
       )
       expect(post.status).toBe(200)
 
-      const received = await sse.readUntil((t) => t.includes('"patches"'))
+      // The first patches message is the connect-time initial sync; wait for
+      // the ping's actual value to arrive.
+      const received = await sse.readUntil((t) => /"value":"1"/.test(t))
       expect(received).toContain('"op":"text"')
-      expect(received).toContain('1')
+      expect(received).toContain('"value":"1"')
     } finally {
       sse.close()
     }
     await vi.waitFor(() => expect(activeConnectionCount()).toBe(before))
+  })
+
+  it('initial sync converges a page that missed changes between render and connect', async () => {
+    // The reported bug: page renders (state S0), an effect settles or another
+    // session dispatches BEFORE the page's SSE connects (state S1) — the old
+    // baseline-at-connect behavior made that delta permanently invisible and
+    // the page hung on stale DOM.
+    const app = await boot()
+    const cookie = await cookieFor(app, '/board') // page rendered at S0 (count 0)
+
+    await dispatchToApp(app.store, Board, { type: 'BUMP', by: 3 }) // the missed window
+
+    const sse = await openSse(app, 'GET /board', cookie)
+    try {
+      const buf = await sse.readUntil((t) => t.includes('"patches"'))
+      // The connect burst must carry the CURRENT value the page never saw.
+      expect(buf).toContain('"value":"3"')
+    } finally {
+      sse.close()
+    }
   })
 
   it('pushes server-originated dispatchToApp updates and diffs subsequent pushes', async () => {
@@ -137,13 +169,16 @@ describe('SSE: cross-session fan-out', () => {
     try {
       await sse.readUntil((t) => t.includes(': open'))
 
+      // Consume the connect-time initial sync first.
+      await sse.readUntil((t) => t.includes('"patches"'))
+
       // The webhook/cron path: no HTTP request, no session.
       await dispatchToApp(app.store, Board, { type: 'BUMP', by: 5 })
-      let buf = await sse.readUntil((t) => t.includes('"patches"'))
-      const firstValue = buf.match(/"value":"(\d+)"/)?.[1]
+      let buf = await sse.readUntil((t) => (t.match(/"patches"/g) ?? []).length >= 2)
+      const firstValue = [...buf.matchAll(/"value":"(\d+)"/g)].at(-1)?.[1]
 
       await dispatchToApp(app.store, Board, { type: 'BUMP', by: 2 })
-      buf = await sse.readUntil((t) => (t.match(/"patches"/g) ?? []).length >= 2)
+      buf = await sse.readUntil((t) => (t.match(/"patches"/g) ?? []).length >= 3)
       const values = [...buf.matchAll(/"value":"(\d+)"/g)].map((m) => Number(m[1]))
 
       // Two pushes, correctly diffed against the connection's own baseline:

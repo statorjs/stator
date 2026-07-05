@@ -221,3 +221,58 @@ function stringify(v: unknown): string {
   if (typeof v === 'string') return v
   return String(v)
 }
+
+/** Baseline invalidation marker — never equal to any real value or key. */
+const NEVER_SYNCED = Symbol('stator.never-synced')
+
+/**
+ * Initial-sync patches for a freshly opened live connection.
+ *
+ * The connection's diff baseline is built by re-rendering the route AT
+ * CONNECT time, but the browser's DOM was rendered at page-GET time — and
+ * any state change in the gap (an effect settling during navigation is the
+ * classic case) would otherwise be permanently invisible: future diffs run
+ * against a baseline the DOM never received. This forces every binding to
+ * emit its CURRENT value once, so the DOM converges to the baseline; the
+ * patches are idempotent, so an already-fresh page just repaints in place.
+ *
+ * Keyed lists are reset wholesale (one `html` patch of freshly rendered
+ * rows) — positional insert/remove/move ops assume a known DOM row set,
+ * which is exactly what a possibly-stale page can't offer.
+ */
+export function initialSyncPatches(state: RenderState, runtime: SessionRuntime): Patch[] {
+  const patches: Patch[] = []
+
+  // Keyed lists first: re-render every row under its key scope (replacing
+  // the scope's binding registrations) and emit one wholesale reset.
+  for (const [slotId, binding] of [...state.bindings]) {
+    if (binding.kind !== 'list-keyed') continue
+    const items = (binding.lastValue ?? []) as readonly unknown[]
+    const keys = binding.lastKeys
+    for (const key of keys) {
+      unregisterBindingsForScope(state, keyedScopePrefix(slotId, keyToken(key)))
+    }
+    let rowsHtml = ''
+    for (let i = 0; i < items.length; i++) {
+      rowsHtml += runInRender(state, () =>
+        renderKeyedItem(state, slotId, items[i], i, keys[i]!, binding.itemRenderer),
+      )
+    }
+    patches.push({ target: { kind: 'slot', id: slotId }, op: 'html', value: rowsHtml })
+  }
+
+  // Everything else: invalidate baselines and let the normal recompute paths
+  // re-emit at current values (branch bodies re-render through the same code
+  // that handles real branch flips).
+  for (const binding of state.bindings.values()) {
+    if (binding.kind === 'text' || binding.kind === 'attr' || binding.kind === 'list') {
+      binding.lastValue = NEVER_SYNCED
+    } else if (binding.kind === 'branch') {
+      binding.lastBranchKey = NEVER_SYNCED
+    }
+  }
+  for (const machineName of state.byMachine.keys()) {
+    patches.push(...recompute(state, machineName, runtime))
+  }
+  return patches
+}

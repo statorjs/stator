@@ -9,7 +9,7 @@ import { applyRenderedEffects, runApiRoute } from './api-route.ts'
 import { scheduleSessionEffects } from './effects.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
-import { recompute } from './recompute.ts'
+import { initialSyncPatches, recompute } from './recompute.ts'
 import { renderRoute } from './render.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
 import { buildRouteRequest } from './route-request.ts'
@@ -215,6 +215,15 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       // Force an immediate flush so edge proxies commit response headers
       // and consider the stream "alive" before any fan-out arrives.
       await stream.write(': open\n\n')
+
+      // Converge the page onto this connection's baseline: the DOM was
+      // rendered at page-GET time, the baseline at connect time, and any
+      // state change in between (an effect settling mid-navigation) would
+      // otherwise never reach this page.
+      const sync = initialSyncPatches(renderState, runtime)
+      if (sync.length > 0) {
+        await conn.send(JSON.stringify({ patches: sync }))
+      }
 
       // Keep-alive every 25s so proxy idle timeouts don't close the
       // connection between real events.
