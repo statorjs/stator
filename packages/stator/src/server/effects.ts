@@ -106,7 +106,7 @@ async function runSessionEffect(
         runtime.wireSubscriptions()
         const touched = runtime.processEvent(machineName, completion)
         await runtime.persistTouched(touched)
-        await fanOut(touched)
+        await fanOut(touched, { sessionId })
       } finally {
         runtime.dispose()
       }

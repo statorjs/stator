@@ -76,7 +76,7 @@ export async function runApiRoute(
 
       if (touched.size > 0) {
         await runtime.persistTouched(touched)
-        await fanOut(touched)
+        await fanOut(touched, { sessionId })
       }
       // Effects queued by dispatched events run after this callback returns
       // (never under the session lock); see server/effects.ts.

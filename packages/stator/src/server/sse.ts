@@ -74,7 +74,10 @@ export function activeConnectionCount(): number {
  * Connections from any session receive pushes — that's the point: an
  * admin tab on session C sees updates triggered by session A's POSTs.
  */
-export async function fanOut(touched: ReadonlySet<string>): Promise<void> {
+export async function fanOut(
+  touched: ReadonlySet<string>,
+  source?: { sessionId?: string },
+): Promise<void> {
   if (touched.size === 0 || connections.size === 0) return
 
   let pushedCount = 0
@@ -85,20 +88,30 @@ export async function fanOut(touched: ReadonlySet<string>): Promise<void> {
   for (const conn of connections.values()) {
     if (conn.closed) continue
 
-    let intersects = false
-    for (const read of conn.route.reads) {
-      if (touched.has(read.name)) {
-        intersects = true
-        break
+    // Applicability per touched machine, judged against the connection's
+    // actual bindings (byMachine covers transitive reads, not just the
+    // route's declared seeds):
+    //   - app machines: every connection (the shared instance IS the state).
+    //   - session machines: only the touching session's own connections —
+    //     and the connection's long-lived runtime must REHYDRATE them from
+    //     the Store first, because the mutation happened in another runtime
+    //     and this one's in-memory actor is frozen at connect time.
+    const applicable: string[] = []
+    for (const name of touched) {
+      if (!conn.renderState.byMachine.has(name)) continue
+      if (conn.runtime.lifecycleOf(name) === 'session') {
+        if (source?.sessionId === undefined || source.sessionId !== conn.sessionId) continue
+        await conn.runtime.rehydrate(name)
       }
+      applicable.push(name)
     }
-    if (!intersects) {
+    if (applicable.length === 0) {
       skippedNoIntersect++
       continue
     }
 
     const patches: Patch[] = []
-    for (const name of touched) {
+    for (const name of applicable) {
       patches.push(...recompute(conn.renderState, name, conn.runtime))
     }
     if (patches.length === 0) {

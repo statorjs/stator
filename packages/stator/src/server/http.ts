@@ -293,7 +293,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
         await runtime.persistTouched(touched)
 
-        await fanOut(touched)
+        await fanOut(touched, { sessionId })
 
         // Fire-and-forget: the effects' I/O runs after this callback returns
         // (the lock is never held across it); completions re-enter via the

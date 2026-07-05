@@ -71,6 +71,33 @@ export class SessionRuntime {
     this.actors.set(def.name, createInstanceProxy(def, actor))
   }
 
+  /**
+   * Replace a session actor with a fresh hydration from the Store. Used by
+   * fan-out before recomputing a long-lived SSE connection's diffs: the
+   * mutation happened in ANOTHER runtime (a POST or an effect completion)
+   * and only exists in persistence — this runtime's in-memory actor is
+   * frozen at whatever the connection last saw. Subscription listeners are
+   * NOT rewired onto the new actor; connection runtimes are read-only diff
+   * targets and never dispatch.
+   */
+  async rehydrate(name: string): Promise<void> {
+    const def = this.store.getDef(name)
+    if (def?.lifecycle !== 'session' || !this.actors.has(name)) return
+    const persisted = await this.store.persistence.get(this.sessionId, def.name)
+    const actor = createActor(def, {
+      snapshot: persisted !== null ? (persisted as Snapshot<object>) : undefined,
+      resolveHelpers: serverReadsResolver(def),
+      onEffect: (invocation) => this.pendingEffects.push(invocation),
+    }).start()
+    this.actors.get(name)?.actor.stop()
+    this.actors.set(name, createInstanceProxy(def, actor))
+  }
+
+  /** Lifecycle of a machine by name, for fan-out applicability decisions. */
+  lifecycleOf(name: string): 'session' | 'app' | undefined {
+    return this.store.getDef(name)?.lifecycle
+  }
+
   /** Hand queued effect invocations to the scheduler, clearing the queue. */
   drainPendingEffects(): EffectInvocation[] {
     const drained = this.pendingEffects

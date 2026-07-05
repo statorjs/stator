@@ -257,3 +257,64 @@ describe('SSE: fan-out unit behavior', () => {
     }
   })
 })
+
+describe('SSE: session-machine live reads', () => {
+  it("delivers a session machine's changes to the SAME session's live connection (rehydrated)", async () => {
+    // The Plimsoll checkout bug: the connection's runtime froze session
+    // actors at connect; a POST/effect mutated the store in ANOTHER runtime;
+    // fan-out recomputed against the frozen actor and pushed nothing.
+    const app = await boot()
+    const cookie = await cookieFor(app, '/my-pings')
+    const sse = await openSse(app, 'GET /my-pings', cookie)
+    try {
+      await sse.readUntil((t) => t.includes('"patches"')) // connect sync
+
+      const post = await app.fetch(
+        new Request('http://localhost/__events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Stator-Route': 'GET /my-pings',
+            Cookie: cookie,
+          },
+          body: JSON.stringify({ machine: 'PingMachine', event: { type: 'PING' } }),
+        }),
+      )
+      expect(post.status).toBe(200)
+
+      const buf = await sse.readUntil((t) => /"value":"1"/.test(t))
+      expect(buf).toContain('"value":"1"')
+    } finally {
+      sse.close()
+    }
+  })
+
+  it("does NOT deliver one session's machine changes to another session's connection", async () => {
+    const app = await boot()
+    const cookieA = await cookieFor(app, '/my-pings')
+    const sse = await openSse(app, 'GET /my-pings', cookieA)
+    try {
+      await sse.readUntil((t) => t.includes('"patches"')) // connect sync
+
+      // Session B pings; A's connection reads PingMachine but B's ping is
+      // B's own state — nothing may cross.
+      const cookieB = await cookieFor(app, '/my-pings')
+      await app.fetch(
+        new Request('http://localhost/__events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Stator-Route': 'GET /my-pings',
+            Cookie: cookieB,
+          },
+          body: JSON.stringify({ machine: 'PingMachine', event: { type: 'PING' } }),
+        }),
+      )
+
+      const buf = await sse.readUntil((t) => /"value":"1"/.test(t), 700)
+      expect(buf).not.toContain('"value":"1"')
+    } finally {
+      sse.close()
+    }
+  })
+})
