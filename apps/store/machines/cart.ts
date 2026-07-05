@@ -59,6 +59,51 @@ export interface CartDisplayLine {
 const subtotalOf = (lines: CartLine[]): number =>
   lines.reduce((sum, l) => sum + l.qty * (productForSku(l.sku)?.product.price ?? 0), 0)
 
+/** The context, hoisted so the shared line-op handlers below can be typed
+ *  with EXACTLY the machine's context — a looser structural type would
+ *  become a conflicting inference candidate and collapse defineMachine's
+ *  state-union inference. */
+const CONTEXT = {
+  lines: [] as CartLine[],
+  name: '',
+  email: '',
+  address: '',
+  port: '',
+  error: '',
+  lastOrder: null as LastOrder | null,
+}
+type CartContext = typeof CONTEXT
+
+/**
+ * Line operations shared by every pre-payment state — a shopper edits the
+ * manifest from a product page or the cart at any point before SUBMIT.
+ */
+// Client-supplied SKUs are hostile input; this guard is the gate.
+const validSku = (_ctx: CartContext, ev: { sku: string }) => productForSku(ev.sku) !== null
+const addLine = (ctx: CartContext, ev: { sku: string }) => {
+  const line = ctx.lines.find((l) => l.sku === ev.sku)
+  if (line) line.qty += 1
+  else ctx.lines.push({ sku: ev.sku, qty: 1 })
+}
+const incLine = (ctx: CartContext, ev: { sku: string }) => {
+  const line = ctx.lines.find((l) => l.sku === ev.sku)
+  if (line) line.qty += 1
+}
+const decLine = (ctx: CartContext, ev: { sku: string }) => {
+  const i = ctx.lines.findIndex((l) => l.sku === ev.sku)
+  const line = ctx.lines[i]
+  if (!line) return
+  if (line.qty > 1) line.qty -= 1
+  else ctx.lines.splice(i, 1)
+}
+const removeLine = (ctx: CartContext, ev: { sku: string }) => {
+  const i = ctx.lines.findIndex((l) => l.sku === ev.sku)
+  if (i !== -1) ctx.lines.splice(i, 1)
+}
+const clearLines = (ctx: CartContext) => {
+  ctx.lines.length = 0
+}
+
 export default defineMachine({
   name: 'CartMachine',
   lifecycle: 'session',
@@ -81,54 +126,16 @@ export default defineMachine({
       }),
     },
   },
-  context: {
-    lines: [] as CartLine[],
-    name: '',
-    email: '',
-    address: '',
-    port: '',
-    error: '',
-    lastOrder: null as LastOrder | null,
-  },
+  context: CONTEXT,
   initial: 'open',
   states: {
     open: {
       on: {
-        ADD: {
-          // Client-supplied SKUs are hostile input; the guard is the gate.
-          when: (_ctx, ev) => productForSku(ev.sku) !== null,
-          do: (ctx, ev) => {
-            const line = ctx.lines.find((l) => l.sku === ev.sku)
-            if (line) line.qty += 1
-            else ctx.lines.push({ sku: ev.sku, qty: 1 })
-          },
-        },
-        INCREMENT: {
-          do: (ctx, ev) => {
-            const line = ctx.lines.find((l) => l.sku === ev.sku)
-            if (line) line.qty += 1
-          },
-        },
-        DECREMENT: {
-          do: (ctx, ev) => {
-            const i = ctx.lines.findIndex((l) => l.sku === ev.sku)
-            const line = ctx.lines[i]
-            if (!line) return
-            if (line.qty > 1) line.qty -= 1
-            else ctx.lines.splice(i, 1)
-          },
-        },
-        REMOVE: {
-          do: (ctx, ev) => {
-            const i = ctx.lines.findIndex((l) => l.sku === ev.sku)
-            if (i !== -1) ctx.lines.splice(i, 1)
-          },
-        },
-        CLEAR: {
-          do: (ctx) => {
-            ctx.lines.length = 0
-          },
-        },
+        ADD: { when: (ctx, ev) => validSku(ctx, ev), do: (ctx, ev) => addLine(ctx, ev) },
+        INCREMENT: { do: (ctx, ev) => incLine(ctx, ev) },
+        DECREMENT: { do: (ctx, ev) => decLine(ctx, ev) },
+        REMOVE: { do: (ctx, ev) => removeLine(ctx, ev) },
+        CLEAR: { do: (ctx) => clearLines(ctx) },
         BEGIN_CHECKOUT: {
           when: (ctx) => ctx.lines.length > 0,
           to: 'contact',
@@ -137,6 +144,11 @@ export default defineMachine({
     },
     contact: {
       on: {
+        ADD: { when: (ctx, ev) => validSku(ctx, ev), do: (ctx, ev) => addLine(ctx, ev) },
+        INCREMENT: { do: (ctx, ev) => incLine(ctx, ev) },
+        DECREMENT: { do: (ctx, ev) => decLine(ctx, ev) },
+        REMOVE: { do: (ctx, ev) => removeLine(ctx, ev) },
+        CLEAR: { do: (ctx) => clearLines(ctx) },
         SET_CONTACT: {
           when: (_ctx, ev) => ev.name.trim().length > 0 && /^\S+@\S+\.\S+$/.test(ev.email),
           do: (ctx, ev) => {
@@ -150,6 +162,11 @@ export default defineMachine({
     },
     shipping: {
       on: {
+        ADD: { when: (ctx, ev) => validSku(ctx, ev), do: (ctx, ev) => addLine(ctx, ev) },
+        INCREMENT: { do: (ctx, ev) => incLine(ctx, ev) },
+        DECREMENT: { do: (ctx, ev) => decLine(ctx, ev) },
+        REMOVE: { do: (ctx, ev) => removeLine(ctx, ev) },
+        CLEAR: { do: (ctx) => clearLines(ctx) },
         SET_SHIPPING: {
           when: (_ctx, ev) => ev.address.trim().length > 0 && ev.port.trim().length > 0,
           do: (ctx, ev) => {
@@ -163,6 +180,11 @@ export default defineMachine({
     },
     review: {
       on: {
+        ADD: { when: (ctx, ev) => validSku(ctx, ev), do: (ctx, ev) => addLine(ctx, ev) },
+        INCREMENT: { do: (ctx, ev) => incLine(ctx, ev) },
+        DECREMENT: { do: (ctx, ev) => decLine(ctx, ev) },
+        REMOVE: { do: (ctx, ev) => removeLine(ctx, ev) },
+        CLEAR: { do: (ctx) => clearLines(ctx) },
         SUBMIT: {
           to: 'submitting',
           do: (ctx) => {
@@ -220,6 +242,17 @@ export default defineMachine({
     },
     confirmed: {
       on: {
+        // A shopper who keeps shopping starts the next manifest — nobody
+        // returns to the receipt to press reset first.
+        ADD: {
+          when: (ctx, ev) => validSku(ctx, ev),
+          to: 'open',
+          do: (ctx, ev) => {
+            ctx.error = ''
+            ctx.lastOrder = null
+            addLine(ctx, ev)
+          },
+        },
         NEW_ORDER: {
           to: 'open',
           do: (ctx) => {

@@ -265,6 +265,19 @@ reviewed before cutting 1.0.0.)
   session actors from the Store before recomputing. Two regression tests:
   same-session delivery, cross-session isolation. Verified live: an open
   /checkout SSE stream received sync → "Underway ⚓" settle patch.
+- **Step 5 verification round 3 (Tony) → APP modeling bug + a DX gap:**
+  after checkout the cart machine sat in `confirmed`, where ADD wasn't
+  handled — every add-to-cart was silently guard-dropped until the shopper
+  pressed "Start a new manifest" (which nobody does). Fixed: line ops
+  (ADD/INC/DEC/REMOVE/CLEAR) now live in every pre-payment state (only
+  `submitting` is sealed), and ADD in `confirmed` starts a fresh manifest.
+  Framework DX gap logged: island `dispatch()` resolves true on HTTP 200 —
+  a guard-dropped event is indistinguishable from a committed one, so the
+  button lied ("Added ✓"). 1.x: expose "did anything commit" (e.g. patch
+  count) on the dispatch result. TS note: sharing transition handlers across
+  states must be done via inline-arrow wrappers — concrete function
+  references become first-pass inference candidates and collapse
+  defineMachine's state-union inference (documented in cart.ts).
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.
