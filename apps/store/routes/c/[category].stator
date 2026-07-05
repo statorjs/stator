@@ -22,7 +22,7 @@ const cat = isAll
 const base = `/c/${params.category}`
 const q = parseCatalogQuery(query)
 
-const all = catalog.all as Product[]
+const all = catalog.all
 const filtered = cat ? filterProducts(all, category, q) : []
 const page = paginate(filtered, q.page)
 const facets = cat ? facetOptions(all, category, q) : { materials: [], colors: [], sizes: [] }

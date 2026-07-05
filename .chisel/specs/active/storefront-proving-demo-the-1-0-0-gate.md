@@ -113,6 +113,33 @@ proof render): artifact "content-draft-02-imagery".
 6. Admin: order feed + gateway restock.
 7. Tests → prod build → Fly deploy → link from landing/docs.
 
+## Mid-build decisions (2026-07-05, with Tony)
+
+1. **Doctrine: forms for values, events for intents.** Server-template `on:`
+   payloads are static by design (render-time serialization); inputs send
+   data the way the platform intends — forms. Cart rows use +/− steppers
+   (static payloads); checkout fields POST to API routes. No event-value
+   mechanism for 1.0 unless the log ends up showing compelling pressure.
+   Aligns with the browser-spec-first instinct; document as doctrine when the
+   demo ships.
+2. **Product-page stock badges:** server renders EVERY variant's badge (SSE
+   keeps them fresh); the island only toggles which is visible. Client owns
+   "which variant am I looking at," server owns "what's in stock."
+3. **Public-deploy hygiene:** checkout PII fields prefilled with fake data
+   (disable if it still feels risky); admin order feed shows id/items/total/
+   time only. Session TTL verified NOT a gap: RedisStore slides a per-session
+   TTL on every persist (default 24h, `sessionTtlSeconds`); public deploy
+   uses ~2h. Nightly reset cron restores seed stock + clears orders.
+4. **Admin surface:** built and validated for the launch gate (it's the
+   gateway-pattern + cross-session-SSE evidence), but the public deploy gates
+   it behind an env flag (off by default in prod). Fallback if that feels
+   wrong later: drop it from the demo entirely and keep it as a documented
+   feature.
+5. **Casts:** `catalog.all as Product[]` was unnecessary — selector inference
+   through InstanceOf works; removed. `params.x as T` is necessary and
+   acceptable (params are Record<string,string>); 1.x idea: sync-generated
+   typed `Stator.request` per route from the filename.
+
 ## Friction log
 
 (Running record of every paper cut, workaround, or API wish encountered —
