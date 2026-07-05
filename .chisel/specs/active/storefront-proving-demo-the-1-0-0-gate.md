@@ -160,8 +160,28 @@ NOT needed for: form→dispatch→navigate, machine-owned side effects
 (effects), machine reactions (emits), UI (page reads).
 
 Disposition: not for the demo; not 1.0-blocking IF docs state "API routes
-are command endpoints in 1.0"; top of the 1.x list. Sketch: `snapshot(machine)`
-— read-only, scoped to declared `reads`, post-dispatch view, lifecycle-aware.
+are command endpoints in 1.0"; top of the 1.x list.
+
+**Concurrency addendum (2026-07-05, with Tony):** the general primitive (live
+read anywhere in an async handler) must NEVER be built — structural hazards,
+not implementation details: (a) handlers hold the session lock for their full
+duration, so poll-snapshot-until-effect-settles is a guaranteed DEADLOCK
+(completions re-enter via the same lock); (b) app machines have no session
+lock → snapshot is TOCTOU by construction, authoritative checks stay guards;
+(c) torn reads across subscription-linked machines when snapshots straddle a
+dispatch. Pages avoid all three via the sync render contract (reads+render =
+one synchronous section under the lock) which cannot reach async handlers —
+the original reason this was skipped, confirmed. Safe narrow shapes if 1.x
+wants them: (1) `dispatch()` RETURNS the touched machine's post-commit
+snapshot (read atomic with commit — solves create-then-redirect exactly);
+(2) frozen-at-entry snapshot for pure readers (JSON endpoints), taken
+synchronously under the lock, documented point-in-time.
+
+**Separate 1.0 robustness finding:** emit/subscription cascades have NO cycle
+protection (session-runtime wireSubscriptions → synchronous on→send). A
+subscribes-cycle (A emits→B dispatches→B emits→A…) recurses to stack overflow
+today, snapshot or no snapshot. Wants a depth cap or wire-time cycle check
+before 1.0.
 
 ## Friction log
 
