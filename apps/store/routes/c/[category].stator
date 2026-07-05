@@ -7,11 +7,12 @@ import {
   paginate,
   parseCatalogQuery,
 } from '../../lib/filter.ts'
+import CartMachine from '../../machines/cart.ts'
 import CatalogMachine from '../../machines/catalog.ts'
 import Layout from '../../templates/layout.stator'
 import ProductCard from '../../templates/product-card.stator'
 
-const [catalog] = Stator.reads([CatalogMachine])
+const [catalog, cart] = Stator.reads([CatalogMachine, CartMachine])
 const { params, query } = Stator.request
 
 const isAll = params.category === 'all'
@@ -28,7 +29,7 @@ const page = paginate(filtered, q.page)
 const facets = cat ? facetOptions(all, category, q) : { materials: [], colors: [], sizes: [] }
 const hasFilters = Boolean(q.material || q.color || q.size)
 ---
-<Layout>
+<Layout cart={cart}>
   {when(!cat, () => (
     <section class="page-pad">
       <h1>No such aisle.</h1>

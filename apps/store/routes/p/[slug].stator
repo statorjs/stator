@@ -1,16 +1,17 @@
 ---
 import { CATEGORIES, formatPrice, MATERIALS, type Product } from '../../lib/catalog-data.ts'
+import CartMachine from '../../machines/cart.ts'
 import CatalogMachine from '../../machines/catalog.ts'
 import Layout from '../../templates/layout.stator'
 import VariantPicker from '../../templates/variant-picker.stator'
 
-const [catalog] = Stator.reads([CatalogMachine])
+const [catalog, cart] = Stator.reads([CatalogMachine, CartMachine])
 const { params } = Stator.request
 
 const found = catalog.bySlug(String(params.slug))
 const p = found as Product
 ---
-<Layout>
+<Layout cart={cart}>
   {when(!found, () => (
     <section class="page-pad">
       <h1>Never stocked that.</h1>
@@ -22,6 +23,7 @@ const p = found as Product
     <article class="pdp">
       <div class="pdp-visual">
         <VariantPicker
+          slug={p.slug}
           silhouette={p.silhouette}
           colorways={p.colorways.join(',')}
           sizes={p.sizes.join(',')}
@@ -38,10 +40,6 @@ const p = found as Product
         <p class="pdp-desc">{p.description}</p>
         <div class="ledger">LEDGER · {p.ledger}</div>
         <p class="pdp-materials">{p.materials.map((m) => MATERIALS[m]).join(' · ')}</p>
-        <button class="btn-primary" type="button" disabled>
-          Add to cart
-        </button>
-        <p class="pdp-note">Cart opens in the next fitting — this button goes live with it.</p>
       </div>
     </article>
   ))}

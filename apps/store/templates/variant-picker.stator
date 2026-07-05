@@ -8,12 +8,16 @@
     <span class="vp-caption">Size · <span bind:text={sel.sizeLabel}></span></span>
     <div class="vp-sizes" ref:sizes></div>
   </div>
+  <div class="vp-row">
+    <button class="btn-primary vp-add" type="button" ref:addbtn on:click={add}>Add to cart</button>
+  </div>
 </variant-picker>
 
 <script>
   import type { Product } from '../lib/catalog-data.ts'
   import { colorwayOf, plateStyleOf } from '../lib/colorways.ts'
   import { plateSvg } from '../lib/plates.ts'
+  import CartMachine from '../machines/cart.ts'
 
   // Which variant is the shopper looking at — ephemeral, client-owned.
   // (What's in stock stays server-owned; see the spec's badge-split decision.)
@@ -32,6 +36,7 @@
 
   export class VariantPicker extends StatorElement {
     static attrs = {
+      slug: String,
       silhouette: String,
       colorways: String, // csv
       sizes: String, // csv
@@ -73,6 +78,19 @@
         b.textContent = size === 'one-size' ? 'One size' : size
         b.addEventListener('click', () => this.sel.send({ type: 'PICK_SIZE', size }))
         this.refs.sizes?.append(b)
+      }
+    }
+
+    /** Commit the chosen variant to the SERVER cart — the one visible
+     *  boundary crossing in this island. The header count updates from the
+     *  returned patches; no client cart state exists. */
+    async add() {
+      const sku = `${this.attr('slug')}--${this.sel.color}--${this.sel.size}`
+      const btn = this.refs.addbtn
+      const ok = await dispatch(CartMachine, { type: 'ADD', sku })
+      if (btn) {
+        btn.textContent = ok ? 'Added ✓' : 'Something slipped — try again'
+        setTimeout(() => { btn.textContent = 'Add to cart' }, 1400)
       }
     }
 

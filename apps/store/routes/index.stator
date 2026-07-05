@@ -1,12 +1,13 @@
 ---
 import { CATEGORIES } from '../lib/catalog-data.ts'
+import CartMachine from '../machines/cart.ts'
 import CatalogMachine from '../machines/catalog.ts'
 import Layout from '../templates/layout.stator'
 import ProductCard from '../templates/product-card.stator'
 
-const [catalog] = Stator.reads([CatalogMachine])
+const [catalog, cart] = Stator.reads([CatalogMachine, CartMachine])
 ---
-<Layout>
+<Layout cart={cart}>
   <section class="hero">
     <p class="eyebrow">HARBOR-GRADE FOOTWEAR</p>
     <h1>Canvas, cork, and nothing to hide.</h1>

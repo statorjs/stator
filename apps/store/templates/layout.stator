@@ -1,3 +1,9 @@
+---
+import type { InstanceOf } from '@statorjs/stator/template'
+import type CartMachine from '../machines/cart.ts'
+
+const { cart } = Stator.props<{ cart?: InstanceOf<typeof CartMachine> }>()
+---
 <!doctype html>
 <html lang="en">
   <head>
@@ -16,7 +22,9 @@
         <a href="/c/supply">Supply</a>
         <a href="/c/all">All goods</a>
       </nav>
-      <a href="/cart" class="cart-link">Cart</a>
+      <a href="/cart" class="cart-link">
+        Cart{when(!!cart, () => <span class="cart-count"> · {read(cart!, (c) => c.count)}</span>)}
+      </a>
     </header>
     <main><children /></main>
     <footer class="site-footer">
