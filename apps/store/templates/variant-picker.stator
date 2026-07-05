@@ -1,0 +1,122 @@
+<variant-picker>
+  <div class="vp-stage" ref:stage></div>
+  <div class="vp-row">
+    <span class="vp-caption">Color · <span bind:text={sel.colorLabel}></span></span>
+    <div class="vp-swatches" ref:swatches></div>
+  </div>
+  <div class="vp-row">
+    <span class="vp-caption">Size · <span bind:text={sel.sizeLabel}></span></span>
+    <div class="vp-sizes" ref:sizes></div>
+  </div>
+</variant-picker>
+
+<script>
+  import type { Product } from '../lib/catalog-data.ts'
+  import { colorwayOf, plateStyleOf } from '../lib/colorways.ts'
+  import { plateSvg } from '../lib/plates.ts'
+
+  // Which variant is the shopper looking at — ephemeral, client-owned.
+  // (What's in stock stays server-owned; see the spec's badge-split decision.)
+  const Sel = machine({
+    color: '',
+    size: '',
+    on: {
+      PICK_COLOR: (s, ev) => { s.color = String(ev.color) },
+      PICK_SIZE: (s, ev) => { s.size = String(ev.size) },
+    },
+    select: {
+      colorLabel: (s) => colorwayOf(s.color)?.label ?? s.color,
+      sizeLabel: (s) => (s.size === 'one-size' ? 'One size' : `EU ${s.size}`),
+    },
+  })
+
+  export class VariantPicker extends StatorElement {
+    static attrs = {
+      silhouette: String,
+      colorways: String, // csv
+      sizes: String, // csv
+      initialColor: String,
+      initialSize: String,
+    }
+
+    sel = use(Sel, () => ({
+      color: this.attr('initial-color') ?? '',
+      size: this.attr('initial-size') ?? '',
+    }))
+
+    connectedCallback() {
+      super.connectedCallback()
+      const stage = this.refs.stage
+      if (stage) stage.innerHTML = plateSvg(this.attr('silhouette') as Product['silhouette'])
+      this.buildOptions()
+      this.track(effect([this.sel], () => this.reflect()))
+    }
+
+    /** The option lists vary per product (attrs), and island templates are
+     *  static — so the buttons are built here, on connect. */
+    buildOptions() {
+      for (const color of (this.attr('colorways') ?? '').split(',')) {
+        const b = document.createElement('button')
+        b.type = 'button'
+        b.className = 'vp-swatch'
+        b.dataset.color = color
+        b.title = colorwayOf(color)?.label ?? color
+        b.style.background = colorwayOf(color)?.swatch ?? '#ccc'
+        b.addEventListener('click', () => this.sel.send({ type: 'PICK_COLOR', color }))
+        this.refs.swatches?.append(b)
+      }
+      for (const size of (this.attr('sizes') ?? '').split(',')) {
+        const b = document.createElement('button')
+        b.type = 'button'
+        b.className = 'vp-size'
+        b.dataset.size = size
+        b.textContent = size === 'one-size' ? 'One size' : size
+        b.addEventListener('click', () => this.sel.send({ type: 'PICK_SIZE', size }))
+        this.refs.sizes?.append(b)
+      }
+    }
+
+    /** State → DOM: recolor the plate via CSS variables, mark selections. */
+    reflect() {
+      const stage = this.refs.stage
+      if (stage) stage.style.cssText = plateStyleOf(this.sel.color as string)
+      for (const b of this.querySelectorAll('.vp-swatch')) {
+        b.classList.toggle('is-on', (b as HTMLElement).dataset.color === this.sel.color)
+      }
+      for (const b of this.querySelectorAll('.vp-size')) {
+        b.classList.toggle('is-on', (b as HTMLElement).dataset.size === this.sel.size)
+      }
+    }
+  }
+</script>
+
+<style>
+  variant-picker { display: block; }
+  .vp-stage { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
+  .vp-stage svg { display: block; width: 100%; height: auto; }
+  .vp-row { margin-top: 14px; }
+  .vp-caption {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--harbor);
+    margin-bottom: 8px;
+  }
+  .vp-swatches, .vp-sizes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .vp-swatch {
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    cursor: pointer; padding: 0;
+  }
+  .vp-swatch.is-on { outline: 2px solid var(--harbor); outline-offset: 2px; }
+  .vp-size {
+    font: inherit;
+    font-family: var(--mono); font-size: 12.5px;
+    padding: 5px 10px; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 4px;
+    background: var(--card); color: var(--body);
+  }
+  .vp-size.is-on { background: var(--ink); color: var(--card); border-color: var(--ink); }
+</style>

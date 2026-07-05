@@ -85,3 +85,14 @@ export function plateStyle(key: ColorwayKey): string {
   const c = COLORWAYS[key]
   return `--plate-upper:${c.upper};--plate-sole:${c.sole};--plate-accent:${c.accent}`
 }
+
+/** String-keyed lookups for client islands, where keys arrive as DOM
+ *  attributes (plain strings) rather than typed unions. */
+export function colorwayOf(key: string): PlateColors | undefined {
+  return (COLORWAYS as Record<string, PlateColors>)[key]
+}
+
+export function plateStyleOf(key: string): string {
+  const c = colorwayOf(key)
+  return c ? `--plate-upper:${c.upper};--plate-sole:${c.sole};--plate-accent:${c.accent}` : ''
+}

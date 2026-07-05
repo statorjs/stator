@@ -97,6 +97,10 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
       const r = await compiledFor(f)
       if (r.css) css += `/* ${f} */\n${r.css}\n`
       if (r.isClient) {
+        // Vite's transform middleware compiles this URL because browsers send
+        // `Sec-Fetch-Dest: script` for module scripts (the `.stator` extension
+        // alone wouldn't match its JS-request check). curl-style probes must
+        // send that header or they'll see raw source and cry wolf.
         const url = `/${relative(root, f).replace(/\\/g, '/')}?stator&type=client`
         scripts.push(`<script type="module" src="${url}"></script>`)
       }

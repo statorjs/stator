@@ -154,6 +154,16 @@ reviewed before cutting 1.0.0.)
   through on first inference; the `when(!!cat, () => ...)` guard pattern for
   invalid params remains the sanctioned 404 idiom (no first-class 404 API,
   fine for 1.0).
+- **Step 2:** island templates are compiled once per component, so
+  variable-length UI (a per-product swatch row) can't be expressed in the
+  template — the picker builds its option buttons imperatively on connect.
+  Fine as "islands are custom elements; use the platform," but a client-side
+  `each()` over attrs is a legitimate 1.x candidate if this recurs.
+- **Step 2 (testing lesson, not a bug):** Vite's dev middleware compiles
+  island-module URLs because browsers send `Sec-Fetch-Dest: script`; a bare
+  curl sees raw source. Cried wolf on a "framework bug" for half an hour
+  before reading Vite's middleware. Probes of dev-plane module URLs must send
+  that header (now noted in dev.ts).
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.

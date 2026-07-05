@@ -1,0 +1,48 @@
+---
+import { CATEGORIES, formatPrice, MATERIALS, type Product } from '../../lib/catalog-data.ts'
+import CatalogMachine from '../../machines/catalog.ts'
+import Layout from '../../templates/layout.stator'
+import VariantPicker from '../../templates/variant-picker.stator'
+
+const [catalog] = Stator.reads([CatalogMachine])
+const { params } = Stator.request
+
+const found = catalog.bySlug(String(params.slug))
+const p = found as Product
+---
+<Layout>
+  {when(!found, () => (
+    <section class="page-pad">
+      <h1>Never stocked that.</h1>
+      <p><a href="/c/all" class="link">Browse the whole chandlery.</a></p>
+    </section>
+  ))}
+
+  {when(!!found, () => (
+    <article class="pdp">
+      <div class="pdp-visual">
+        <VariantPicker
+          silhouette={p.silhouette}
+          colorways={p.colorways.join(',')}
+          sizes={p.sizes.join(',')}
+          initialColor={p.colorways[0]!}
+          initialSize={p.sizes[0]!}
+        />
+      </div>
+      <div class="pdp-info">
+        <p class="eyebrow">
+          <a href={`/c/${p.category}`} class="crumb">{CATEGORIES[p.category].title.toUpperCase()}</a>
+        </p>
+        <h1>{p.name}</h1>
+        <p class="pdp-price">{formatPrice(p.price)}</p>
+        <p class="pdp-desc">{p.description}</p>
+        <div class="ledger">LEDGER · {p.ledger}</div>
+        <p class="pdp-materials">{p.materials.map((m) => MATERIALS[m]).join(' · ')}</p>
+        <button class="btn-primary" type="button" disabled>
+          Add to cart
+        </button>
+        <p class="pdp-note">Cart opens in the next fitting — this button goes live with it.</p>
+      </div>
+    </article>
+  ))}
+</Layout>
