@@ -41,7 +41,12 @@ const [cart] = Stator.reads([CartMachine])
               <span class="qty-num">
                 {read(cart, (c) => c.display.find((l) => l.sku === line.sku)?.qty ?? '')}
               </span>
-              <button type="button" class="qty-btn" on:click={() => cart.send({ type: 'INCREMENT', sku: line.sku })}>+</button>
+              <button
+                type="button"
+                class="qty-btn"
+                disabled={read(cart, (c) => c.atCeiling(line.sku))}
+                on:click={() => cart.send({ type: 'INCREMENT', sku: line.sku })}
+              >+</button>
             </div>
             <p class="cart-line-total">
               {read(cart, (c) => formatPrice(c.display.find((l) => l.sku === line.sku)?.lineTotal ?? 0))}

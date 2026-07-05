@@ -85,21 +85,31 @@ export async function fanOut(
   let skippedNoPatches = 0
   let failed = 0
 
+  // Expand through the reverse-reads graph once per fan-out: machines whose
+  // SELECTORS derive from a touched machine must re-diff even though their
+  // own state didn't move. (Every connection shares the one MachineStore.)
+  const first = connections.values().next().value
+  const { all: expandedTouched, derived } = first
+    ? first.runtime.store.expandTouchedForRecompute(touched)
+    : { all: new Set(touched), derived: new Set<string>() }
+
   for (const conn of connections.values()) {
     if (conn.closed) continue
 
-    // Applicability per touched machine, judged against the connection's
-    // actual bindings (byMachine covers transitive reads, not just the
-    // route's declared seeds):
+    // Applicability per machine, judged against the connection's actual
+    // bindings (byMachine covers transitive reads, not just declared seeds):
     //   - app machines: every connection (the shared instance IS the state).
-    //   - session machines: only the touching session's own connections —
-    //     and the connection's long-lived runtime must REHYDRATE them from
-    //     the Store first, because the mutation happened in another runtime
-    //     and this one's in-memory actor is frozen at connect time.
+    //   - DIRECTLY-touched session machines: only the touching session's own
+    //     connections — and the connection's long-lived runtime must
+    //     REHYDRATE them from the Store first, because the mutation happened
+    //     in another runtime and this one's actor is frozen at connect time.
+    //   - DERIVED session machines (expansion only): every connection that
+    //     binds them, any session, no rehydration — their own state didn't
+    //     change; their selectors' dependencies did.
     const applicable: string[] = []
-    for (const name of touched) {
+    for (const name of expandedTouched) {
       if (!conn.renderState.byMachine.has(name)) continue
-      if (conn.runtime.lifecycleOf(name) === 'session') {
+      if (conn.runtime.lifecycleOf(name) === 'session' && !derived.has(name)) {
         if (source?.sessionId === undefined || source.sessionId !== conn.sessionId) continue
         await conn.runtime.rehydrate(name)
       }

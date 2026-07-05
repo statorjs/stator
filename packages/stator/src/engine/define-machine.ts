@@ -16,9 +16,9 @@ export interface DefineMachineConfig<
   C extends object,
   E extends EventObject,
   S extends string,
-  Sel extends SelectorMap<C>,
   Name extends string,
   TReads extends readonly AnyMachineDef[],
+  Sel extends SelectorMap<C, ReadsMap<TReads>>,
 > {
   name: Name
   lifecycle: Lifecycle
@@ -82,10 +82,10 @@ export function defineMachine<
   C extends object,
   E extends EventObject = EventObject,
   S extends string = string,
-  Sel extends SelectorMap<C> = SelectorMap<C>,
   Name extends string = string,
   const TReads extends readonly AnyMachineDef[] = readonly [],
->(config: DefineMachineConfig<C, E, S, Sel, Name, TReads>): MachineDef<C, E, S, Sel, Name> {
+  Sel extends SelectorMap<C, ReadsMap<TReads>> = SelectorMap<C, ReadsMap<TReads>>,
+>(config: DefineMachineConfig<C, E, S, Name, TReads, Sel>): MachineDef<C, E, S, Sel, Name> {
   const reads = (config.reads ?? []) as unknown as AnyMachineDef[]
   if (config.persist && config.lifecycle === 'session') {
     throw new Error(

@@ -20,7 +20,15 @@
 /** Every event is a discriminated union member keyed on `type`. */
 export type EventObject = { type: string }
 
-export type SelectorMap<C> = Record<string, (ctx: C) => unknown>
+/** Selectors derive views: of their own context, and — when the machine
+ *  declares `reads:` — of the read machines' selectors via the same helpers
+ *  object actions/guards receive. One-param selectors remain valid. */
+export type SelectorMap<C, R = Record<string, any>> = Record<
+  string,
+  // Method syntax → bivariant helpers param, so a machine with narrowly
+  // typed reads still satisfies contexts expecting the loose default.
+  { selector(ctx: C, helpers: ActionHelpers<R>): unknown }['selector']
+>
 
 /** Helpers handed to actions/guards. `reads` is the typed map of machines
  *  declared in `reads:` (see `ReadsMap`). Defaults loose for internal/runtime

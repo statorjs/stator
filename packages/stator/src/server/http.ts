@@ -286,8 +286,12 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
         const touched = runtime.processEvent(body.machine, body.event)
 
+        // Reads-aware selectors: bindings of machines whose selectors READ a
+        // touched machine must re-diff too. Persistence stays direct-only —
+        // derived machines' own state didn't move.
+        const { all: recomputeSet } = config.store.expandTouchedForRecompute(touched)
         const patches = []
-        for (const name of touched) {
+        for (const name of recomputeSet) {
           patches.push(...recompute(renderState, name, runtime))
         }
 

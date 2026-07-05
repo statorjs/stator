@@ -68,7 +68,10 @@ export class SessionRuntime {
       // point to schedule after persist + lock release.
       onEffect: (invocation) => this.pendingEffects.push(invocation),
     }).start()
-    this.actors.set(def.name, createInstanceProxy(def, actor))
+    this.actors.set(
+      def.name,
+      createInstanceProxy(def, actor, (name) => this.proxyFor(name)),
+    )
   }
 
   /**
@@ -90,7 +93,10 @@ export class SessionRuntime {
       onEffect: (invocation) => this.pendingEffects.push(invocation),
     }).start()
     this.actors.get(name)?.actor.stop()
-    this.actors.set(name, createInstanceProxy(def, actor))
+    this.actors.set(
+      name,
+      createInstanceProxy(def, actor, (n) => this.proxyFor(n)),
+    )
   }
 
   /** Lifecycle of a machine by name, for fan-out applicability decisions. */

@@ -61,7 +61,7 @@ describe('boolean attribute bindings', () => {
     const out = runInRender(
       state,
       () =>
-        html`<button disabled="${read(proxy, (g: { closed: boolean }) => g.closed)}" aria-label="${read(proxy, (g: { label: string | null }) => g.label)}">go</button>`,
+        html`<button disabled="${read(proxy, (g) => (g as unknown as { closed: boolean }).closed)}" aria-label="${read(proxy, (g) => (g as unknown as { label: string | null }).label)}">go</button>`,
     )
     expect(out.html).toContain('disabled=""')
     expect(out.html).not.toContain('aria-label')
@@ -72,7 +72,7 @@ describe('boolean attribute bindings', () => {
     const out = runInRender(
       state,
       () =>
-        html`<p title="${read(proxy, (g: { closed: boolean }) => (g.closed ? 'shut' : 'ajar'))}">x</p>`,
+        html`<p title="${read(proxy, (g) => ((g as unknown as { closed: boolean }).closed ? 'shut' : 'ajar'))}">x</p>`,
     )
     expect(out.html).toContain('title="shut"')
   })
@@ -82,7 +82,7 @@ describe('boolean attribute bindings', () => {
     runInRender(
       state,
       () =>
-        html`<button disabled="${read(proxy, (g: { closed: boolean }) => g.closed)}">go</button>`,
+        html`<button disabled="${read(proxy, (g) => (g as unknown as { closed: boolean }).closed)}">go</button>`,
     )
     runtime.processEvent('GateMachine', { type: 'SET', open: true })
     const patches = recompute(state, 'GateMachine', runtime)

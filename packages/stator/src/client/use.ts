@@ -6,6 +6,17 @@ import {
   type Snapshot,
 } from '../engine/index.ts'
 
+const CLIENT_HELPERS = {
+  reads: new Proxy(
+    {},
+    {
+      get(_t, prop: string) {
+        throw new Error(`stator: client machines have no reads (accessed reads.${prop})`)
+      },
+    },
+  ),
+} as never
+
 /**
  * The client-side reactive handle for a machine. Returned by `use()`, held as a
  * class field (`qty = use(Qty)`). Exposes:
@@ -82,7 +93,9 @@ export function use(
       get: () => {
         const ctx = actor.getSnapshot().context
         const sel = def.selectors[key]
-        return sel ? sel(ctx) : (ctx as Record<string, unknown>)[key]
+        // Client machines have no cross-machine reads; pass a stub so the
+        // shared SelectorMap signature holds.
+        return sel ? sel(ctx, CLIENT_HELPERS) : (ctx as Record<string, unknown>)[key]
       },
     })
   }

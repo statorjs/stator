@@ -92,7 +92,55 @@ export class MachineStore {
     }
     this.validateSubscriptions()
     this.buildSubscriberIndex()
+    this.buildReaderIndex()
     this.warnOnSubscriptionCycles()
+  }
+
+  /** Reverse index over `reads:`: for each machine, which machines' SELECTORS
+   *  may derive from it. Drives touched-set expansion so display state that
+   *  reads across machines re-diffs when its dependencies change. */
+  private readersBySource = new Map<string, string[]>()
+
+  private buildReaderIndex(): void {
+    for (const def of this.defs.values()) {
+      for (const r of def.reads) {
+        let list = this.readersBySource.get(r.name)
+        if (!list) {
+          list = []
+          this.readersBySource.set(r.name, list)
+        }
+        list.push(def.name)
+      }
+    }
+  }
+
+  /**
+   * Expand a touched set through the reverse-reads graph (transitively):
+   * if A's selectors read B and B changed, A's bindings must re-diff even
+   * though A's own state didn't move. Returns the expansion (machines whose
+   * DERIVED views changed) separately from the direct touches — callers
+   * scope them differently (derived session machines re-diff for every
+   * connection, no rehydration; direct session touches belong to one
+   * session).
+   */
+  expandTouchedForRecompute(touched: ReadonlySet<string>): {
+    all: Set<string>
+    derived: Set<string>
+  } {
+    const all = new Set(touched)
+    const derived = new Set<string>()
+    const queue = [...touched]
+    while (queue.length > 0) {
+      const name = queue.shift()!
+      for (const reader of this.readersBySource.get(name) ?? []) {
+        if (!all.has(reader)) {
+          all.add(reader)
+          derived.add(reader)
+          queue.push(reader)
+        }
+      }
+    }
+    return { all, derived }
   }
 
   /**
@@ -212,7 +260,12 @@ export class MachineStore {
               )
           },
         }).start()
-        this.appInstances.set(def.name, createInstanceProxy(def, actor))
+        this.appInstances.set(
+          def.name,
+          // App machines resolve selector reads among app instances only —
+          // "which session?" has no answer at app scope.
+          createInstanceProxy(def, actor, (name) => this.appInstance(name)?.proxy),
+        )
       }
     }
     this.wireAppSubscriptions()

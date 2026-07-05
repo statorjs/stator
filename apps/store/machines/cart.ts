@@ -309,6 +309,15 @@ const CartMachineDef = defineMachine({
   },
   selectors: {
     count: (ctx) => ctx.lines.reduce((n, l) => n + l.qty, 0),
+    /** The ADD/INCREMENT guard's verdict, projected for the UI: is this SKU
+     *  maxed out against current shared stock? Reads-aware — re-diffs when
+     *  inventory moves, not just when the cart does. */
+    atCeiling:
+      (ctx, { reads }) =>
+      (sku: string) => {
+        const line = ctx.lines.find((l) => l.sku === sku)
+        return line !== undefined && line.qty >= (reads.InventoryMachine.stock[sku] ?? 0)
+      },
     subtotal: (ctx) => subtotalOf(ctx.lines),
     contact: (ctx) => ({ name: ctx.name, email: ctx.email }),
     shipping: (ctx) => ({ address: ctx.address, port: ctx.port }),

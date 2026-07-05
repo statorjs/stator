@@ -310,6 +310,21 @@ reviewed before cutting 1.0.0.)
   ("can take one more" needs cart qty + inventory stock) as display state;
   cart steppers therefore stay guard-only for now. 1.x: reads-aware
   selectors or a multi-machine read().
+- **Reads-aware selectors SHIPPED (Tony pulled it forward: "core lack"):**
+  selectors now receive the same `{ reads }` helpers guards get, so
+  cross-machine verdicts project as display state — the cart's `atCeiling`
+  selector drives the stepper's `disabled` binding, closing the loop with
+  boolean attrs. Mechanics: instance proxies evaluate selectors with a lazy
+  sibling resolver (session runtimes resolve session+app; app instances
+  resolve app-only); recompute expands the touched set through a reverse
+  `readersBySource` index (POST path + fan-out), with expansion-DERIVED
+  session machines re-diffing for every connection without rehydration
+  (their state didn't move; their dependencies did). Wire-verified: qty 2/2
+  → `disabled=""` patch; decrement → `null`. Doctrine upgrade recorded:
+  selectors are pure of their DECLARED DEPENDENCY GRAPH, making `reads:` the
+  audit trail for logic and display alike. TS note: SelectorMap needed the
+  method-syntax bivariance hack for the helpers param. Docs pass owed:
+  machines guide + reference must cover (ctx, {reads}) selectors.
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.
