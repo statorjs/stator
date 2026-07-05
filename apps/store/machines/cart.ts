@@ -28,7 +28,6 @@ type Events =
     }
   | { type: 'CHARGE_DECLINED'; reason: string }
   | { type: 'BACK' }
-  | { type: 'NEW_ORDER' }
 
 interface CartLine {
   sku: string
@@ -251,13 +250,6 @@ export default defineMachine({
             ctx.error = ''
             ctx.lastOrder = null
             addLine(ctx, ev)
-          },
-        },
-        NEW_ORDER: {
-          to: 'open',
-          do: (ctx) => {
-            ctx.error = ''
-            ctx.lastOrder = null
           },
         },
       },

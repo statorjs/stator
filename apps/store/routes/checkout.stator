@@ -116,16 +116,15 @@ const [cart] = Stator.reads([CartMachine])
       ),
       confirmed: () => (
         <div class="panel">
-          <h2 class="panel-title">Underway. ⚓</h2>
+          <h2 class="panel-title">Order placed — underway. ⚓</h2>
           <p class="panel-lede">
             Receipt <code class="mono">{read(cart, (c) => c.lastOrder?.receiptId ?? '')}</code> ·
             {read(cart, (c) => formatPrice(c.lastOrder?.amountCents ?? 0))}
           </p>
           <p class="panel-lede">{read(cart, (c) => c.lastOrder?.summary ?? '')}</p>
+          <p class="panel-hint">Nothing was charged and nothing will ship — this is a demonstration.</p>
           <div class="panel-actions">
-            <button class="btn-primary" type="button" on:click={() => cart.send({ type: 'NEW_ORDER' })}>
-              Start a new manifest
-            </button>
+            <a class="btn-primary" href="/c/all">Continue shopping</a>
           </div>
         </div>
       ),
