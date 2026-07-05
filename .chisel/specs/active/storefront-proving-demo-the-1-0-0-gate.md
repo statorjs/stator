@@ -117,3 +117,16 @@ proof render): artifact "content-draft-02-imagery".
 
 (Running record of every paper cut, workaround, or API wish encountered —
 reviewed before cutting 1.0.0.)
+
+- **Step 0 (2026-07-04):** in-monorepo scaffold needs a manual dep flip to
+  `workspace:*` (expected; only affects us, not consumers).
+- **Step 0:** create-stator's `stator-env.d.ts` lacked the `biome-ignore` for
+  its `props?: any` fallback — consumers with strict Biome configs would fail
+  lint on a file we shipped. FIXED in the template.
+- **Step 1:** none — catalog machine, faceted browse, and pagination went
+  through on first inference; the `when(!!cat, () => ...)` guard pattern for
+  invalid params remains the sanctioned 404 idiom (no first-class 404 API,
+  fine for 1.0).
+- **Content note (not framework):** sandal plate still reads weak; one more
+  drawing pass in step 2. `/c/all` view added — no single category exceeds
+  page size, so the all-goods aisle is what makes pagination real.

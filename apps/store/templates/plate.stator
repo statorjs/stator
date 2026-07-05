@@ -1,0 +1,14 @@
+---
+import type { ColorwayKey, Product } from '../lib/catalog-data.ts'
+import { plateStyle } from '../lib/colorways.ts'
+import { plateSvg } from '../lib/plates.ts'
+import { raw } from '@statorjs/stator/template'
+
+const { silhouette, colorway } = Stator.props<{
+  silhouette: Product['silhouette']
+  colorway: ColorwayKey
+}>()
+---
+<div class="plate" style={plateStyle(colorway)} data-plate>
+  {raw(plateSvg(silhouette))}
+</div>

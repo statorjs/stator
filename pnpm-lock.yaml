@@ -108,6 +108,28 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
+  apps/store:
+    dependencies:
+      '@statorjs/stator':
+        specifier: workspace:*
+        version: link:../../packages/stator
+    devDependencies:
+      '@types/node':
+        specifier: ^22.7.0
+        version: 22.19.19
+      pino-pretty:
+        specifier: ^13.1.3
+        version: 13.1.3
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vite:
+        specifier: ^6.0.0
+        version: 6.4.3(@types/node@22.19.19)(tsx@4.21.0)
+
   editors/vscode:
     dependencies:
       '@statorjs/language-server':

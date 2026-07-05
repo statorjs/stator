@@ -1,0 +1,341 @@
+/* Plimsoll — harbor-grade footwear. Palette from the approved content sheet. */
+:root {
+  --canvas: #f0efe9;
+  --card: #faf9f5;
+  --ink: #22262b;
+  --body: #565a58;
+  --line: #dedbd0;
+  --harbor: #3a5a6e;
+  --buoy: #b4552d;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+a.link {
+  color: var(--harbor);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+h1,
+h2,
+h3 {
+  line-height: 1.15;
+  text-wrap: balance;
+  margin: 0;
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--harbor);
+  margin: 0 0 8px;
+}
+
+/* chrome */
+.site-header {
+  display: flex;
+  align-items: baseline;
+  gap: 28px;
+  padding: 20px 32px;
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  font-size: 15px;
+}
+.site-nav {
+  display: flex;
+  gap: 18px;
+  font-size: 14px;
+  color: var(--body);
+}
+.site-nav a:hover,
+.cart-link:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cart-link {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--body);
+}
+main {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 32px 72px;
+}
+.site-footer {
+  border-top: 1px solid var(--line);
+  padding: 26px 32px 40px;
+  font-size: 13px;
+  color: var(--body);
+}
+.site-footer p {
+  margin: 0 0 4px;
+}
+.footer-note a {
+  color: var(--harbor);
+  text-decoration: underline;
+}
+
+/* home */
+.hero {
+  padding: 64px 0 44px;
+  max-width: 62ch;
+}
+.hero h1 {
+  font-size: 42px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+.hero-lede {
+  font-size: 17px;
+  color: var(--body);
+  margin: 14px 0 0;
+}
+.band {
+  padding: 8px 0 20px;
+}
+.band-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--harbor);
+  border-top: 1px solid var(--line);
+  padding: 18px 0 16px;
+}
+.cat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  padding-top: 34px;
+}
+.cat-tile {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 18px;
+}
+.cat-tile:hover {
+  border-color: var(--harbor);
+}
+.cat-tile h3 {
+  font-size: 16px;
+}
+.cat-tile p {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  color: var(--body);
+}
+
+/* product grid */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 16px;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 14px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.card:hover {
+  border-color: var(--harbor);
+}
+.card:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--harbor);
+  outline-offset: 2px;
+}
+.plate {
+  width: 100%;
+}
+.plate svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+.card-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+.card-price {
+  font-family: var(--mono);
+  font-size: 13.5px;
+}
+.card-blurb {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--body);
+  line-height: 1.45;
+}
+.card-dots {
+  display: flex;
+  gap: 5px;
+  margin-top: 2px;
+}
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  display: inline-block;
+}
+
+/* browse */
+.browse-head {
+  padding: 44px 0 22px;
+}
+.browse-head h1 {
+  font-size: 30px;
+  font-weight: 650;
+}
+.count {
+  font-size: 13px;
+  color: var(--body);
+  margin: 10px 0 0;
+  font-family: var(--mono);
+}
+.browse-body {
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  gap: 32px;
+  align-items: start;
+}
+.facets {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  position: sticky;
+  top: 20px;
+}
+.facet-group h3 {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--harbor);
+  font-family: var(--mono);
+  font-weight: 500;
+  margin: 0 0 8px;
+}
+.facet {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13.5px;
+  color: var(--body);
+  padding: 3px 0;
+}
+.facet:hover {
+  color: var(--ink);
+}
+.facet.is-on {
+  color: var(--ink);
+  font-weight: 600;
+}
+.facet.is-on::after {
+  content: "×";
+  color: var(--buoy);
+  margin-left: 6px;
+}
+.facet-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--body);
+}
+.facet-sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.size {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--body);
+  background: var(--card);
+}
+.size:hover {
+  border-color: var(--harbor);
+  color: var(--ink);
+}
+.size.is-on {
+  background: var(--ink);
+  color: var(--card);
+  border-color: var(--ink);
+}
+.empty {
+  color: var(--body);
+  font-size: 14.5px;
+}
+.pager {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  padding: 26px 0 0;
+  font-size: 14px;
+}
+.pager-link {
+  color: var(--harbor);
+}
+.pager-link:hover {
+  text-decoration: underline;
+}
+.pager-status {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--body);
+}
+.page-pad {
+  padding: 64px 0;
+}
+
+@media (max-width: 760px) {
+  .browse-body {
+    grid-template-columns: 1fr;
+  }
+  .facets {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .hero h1 {
+    font-size: 32px;
+  }
+  .site-header {
+    flex-wrap: wrap;
+    padding: 16px 20px;
+  }
+  main {
+    padding: 0 20px 56px;
+  }
+}

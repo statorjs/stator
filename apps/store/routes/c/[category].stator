@@ -1,0 +1,113 @@
+---
+import { CATEGORIES, type CategoryKey, type Product } from '../../lib/catalog-data.ts'
+import {
+  catalogHref,
+  facetOptions,
+  filterProducts,
+  paginate,
+  parseCatalogQuery,
+} from '../../lib/filter.ts'
+import CatalogMachine from '../../machines/catalog.ts'
+import Layout from '../../templates/layout.stator'
+import ProductCard from '../../templates/product-card.stator'
+
+const [catalog] = Stator.reads([CatalogMachine])
+const { params, query } = Stator.request
+
+const isAll = params.category === 'all'
+const category = isAll ? undefined : (params.category as CategoryKey)
+const cat = isAll
+  ? { title: 'All goods', lede: 'The whole chandlery.' }
+  : CATEGORIES[category as CategoryKey]
+const base = `/c/${params.category}`
+const q = parseCatalogQuery(query)
+
+const all = catalog.all as Product[]
+const filtered = cat ? filterProducts(all, category, q) : []
+const page = paginate(filtered, q.page)
+const facets = cat ? facetOptions(all, category, q) : { materials: [], colors: [], sizes: [] }
+const hasFilters = Boolean(q.material || q.color || q.size)
+---
+<Layout>
+  {when(!cat, () => (
+    <section class="page-pad">
+      <h1>No such aisle.</h1>
+      <p><a href="/" class="link">Back to the front of the shop.</a></p>
+    </section>
+  ))}
+
+  {when(!!cat, () => (
+    <div class="browse">
+      <header class="browse-head">
+        <p class="eyebrow">{cat.title.toUpperCase()}</p>
+        <h1>{cat.lede}</h1>
+        <p class="count">
+          {page.total} {page.total === 1 ? 'item' : 'items'}
+          {hasFilters ? ' · filtered' : ''}
+          {hasFilters ? ' — ' : ''}
+          {when(hasFilters, () => <a href={base} class="link">clear filters</a>)}
+        </p>
+      </header>
+
+      <div class="browse-body">
+        <aside class="facets">
+          <div class="facet-group">
+            <h3>Material</h3>
+            {each(facets.materials, (o) => (
+              <a
+                class={q.material === o.value ? 'facet is-on' : 'facet'}
+                href={catalogHref(base, q, { material: q.material === o.value ? null : o.value })}
+              >
+                {o.label} <span class="facet-count">{o.count}</span>
+              </a>
+            ))}
+          </div>
+          <div class="facet-group">
+            <h3>Color</h3>
+            {each(facets.colors, (o) => (
+              <a
+                class={q.color === o.value ? 'facet is-on' : 'facet'}
+                href={catalogHref(base, q, { color: q.color === o.value ? null : o.value })}
+              >
+                {o.label} <span class="facet-count">{o.count}</span>
+              </a>
+            ))}
+          </div>
+          <div class="facet-group">
+            <h3>Size</h3>
+            <div class="facet-sizes">
+              {each(facets.sizes, (o) => (
+                <a
+                  class={q.size === o.value ? 'size is-on' : 'size'}
+                  href={catalogHref(base, q, { size: q.size === o.value ? null : o.value })}
+                >
+                  {o.label}
+                </a>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        <section class="results">
+          {when(page.total === 0, () => (
+            <p class="empty">Nothing matches that combination. <a href={base} class="link">Clear the filters</a> and try again.</p>
+          ))}
+          <div class="grid">
+            {each(page.items, (p) => <ProductCard product={p} />)}
+          </div>
+          {when(page.pages > 1, () => (
+            <nav class="pager">
+              {when(page.page > 1, () => (
+                <a class="pager-link" href={catalogHref(base, q, { page: page.page - 1 })}>← Previous</a>
+              ))}
+              <span class="pager-status">Page {page.page} of {page.pages}</span>
+              {when(page.page < page.pages, () => (
+                <a class="pager-link" href={catalogHref(base, q, { page: page.page + 1 })}>Next →</a>
+              ))}
+            </nav>
+          ))}
+        </section>
+      </div>
+    </div>
+  ))}
+</Layout>

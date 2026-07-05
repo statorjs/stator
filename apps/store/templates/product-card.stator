@@ -1,0 +1,20 @@
+---
+import { formatPrice, type Product } from '../lib/catalog-data.ts'
+import { COLORWAYS } from '../lib/colorways.ts'
+import Plate from './plate.stator'
+
+const { product } = Stator.props<{ product: Product }>()
+---
+<a href={`/p/${product.slug}`} class="card">
+  <Plate silhouette={product.silhouette} colorway={product.colorways[0]!} />
+  <div class="card-row">
+    <h3 class="card-name">{product.name}</h3>
+    <span class="card-price">{formatPrice(product.price)}</span>
+  </div>
+  <p class="card-blurb">{product.blurb}</p>
+  <div class="card-dots">
+    {each(product.colorways, (c) => (
+      <span class="dot" style={`background:${COLORWAYS[c].swatch}`} title={COLORWAYS[c].label}></span>
+    ))}
+  </div>
+</a>

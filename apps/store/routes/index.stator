@@ -1,0 +1,34 @@
+---
+import { CATEGORIES } from '../lib/catalog-data.ts'
+import CatalogMachine from '../machines/catalog.ts'
+import Layout from '../templates/layout.stator'
+import ProductCard from '../templates/product-card.stator'
+
+const [catalog] = Stator.reads([CatalogMachine])
+---
+<Layout>
+  <section class="hero">
+    <p class="eyebrow">HARBOR-GRADE FOOTWEAR</p>
+    <h1>Canvas, cork, and nothing to hide.</h1>
+    <p class="hero-lede">
+      Shoes built like harbor gear: stitched so they can be resoled, described
+      down to the percent. Every pair ships with its ledger.
+    </p>
+  </section>
+
+  <section class="band">
+    <h2 class="band-title">The standing four</h2>
+    <div class="grid">
+      {each(read(catalog, (c) => c.featured), (p) => <ProductCard product={p} />)}
+    </div>
+  </section>
+
+  <section class="cat-tiles">
+    {each(Object.entries(CATEGORIES), ([key, c]) => (
+      <a class="cat-tile" href={`/c/${key}`}>
+        <h3>{c.title}</h3>
+        <p>{c.lede}</p>
+      </a>
+    ))}
+  </section>
+</Layout>
