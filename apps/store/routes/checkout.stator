@@ -24,11 +24,19 @@ const [cart] = Stator.reads([CartMachine])
           </p>
           <div class="panel-actions">
             <a class="link" href="/cart">Edit the manifest</a>
-            <button class="btn-primary" type="button" on:click={() => cart.send({ type: 'BEGIN_CHECKOUT' })}>
+            <button
+              class="btn-primary"
+              type="button"
+              disabled={read(cart, (c) => c.count === 0)}
+              on:click={() => cart.send({ type: 'BEGIN_CHECKOUT' })}
+            >
               Begin checkout
             </button>
           </div>
-          <p class="panel-hint">The button is guarded: with an empty manifest, nothing happens.</p>
+          <p class="panel-hint">
+            The button's disabled state is a live server binding — the same
+            truth the machine's guard enforces.
+          </p>
         </div>
       ),
       contact: () => (

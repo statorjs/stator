@@ -27,7 +27,10 @@ export function applyPatches(patches: Patch[]): void {
     if (element) {
       if (patch.op === 'text') element.textContent = patch.value
       else if (patch.op === 'html') element.innerHTML = patch.value
-      else if (patch.op === 'attr') element.setAttribute(patch.name, patch.value)
+      else if (patch.op === 'attr') {
+        if (patch.value === null) element.removeAttribute(patch.name)
+        else element.setAttribute(patch.name, patch.value)
+      }
       // Keyed-list ops address element children by index, sequentially: each
       // op sees the DOM as left by the previous one (see wire/index.ts).
       else if (patch.op === 'insert') {

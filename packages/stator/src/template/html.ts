@@ -149,7 +149,15 @@ function handleRead(
       attrName: pos.attrName,
       parentId: pos.elementId,
     })
-    builder.pushRaw(escapeAttribute(stringifyValue(r.value)))
+    // Boolean semantics: false/null/undefined mean the attribute is ABSENT
+    // (`disabled={read(...)}` must be able to un-disable), true means
+    // present-and-empty. Everything else stringifies as before. The patch
+    // side mirrors this: see recompute's attrWireValue.
+    if (r.value === false || r.value === null || r.value === undefined) {
+      builder.omitCurrentAttribute()
+    } else if (r.value !== true) {
+      builder.pushRaw(escapeAttribute(stringifyValue(r.value)))
+    }
     return
   }
   throw new Error(`stator: read() result cannot be interpolated at ${pos.kind} position`)

@@ -68,7 +68,7 @@ export function recompute(
             target: { kind: 'element', id: binding.parentId },
             op: 'attr',
             name: binding.attrName,
-            value: stringify(newValue),
+            value: attrWireValue(newValue),
           },
           sourceSlot: slotId,
         })
@@ -275,4 +275,13 @@ export function initialSyncPatches(state: RenderState, runtime: SessionRuntime):
     patches.push(...recompute(state, machineName, runtime))
   }
   return patches
+}
+
+/** Attr-binding wire semantics, mirroring the render side: false/null/
+ *  undefined → null (attribute removed), true → '' (present, empty),
+ *  anything else stringified. */
+function attrWireValue(v: unknown): string | null {
+  if (v === false || v === null || v === undefined) return null
+  if (v === true) return ''
+  return stringify(v)
 }

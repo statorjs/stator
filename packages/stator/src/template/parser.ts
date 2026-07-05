@@ -48,6 +48,13 @@ export class HtmlBuilder {
   // interpolation time to enforce the one-source-per-attribute rule.
   private attrValueLiteralHasText = false
 
+  // Chunk index where the current attribute's first name character sits —
+  // the start of the splice range for whole-attribute omission (boolean
+  // attributes bound to a falsy read). Null outside attr parsing.
+  private attrStartIdx: number | null = null
+  // Set by omitCurrentAttribute(); consumed at the closing quote.
+  private omitPending = false
+
   constructor(private readonly state: RenderState) {}
 
   pushStatic(s: string): void {
@@ -106,7 +113,25 @@ export class HtmlBuilder {
     const id = this.ensureCurrentElementId()
     this.chunks.splice(this.tagOpenInsertIdx, 0, ` ${name}="${escapeAttribute(value)}"`)
     this.tagOpenInsertIdx += 1
+    if (this.attrStartIdx !== null) this.attrStartIdx += 1
     return id
+  }
+
+  /**
+   * Drop the attribute currently being parsed from the output — the whole
+   * `name="value"` span — once its closing quote arrives. This is how a
+   * boolean attribute bound to a falsy read() renders as ABSENT: by the time
+   * the value is known, `name="` is already in the chunk stream, so omission
+   * is a retroactive splice.
+   */
+  omitCurrentAttribute(): void {
+    if (
+      (this.mode !== 'attr_value_dq' && this.mode !== 'attr_value_sq') ||
+      this.attrStartIdx === null
+    ) {
+      throw new Error('stator: omitCurrentAttribute called outside an attribute value')
+    }
+    this.omitPending = true
   }
 
   /**
@@ -121,6 +146,7 @@ export class HtmlBuilder {
       this.currentElementId = allocElementId(this.state)
       this.chunks.splice(this.tagOpenInsertIdx, 0, ` data-stator-id="${this.currentElementId}"`)
       this.tagOpenInsertIdx += 1
+      if (this.attrStartIdx !== null) this.attrStartIdx += 1
     }
     return this.currentElementId
   }
@@ -220,9 +246,14 @@ export class HtmlBuilder {
         return
 
       case 'attr_value_dq':
+        if (c === '"' && this.omitPending) {
+          this.spliceOutCurrentAttribute()
+          return
+        }
         this.chunks.push(c)
         if (c === '"') {
           this.attrNameBuf = ''
+          this.attrStartIdx = null
           this.mode = 'in_tag'
         } else if (!isWhitespace(c)) {
           this.attrValueLiteralHasText = true
@@ -230,9 +261,14 @@ export class HtmlBuilder {
         return
 
       case 'attr_value_sq':
+        if (c === "'" && this.omitPending) {
+          this.spliceOutCurrentAttribute()
+          return
+        }
         this.chunks.push(c)
         if (c === "'") {
           this.attrNameBuf = ''
+          this.attrStartIdx = null
           this.mode = 'in_tag'
         } else if (!isWhitespace(c)) {
           this.attrValueLiteralHasText = true
@@ -252,6 +288,7 @@ export class HtmlBuilder {
       this.tagOpenInsertIdx = null
       this.currentElementId = null
       this.attrNameBuf = ''
+      this.attrStartIdx = null
       this.mode = 'text'
       return
     }
@@ -261,11 +298,23 @@ export class HtmlBuilder {
     }
     if (isAlpha(c) || c === '_' || c === ':' || c === '@') {
       this.attrNameBuf = c
+      this.attrStartIdx = this.chunks.length
       this.chunks.push(c)
       this.mode = 'attr_name'
       return
     }
     this.chunks.push(c)
+  }
+
+  /** Remove chunks from the current attribute's start through now, plus the
+   *  preceding whitespace separator if present. */
+  private spliceOutCurrentAttribute(): void {
+    const start = this.attrStartIdx!
+    this.chunks.splice(start, this.chunks.length - start)
+    this.omitPending = false
+    this.attrNameBuf = ''
+    this.attrStartIdx = null
+    this.mode = 'in_tag'
   }
 }
 

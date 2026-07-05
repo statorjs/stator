@@ -32,7 +32,9 @@ export type PatchTarget = SlotTarget | ElementTarget
 export type Patch =
   | { target: SlotTarget; op: 'text'; value: string }
   | { target: SlotTarget; op: 'html'; value: string }
-  | { target: ElementTarget; op: 'attr'; name: string; value: string }
+  /** `value: null` removes the attribute — boolean attributes (disabled,
+   *  checked, open, …) toggle by presence, so the wire must express absence. */
+  | { target: ElementTarget; op: 'attr'; name: string; value: string | null }
   | { target: SlotTarget; op: 'insert'; index: number; value: string }
   | { target: SlotTarget; op: 'remove'; index: number }
   | { target: SlotTarget; op: 'move'; from: number; to: number }

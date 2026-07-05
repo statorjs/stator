@@ -74,7 +74,7 @@ A patch is a discriminated record with two orthogonal dimensions:
 type Patch =
   | { target: { kind: "slot"; id: string };    op: "text"; value: string }
   | { target: { kind: "slot"; id: string };    op: "html"; value: string }
-  | { target: { kind: "element"; id: string }; op: "attr"; name: string; value: string }
+  | { target: { kind: "element"; id: string }; op: "attr"; name: string; value: string | null }
   | { target: { kind: "slot"; id: string };    op: "insert"; index: number; value: string }
   | { target: { kind: "slot"; id: string };    op: "remove"; index: number }
   | { target: { kind: "slot"; id: string };    op: "move"; from: number; to: number }
@@ -84,7 +84,7 @@ Semantics:
 
 - **`text` on slot** — replace the slot element's `textContent`.
 - **`html` on slot** — replace the slot element's `innerHTML`. Used for unkeyed `each` list re-renders and `when`/`match` branch swaps. The new HTML may itself contain slot markers + element ids; those become the new live targets after application.
-- **`attr` on element** — `setAttribute(name, value)` on the element. To unset an attribute, omit it from the value or pass empty string (current convention; see "Reserved ops" for the future explicit unset).
+- **`attr` on element** — `setAttribute(name, value)` on the element; **`value: null` removes the attribute** (`removeAttribute`). Null-removal is how boolean attributes (`disabled`, `checked`, `open`, `inert`, …) toggle by presence: server-side, an attr binding whose read() yields `false`/`null`/`undefined` renders the attribute absent and patches `null`; `true` renders present-and-empty (`disabled=""`) and patches `''`. Caveat: `checked`/`value`/`selected` as *attributes* set defaults only — a user-dirtied form control ignores them (that's `bind:`/form territory, per doctrine).
 - **`insert` / `remove` / `move` on slot** — keyed-list ops, emitted by `each(items, fn, { key })`. They address the slot element's **element children by index** and apply **sequentially**: each op's indices refer to the DOM state after every preceding op in the batch (the server emits them from a replay simulation, so a batch is deterministic). `insert` parses `value` and inserts it before the child at `index` (append when `index` equals the child count); `remove` deletes the child at `index`; `move` detaches the child at `from` and re-inserts it so it lands at `to`. Because addressing is by element-child index, a keyed item must render exactly one root element — the server enforces this at render.
 
 Keyed lists exist to preserve identity: a retained row is *never* re-rendered by these ops (focus, selection, and CSS transitions survive reorders). Content inside retained rows updates through the rows' own nested slot bindings, whose slot ids are derived from the item's **key**, not its position (`s0:k<token>:s1`), so they stay addressable wherever the row moves.
@@ -95,7 +95,6 @@ The wire shape must allow these without rev-bumping. Server emitters that don't 
 
 | Op | Target | Purpose |
 |---|---|---|
-| `attr-remove` | element | Explicit attribute removal (currently overloaded into `attr` with empty value) |
 | `attr-add` | element | Per-class / per-style toggles for finer-grained class:list updates |
 | `prop` | element | IDL property writes that don't have an attribute equivalent (e.g. `input.value` once it's been user-edited) |
 

@@ -11,7 +11,7 @@ export const GET = defineRoute({
   render: ({ PingMachine: ping }: any) => html`
     <html>
       <body>
-        <p>sent: ${read(ping, (p: { sent: number }) => p.sent)}</p>
+        <p>sent: ${read(ping, (p) => p.sent)}</p>
       </body>
     </html>
   `,
