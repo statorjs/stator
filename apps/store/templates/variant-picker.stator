@@ -161,19 +161,34 @@
     color: var(--harbor);
     margin-bottom: 8px;
   }
-  .vp-swatches, .vp-sizes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .vp-swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+  .vp-sizes { display: flex; flex-wrap: wrap; gap: 6px; }
   .vp-swatch {
-    width: 26px; height: 26px; border-radius: 50%;
-    border: 1px solid rgba(0, 0, 0, 0.2);
-    cursor: pointer; padding: 0;
+    width: 32px; height: 32px; border-radius: 50%;
+    border: none; padding: 0; cursor: pointer;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+    transition: transform 0.12s ease;
   }
-  .vp-swatch.is-on { outline: 2px solid var(--harbor); outline-offset: 2px; }
+  .vp-swatch:hover { transform: scale(1.1); }
+  .vp-swatch:focus-visible { outline: 2px solid var(--harbor); outline-offset: 2px; }
+  .vp-swatch.is-on {
+    box-shadow:
+      inset 0 0 0 1px rgba(0, 0, 0, 0.12),
+      0 0 0 2px var(--card),
+      0 0 0 4px var(--harbor);
+  }
   .vp-size {
     font: inherit;
     font-family: var(--mono); font-size: 12.5px;
-    padding: 5px 10px; cursor: pointer;
-    border: 1px solid var(--line); border-radius: 4px;
-    background: var(--card); color: var(--body);
+    min-width: 40px; padding: 8px 0; text-align: center;
+    border: none; border-radius: 4px; cursor: pointer;
+    background: var(--canvas); color: var(--body);
   }
-  .vp-size.is-on { background: var(--ink); color: var(--card); border-color: var(--ink); }
+  .vp-size:hover:not(.is-on) { background: var(--line); color: var(--ink); }
+  .vp-size:focus-visible { outline: 2px solid var(--harbor); outline-offset: 1px; }
+  .vp-size.is-on { background: var(--ink); color: var(--card); }
+  @media (prefers-reduced-motion: reduce) {
+    .vp-swatch { transition: none; }
+    .vp-swatch:hover { transform: none; }
+  }
 </style>
