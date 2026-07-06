@@ -356,6 +356,18 @@ reviewed before cutting 1.0.0.)
   server-rendered sections (each() over a prop at shell-render time) and the
   class hydrates by querying — two-phase templates; supersedes imperative
   option-building when it lands.
+- **The hydrate pattern was ALREADY SHIPPING (Tony's 1.x question →
+  discovery):** island templates already accept server-evaluated expressions
+  — props-driven maps with nested JSX lower to nested html``, full component
+  renders pass as props, even read() flows into the shell (live light-DOM
+  bindings inside islands). We had documented it as impossible. Pinned as
+  1.0 contract with compiler tests; one real bug fixed en route (fragment
+  ARRAYS interpolated as [object Object] — html`` now splices arrays
+  recursively, making bare .map() the static-list idiom alongside each()).
+  The picker is refactored to the pattern: options and plate server-rendered
+  from props, buildOptions imperative DOM deleted, class hydrates by query.
+  Guide and compiler comments corrected. "Islands are leaves" stands, but
+  the leaves turned out to be much greener than documented.
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.
