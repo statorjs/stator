@@ -325,6 +325,21 @@ reviewed before cutting 1.0.0.)
   audit trail for logic and display alike. TS note: SelectorMap needed the
   method-syntax bivariance hack for the helpers param. Docs pass owed:
   machines guide + reference must cover (ctx, {reads}) selectors.
+- **Pre-1.0 coherence pass (2026-07-06, from the retrospective; islands
+  stance = embrace-leaves, fix-set = all three, per recommendation after
+  Tony went AFK):** (1) `dispatch()` now returns `{ok, committed,
+  patchCount}` and the POST envelope carries `committed` — breaking-if-later,
+  trivial-now; the picker's button label follows `committed` (no more lying).
+  (2) 6d shipped: declared island attrs are observed → `${key}Changed(next)`
+  coerced callbacks — AND island props accept `read()`, becoming live attr
+  bindings (clientShellAttrs registers them). Together these are THE
+  composition channel for leaves: the PDP now passes a live stock map into
+  the picker; the MutationObserver reach-out is deleted (reach-out count
+  back to one: badge visibility toggling, display-only). (3) The recompute
+  model is written down (.chisel/docs/recompute-model.md) — four rules, each
+  annotated with the shipped bug it prevents. Docs: islands-are-leaves
+  doctrine + channels in the client-components guide; WIRE.md envelope +
+  initial-sync documented; stale 3b caution removed.
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.

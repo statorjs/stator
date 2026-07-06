@@ -211,7 +211,7 @@ export class MachineStore {
           throw new Error(
             `stator: app-lifecycle source "${sub.from.name}" cannot deliver to ` +
               `session-lifecycle target "${def.name}" yet — app→session needs the ` +
-              `inbox model (see docs/design-notes/app-to-session-subscriptions.md). ` +
+              `inbox model (see .chisel/specs/active/app-to-session-subscriptions-via-inbox.md). ` +
               `Use session→app or same-lifecycle subscriptions for now.`,
           )
         }

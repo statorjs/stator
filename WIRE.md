@@ -133,8 +133,14 @@ Element ids are flat sequential identifiers (`e0`, `e1`, …) allocated on deman
 Routes declared `live: true` open `GET /__sse?route=<route-key>`. The framing
 is standard event-stream `data:` lines; each frame's payload is the same
 envelope a POST response carries — `{ patches: [...] }` (and optionally
-`directives`). Patches are diffed per connection against that connection's own
-binding baseline, so successive pushes are deltas, not resets. Comment frames
+`directives`; POST responses additionally carry `committed: boolean`, whether
+the event transitioned any machine — a guard-dropped event is HTTP 200 with
+`committed: false`). Patches are diffed per connection against that
+connection's own binding baseline, so successive pushes are deltas, not
+resets. On connect, the server first pushes an **initial sync** — every
+binding's current value (keyed lists as one wholesale `html` reset) — so a
+page that missed changes between render and connect converges; clients apply
+it like any other frame. Comment frames
 (`: open`, `: keep-alive`) hold the connection through proxies; clients ignore
 them per the SSE spec.
 

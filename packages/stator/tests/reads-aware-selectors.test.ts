@@ -103,7 +103,7 @@ describe('reads-aware selectors', () => {
     const out = runInRender(
       state,
       () =>
-        html`<button disabled="${read(basket, (b) => (b as { atCeiling: (s: string) => boolean }).atCeiling('widget'))}">+</button>`,
+        html`<button disabled="${read(basket, (b) => (b as unknown as { atCeiling: (s: string) => boolean }).atCeiling('widget'))}">+</button>`,
     )
     expect(out.html).toContain('disabled=""') // 2 of 2 at render
 

@@ -59,4 +59,9 @@ export type Directive =
 export interface WireEnvelope {
   patches?: Patch[]
   directives?: Directive[]
+  /** POST /__events only: whether the event committed a transition (any
+   *  machine touched). Distinguishes a guard-dropped event (HTTP 200, zero
+   *  patches, committed: false) from a committed one that happened to patch
+   *  nothing on this page. */
+  committed?: boolean
 }

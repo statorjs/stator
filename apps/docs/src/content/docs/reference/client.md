@@ -74,10 +74,11 @@ The one client binding mechanism — the client mirror of the server's recompute
 ## dispatch
 
 ```ts
-function dispatch<D extends MachineDef>(machine: D, event: EventOf<D>): Promise<boolean>
+function dispatch<D extends MachineDef>(machine: D, event: EventOf<D>): Promise<DispatchResult>
+// DispatchResult: { ok: boolean; committed: boolean; patchCount: number }
 ```
 
-The one visible boundary crossing from an island: commits an event to a **server** machine by POSTing `{ machine: machine.name, event }` to `/__events`, then applies the returned patches and directives to the DOM. Addressed by the imported machine def, not a magic string — the compiler turns a server-machine import into a `{ name }` stub, and the event type-checks against that machine's event union. Resolves `true` on success; a network or HTTP failure is logged to the console and resolves `false`.
+The one visible boundary crossing from an island: commits an event to a **server** machine by POSTing `{ machine: machine.name, event }` to `/__events`, then applies the returned patches and directives to the DOM. Addressed by the imported machine def, not a magic string — the compiler turns a server-machine import into a `{ name }` stub, and the event type-checks against that machine's event union. The result separates three facts: `ok` (the POST reached the server), `committed` (the event actually transitioned a machine — a guard-dropped event is `ok && !committed`), and `patchCount` (patches applied to *this* page; a committed event may patch zero slots here if the touched machines aren't bound on the current route). Buttons that announce success should look at `committed`. Network/HTTP failures log to the console and resolve `{ ok: false, committed: false, patchCount: 0 }`.
 
 ## Lower-level exports
 

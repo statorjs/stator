@@ -17,6 +17,7 @@ const variants = found
   ? p.colorways.flatMap((c) => p.sizes.map((sz) => ({ sku: skuOf(p.slug, c, sz) })))
   : []
 const defaultSku = found ? skuOf(p.slug, p.colorways[0]!, p.sizes[0]!) : ''
+const skus = variants.map((v) => v.sku)
 ---
 <Layout cart={cart}>
   {when(!found, () => (
@@ -31,6 +32,7 @@ const defaultSku = found ? skuOf(p.slug, p.colorways[0]!, p.sizes[0]!) : ''
       <div class="pdp-visual">
         <VariantPicker
           slug={p.slug}
+          stock={read(inventory, (i) => JSON.stringify(Object.fromEntries(skus.map((sku) => [sku, i.stock[sku] ?? 0]))))}
           silhouette={p.silhouette}
           colorways={p.colorways.join(',')}
           sizes={p.sizes.join(',')}
@@ -51,7 +53,6 @@ const defaultSku = found ? skuOf(p.slug, p.colorways[0]!, p.sizes[0]!) : ''
               <span
                 class={v.sku === defaultSku ? 'stock-badge is-shown' : 'stock-badge'}
                 data-sku={v.sku}
-                data-stock={read(inventory, (i) => String(i.stock[v.sku] ?? 0))}
               >
                 {read(inventory, (i) => stockLabel(i.stock[v.sku]))}
               </span>

@@ -37,6 +37,7 @@
   export class VariantPicker extends StatorElement {
     static attrs = {
       slug: String,
+      stock: String, // live JSON map sku→qty, server-bound (see the PDP route)
       silhouette: String,
       colorways: String, // csv
       sizes: String, // csv
@@ -55,14 +56,20 @@
       if (stage) stage.innerHTML = plateSvg(this.attr('silhouette') as Product['silhouette'])
       this.buildOptions()
       this.track(effect([this.sel], () => this.reflect()))
-      // The badges are server-owned truth, patched over the live channel —
-      // watch them so the Add button reacts when stock moves while the
-      // shopper is looking (someone else buys the last pair: button dies).
-      const badges = document.querySelector('[data-stock-badges]')
-      if (badges) {
-        const observer = new MutationObserver(() => this.reflect())
-        observer.observe(badges, { subtree: true, attributes: true, attributeFilter: ['data-stock'] })
-        this.track(() => observer.disconnect())
+    }
+
+    /** Live server state arriving through the declared-attr channel: the
+     *  `stock` attr is a server binding; every patch lands here. */
+    stockChanged() {
+      this.reflect()
+    }
+
+    stockFor(sku: string): number {
+      try {
+        const map = JSON.parse(this.attr('stock') ?? '{}') as Record<string, number>
+        return map[sku] ?? -1
+      } catch {
+        return -1
       }
     }
 
@@ -96,10 +103,16 @@
     async add() {
       const sku = `${this.attr('slug')}--${this.sel.color}--${this.sel.size}`
       const btn = this.refs.addbtn
-      const ok = await dispatch(CartMachine, { type: 'ADD', sku })
+      const result = await dispatch(CartMachine, { type: 'ADD', sku })
       if (btn) {
-        btn.textContent = ok ? 'Added ✓' : 'Something slipped — try again'
-        setTimeout(() => { btn.textContent = 'Add to cart' }, 1400)
+        // Three different facts: transport, commit, patches. The label
+        // follows COMMIT — a guard-dropped add must not claim success.
+        btn.textContent = result.committed
+          ? 'Added ✓'
+          : result.ok
+            ? 'No more in stock'
+            : 'Something slipped — try again'
+        setTimeout(() => this.reflect(), 1400)
       }
     }
 
@@ -109,11 +122,9 @@
      *  is the one deliberate reach-out, per the badge-split decision. */
     reflect() {
       const sku = `${this.attr('slug')}--${this.sel.color}--${this.sel.size}`
-      let stock = -1
+      const stock = this.stockFor(sku)
       for (const b of document.querySelectorAll('[data-stock-badges] .stock-badge')) {
-        const match = (b as HTMLElement).dataset.sku === sku
-        b.classList.toggle('is-shown', match)
-        if (match) stock = Number((b as HTMLElement).dataset.stock ?? '-1')
+        b.classList.toggle('is-shown', (b as HTMLElement).dataset.sku === sku)
       }
       // Same verdict the server guard will reach — projected onto the button
       // so it can't lie. (stock === -1 means no badge data; stay enabled and

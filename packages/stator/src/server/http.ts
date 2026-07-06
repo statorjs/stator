@@ -304,7 +304,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         // normal event path in server/effects.ts.
         scheduleSessionEffects(runtime, config.store, sessionId)
 
-        return c.json({ patches, directives: [] })
+        return c.json({ patches, directives: [], committed: touched.size > 0 })
       } finally {
         runtime.dispose()
       }

@@ -8,6 +8,11 @@ function camelToKebab(name: string): string {
   return name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
 }
 
+/** kebab DOM attribute → camelCase author name (`unit-price` → `unitPrice`). */
+function kebabToCamel(name: string): string {
+  return name.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())
+}
+
 /**
  * Base class for a client island. The author writes
  * `export class QuantityStepper extends StatorElement { ... }`; the compiler
@@ -108,6 +113,9 @@ export class StatorElement extends HTMLElement {
  * The compiler emits `defineElement(QuantityStepper, 'quantity-stepper')`.
  */
 export function defineElement(UserClass: typeof StatorElement, tag: string): void {
+  const decl = (UserClass as unknown as { attrs?: Record<string, (raw: string) => unknown> }).attrs
+  const observed = decl ? Object.keys(decl).map(camelToKebab) : []
+
   const Wrapped = class extends UserClass {
     constructor() {
       const bucket = pushCollector()
@@ -117,6 +125,31 @@ export function defineElement(UserClass: typeof StatorElement, tag: string): voi
         popCollector()
       }
       this[ACTORS] = bucket
+    }
+
+    /** Declared attrs are observed; a change invokes the author's
+     *  `${key}Changed(next)` method (coerced per the attrs declaration).
+     *  This is how live server state flows INTO an island: bind an attr on
+     *  the island's tag to a read(), implement `${key}Changed`. */
+    static get observedAttributes(): string[] {
+      return observed
+    }
+
+    attributeChangedCallback(name: string, oldRaw: string | null, newRaw: string | null): void {
+      if (oldRaw === newRaw || !this.isConnected) return
+      const key = kebabToCamel(name)
+      const handler = (this as unknown as Record<string, unknown>)[`${key}Changed`]
+      if (typeof handler !== 'function') return
+      const coerce = decl?.[key]
+      const value =
+        coerce === (Boolean as unknown)
+          ? newRaw !== null
+          : newRaw === null
+            ? undefined
+            : coerce
+              ? coerce(newRaw)
+              : newRaw
+      ;(handler as (v: unknown) => void).call(this, value)
     }
   }
   if (!customElements.get(tag)) customElements.define(tag, Wrapped)

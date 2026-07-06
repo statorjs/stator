@@ -26,8 +26,9 @@ describe('client dispatch (island → server wire)', () => {
       }),
     )
 
-    const ok = await dispatch(Cart, { type: 'ADD', productId: 'p1' } as never)
-    expect(ok).toBe(true)
+    const result = await dispatch(Cart, { type: 'ADD', productId: 'p1' } as never)
+    expect(result.ok).toBe(true)
+    expect(result.committed).toBe(true)
 
     const [url, init] = spy.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe('/__events')
@@ -58,7 +59,10 @@ describe('client dispatch (island → server wire)', () => {
     stubFetch(async () => new Response('nope', { status: 500 }))
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
-      expect(await dispatch(Cart, { type: 'ADD' } as never)).toBe(false)
+      expect(await dispatch(Cart, { type: 'ADD' } as never)).toMatchObject({
+        ok: false,
+        committed: false,
+      })
     } finally {
       errSpy.mockRestore()
     }
@@ -70,7 +74,10 @@ describe('client dispatch (island → server wire)', () => {
     })
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
-      expect(await dispatch(Cart, { type: 'ADD' } as never)).toBe(false)
+      expect(await dispatch(Cart, { type: 'ADD' } as never)).toMatchObject({
+        ok: false,
+        committed: false,
+      })
     } finally {
       errSpy.mockRestore()
     }

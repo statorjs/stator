@@ -61,14 +61,47 @@ Elements marked [`ref:name`](/guides/directives/#ref--element-handles) are reach
 
 Actors start on `connectedCallback` and stop on disconnect. `bind:` directives and `effect()` subscribe to state and write the DOM natively — no client re-render.
 
+## Islands are leaves
+
+An island's markup is its own template — server-rendered content does not
+flow *through* it, and that's a deliberate v1 boundary (like early Astro
+shipping without SSR: a known edge, owned). Three sanctioned channels cover
+composition with the server:
+
+1. **Live attrs in.** Pass a `read()` as an island prop and the attribute
+   becomes a live server binding. Declared attrs are observed: implement
+   `${key}Changed(next)` and every patch lands there, coerced per your
+   `static attrs` declaration.
+
+   ```astro
+   <stock-badge stock={read(inventory, (i) => String(i.stock[sku]))} />
+   ```
+
+   ```js
+   static attrs = { stock: Number }
+   stockChanged(next) { this.render(next) }
+   ```
+
+2. **`dispatch` out.** The one visible boundary crossing (below).
+
+3. **Observing server-owned DOM.** For regions the server keeps fresh
+   *outside* the island, plain platform tools (`querySelector`,
+   `MutationObserver`) are legitimate — islands are custom elements.
+   Prefer channel 1 when the data can arrive as an attr.
+
+Variable-length UI inside an island (a per-product option row) is built
+imperatively on connect — the template is static per component.
+
 ## Committing to the server
 
 To change *server* state from an island, dispatch to a server machine:
 
 ```js
-dispatch(CartMachine, { type: 'ADD_ITEM', productId: id })
+const result = await dispatch(CartMachine, { type: 'ADD_ITEM', productId: id })
 ```
 
-:::caution[Phase 3b]
-Client `dispatch` over `/__events` is partly behind the in-progress client plane. Client islands using only portable client machines work today; dispatch-to-server is still being finished. See [Dispatching events](/guides/dispatching-events/).
-:::
+`dispatch` resolves `{ ok, committed, patchCount }` — three different facts.
+`ok` is transport; **`committed`** is whether the event actually transitioned
+a machine (a guard-dropped event is `ok && !committed`); `patchCount` is how
+many patches landed on *this* page. Buttons that announce success should look
+at `committed`.
