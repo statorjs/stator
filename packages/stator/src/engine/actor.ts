@@ -18,6 +18,10 @@ export interface Actor<C, E extends EventObject> {
    *  the element's connect). No-op after start. */
   seed(partial: Partial<C>): void
   getSnapshot(): Snapshot<C>
+  /** Monotonic count of HANDLED events (a matching transition fired or an
+   *  `@set` applied). Guard-dropped and unhandled events don't count — this
+   *  is how the server distinguishes "committed" from "silently dropped". */
+  getCommitCount(): number
   subscribe(listener: (snapshot: Snapshot<C>) => void): { unsubscribe(): void }
   /** Listen for a declared emit. Returns a remover. Used by cross-machine
    *  subscription wiring. */
@@ -93,6 +97,8 @@ export function createActor<C extends object, E extends EventObject, S extends s
 
   const helpers = (): ActionHelpers => opts.resolveHelpers?.() ?? throwingHelpers(def.name)
 
+  let commits = 0
+
   const snapshot = (): Snapshot<C> => ({ value: [...value], context })
 
   const notify = (): void => {
@@ -124,6 +130,7 @@ export function createActor<C extends object, E extends EventObject, S extends s
       if ((event as { type: string }).type === '@set') {
         const e = event as unknown as { key: string; value: unknown }
         context = { ...context, [e.key]: e.value }
+        commits += 1
         notify()
         return
       }
@@ -155,6 +162,8 @@ export function createActor<C extends object, E extends EventObject, S extends s
         }
       }
       if (!config) return
+
+      commits += 1 // a transition matched and fired — the event was HANDLED
 
       if (config.do) {
         const draft = structuredClone(context) as C
@@ -214,6 +223,7 @@ export function createActor<C extends object, E extends EventObject, S extends s
 
     getSnapshot: snapshot,
     getPersistedSnapshot: snapshot,
+    getCommitCount: () => commits,
 
     subscribe(listener) {
       subscribers.add(listener)

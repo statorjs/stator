@@ -64,7 +64,7 @@ describe('island live attrs', () => {
     const state = createRenderState('live-attrs', 'GET /p')
     const attrs = runInRender(state, () =>
       clientShellAttrs(
-        { stock: read(inv, (i) => String((i as { qty: number }).qty)) },
+        { stock: read(inv, (i) => String((i as unknown as { qty: number }).qty)) },
         { stock: 'string' },
       ),
     )

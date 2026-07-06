@@ -152,10 +152,11 @@ export class SessionRuntime {
                   `subscription cycle? Last hops:\n  ${this.cascadeTrail.slice(-6).join('\n  ')}`,
               )
             }
+            const before = targetHandle.actor.getCommitCount()
             targetHandle.actor.send(
               buildDispatchEvent(emitted, sub.dispatch, crossLifecycle ? sid : undefined) as never,
             )
-            recordTouch(targetName)
+            if (targetHandle.actor.getCommitCount() !== before) recordTouch(targetName)
           } finally {
             this.cascadeDepth -= 1
             this.cascadeTrail.pop()
@@ -198,9 +199,13 @@ export class SessionRuntime {
       runtime: this,
       touched: new Set<string>([machineName]),
     }
+    const before = handle.actor.getCommitCount()
     withDispatchContext(ctx, () => {
       handle.actor.send(event as never)
     })
+    // A guard-dropped / unhandled event committed nothing: it must not count
+    // as touched (no persist, no fan-out, and `committed: false` on the wire).
+    if (handle.actor.getCommitCount() === before) ctx.touched.delete(machineName)
     return ctx.touched
   }
 

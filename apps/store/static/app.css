@@ -391,7 +391,7 @@ a:focus-visible {
   color: var(--canvas);
   cursor: pointer;
 }
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background: var(--harbor);
   border-color: var(--harbor);
 }
@@ -470,8 +470,12 @@ a:focus-visible {
   cursor: pointer;
   line-height: 1;
 }
-.qty-btn:hover {
+.qty-btn:hover:not(:disabled) {
   border-color: var(--harbor);
+}
+.qty-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 .qty-num {
   font-family: var(--mono);

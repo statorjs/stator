@@ -97,3 +97,30 @@ describe('session cookie flags', () => {
     expect(second.headers.get('set-cookie')).toBeNull()
   })
 })
+
+describe('committed reflects actual transitions', () => {
+  it('a guard-dropped / unhandled event reports committed: false, zero patches', async () => {
+    const app = await boot()
+    const page = await app.fetch(new Request('http://localhost/submitter'))
+    const cookie = page.headers.get('set-cookie')!.split(';')[0]!
+    const post = (event: object) =>
+      app.fetch(
+        new Request('http://localhost/__events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Stator-Route': 'GET /submitter',
+            Cookie: cookie,
+          },
+          body: JSON.stringify({ machine: 'SubmitterMachine', event }),
+        }),
+      )
+    // An event no state handles: HTTP 200, but nothing committed.
+    const dropped = (await (await post({ type: 'NO_SUCH_EVENT' })).json()) as {
+      committed: boolean
+      patches: unknown[]
+    }
+    expect(dropped.committed).toBe(false)
+    expect(dropped.patches).toEqual([])
+  })
+})

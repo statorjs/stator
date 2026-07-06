@@ -37,9 +37,11 @@ export async function dispatchToApp<D extends AnyMachineDef>(
   // session machine throws (correct — there is no session here).
   const runtime = new SessionRuntime(`@app-dispatch:${name}`, store)
   try {
+    const before = handle.actor.getCommitCount()
     withDispatchContext({ runtime, touched }, () => {
       handle.actor.send(event as never)
     })
+    if (handle.actor.getCommitCount() === before) touched.delete(name)
     for (const touchedName of touched) {
       await store.persistAppMachine(touchedName)
     }
