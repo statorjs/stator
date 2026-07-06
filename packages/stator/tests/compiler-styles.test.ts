@@ -53,3 +53,21 @@ describe('compiler: scopeCss (attribute scoping)', () => {
     expect(out).toContain(`.btn${A}`)
   })
 })
+
+describe('client-component descendant scoping', () => {
+  it('scopes selectors as descendants of the root; root tag gets the attr itself', () => {
+    const css = `
+      variant-picker { display: block; }
+      .swatch { width: 32px; }
+      .swatch.is-on:hover { outline: none; }
+      :global(body) .row { gap: 4px; }
+    `
+    const out = scopeCss(css, 'h1', { strategy: 'descendant', rootTag: 'variant-picker' })
+    expect(out).toContain('variant-picker[data-s-h1]')
+    expect(out).toContain('[data-s-h1] .swatch')
+    expect(out).toContain('[data-s-h1] .swatch.is-on:hover')
+    // :global escapes scoping entirely
+    expect(out).toContain('body .row')
+    expect(out).not.toContain('[data-s-h1] body')
+  })
+})

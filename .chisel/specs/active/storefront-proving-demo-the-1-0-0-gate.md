@@ -340,6 +340,22 @@ reviewed before cutting 1.0.0.)
   annotated with the shipped bug it prevents. Docs: islands-are-leaves
   doctrine + channels in the client-components guide; WIRE.md envelope +
   initial-sync documented; stale 3b caution removed.
+- **Island scoped-CSS bug (Tony: "class names present, no styles"):**
+  runtime-created island DOM (the imperative option rows) never matched
+  scoped styles — per-element attr scoping can't reach nodes the class
+  creates. The picker's swatches were UNSTYLED DEFAULT BUTTONS all along
+  (the "Windows 3.1" look). Structural fix, not a band-aid: client
+  components now scope by DESCENDANT of their root (`[data-s-h] .swatch`;
+  root-tag selectors get the attr on the compound; `:global` anywhere =
+  author owns the selector) — every node in the island subtree matches,
+  template-rendered or runtime-created, zero author burden. Inner template
+  elements no longer need stamping (smaller HTML). Trade-offs documented:
+  nested-island leakage (rare), body-appended portals unmatched (a future
+  `this.scopeAttr` escape hatch). **Tony's Astro-honed pattern captured as
+  the 1.x leaf-model evolution:** island templates gain PROPS-DRIVEN
+  server-rendered sections (each() over a prop at shell-render time) and the
+  class hydrates by querying — two-phase templates; supersedes imperative
+  option-building when it lands.
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.

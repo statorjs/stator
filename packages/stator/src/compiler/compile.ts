@@ -166,14 +166,19 @@ function compileClient(
     customElements: new Set(),
     refs: new Set(),
   }
+  // Client components scope styles by DESCENDANT of the root (the class may
+  // create DOM at runtime — per-element attrs could never reach it), so the
+  // inner template needs no per-element stamping: only the root carries the
+  // scope attribute.
   const innerExpr = lowerTemplate(root.inner, {
-    scopeAttr: ctx.scopeAttr,
     file: ctx.file,
     meta,
     client: { useFields: new Set(cls.useFields.keys()), directives },
   })
 
-  const css = ctx.styles.length ? scopeCss(ctx.styles.join('\n'), ctx.hash) : ''
+  const css = ctx.styles.length
+    ? scopeCss(ctx.styles.join('\n'), ctx.hash, { strategy: 'descendant', rootTag: root.tag })
+    : ''
 
   // Server shell module: <tag {attrs}{scope}>{inner}</tag>.
   const attrDecl = `{ ${[...cls.staticAttrs].map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(', ')} }`

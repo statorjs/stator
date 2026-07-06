@@ -16,7 +16,21 @@ import selectorParser from 'postcss-selector-parser'
  * Pure function — the Vite plugin calls it, then Vite's own CSS pipeline handles
  * url()/nesting/minify on the result.
  */
-export function scopeCss(css: string, hash: string): string {
+export interface ScopeCssOptions {
+  /**
+   * Client components scope by DESCENDANT of their custom-element root
+   * (`[data-s-h] .swatch`) instead of per-element attributes — an island has
+   * exactly one root carrying the attr, and its class may create DOM at
+   * runtime that per-element stamping could never reach. Selectors whose
+   * first compound is the root tag itself get the attr on that compound
+   * (`variant-picker[data-s-h] …`).
+   */
+  strategy?: 'per-element' | 'descendant'
+  /** The custom-element tag, required for 'descendant'. */
+  rootTag?: string
+}
+
+export function scopeCss(css: string, hash: string, opts: ScopeCssOptions = {}): string {
   const attr = `data-s-${hash}`
   const root = postcss.parse(css)
 
@@ -58,10 +72,68 @@ export function scopeCss(css: string, hash: string): string {
     if (parent && parent.type === 'atrule' && /keyframes$/i.test((parent as postcss.AtRule).name)) {
       return
     }
-    rule.selector = scopeSelectorList(rule.selector, attr)
+    rule.selector =
+      opts.strategy === 'descendant'
+        ? scopeSelectorListDescendant(rule.selector, attr, opts.rootTag ?? '')
+        : scopeSelectorList(rule.selector, attr)
   })
 
   return root.toString()
+}
+
+function scopeSelectorListDescendant(selector: string, attr: string, rootTag: string): string {
+  const transform = selectorParser((selectors) => {
+    selectors.each((sel) => {
+      // Descendant mode: `:global` anywhere means the author owns the whole
+      // selector — unwrap it and scope nothing. (Per-element mode has finer
+      // subject rules; descendant prefixing would mangle global ancestors.)
+      let hasGlobal = false
+      sel.walkPseudos((pseudo) => {
+        if (pseudo.value === ':global') {
+          hasGlobal = true
+          const inner = pseudo.nodes[0]
+          if (inner && inner.nodes.length > 0) {
+            pseudo.replaceWith(...inner.nodes.map((n) => n.clone()))
+          } else {
+            pseudo.remove()
+          }
+        }
+      })
+      if (hasGlobal) return
+
+      const attrNode = selectorParser.attribute({
+        attribute: attr,
+        value: undefined,
+        raws: {},
+        quoteMark: null,
+      } as never)
+
+      // Root-targeting selector (`variant-picker`, `variant-picker:hover`):
+      // the attr belongs ON the root compound, not on an ancestor.
+      const first = sel.nodes[0]
+      if (first && first.type === 'tag' && first.value === rootTag) {
+        // insert after the first compound's last simple selector
+        let insertAfter: selectorParser.Node = first
+        for (const node of sel.nodes.slice(1)) {
+          if (node.type === 'combinator') break
+          if (node.type === 'pseudo' && node.value.startsWith('::')) break
+          insertAfter = node
+        }
+        sel.insertAfter(insertAfter as never, attrNode)
+        return
+      }
+
+      // Everything else: descendant of the scoped root.
+      const combinator = selectorParser.combinator({ value: ' ' } as never)
+      if (sel.nodes[0]) {
+        sel.insertBefore(sel.nodes[0] as never, combinator)
+        sel.insertBefore(sel.nodes[0] as never, attrNode)
+      } else {
+        sel.append(attrNode)
+      }
+    })
+  })
+  return transform.processSync(selector)
 }
 
 function scopeSelectorList(selector: string, attr: string): string {
