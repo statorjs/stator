@@ -89,8 +89,28 @@ composition with the server:
    `MutationObserver`) are legitimate — islands are custom elements.
    Prefer channel 1 when the data can arrive as an attr.
 
-Variable-length UI inside an island (a per-product option row) is built
-imperatively on connect — the template is static per component.
+4. **Server-rendered sections (the hydrate pattern).** Island templates may
+   contain server-evaluated expressions — props-driven maps with nested JSX,
+   even a full component render passed as a prop. The shell renders them per
+   use; the class hydrates by querying:
+
+   ```astro
+   <div class="opts" ref:opts>
+     {props.options.map((o) => <button class="opt" data-id={o.id}>{o.label}</button>)}
+   </div>
+   ```
+
+   ```js
+   connectedCallback() {
+     super.connectedCallback()
+     for (const b of this.querySelectorAll('.opt')) {
+       b.addEventListener('click', () => this.pick(b.dataset.id))
+     }
+   }
+   ```
+
+   Note: `on:`/`bind:` directives don't reach inside these server sections —
+   wiring happens in the class, which is the point of the pattern.
 
 ## Committing to the server
 

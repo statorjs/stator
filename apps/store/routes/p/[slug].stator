@@ -2,10 +2,12 @@
 // @stator live
 import { CATEGORIES, formatPrice, MATERIALS, type Product, skuOf } from '../../lib/catalog-data.ts'
 import { stockLabel } from '../../lib/stock.ts'
+import { COLORWAYS } from '../../lib/colorways.ts'
 import CartMachine from '../../machines/cart.ts'
 import CatalogMachine from '../../machines/catalog.ts'
 import InventoryMachine from '../../machines/inventory.ts'
 import Layout from '../../templates/layout.stator'
+import Plate from '../../templates/plate.stator'
 import VariantPicker from '../../templates/variant-picker.stator'
 
 const [catalog, cart, inventory] = Stator.reads([CatalogMachine, CartMachine, InventoryMachine])
@@ -33,10 +35,11 @@ const skus = variants.map((v) => v.sku)
         <VariantPicker
           slug={p.slug}
           stock={read(inventory, (i) => JSON.stringify(Object.fromEntries(skus.map((sku) => [sku, i.stock[sku] ?? 0]))))}
-          silhouette={p.silhouette}
-          colorways={p.colorways.join(',')}
-          sizes={p.sizes.join(',')}
+          plate={<Plate silhouette={p.silhouette} colorway={p.colorways[0]!} />}
+          colorways={p.colorways.map((c) => ({ value: c, label: COLORWAYS[c].label, swatch: COLORWAYS[c].swatch }))}
+          sizes={p.sizes}
           initialColor={p.colorways[0]!}
+          initialColorLabel={COLORWAYS[p.colorways[0]!].label}
           initialSize={p.sizes[0]!}
         />
       </div>

@@ -71,3 +71,48 @@ describe('compiler: client component end-to-end (3b stage 6a)', () => {
     expect(out.textContent).toBe('98')
   })
 })
+
+describe('server-rendered sections in island templates (the hydrate pattern)', () => {
+  // Pinned as CONTRACT: island templates may contain server-evaluated
+  // expressions — props-driven maps with nested JSX, even read() bindings.
+  // The shell renders them per use; the class hydrates by querying.
+  it('props-driven map with nested JSX lowers to nested html`` in the shell', () => {
+    const src = `<opt-list>
+  <div class="opts">{props.items.map((i) => <button class="opt" data-id={i}></button>)}</div>
+</opt-list>
+<script>
+  export class OptList extends StatorElement {}
+</script>`
+    const r = compile(src, { id: 'opt-list.stator', kind: 'component' })
+    expect(r.serverCode).toContain(
+      'props.items.map((i) => html`<button class="opt" data-id="${i}"></button>`)',
+    )
+  })
+
+  it('read() in an island template flows into the shell (live light-DOM binding)', () => {
+    const src = `<live-note>
+  <span class="n">{read(props.machine, (m) => m.count)}</span>
+</live-note>
+<script>
+  export class LiveNote extends StatorElement {}
+</script>`
+    const r = compile(src, { id: 'live-note.stator', kind: 'component' })
+    expect(r.serverCode).toContain('${read(props.machine, (m) => m.count)}')
+  })
+})
+
+describe('fragment arrays splice in html``', () => {
+  it('a mapped list of fragments renders each item (not [object Object])', async () => {
+    const { html } = await import('../src/template/html.ts')
+    const { createRenderState, runInRender } = await import('../src/server/render-context.ts')
+    const state = createRenderState('splice', 'GET /probe')
+    const out = runInRender(state, () => {
+      const items = ['a', 'b']
+      return html`<div class="opts">${items.map((i) => html`<button data-id="${i}">x</button>`)}</div>`
+    })
+    expect(out.html).toMatch(
+      /<button[^>]*data-id="a">x<\/button><button[^>]*data-id="b">x<\/button>/,
+    )
+    expect(out.html).not.toContain('object Object')
+  })
+})

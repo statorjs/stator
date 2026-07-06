@@ -67,6 +67,14 @@ function processValue(builder: HtmlBuilder, state: RenderState, value: unknown):
     return
   }
 
+  // Arrays splice recursively: `{items.map((i) => <li>…</li>)}` is the
+  // static-list idiom (each() remains the REACTIVE list primitive). Mixed
+  // arrays are fine — fragments splice, scalars escape.
+  if (Array.isArray(value) && pos.kind === 'text') {
+    for (const item of value) processValue(builder, state, item)
+    return
+  }
+
   if (isEachResult(value)) {
     if (pos.kind !== 'text') {
       throw new Error('stator: cannot inline an each() result outside text position')

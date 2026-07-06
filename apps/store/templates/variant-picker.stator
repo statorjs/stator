@@ -1,12 +1,29 @@
 <variant-picker>
-  <div class="vp-stage" ref:stage></div>
+  <div class="vp-stage" ref:stage>{props.plate}</div>
   <div class="vp-row">
     <span class="vp-caption">Color · <span bind:text={sel.colorLabel}></span></span>
-    <div class="vp-swatches" ref:swatches></div>
+    <div class="vp-swatches" ref:swatches>
+      {props.colorways.map((c) => (
+        <button
+          type="button"
+          class="vp-swatch"
+          data-color={c.value}
+          data-label={c.label}
+          title={c.label}
+          style={`background:${c.swatch}`}
+        ></button>
+      ))}
+    </div>
   </div>
   <div class="vp-row">
     <span class="vp-caption">Size · <span bind:text={sel.sizeLabel}></span></span>
-    <div class="vp-sizes" ref:sizes></div>
+    <div class="vp-sizes" ref:sizes>
+      {props.sizes.map((sz) => (
+        <button type="button" class="vp-size" data-size={sz}>
+          {sz === 'one-size' ? 'One size' : sz}
+        </button>
+      ))}
+    </div>
   </div>
   <div class="vp-row">
     <button class="btn-primary vp-add" type="button" ref:addbtn on:click={add}>Add to cart</button>
@@ -14,22 +31,24 @@
 </variant-picker>
 
 <script>
-  import type { Product } from '../lib/catalog-data.ts'
-  import { colorwayOf, plateStyleOf } from '../lib/colorways.ts'
-  import { plateSvg } from '../lib/plates.ts'
+  import { plateStyleOf } from '../lib/colorways.ts'
   import CartMachine from '../machines/cart.ts'
 
   // Which variant is the shopper looking at — ephemeral, client-owned.
-  // (What's in stock stays server-owned; see the spec's badge-split decision.)
+  // The option buttons and the plate are SERVER-RENDERED from props (the
+  // hydrate pattern): this class only wires and reflects.
   const Sel = machine({
     color: '',
+    colorLabel: '',
     size: '',
     on: {
-      PICK_COLOR: (s, ev) => { s.color = String(ev.color) },
+      PICK_COLOR: (s, ev) => {
+        s.color = String(ev.color)
+        s.colorLabel = String(ev.label)
+      },
       PICK_SIZE: (s, ev) => { s.size = String(ev.size) },
     },
     select: {
-      colorLabel: (s) => colorwayOf(s.color)?.label ?? s.color,
       sizeLabel: (s) => (s.size === 'one-size' ? 'One size' : `EU ${s.size}`),
     },
   })
@@ -38,23 +57,20 @@
     static attrs = {
       slug: String,
       stock: String, // live JSON map sku→qty, server-bound (see the PDP route)
-      silhouette: String,
-      colorways: String, // csv
-      sizes: String, // csv
       initialColor: String,
+      initialColorLabel: String,
       initialSize: String,
     }
 
     sel = use(Sel, () => ({
       color: this.attr('initial-color') ?? '',
+      colorLabel: this.attr('initial-color-label') ?? '',
       size: this.attr('initial-size') ?? '',
     }))
 
     connectedCallback() {
       super.connectedCallback()
-      const stage = this.refs.stage
-      if (stage) stage.innerHTML = plateSvg(this.attr('silhouette') as Product['silhouette'])
-      this.buildOptions()
+      this.hydrateOptions()
       this.track(effect([this.sel], () => this.reflect()))
     }
 
@@ -62,6 +78,21 @@
      *  `stock` attr is a server binding; every patch lands here. */
     stockChanged() {
       this.reflect()
+    }
+
+    /** The options are already in the DOM (server-rendered from props) —
+     *  hydration is just listeners. */
+    hydrateOptions() {
+      for (const b of this.querySelectorAll('.vp-swatch')) {
+        const el = b as HTMLElement
+        el.addEventListener('click', () =>
+          this.sel.send({ type: 'PICK_COLOR', color: el.dataset.color, label: el.dataset.label }),
+        )
+      }
+      for (const b of this.querySelectorAll('.vp-size')) {
+        const el = b as HTMLElement
+        el.addEventListener('click', () => this.sel.send({ type: 'PICK_SIZE', size: el.dataset.size }))
+      }
     }
 
     stockFor(sku: string): number {
@@ -73,33 +104,8 @@
       }
     }
 
-    /** The option lists vary per product (attrs), and island templates are
-     *  static — so the buttons are built here, on connect. */
-    buildOptions() {
-      for (const color of (this.attr('colorways') ?? '').split(',')) {
-        const b = document.createElement('button')
-        b.type = 'button'
-        b.className = 'vp-swatch'
-        b.dataset.color = color
-        b.title = colorwayOf(color)?.label ?? color
-        b.style.background = colorwayOf(color)?.swatch ?? '#ccc'
-        b.addEventListener('click', () => this.sel.send({ type: 'PICK_COLOR', color }))
-        this.refs.swatches?.append(b)
-      }
-      for (const size of (this.attr('sizes') ?? '').split(',')) {
-        const b = document.createElement('button')
-        b.type = 'button'
-        b.className = 'vp-size'
-        b.dataset.size = size
-        b.textContent = size === 'one-size' ? 'One size' : size
-        b.addEventListener('click', () => this.sel.send({ type: 'PICK_SIZE', size }))
-        this.refs.sizes?.append(b)
-      }
-    }
-
     /** Commit the chosen variant to the SERVER cart — the one visible
-     *  boundary crossing in this island. The header count updates from the
-     *  returned patches; no client cart state exists. */
+     *  boundary crossing in this island. */
     async add() {
       const sku = `${this.attr('slug')}--${this.sel.color}--${this.sel.size}`
       const btn = this.refs.addbtn
@@ -117,31 +123,26 @@
     }
 
     /** State → DOM: recolor the plate via CSS variables, mark selections,
-     *  and reveal the matching server-rendered stock badge. The badges live
-     *  OUTSIDE this island (server-owned truth, kept fresh over SSE) — this
-     *  is the one deliberate reach-out, per the badge-split decision. */
+     *  reveal the matching badge, follow the stock verdict. */
     reflect() {
       const sku = `${this.attr('slug')}--${this.sel.color}--${this.sel.size}`
       const stock = this.stockFor(sku)
+      const stage = this.refs.stage
+      if (stage) stage.style.cssText = plateStyleOf(this.sel.color as string)
       for (const b of document.querySelectorAll('[data-stock-badges] .stock-badge')) {
         b.classList.toggle('is-shown', (b as HTMLElement).dataset.sku === sku)
       }
-      // Same verdict the server guard will reach — projected onto the button
-      // so it can't lie. (stock === -1 means no badge data; stay enabled and
-      // let the guard decide.)
-      const btn = this.refs.addbtn as HTMLButtonElement | null
-      if (btn) {
-        const out = stock === 0
-        btn.disabled = out
-        btn.textContent = out ? 'Out of stock' : 'Add to cart'
-      }
-      const stage = this.refs.stage
-      if (stage) stage.style.cssText = plateStyleOf(this.sel.color as string)
       for (const b of this.querySelectorAll('.vp-swatch')) {
         b.classList.toggle('is-on', (b as HTMLElement).dataset.color === this.sel.color)
       }
       for (const b of this.querySelectorAll('.vp-size')) {
         b.classList.toggle('is-on', (b as HTMLElement).dataset.size === this.sel.size)
+      }
+      const btn = this.refs.addbtn as HTMLButtonElement | null
+      if (btn) {
+        const out = stock === 0
+        btn.disabled = out
+        btn.textContent = out ? 'Out of stock' : 'Add to cart'
       }
     }
   }
@@ -150,7 +151,7 @@
 <style>
   variant-picker { display: block; }
   .vp-stage { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
-  .vp-stage svg { display: block; width: 100%; height: auto; }
+  .vp-stage svg, .vp-stage .plate svg { display: block; width: 100%; height: auto; }
   .vp-row { margin-top: 14px; }
   .vp-caption {
     display: block;
@@ -187,6 +188,7 @@
   .vp-size:hover:not(.is-on) { background: var(--line); color: var(--ink); }
   .vp-size:focus-visible { outline: 2px solid var(--harbor); outline-offset: 1px; }
   .vp-size.is-on { background: var(--ink); color: var(--card); }
+  .vp-add { width: 100%; }
   @media (prefers-reduced-motion: reduce) {
     .vp-swatch { transition: none; }
     .vp-swatch:hover { transform: none; }

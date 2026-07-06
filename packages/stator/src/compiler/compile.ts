@@ -157,7 +157,9 @@ function compileClient(
   }
 
   // Lower the inner shell in client mode: collect bind:/on:, strip them, inject
-  // markers. (Client templates have no read() — server state isn't in scope.)
+  // markers. Plain expressions (props access, maps with nested JSX, read())
+  // flow through to the SHELL and evaluate server-side per use — the hydrate
+  // pattern; see the client-components guide.
   const directives: ClientDirective[] = []
   const meta: LowerMeta = {
     usesChildren: false,
