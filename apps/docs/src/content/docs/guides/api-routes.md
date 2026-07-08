@@ -33,6 +33,17 @@ Export by method (`GET`, `POST`, …).
 
 `dispatch(Machine, event)` is typed against the machine's event union. The target must be in the route's loaded `reads` graph.
 
+## API routes are command endpoints
+
+In 1.0, an API handler can **dispatch** but not read machine state — there is
+deliberately no `snapshot()` helper. Handlers that need state-dependent
+*responses* (JSON views, redirect-to-created-id) are a 1.x design; the safe
+shape is settled (a read atomic with the dispatch), but a general "read
+anywhere in an async handler" can deadlock against effect completions and
+race shared state, so it will not exist in any version. Today's idioms:
+dispatch + navigate (the machine's guards decide; the page renders whichever
+state is true), or put the data on a page and let `read()` do its job.
+
 ## Return value
 
 Return a response envelope or a raw `Response`:

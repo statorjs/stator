@@ -191,6 +191,40 @@ CLI (b) running store-construction validations for CI. `waitFor`-in-effects
 noted as a 1.x coordination primitive (needs timeout/deadline design; await
 cycles hang silently — not a substitute for the cascade cap).
 
+## GATE REVIEW — 2026-07-08 (the friction log, adjudicated)
+
+22 entries. Verdict: **the gate passes.** No unresolved entry blocks 1.0.
+
+**Resolved during the build (12):** create-stator biome-ignore; imperative
+island options (superseded by the hydrate pattern, now pinned contract);
+SSE stale-baseline; frozen session actors in connections; dispatch
+committed-semantics (+ the touched=committed engine fix); boolean attribute
+bindings; reads-aware selectors; island scoped-CSS descendant strategy;
+buildApp source-tree mirroring; query-string carry; arm-scoped branch slot
+ids; fan-out originator skip. Every one had a regression test when it
+closed.
+
+**Documented idioms (5, all now in docs):** forms-for-values doctrine;
+`when()` 404 idiom + `Stator.response.status` (store now practices it);
+command-endpoint API routes; mutual-machine wiring (importing end owns both
+halves); converging effect completions. Plus the divergence contract and
+islands-are-leaves channels.
+
+**1.x backlog (all with design notes):** dispatch-returns-snapshot for API
+routes; `waitFor`-in-effects (needs deadline design); lazy/name-based
+subscribe; `stator check` CLI; island portals scope escape hatch;
+first-class 404/redirect API; typed `Stator.request` per route; route-gated
+client→app dispatch; LSP Phase 2; Redis fan-out backplane; app→session
+inbox; durable effects.
+
+**Non-blocking content note:** the sandal plate could use one more drawing
+pass.
+
+The API survived a real application, a public deploy, and an adversarial
+edge-case audit without a breaking change to the seven stable subpaths —
+every wire-format change happened pre-publish, which is exactly what the
+0.9 RC line was for. **1.0.0 is cleared.**
+
 ## Friction log
 
 (Running record of every paper cut, workaround, or API wish encountered —

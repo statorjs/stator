@@ -131,3 +131,31 @@ App machines are in-process singletons. Two replicas would each run their own
 copy and drift; the AppStore assumes a single writer. Multi-replica app state
 is a 1.x problem with a designed path (leader/backplane) — don't scale out
 with persisted app machines until it lands.
+
+## Mutual machine relationships
+
+Sometimes two machines relate in both directions: a session cart `reads:` the
+shared inventory (stock-ceiling guards) while inventory `subscribes:` to the
+cart's `orderPlaced`. Declaring each half in its own module would make the two
+files import each other — a cycle the module loader resolves by handing one
+side `undefined` (Stator diagnoses this at boot with a named error).
+
+The pattern: **the importing end owns both halves.** The machine that already
+imports the other attaches the reverse subscription after definition:
+
+```ts
+// cart.ts — already imports inventory for reads:
+const CartMachine = defineMachine({ reads: [InventoryMachine], /* … */ })
+
+InventoryMachine.subscribes.push({
+  from: CartMachine,
+  event: 'orderPlaced',
+  dispatch: 'ORDER_PLACED',
+})
+
+export default CartMachine
+```
+
+The store still validates the emit name at construction, so the wiring stays
+checked. First-class support (lazy refs or name-based subscribe) is a 1.x
+candidate.

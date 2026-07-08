@@ -6,6 +6,56 @@ validates the API without breaking changes**. Subpaths `server`, `machine`,
 `template`, `client`, `dev`, `build`, and `components` are treated as stable
 from 0.9.0; `compiler` and `vite` are internal and may change in minors.
 
+## @statorjs/stator 1.0.0 — 2026-07-08
+
+The proving-demo release: everything the storefront demo
+([demo.statorjs.dev](https://demo.statorjs.dev)) forced the framework to get
+right. The 0.9 API survived a real application without breaking changes;
+these are the hardening fixes and the features it earned along the way.
+
+### New
+
+- **Reads-aware selectors**: selectors receive the same `{ reads }` helpers
+  as actions/guards, so cross-machine verdicts project as display state —
+  and bindings on the reading machine re-diff when a read machine changes.
+- **Boolean attribute bindings**: `disabled={read(…)}` renders absent for
+  falsy, present-and-empty for `true`; attr patches carry `value: null` for
+  removal (wire change, pre-publish).
+- **`dispatch()` returns `{ ok, committed, patchCount }`** — a guard-dropped
+  event is `ok && !committed`; the POST envelope carries `committed`.
+- **Island attribute reactivity**: declared attrs are observed; changes
+  invoke coerced `${key}Changed(next)`. Island props accept `read()` —
+  live server-bound attributes.
+- **The hydrate pattern, pinned**: island templates render server sections
+  from props (maps with nested JSX, component renders as props, `read()`);
+  `html\`\`` splices fragment arrays.
+- **Production inspector**: `createApp({ inspector: true })` serves + injects
+  the wire inspector toolbar.
+- **Emit-cascade guards**: wire-time subscription-cycle warning, runtime
+  depth cap with a named trail, circular-import diagnosis.
+
+### Fixed
+
+- Live views: initial-sync on SSE connect (pages that missed changes
+  mid-navigation converge); fan-out rehydrates session actors from the
+  Store and scopes session touches to the owning session; the dispatching
+  page's own connection is skipped (double-insert fix).
+- Wire contract: route keys carry the page's query string into baseline
+  re-renders; branch arms scope their slot ids (`s2:btrue:s0`) so stale
+  pages skip instead of miswrite; the applier warns on missing targets.
+- `buildApp` mirrors the app's source tree (machines importing `lib/` no
+  longer break production builds).
+- Client components scope CSS by descendant of the root — runtime-created
+  island DOM matches scoped styles.
+- Touched means committed: guard-dropped events no longer persist, fan out,
+  or report `committed: true`.
+
+### Docs
+
+- Testing guide (the inverted pyramid), divergence contract, islands-are-
+  leaves channels, command-endpoint API routes, mutual-machine wiring, 404
+  idiom, converging completions, reads-aware selectors.
+
 ## @statorjs/stator 0.9.0 — 2026-07-04
 
 The "everything since the POC" release: the 1.0 feature surface, complete.

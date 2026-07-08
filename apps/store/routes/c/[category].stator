@@ -22,6 +22,7 @@ const cat = isAll
   : CATEGORIES[category as CategoryKey]
 const base = `/c/${params.category}`
 const q = parseCatalogQuery(query)
+if (!cat) Stator.response.status = 404
 
 const all = catalog.all
 const filtered = cat ? filterProducts(all, category, q) : []

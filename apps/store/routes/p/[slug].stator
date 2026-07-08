@@ -14,6 +14,7 @@ const [catalog, cart, inventory] = Stator.reads([CatalogMachine, CartMachine, In
 const { params } = Stator.request
 
 const found = catalog.bySlug(String(params.slug))
+if (!found) Stator.response.status = 404
 const p = found as Product
 const variants = found
   ? p.colorways.flatMap((c) => p.sizes.map((sz) => ({ sku: skuOf(p.slug, c, sz) })))

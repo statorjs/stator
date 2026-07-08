@@ -78,3 +78,26 @@ Add a pragma to opt the route into [SSE](/guides/realtime-sse/):
 // @stator live
 ---
 ```
+
+## Missing things: the `when()` 404 idiom
+
+Dynamic routes validate their params in the frontmatter and branch — there is
+no first-class 404 API in 1.0:
+
+```astro
+---
+const found = catalog.bySlug(String(params.slug))
+---
+{when(!found, () => (
+  <section>
+    <h1>Never stocked that.</h1>
+    <p><a href="/">Back to the shop.</a></p>
+  </section>
+))}
+{when(!!found, () => (
+  /* the real page */
+))}
+```
+
+Set a real status code where it matters (crawlers): `Stator.response.status = 404`
+in the frontmatter's not-found path.

@@ -80,3 +80,11 @@ are 1.x work.
 Effects work identically on [client islands](/guides/client-components/)
 (the effect runs in the browser, the completion feeds the local actor) and on
 [app machines](/guides/app-machines/).
+
+## Converging completions
+
+Effects are at-most-once but not exactly-once relative to each other — two
+overlapping restock effects may both complete. Design completion handlers to
+**converge**: set the level rather than add to it, use `Math.max`, treat the
+completion as "the world is now X" rather than "apply delta Y". Converging
+handlers make racing effects harmless without any locking.
