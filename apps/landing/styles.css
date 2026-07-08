@@ -1155,11 +1155,16 @@ svg {
 		padding-right: 1rem;
 	}
 
-	/* Mobile header: brand and theme toggle only. The Demo / Source
-     links are accessible via the prominent CTAs mid-page and at the
-     bottom of the page. */
+	/* Mobile header keeps the nav links — Docs especially has no CTA
+     equivalent on the page. The version meta is already hidden and the
+     gutter tightened, so the three short mono labels fit; shrink the
+     gaps and type a touch to be safe on narrow phones. */
+	.nav {
+		gap: 0.7rem;
+	}
 	.nav__link {
-		display: none;
+		font-size: 0.62rem;
+		letter-spacing: 0.08em;
 	}
 
 	/* Hero dimension: hide the trailing dashed line (it's just a few
