@@ -21,6 +21,10 @@ const sseLog = scopedLogger('sse')
 export interface Connection {
   id: string
   sessionId: string
+  /** The browser page-load identity (client-generated). Lets fan-out
+   *  recognize a dispatch's OWN connection: its baseline is advanced but
+   *  nothing is sent — the POST response already delivered those patches. */
+  clientId?: string
   routeKey: string
   route: RouteDefinition
   /** URL-derived state for this specific connection. Stored at connection
@@ -76,13 +80,14 @@ export function activeConnectionCount(): number {
  */
 export async function fanOut(
   touched: ReadonlySet<string>,
-  source?: { sessionId?: string },
+  source?: { sessionId?: string; originClientId?: string },
 ): Promise<void> {
   if (touched.size === 0 || connections.size === 0) return
 
   let pushedCount = 0
   let skippedNoIntersect = 0
   let skippedNoPatches = 0
+  let skippedOriginator = 0
   let failed = 0
 
   // Expand through the reverse-reads graph once per fan-out: machines whose
@@ -129,6 +134,19 @@ export async function fanOut(
       continue
     }
 
+    // The dispatching page's own connection: the POST response already
+    // delivered this diff. The recompute above advanced the baseline (so the
+    // NEXT push diffs correctly); sending would double-apply — and keyed
+    // insert/remove/move ops are not idempotent.
+    if (
+      source?.originClientId !== undefined &&
+      conn.clientId !== undefined &&
+      conn.clientId === source.originClientId
+    ) {
+      skippedOriginator++
+      continue
+    }
+
     try {
       await conn.send(JSON.stringify({ patches }))
       pushedCount++
@@ -149,6 +167,7 @@ export async function fanOut(
       pushed: pushedCount,
       skippedNoIntersect,
       skippedNoPatches,
+      skippedOriginator,
       failed,
     },
     'fan-out',

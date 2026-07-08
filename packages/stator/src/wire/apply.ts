@@ -24,6 +24,16 @@ export function resolveTarget(target: { kind: 'slot' | 'element'; id: string }):
 export function applyPatches(patches: Patch[]): void {
   for (const patch of patches) {
     const element = resolveTarget(patch.target)
+    if (!element) {
+      // A missing target means this DOM diverged from server truth (stale
+      // non-live page, or client code removed server-owned nodes). Skipping
+      // is safe — arm/key-scoped slot ids guarantee a patch can't land on
+      // the wrong content — but the divergence is worth surfacing.
+      console.warn(
+        `stator: patch target ${patch.target.kind} "${patch.target.id}" not in DOM — skipped`,
+      )
+      continue
+    }
     if (element) {
       if (patch.op === 'text') element.textContent = patch.value
       else if (patch.op === 'html') element.innerHTML = patch.value

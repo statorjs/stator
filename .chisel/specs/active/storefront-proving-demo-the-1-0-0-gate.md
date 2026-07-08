@@ -406,6 +406,22 @@ reviewed before cutting 1.0.0.)
   committed ADD → order placed → stock 2→1 → supplier effect → refill to 12
   — on the real Upstash-backed deploy. Remaining: landing/docs links, docs
   pass, friction-log review, 1.0.0.
+- **Edge-case audit (Tony's "conditional content" question) → 3 wire-contract
+  fixes pre-1.0:** (1) **query-string carry** — route keys now include
+  `location.search`, parsed into the baseline render's `request.query`;
+  previously any query-dependent page (facets!) rebuilt its dispatch/SSE
+  baseline unfiltered → wrong diffs. Store never hit it only because facet
+  pages are pure-GET. (2) **arm-scoped branch slot ids** — `s2:btrue:s0`,
+  the keyed-row treatment for when()/match(): two arms never share ids, so
+  a diff for one arm can't miswrite into a stale page showing the other
+  (skip, not misdirect). (3) **originator skip in fan-out** — CONFIRMED by
+  repro: a live page dispatching a keyed insert received the row twice
+  (response + own SSE; invisible before only because text/attr/html are
+  idempotent). Client now sends a per-page-load id on connect + dispatch;
+  fan-out advances the originator's baseline but sends nothing. Plus: the
+  applier warns on missing targets; the divergence contract (non-live =
+  one-tab + no shared reads; never remove server-owned DOM) is documented
+  in rendering-and-patches.
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.

@@ -93,10 +93,22 @@ function matchPath(
 }
 
 /** Parse a route key like "GET /p/abc-123" into method + literal path. */
-function parseRouteKey(routeKey: string): { method: string; path: string } | null {
+function parseRouteKey(
+  routeKey: string,
+): { method: string; path: string; query: Record<string, string | undefined> } | null {
   const space = routeKey.indexOf(' ')
   if (space < 0) return null
-  return { method: routeKey.slice(0, space), path: routeKey.slice(space + 1) }
+  const target = routeKey.slice(space + 1)
+  // The page's ?query travels IN the route key — a baseline re-render for a
+  // query-dependent page (facets, pagination) must see the same request the
+  // GET did, or its diffs describe a page the browser isn't showing.
+  const q = target.indexOf('?')
+  const path = q === -1 ? target : target.slice(0, q)
+  const query: Record<string, string | undefined> = {}
+  if (q !== -1) {
+    for (const [k, v] of new URLSearchParams(target.slice(q + 1))) query[k] = v
+  }
+  return { method: routeKey.slice(0, space), path, query }
 }
 
 export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
@@ -182,10 +194,12 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       return c.text(`route "${routeKey}" is not declared live: true`, 400)
     }
     // The SSE endpoint's own Request becomes the connection's request
-    // object for fan-out renders. params come from the matched literal path.
+    // object for fan-out renders. params come from the matched literal path;
+    // the page's ?query rides in the route key.
     const request = {
       ...buildRouteRequest(c, matched.route.paramNames),
       params: matched.params,
+      query: parsed.query,
     }
 
     const { sessionId } = getOrCreateSessionId(c)
@@ -202,6 +216,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       const { renderState } = renderRoute(route, routeKey, sessionId, runtime, request)
       const conn = registerConnection({
         sessionId,
+        clientId: c.req.query('client'),
         routeKey,
         route,
         request,
@@ -262,6 +277,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     const request = {
       ...buildRouteRequest(c, matched.route.paramNames),
       params: matched.params,
+      query: parsed.query,
     }
 
     let body: z.infer<typeof eventSchema>
@@ -297,7 +313,10 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
         await runtime.persistTouched(touched)
 
-        await fanOut(touched, { sessionId })
+        await fanOut(touched, {
+          sessionId,
+          originClientId: c.req.header('X-Stator-Client'),
+        })
 
         // Fire-and-forget: the effects' I/O runs after this callback returns
         // (the lock is never held across it); completions re-enter via the

@@ -19,6 +19,7 @@
 
 import { applyDirectives, applyPatches } from '../wire/apply.ts'
 import type { WireEnvelope } from '../wire/index.ts'
+import { clientId } from './client-id.ts'
 
 const EVENT_TYPES = ['click', 'submit', 'change', 'input'] as const
 
@@ -45,8 +46,8 @@ function initLiveChannel(): void {
   const meta = document.querySelector('meta[name="stator-live"][content="true"]')
   if (!meta) return
 
-  const routeKey = `GET ${location.pathname}`
-  const url = `/__sse?route=${encodeURIComponent(routeKey)}`
+  const routeKey = `GET ${location.pathname}${location.search}`
+  const url = `/__sse?route=${encodeURIComponent(routeKey)}&client=${encodeURIComponent(clientId)}`
   const sse = new EventSource(url, { withCredentials: true })
 
   let everOpened = false
@@ -150,7 +151,7 @@ async function dispatchEvent(descriptor: {
   machine: string
   event: { type: string }
 }): Promise<void> {
-  const routeKey = `GET ${location.pathname}`
+  const routeKey = `GET ${location.pathname}${location.search}`
 
   emit('stator:event-sent', {
     machine: descriptor.machine,
@@ -168,6 +169,7 @@ async function dispatchEvent(descriptor: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
         'X-Stator-Route': routeKey,
+        'X-Stator-Client': clientId,
       },
       credentials: 'same-origin',
       body: JSON.stringify(descriptor),

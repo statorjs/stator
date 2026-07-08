@@ -1,8 +1,8 @@
 import {
   allocSlotId,
   type ErasedSelector,
+  keyToken,
   popListScope,
-  pushListScope,
   type RenderState,
   registerBinding,
   requireCurrentRenderState,
@@ -34,15 +34,22 @@ export function isBranchResult(v: unknown): v is BranchResult {
  * Render the body for a branch result. Mirrors renderListBody: clears any
  * existing descendant bindings under this slot, pushes a child scope, and
  * runs the renderer. Returns the inner HTML (empty when renderer is null).
+ *
+ * Descendant slot ids are scoped by the ARM (`s2:btrue:s0`,
+ * `s2:bconfirmed:s0`) — the branch analogue of keyed rows' key scoping. Two
+ * arms of one branch never share slot ids, so a patch computed for one arm
+ * can never land inside the other's DOM (the stale-page hazard: a non-live
+ * page showing arm A while the server diffs arm B must skip, not miswrite).
  */
 export function renderBranchBody(
   state: RenderState,
   slotId: SlotId,
+  armKey: unknown,
   renderer: (() => HtmlFragment) | null,
 ): string {
   unregisterBindingsForScope(state, slotId)
   if (!renderer) return ''
-  pushListScope(state, slotId, 0)
+  state.scopeStack.push({ prefix: `${slotId}:b${keyToken(String(armKey))}`, counter: 0 })
   try {
     const fragment = renderer()
     if (!isHtmlFragment(fragment)) {
@@ -81,7 +88,7 @@ export function when<T>(cond: T | ReadResult<T>, fn: () => HtmlFragment): Branch
   const renderFn = (v: unknown): (() => HtmlFragment) | null => (v ? fn : null)
 
   const activeKey = keyFn(value)
-  const innerHtml = renderBranchBody(state, slotId, renderFn(value))
+  const innerHtml = renderBranchBody(state, slotId, activeKey, renderFn(value))
 
   if (machineName && selector) {
     registerBinding(state, {
@@ -137,7 +144,7 @@ export function match<TKey extends string>(
     return fn ?? null
   }
 
-  const innerHtml = renderBranchBody(state, slotId, renderFn(value))
+  const innerHtml = renderBranchBody(state, slotId, keyFn(value), renderFn(value))
 
   if (machineName && selector) {
     registerBinding(state, {

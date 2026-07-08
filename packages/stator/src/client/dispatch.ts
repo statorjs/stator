@@ -1,6 +1,7 @@
 import type { AnyMachineDef, EventOf } from '../engine/index.ts'
 import { applyDirectives, applyPatches } from '../wire/apply.ts'
 import type { WireEnvelope } from '../wire/index.ts'
+import { clientId } from './client-id.ts'
 
 export interface DispatchResult {
   /** The POST reached the server and returned 200. */
@@ -36,7 +37,8 @@ export async function dispatch<D extends AnyMachineDef>(
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        'X-Stator-Route': `GET ${location.pathname}`,
+        'X-Stator-Route': `GET ${location.pathname}${location.search}`,
+        'X-Stator-Client': clientId,
       },
       credentials: 'same-origin',
       body: JSON.stringify({ machine: machine.name, event }),

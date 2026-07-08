@@ -141,7 +141,7 @@ export function recompute(
       const newKey = binding.branchKeyFn(newValue)
       if (!Object.is(newKey, binding.lastBranchKey)) {
         const renderer = binding.branchRenderFn(newValue)
-        const newInner = runInRender(state, () => renderBranchBody(state, slotId, renderer))
+        const newInner = runInRender(state, () => renderBranchBody(state, slotId, newKey, renderer))
         pending.push({
           patch: {
             target: { kind: 'slot', id: slotId },

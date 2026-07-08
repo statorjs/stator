@@ -36,10 +36,11 @@ async function cookieFor(app: StatorApp, path: string): Promise<string> {
 
 /** Open the SSE stream and return an accumulating reader. `close()` aborts
  *  the request (the real browser-disconnect path). */
-async function openSse(app: StatorApp, routeKey: string, cookie: string) {
+async function openSse(app: StatorApp, routeKey: string, cookie: string, clientId?: string) {
   const abort = new AbortController()
+  const client = clientId ? `&client=${encodeURIComponent(clientId)}` : ''
   const res = await app.fetch(
-    new Request(`http://localhost/__sse?route=${encodeURIComponent(routeKey)}`, {
+    new Request(`http://localhost/__sse?route=${encodeURIComponent(routeKey)}${client}`, {
       headers: { Cookie: cookie },
       signal: abort.signal,
     }),
@@ -315,6 +316,82 @@ describe('SSE: session-machine live reads', () => {
       expect(buf).not.toContain('"value":"1"')
     } finally {
       sse.close()
+    }
+  })
+})
+
+describe('double delivery to the dispatching connection', () => {
+  it('a live page dispatching a keyed insert receives the row exactly once', async () => {
+    const app = await boot()
+    const cookie = await cookieFor(app, '/my-list')
+    const clientId = 'tab-under-test'
+    const sse = await openSse(app, `GET /my-list`, cookie, clientId)
+    try {
+      await sse.readUntil((t) => t.includes('"patches"')) // connect sync
+
+      const res = await app.fetch(
+        new Request('http://localhost/__events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Stator-Route': 'GET /my-list',
+            'X-Stator-Client': clientId,
+            Cookie: cookie,
+          },
+          body: JSON.stringify({ machine: 'ListMachine', event: { type: 'ADD', id: 'row1' } }),
+        }),
+      )
+      const body = (await res.json()) as { patches: Array<{ op: string }> }
+      const responseInserts = body.patches.filter((p) => p.op === 'insert').length
+
+      // Give fan-out time to (wrongly) push the same insert over SSE.
+      const buf = await sse.readUntil((t) => t.includes('"op":"insert"'), 800)
+      const sseInserts = (buf.match(/"op":"insert"/g) ?? []).length
+
+      expect(responseInserts).toBe(1)
+      expect(sseInserts).toBe(0) // the response already delivered it
+    } finally {
+      sse.close()
+    }
+  })
+
+  it('other tabs of the same session still receive the insert; originator baseline advances', async () => {
+    const app = await boot()
+    const cookie = await cookieFor(app, '/my-list')
+    const tabA = await openSse(app, 'GET /my-list', cookie, 'tab-a')
+    const tabB = await openSse(app, 'GET /my-list', cookie, 'tab-b')
+    try {
+      await tabA.readUntil((t) => t.includes('"patches"'))
+      await tabB.readUntil((t) => t.includes('"patches"'))
+
+      const post = (id: string) =>
+        app.fetch(
+          new Request('http://localhost/__events', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Stator-Route': 'GET /my-list',
+              'X-Stator-Client': 'tab-a',
+              Cookie: cookie,
+            },
+            body: JSON.stringify({ machine: 'ListMachine', event: { type: 'ADD', id } }),
+          }),
+        )
+      await post('row1')
+      // Tab B (didn't dispatch) must receive the insert.
+      const bufB = await tabB.readUntil((t) => t.includes('"op":"insert"'))
+      expect((bufB.match(/"op":"insert"/g) ?? []).length).toBe(1)
+
+      // Second dispatch: tab A's baseline advanced silently, so the wire
+      // stays consistent — B receives exactly one more insert, A none.
+      await post('row2')
+      const bufB2 = await tabB.readUntil((t) => (t.match(/"op":"insert"/g) ?? []).length >= 2)
+      expect((bufB2.match(/"op":"insert"/g) ?? []).length).toBe(2)
+      const bufA = await tabA.readUntil((t) => t.includes('"op":"insert"'), 500)
+      expect((bufA.match(/"op":"insert"/g) ?? []).length).toBe(0)
+    } finally {
+      tabA.close()
+      tabB.close()
     }
   })
 })
