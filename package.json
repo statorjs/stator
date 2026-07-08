@@ -12,7 +12,7 @@
     "format": "biome format --write .",
     "dev": "pnpm --filter example dev",
     "build": "pnpm --filter stator build",
-    "prepare": "git config core.hooksPath .githooks"
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.2",
