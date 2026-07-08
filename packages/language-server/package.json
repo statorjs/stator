@@ -22,12 +22,14 @@
   },
   "files": [
     "bin",
+    "dist",
     "src"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "esbuild src/index.ts --bundle --platform=node --format=cjs --outfile=dist/server.cjs --external:typescript --external:vscode-css-languageservice"
+    "build": "esbuild src/index.ts --bundle --platform=node --format=cjs --outfile=dist/server.cjs --external:typescript --external:vscode-css-languageservice",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
     "@statorjs/stator": "workspace:*",
