@@ -394,6 +394,18 @@ reviewed before cutting 1.0.0.)
   TTL) + 24h TIDE_RESET reseeding stock/orders. Docker image build is
   ready-for-verification (no docker on this machine); actual Fly/Upstash
   deploy needs Tony's accounts.
+- **DEPLOYED 2026-07-07: Plimsoll is live at demo.statorjs.dev** (decision:
+  the storefront replaces Desksmith as the public demo; Desksmith stays the
+  tutorial companion). Reused the existing statorjs-demo Fly app, Upstash
+  Redis, and cert; root Dockerfile now bakes the store prod build; store
+  start.ts gained CachedStore parity. Redis flushed at switch (stale
+  same-named Desksmith session snapshots) + machine restart for clean app
+  seed. One deploy-only bug: the git-hooks `prepare` script failed in the
+  gitless image — now `|| true`. Verified in production: all pages 200,
+  admin gated, hashed island bundle served, and a FULL live checkout —
+  committed ADD → order placed → stock 2→1 → supplier effect → refill to 12
+  — on the real Upstash-backed deploy. Remaining: landing/docs links, docs
+  pass, friction-log review, 1.0.0.
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.
