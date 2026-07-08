@@ -19,3 +19,4 @@ coverage/
 # to track files under apps/private/ remove this line.
 apps/private/
 dump.rdb
+cf-chain.pem

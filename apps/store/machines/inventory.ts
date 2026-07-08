@@ -1,8 +1,10 @@
 import { defineMachine } from '@statorjs/stator/server'
 import { LOW_WATER, REFILL_LEVEL, RESTOCK_ETA_MS, seedStock } from '../lib/stock.ts'
+import AdminMachine from './admin.ts'
 
 type Events =
   | { type: 'ORDER_PLACED'; items: Array<{ sku: string; qty: number }> }
+  | { type: 'RESTOCK_ORDERED'; sku: string }
   | { type: 'RESTOCK_ARRIVED'; skus: string[] }
 
 /**
@@ -16,7 +18,7 @@ export default defineMachine({
   lifecycle: 'app',
   persist: true,
   events: {} as Events,
-  context: { stock: seedStock() },
+  context: { stock: seedStock(), pending: [] as string[] },
   initial: 'tracking',
   states: {
     tracking: {
@@ -39,10 +41,25 @@ export default defineMachine({
             return { type: 'RESTOCK_ARRIVED', skus: lows }
           },
         },
+        RESTOCK_ORDERED: {
+          // Idempotent while in flight: a second click is guard-dropped.
+          when: (ctx, ev) => !ctx.pending.includes(ev.sku),
+          do: (ctx, ev) => {
+            ctx.pending.push(ev.sku)
+          },
+          // The admin-triggered supplier order: same ETA, same converging
+          // refill as the automatic low-water path.
+          effect: async (_ctx, ev, _meta): Promise<Events | null> => {
+            await new Promise((r) => setTimeout(r, RESTOCK_ETA_MS))
+            return { type: 'RESTOCK_ARRIVED', skus: [ev.sku] }
+          },
+        },
         RESTOCK_ARRIVED: {
           do: (ctx, ev) => {
             for (const sku of ev.skus) {
               ctx.stock[sku] = Math.max(ctx.stock[sku] ?? 0, REFILL_LEVEL)
+              const i = ctx.pending.indexOf(sku)
+              if (i !== -1) ctx.pending.splice(i, 1)
             }
           },
         },
@@ -53,9 +70,12 @@ export default defineMachine({
   // here would need `from: CartMachine` while cart.ts needs `reads:
   // [InventoryMachine]` — a module cycle the loader resolves to undefined
   // (and the store now diagnoses). Mutual machine relationships wire the
-  // second half post-definition at the importing end.
+  // second half post-definition at the importing end. AdminMachine imports
+  // nothing of ours, so ITS subscription declares normally:
+  subscribes: [{ from: AdminMachine, event: 'restockRequested', dispatch: 'RESTOCK_ORDERED' }],
   selectors: {
     stock: (ctx) => ctx.stock,
     lowSkus: (ctx) => Object.keys(ctx.stock).filter((sku) => ctx.stock[sku]! <= LOW_WATER),
+    isPending: (ctx) => (sku: string) => ctx.pending.includes(sku),
   },
 })

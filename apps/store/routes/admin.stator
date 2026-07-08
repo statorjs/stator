@@ -1,0 +1,118 @@
+---
+// @stator live
+import { formatPrice } from '../lib/catalog-data.ts'
+import { productForSku } from '../lib/sku.ts'
+import AdminMachine from '../machines/admin.ts'
+import InventoryMachine from '../machines/inventory.ts'
+import OrdersMachine from '../machines/orders.ts'
+import Layout from '../templates/layout.stator'
+
+const [admin, orders, inventory] = Stator.reads([AdminMachine, OrdersMachine, InventoryMachine])
+
+// Off by default in production deploys; on for the launch-gate validation
+// and local dev. (STORE_ADMIN=1 opts a deploy in.)
+const adminEnabled = process.env.STORE_ADMIN === '1' || process.env.NODE_ENV !== 'production'
+
+const skuLabel = (sku: string): string => {
+  const hit = productForSku(sku)
+  if (!hit) return sku
+  return `${hit.product.name} — ${hit.parts.colorway}/${hit.parts.size}`
+}
+---
+<Layout>
+  {when(!adminEnabled, () => (
+    <section class="page-pad">
+      <h1>Nothing to see here.</h1>
+      <p><a href="/" class="link">Back to the shop.</a></p>
+    </section>
+  ))}
+
+  {when(adminEnabled, () => (
+    <section class="admin">
+      <header class="browse-head">
+        <p class="eyebrow">HARBORMASTER</p>
+        <h1>The back office.</h1>
+        <p class="count">
+          live over SSE — orders and stock update as other sessions shop
+        </p>
+      </header>
+
+      {when(read(admin, (a) => !a.isAdmin), () => (
+        <div class="panel">
+          <p class="panel-lede">
+            Restocking is gated by a session machine's guard — the
+            <a class="link" href="https://statorjs.dev/guides/app-machines/"> gateway pattern</a>.
+            This toggle stands in for real auth in the demo.
+          </p>
+          <div class="panel-actions">
+            <span></span>
+            <button class="btn-primary" type="button" on:click={() => admin.send({ type: 'BECOME_ADMIN' })}>
+              Become the harbormaster (dev toggle)
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {when(read(admin, (a) => a.isAdmin), () => (
+        <div class="admin-grid">
+          <section>
+            <h2 class="band-title">Low stock</h2>
+            <ul class="admin-list">
+              {each(
+                read(inventory, (i) => i.lowSkus.map((sku) => ({ sku }))),
+                (row) => (
+                  <li class="admin-row">
+                    <span class="admin-row-name">{skuLabel(row.sku)}</span>
+                    <span class="mono">
+                      {read(inventory, (i) => `${i.stock[row.sku] ?? 0} left`)}
+                    </span>
+                    <button
+                      class="btn-ghost admin-restock"
+                      type="button"
+                      disabled={read(inventory, (i) => i.isPending(row.sku))}
+                      on:click={() => admin.send({ type: 'REQUEST_RESTOCK', sku: row.sku })}
+                    >
+                      {read(inventory, (i) => (i.isPending(row.sku) ? 'On its way…' : 'Order restock'))}
+                    </button>
+                  </li>
+                ),
+                { key: (row) => row.sku },
+              )}
+            </ul>
+            {when(read(inventory, (i) => i.lowSkus.length === 0), () => (
+              <p class="empty">Nothing below the waterline.</p>
+            ))}
+          </section>
+
+          <section>
+            <h2 class="band-title">
+              Orders · {read(orders, (o) => o.total)}
+            </h2>
+            <ul class="admin-list">
+              {each(
+                read(orders, (o) => o.recent),
+                (order) => (
+                  <li class="admin-row">
+                    <span class="mono">{order.receiptId}</span>
+                    <span class="admin-row-name">{order.summary}</span>
+                    <span class="mono">{formatPrice(order.amountCents)}</span>
+                  </li>
+                ),
+                { key: (order) => order.receiptId },
+              )}
+            </ul>
+            {when(read(orders, (o) => o.total === 0), () => (
+              <p class="empty">No orders yet this tide.</p>
+            ))}
+          </section>
+
+          <p class="panel-hint">
+            <button class="cart-clear" type="button" on:click={() => admin.send({ type: 'LEAVE_ADMIN' })}>
+              Hand back the keys
+            </button>
+          </p>
+        </div>
+      ))}
+    </section>
+  ))}
+</Layout>

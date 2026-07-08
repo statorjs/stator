@@ -368,6 +368,17 @@ reviewed before cutting 1.0.0.)
   from props, buildOptions imperative DOM deleted, class hydrates by query.
   Guide and compiler comments corrected. "Islands are leaves" stands, but
   the leaves turned out to be much greener than documented.
+- **Step 6 (admin) — the gateway pattern proven:** AdminMachine (session)
+  guards REQUEST_RESTOCK on isAdmin and emits restockRequested; inventory
+  subscribes (declared normally — admin imports nothing of ours, no cycle)
+  and RESTOCK_ORDERED runs the supplier effect with a pending-list guard
+  (in-flight restocks are idempotent). Wire-verified: forged restock without
+  the toggle → committed:false; authorized → pending → refill after ETA.
+  The pending button exercises the week's whole pipeline in one interaction:
+  reads selector → boolean disabled binding → attr patch over SSE. Cross-
+  session feed verified: another session's checkout appeared in the admin's
+  live stream as a keyed insert with receipt + summary. /admin is env-
+  gated (STORE_ADMIN=1 or non-production). No new friction.
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.
