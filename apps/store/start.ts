@@ -32,6 +32,8 @@ const app = await createApp({
   routesDir: resolve(dist, 'routes'),
   staticDir: resolve(dist, 'static'),
   headExtras: await loadProductionHead(dist),
+  // The wire IS the demo: the inspector pane shows every patch envelope.
+  inspector: true,
   ...(redisUrl
     ? {
         // Cache-in-front-of-Redis (write-through): cuts Upstash command

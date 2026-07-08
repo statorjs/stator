@@ -127,8 +127,11 @@
     reflect() {
       const sku = `${this.attr('slug')}--${this.sel.color}--${this.sel.size}`
       const stock = this.stockFor(sku)
-      const stage = this.refs.stage
-      if (stage) stage.style.cssText = plateStyleOf(this.sel.color as string)
+      // The server-rendered Plate carries its own inline variables for the
+      // initial colorway — recolor THAT element, not the wrapper, or the
+      // inline style shadows ours.
+      const plate = this.refs.stage?.querySelector('.plate') as HTMLElement | null
+      if (plate) plate.style.cssText = plateStyleOf(this.sel.color as string)
       for (const b of document.querySelectorAll('[data-stock-badges] .stock-badge')) {
         b.classList.toggle('is-shown', (b as HTMLElement).dataset.sku === sku)
       }

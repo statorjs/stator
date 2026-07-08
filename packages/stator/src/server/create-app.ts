@@ -26,6 +26,9 @@ export interface CreateAppConfig {
   /** Extra `<head>` HTML per GET route. A production build uses this to link the
    *  prebuilt `components.css`; ignored if omitted. */
   headExtras?: (filePath: string) => string | Promise<string>
+  /** Serve + inject the wire inspector toolbar (the dev server's on by
+   *  default; production opts in — demo sites want the wire visible). */
+  inspector?: boolean
 }
 
 export interface StatorApp {
@@ -56,7 +59,13 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     routes,
     store,
     staticDir,
-    headExtras: config.headExtras,
+    headExtras: config.inspector
+      ? async (filePath) => {
+          const base = (await config.headExtras?.(filePath)) ?? ''
+          return `${base}\n<script src="/@stator/inspector.js" defer></script>`
+        }
+      : config.headExtras,
+    inspector: config.inspector,
   })
 
   return {
