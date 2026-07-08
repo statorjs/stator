@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadProductionHead } from '@statorjs/stator/build'
 import {
+  CachedStore,
   createApp,
   dispatchToApp,
   logger,
@@ -33,7 +34,12 @@ const app = await createApp({
   headExtras: await loadProductionHead(dist),
   ...(redisUrl
     ? {
-        store: new RedisStore(redisUrl),
+        // Cache-in-front-of-Redis (write-through): cuts Upstash command
+        // counts on chatty sessions without changing durability.
+        store: new CachedStore(new RedisStore(redisUrl), {
+          memoryTtlSeconds: 300,
+          maxEntries: 10_000,
+        }),
         appStore: new RedisAppStore(redisUrl),
         sessionTtlSeconds: 2 * 60 * 60,
       }
