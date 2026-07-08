@@ -5,6 +5,7 @@ import { defineConfig } from 'astro/config'
 // Each group autogenerates from its directory; intra-group order comes from
 // each page's `sidebar.order` frontmatter (which chisel reads/writes too).
 export default defineConfig({
+  site: 'https://docs.statorjs.dev',
   integrations: [
     starlight({
       title: 'Stator',

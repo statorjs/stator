@@ -1,0 +1,17 @@
+# Netlify config for the docs site (docs.statorjs.dev). Base-scoped: the
+# Netlify site's base is `apps/docs`, so this file (not the repo root's
+# landing config) governs its builds. pnpm workspace install runs from the
+# repo root automatically; the command runs here.
+
+[build]
+  publish = "dist"
+  command = "pnpm build"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
