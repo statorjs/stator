@@ -18,6 +18,14 @@ Plain `{expr}` renders once and is auto-escaped. `read(machine, selector)` creat
 
 `read()` is only valid in **text** or as a **whole** attribute value. Mixing literal text with a `read()` in one attribute is a compile error — wrap the whole value in the selector instead.
 
+Attribute bindings understand **boolean semantics**: a selector returning `false`/`null`/`undefined` renders the attribute *absent* (and a change patches it away with `removeAttribute`); `true` renders it present-and-empty. That's how presence-toggled attributes work end to end:
+
+```astro
+<button disabled={read(cart, (c) => c.count === 0)}>Begin checkout</button>
+```
+
+One platform caveat: `checked`, `value`, and `selected` as *attributes* set defaults only — a form control the user has touched ignores them. Live form state is [`bind:`](/guides/forms-and-binding/) territory.
+
 ## Conditionals: when and match
 
 Both are callbacks, not components, so a branch's body isn't evaluated unless it's chosen.

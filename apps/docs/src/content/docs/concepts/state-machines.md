@@ -75,7 +75,20 @@ on: {
 
 ## Selectors
 
-`selectors` are pure derived views over `context`. They're the read surface: templates call `read(machine, sel)` and client components `bind:` against them. A selector that takes an argument returns a function (`contains: (ctx) => (id) => …`). Because selectors are pure functions of context, the same selector runs identically on the server and in a client island — one definition, both sides of the boundary.
+`selectors` are pure derived views over `context`. They're the read surface: templates call `read(machine, sel)` and client components `bind:` against them. A selector that takes an argument returns a function (`contains: (ctx) => (id) => …`).
+
+Selectors receive the same helpers actions and guards get, so a machine that declares `reads:` can **project a cross-machine verdict as display state**:
+
+```ts
+selectors: {
+  atCeiling: (ctx, { reads }) => (sku: string) =>
+    (ctx.lines.find((l) => l.sku === sku)?.qty ?? 0) >= (reads.InventoryMachine.stock[sku] ?? 0),
+}
+```
+
+That's the same rule the ADD guard enforces, projected onto a button: `disabled={read(cart, (c) => c.atCeiling(sku))}`. The framework knows the dependency (it's declared), so bindings on the *reading* machine re-diff when the *read* machine changes — the verdict can't go stale.
+
+Purity is over the machine's **declared dependency graph**, not just its own context. A selector that uses only `ctx` runs identically on the server and in a client island; a reads-aware selector server-pins the machine (see Capabilities), same as reads in actions and guards.
 
 ## Capabilities
 
