@@ -7,7 +7,6 @@ import List from '../machines/list.ts'
 export const GET = defineRoute({
   reads: [List],
   live: true,
-  // biome-ignore lint/suspicious/noExplicitAny: fixture mirrors board.ts
   render: ({ ListMachine: list }: any) => html`
     <html>
       <body>
