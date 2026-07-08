@@ -1,0 +1,23 @@
+# Plimsoll on Fly. ONE machine, always on: SSE fan-out is in-process, so the
+# demo runs a single instance (the Redis backplane is a 1.x feature).
+app = "plimsoll-store"
+primary_region = "ord"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  # STORE_ADMIN = "1"   # uncomment to expose /admin on the public deploy
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = false
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

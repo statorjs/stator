@@ -1,5 +1,5 @@
 import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import { join, relative, resolve } from 'node:path'
+import { join, relative, resolve, sep } from 'node:path'
 import { compile } from '../compiler/index.ts'
 
 /**
@@ -30,7 +30,10 @@ export interface BuildConfig {
   root: string
   /** Output directory. Wiped and recreated. */
   outDir: string
-  /** Subdirectories to copy into dist. Defaults to the four conventional dirs. */
+  /** Subdirectories to copy into dist. Defaults to every top-level directory
+   *  in the app root except node_modules, tests, hidden dirs, and the outDir
+   *  itself — machines and routes import freely from sibling dirs (lib/,
+   *  data/), so dist must mirror the app's source shape. */
   dirs?: string[]
 }
 
@@ -52,10 +55,25 @@ export interface StatorManifest {
   routes: Record<string, string[]>
 }
 
+const NEVER_COPY = new Set(['node_modules', 'tests', 'test', '__tests__'])
+
+/** Every top-level directory that can hold app source. Machines/routes
+ *  import from arbitrary sibling dirs, so dist mirrors the source tree. */
+async function discoverSourceDirs(root: string, outDir: string): Promise<string[]> {
+  const outBase = relative(root, outDir).split(sep)[0]
+  const entries = await readdir(root, { withFileTypes: true })
+  return entries
+    .filter(
+      (e) =>
+        e.isDirectory() && !e.name.startsWith('.') && !NEVER_COPY.has(e.name) && e.name !== outBase,
+    )
+    .map((e) => e.name)
+}
+
 export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   const root = resolve(config.root)
   const outDir = resolve(config.outDir)
-  const dirs = config.dirs ?? ['machines', 'routes', 'templates', 'static']
+  const dirs = config.dirs ?? (await discoverSourceDirs(root, outDir))
 
   await rm(outDir, { recursive: true, force: true })
   await mkdir(outDir, { recursive: true })

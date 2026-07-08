@@ -14,12 +14,9 @@ export default defineMachine({
   name: 'OrdersMachine',
   lifecycle: 'app',
   persist: true,
-  events: {} as {
-    type: 'ORDER_PLACED'
-    receiptId: string
-    amountCents: number
-    summary: string
-  },
+  events: {} as
+    | { type: 'ORDER_PLACED'; receiptId: string; amountCents: number; summary: string }
+    | { type: 'TIDE_RESET' },
   context: { orders: [] as OrderRecord[] },
   initial: 'logging',
   states: {
@@ -34,6 +31,11 @@ export default defineMachine({
               placedAt: Date.now(),
             })
             if (ctx.orders.length > 50) ctx.orders.length = 50
+          },
+        },
+        TIDE_RESET: {
+          do: (ctx) => {
+            ctx.orders.length = 0
           },
         },
       },

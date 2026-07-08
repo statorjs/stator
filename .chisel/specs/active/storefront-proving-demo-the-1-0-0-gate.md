@@ -379,6 +379,21 @@ reviewed before cutting 1.0.0.)
   session feed verified: another session's checkout appeared in the admin's
   live stream as a keyed insert with receipt + summary. /admin is env-
   gated (STORE_ADMIN=1 or non-production). No new friction.
+- **Step 7 (tests + prod + deploy prep):** 20 store tests in the testing
+  guide's own patterns — the injected-reads trick (`createActor` with
+  `resolveHelpers` faking inventory stock) unit-tests the ceiling guards
+  beautifully; effects captured via onEffect and run on demand; 4 wire tests
+  over `createDevApp().fetch`. REAL PROD BUG found & fixed: `buildApp`
+  hard-coded 4 copy dirs, so machines importing `lib/` (any normal app)
+  broke the build — dist now mirrors the source tree via auto-discovery
+  (node_modules/tests/hidden/outDir excluded; `dirs` stays as override).
+  Prod smoke: all pages 200, admin gated off, hashed island script injected
+  per manifest, full checkout arc on the built output. Deploy kit: Dockerfile
+  (monorepo-root context, raw-TS — no framework build), fly.toml (ONE
+  always-on machine: in-process fan-out), Redis-aware start.ts (2h session
+  TTL) + 24h TIDE_RESET reseeding stock/orders. Docker image build is
+  ready-for-verification (no docker on this machine); actual Fly/Upstash
+  deploy needs Tony's accounts.
 - **Content note (not framework):** sandal plate still reads weak; one more
   drawing pass in step 2. `/c/all` view added — no single category exceeds
   page size, so the all-goods aisle is what makes pagination real.

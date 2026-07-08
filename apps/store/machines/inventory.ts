@@ -6,6 +6,7 @@ type Events =
   | { type: 'ORDER_PLACED'; items: Array<{ sku: string; qty: number }> }
   | { type: 'RESTOCK_ORDERED'; sku: string }
   | { type: 'RESTOCK_ARRIVED'; skus: string[] }
+  | { type: 'TIDE_RESET' }
 
 /**
  * Shared, persisted stock — one instance for every session, hydrated from
@@ -61,6 +62,14 @@ export default defineMachine({
               const i = ctx.pending.indexOf(sku)
               if (i !== -1) ctx.pending.splice(i, 1)
             }
+          },
+        },
+        // The tide comes in: the public demo resets to seed state nightly
+        // (see start.ts), undoing drift and vandalism alike.
+        TIDE_RESET: {
+          do: (ctx) => {
+            ctx.stock = seedStock()
+            ctx.pending.length = 0
           },
         },
       },
