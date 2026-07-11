@@ -2,7 +2,7 @@
   "name": "stator-vscode",
   "displayName": "Stator",
   "description": "Language support for .stator files: syntax highlighting plus a Volar-based language server (completions, hover, diagnostics).",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "publisher": "statorjs",
   "license": "MIT",
@@ -26,12 +26,13 @@
     "onLanguage:stator"
   ],
   "scripts": {
-    "build:server": "pnpm --filter @statorjs/language-server run build",
+    "build:server": "pnpm --filter @statorjs/language-server run build && cp ../../packages/language-server/dist/server.cjs dist/server.cjs",
     "build:client": "esbuild src/extension.ts --bundle --platform=node --format=cjs --outfile=dist/extension.js --external:vscode",
-    "build": "pnpm run build:server && pnpm run build:client",
+    "build": "mkdir -p dist && pnpm run build:client && pnpm run build:server && pnpm run build:tsdk",
     "package": "pnpm run build && vsce package --no-dependencies",
     "publish:vsce": "vsce publish --no-dependencies",
-    "publish:ovsx": "ovsx publish --no-dependencies"
+    "publish:ovsx": "ovsx publish --no-dependencies",
+    "build:tsdk": "node -e \"const fs=require('fs'),p=require('path');const src=p.dirname(require.resolve('typescript'));fs.cpSync(src,'dist/typescript/lib',{recursive:true});\""
   },
   "dependencies": {
     "@statorjs/language-server": "workspace:*",
@@ -41,7 +42,9 @@
   "devDependencies": {
     "@types/node": "^22.7.0",
     "@types/vscode": "^1.84.0",
-    "esbuild": "^0.24.0"
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.24.0",
+    "ovsx": "^1.0.2"
   },
   "contributes": {
     "languages": [
