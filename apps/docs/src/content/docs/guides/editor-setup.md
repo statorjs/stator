@@ -42,3 +42,15 @@ The language server is editor-agnostic (`@statorjs/language-server` ships a
 LSP client can use it — point the client at the binary and associate the
 `stator` language id with `*.stator`. The TextMate grammar in
 `editors/vscode/syntaxes/` works in any TextMate-compatible highlighter.
+
+## Troubleshooting
+
+**"The Stator Language Server crashed 5 times… will not be restarted"** in
+the Output panel: the language client stops retrying for the rest of the
+session once it trips this limit — and that tripped state survives extension
+updates. After installing a new extension version, **fully quit and reopen
+the editor**; a window reload or extension-host restart isn't always enough.
+
+To watch the server: `View → Output` → "Stator Language Server" in the
+dropdown. For request-level tracing, set `"stator.trace.server": "verbose"`
+in settings.
