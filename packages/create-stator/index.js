@@ -1,13 +1,19 @@
 #!/usr/bin/env node
-// Stator scaffolder. Interactive (clack) when run bare; every prompt has a
-// flag so CI and scripts stay prompt-free:
-//   pnpm create stator            → prompts for directory + template
-//   pnpm create stator my-app --template minimal   → no prompts
-import { cp, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
+// Stator scaffolder. First-party templates live in the monorepo's
+// `examples/` directory and are FETCHED at scaffold time (create-astro
+// style) — they update with every push, and `--template` accepts any giget
+// source (`github:user/repo/path`) so community templates work for free.
+//
+// Interactive (clack) when run bare; every prompt has a flag so CI and
+// scripts stay prompt-free:
+//   pnpm create stator                                → prompts
+//   pnpm create stator my-app --template todomvc      → no prompts
+//   pnpm create stator my-app -t github:you/your-template
+import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import * as p from '@clack/prompts'
+import { downloadTemplate } from 'giget'
 
 const TEMPLATES = [
   {
@@ -22,10 +28,17 @@ const TEMPLATES = [
   },
 ]
 
+/** First-party templates resolve into the monorepo's examples/. */
+const FIRST_PARTY = 'gh:statorjs/stator/examples'
+/** Scaffolded apps get a real semver for the framework (the examples
+ *  themselves use workspace linking in-repo). Bumped with releases. */
+const STATOR_RANGE = '^1.1.0'
+
 const { values: flags, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     template: { type: 'string', short: 't' },
+    ref: { type: 'string' },
     help: { type: 'boolean', short: 'h' },
   },
 })
@@ -34,6 +47,8 @@ if (flags.help) {
   console.log(
     `Usage: pnpm create stator [directory] [--template ${TEMPLATES.map((t) => t.value).join('|')}]`,
   )
+  console.log('       pnpm create stator my-app --template github:user/repo/path')
+  console.log('       --ref <branch|tag>   fetch first-party templates from a specific ref')
   process.exit(0)
 }
 
@@ -64,42 +79,54 @@ try {
 
 // --- template ---
 let template = flags.template
-if (template && !TEMPLATES.some((t) => t.value === template)) {
-  p.cancel(`Unknown template "${template}". Available: ${TEMPLATES.map((t) => t.value).join(', ')}`)
+const isRemoteSource = (t) => t.includes(':') || t.includes('/')
+if (template && !isRemoteSource(template) && !TEMPLATES.some((t) => t.value === template)) {
+  p.cancel(
+    `Unknown template "${template}". Available: ${TEMPLATES.map((t) => t.value).join(', ')} ` +
+      `(or any giget source, e.g. github:user/repo/path)`,
+  )
   process.exit(1)
 }
 if (!template) {
-  if (TEMPLATES.length === 1) {
-    template = TEMPLATES[0].value
-  } else {
-    const answer = await p.select({ message: 'Which template?', options: TEMPLATES })
-    bailIfCancelled(answer)
-    template = answer
-  }
+  const answer = await p.select({ message: 'Which template?', options: TEMPLATES })
+  bailIfCancelled(answer)
+  template = answer
 }
 
-// --- scaffold ---
+// --- fetch ---
+const ref = flags.ref ? `#${flags.ref}` : ''
+const source = isRemoteSource(template) ? template : `${FIRST_PARTY}/${template}${ref}`
 const s = p.spinner()
-s.start('Copying template')
-const templateDir = fileURLToPath(new URL(`./templates/${template}`, import.meta.url))
-await cp(templateDir, dest, { recursive: true })
-
-// npm strips dotfiles from published packages; ship as _gitignore and rename.
+s.start(`Fetching ${template}`)
 try {
-  await stat(join(dest, '_gitignore'))
-  await rename(join(dest, '_gitignore'), join(dest, '.gitignore'))
-} catch {
-  // already named .gitignore (running from the repo)
+  await downloadTemplate(source, { dir: dest, force: true })
+} catch (err) {
+  s.stop('Fetch failed')
+  p.cancel(
+    `Could not download "${source}" — scaffolding needs network access.\n   ${String(err?.message ?? err)}`,
+  )
+  process.exit(1)
 }
 
+// --- stamp ---
 const name = basename(dest)
   .toLowerCase()
   .replace(/[^a-z0-9-]/g, '-')
 const pkgPath = join(dest, 'package.json')
-const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
-pkg.name = name
-await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
-s.stop(`Scaffolded ${name} (${template})`)
+try {
+  const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
+  pkg.name = name
+  // In-repo examples link the framework via the workspace; a scaffolded
+  // app pins the published release instead.
+  if (pkg.dependencies?.['@statorjs/stator'] === 'workspace:*') {
+    pkg.dependencies['@statorjs/stator'] = STATOR_RANGE
+  }
+  delete pkg.private
+  await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
+  s.stop(`Scaffolded ${name} (${template})`)
+} catch {
+  s.stop(`Scaffolded ${name} (${template}) — no package.json to stamp`)
+}
 
 p.note([`cd ${target}`, 'pnpm install', 'pnpm dev'].join('\n'), 'Next steps')
 p.outro('Docs: https://docs.statorjs.dev · Demo: https://demo.statorjs.dev')

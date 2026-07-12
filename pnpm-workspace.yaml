@@ -3,6 +3,7 @@ packages:
   - "apps/*"
   - "apps/private/*"
   - "editors/*"
+  - "examples/*"
 allowBuilds:
   esbuild: true
   sharp: true

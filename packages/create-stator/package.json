@@ -8,8 +8,7 @@
     "create-stator": "./index.js"
   },
   "files": [
-    "index.js",
-    "templates"
+    "index.js"
   ],
   "repository": {
     "type": "git",
@@ -21,11 +20,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@clack/prompts": "^1.7.0"
-  },
-  "devDependencies": {
-    "@statorjs/stator": "workspace:*",
-    "vitest": "^3.0.0",
-    "@types/node": "^22.7.0"
+    "@clack/prompts": "^1.7.0",
+    "giget": "^1.2.3"
   }
 }

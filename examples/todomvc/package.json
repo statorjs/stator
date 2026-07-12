@@ -1,5 +1,5 @@
 {
-  "name": "my-stator-app",
+  "name": "stator-example-todomvc",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@statorjs/stator": "^1.1.0"
+    "@statorjs/stator": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",

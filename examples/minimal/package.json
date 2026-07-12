@@ -1,5 +1,5 @@
 {
-  "name": "my-stator-app",
+  "name": "stator-example-minimal",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "start": "tsx start.ts"
   },
   "dependencies": {
-    "@statorjs/stator": "^1.1.0"
+    "@statorjs/stator": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",
