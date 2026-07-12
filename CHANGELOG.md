@@ -6,6 +6,50 @@ validates the API without breaking changes**. Subpaths `server`, `machine`,
 `template`, `client`, `dev`, `build`, and `components` are treated as stable
 from 0.9.0; `compiler` and `vite` are internal and may change in minors.
 
+## @statorjs/stator 1.1.0 — 2026-07-12
+
+Post-launch polish, driven by real editor use and public-demo feedback.
+(The published 1.0.0 predates the typed-client work below; `inspector` was
+in the repo but is first *published* here.)
+
+### New
+
+- **Typed client machines**: `machine(context, behavior)` — context and
+  behavior are separate arguments so handlers and selectors infer real
+  context types, and `use()` instances expose context keys + selector
+  results as typed properties (`this.sel.color` type-checks; typos are
+  compile errors). The one-bag form still works, deprecated and loosely
+  typed — one bag is untypeable by construction. `bind`/`effect` accept any
+  instance via the new `ClientInstanceBase` surface.
+- **Production inspector**: `createApp({ inspector: true })` serves + injects
+  the wire-inspector toolbar (the live demo runs it).
+- **Dev server manners**: startup banner (clickable local/network URLs,
+  version, machine/route inventory) and graceful SIGINT/SIGTERM shutdown —
+  Ctrl+C exits 0 instead of an ELIFECYCLE error; prod deploy rollovers exit
+  clean too.
+- Compiler: the language-server virtual emit injects only template/client
+  globals the author didn't import (fixes false "Duplicate identifier 'raw'"
+  editor diagnostics); client-component CSS scopes by descendant of the
+  root, so runtime-created island DOM matches scoped styles.
+
+## create-stator 1.1.0 — 2026-07-12
+
+- Interactive scaffolding (clack): directory prompt, template selection
+  plumbing, spinner, next-steps outro. Fully non-interactive when arguments
+  are passed (`--template`, `-h`).
+- Starter fixes every new project needed: tsconfig now claims `**/*.stator`
+  with `jsx: preserve` and `DOM.Iterable` (without these, the editor types
+  `.stator` files under an inferred project — "cannot find StatorElement"
+  phantom errors); a README with the mental model; templates live under
+  `templates/minimal` ready for siblings.
+
+## @statorjs/language-server 0.1.1 — 2026-07-12
+
+- Rebundled with the user-aware import injection (duplicate-identifier fix)
+  and the descendant CSS scoping — this package is the LSP binary editors
+  other than VS Code run, so it needed the same fixes the VS Code extension
+  got in 1.0.3.
+
 ## @statorjs/stator 1.0.0 — 2026-07-08
 
 The proving-demo release: everything the storefront demo
