@@ -26,8 +26,18 @@ out. Not gated; ship piecewise.
    dispatch, clears only on `committed`), zero-JS in-place editing (dblclick
    → EDIT_START → server branch flips the row to a form → native Enter
    submit → POST + navigate), filters as links. Wire-verified cold against
-   published 1.1.0. In-repo template editing type-resolves via create-stator
-   devDeps (never published). Ships with the next create-stator publish.
+   published 1.1.0. **Templates relocated (Tony: the create-astro model):**
+   first-party templates live at repo-root `examples/` as WORKSPACE MEMBERS
+   (CI runs their tests/typechecks; workspace linking gives in-repo type
+   resolution natively — the devDeps hack was retired same-day), and
+   create-stator FETCHES via giget at scaffold time
+   (`gh:statorjs/stator/examples/<name>`, `--ref` for branches, any
+   `github:user/repo/path` for community templates — network-required by
+   decision; `.gitignore` survives GitHub tarballs so the `_gitignore` hack
+   died too). Templates update on every push, no republish. STATOR_RANGE
+   const pins the scaffolded dep (workspace:* rewritten at stamp).
+   Live-verified: giget fetch from main → install → tests → serve.
+   create-stator 1.2.0 publish pending.
 2. **Changesets** (Tony 2026-07-12): adopt @changesets/cli for the three
    npm packages + a CI publish workflow (version-packages PR → merge →
    publish with NPM_TOKEN). Notes from first look: our root CHANGELOG.md is
