@@ -1,0 +1,32 @@
+<todo-input>
+  <input
+    class="new-todo"
+    placeholder="What needs doing?"
+    autofocus
+    bind:value={draft.text}
+    on:keydown={maybeSubmit}
+  />
+</todo-input>
+
+<script>
+  import TodosMachine from '../machines/todos.ts'
+
+  // The doctrine split, in one file: the DRAFT is client state (every
+  // keystroke, zero round trips); the TODO is server state, committed
+  // through one typed dispatch.
+  const Draft = machine({ text: '' })
+
+  export class TodoInput extends StatorElement {
+    draft = use(Draft)
+
+    async maybeSubmit(e: KeyboardEvent) {
+      if (e.key !== 'Enter') return
+      const title = String(this.draft.text).trim()
+      if (!title) return
+      const result = await dispatch(TodosMachine, { type: 'ADD', title })
+      // Only a COMMITTED add clears the draft — a guard-dropped or failed
+      // dispatch keeps your typing.
+      if (result.committed) this.draft.send({ type: '@set', key: 'text', value: '' })
+    }
+  }
+</script>

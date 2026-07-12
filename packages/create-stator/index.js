@@ -15,6 +15,11 @@ const TEMPLATES = [
     label: 'Minimal',
     hint: 'one machine, one page — the smallest real app',
   },
+  {
+    value: 'todomvc',
+    label: 'TodoMVC',
+    hint: 'the classic, with server-owned todos and zero-JS editing',
+  },
 ]
 
 const { values: flags, positionals } = parseArgs({

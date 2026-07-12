@@ -1,0 +1,117 @@
+---
+import TodosMachine, { type Todo } from '../machines/todos.ts'
+import TodoInput from '../templates/todo-input.stator'
+
+const [todos] = Stator.reads([TodosMachine])
+const { query } = Stator.request
+
+// Filters are LINKS: which slice you're looking at is URL state — shareable,
+// back-button-friendly, no client router.
+const filter = query.filter === 'active' || query.filter === 'completed' ? query.filter : 'all'
+const visible = (list: Todo[]) =>
+  filter === 'active'
+    ? list.filter((t) => !t.done)
+    : filter === 'completed'
+      ? list.filter((t) => t.done)
+      : list
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Stator • TodoMVC</title>
+    <link rel="stylesheet" href="/static/todomvc-app.css" />
+    <link rel="stylesheet" href="/static/extras.css" />
+  </head>
+  <body>
+    <section class="todoapp">
+      <header class="header">
+        <h1>todos</h1>
+        <TodoInput />
+      </header>
+
+      {when(read(todos, (t) => t.total > 0), () => (
+        <section class="main">
+          <input
+            id="toggle-all"
+            class="toggle-all"
+            type="checkbox"
+            checked={read(todos, (t) => t.allDone)}
+            on:click={() => todos.send({ type: 'TOGGLE_ALL' })}
+          />
+          <label for="toggle-all">Mark all as complete</label>
+
+          <ul class="todo-list">
+            {each(
+              read(todos, (t) => visible(t.all)),
+              (todo) => (
+                <li
+                  class={read(todos, (t) => {
+                    const now = t.all.find((x) => x.id === todo.id)
+                    return `${now?.done ? 'completed' : ''}${t.editingId === todo.id ? ' editing' : ''}`
+                  })}
+                >
+                  {when(read(todos, (t) => t.editingId !== todo.id), () => (
+                    <div class="view">
+                      <input
+                        class="toggle"
+                        type="checkbox"
+                        checked={read(todos, (t) => t.all.find((x) => x.id === todo.id)?.done ?? false)}
+                        on:click={() => todos.send({ type: 'TOGGLE', id: todo.id })}
+                      />
+                      <label on:dblclick={() => todos.send({ type: 'EDIT_START', id: todo.id })}>
+                        {read(todos, (t) => t.all.find((x) => x.id === todo.id)?.title ?? '')}
+                      </label>
+                      <button
+                        class="destroy"
+                        type="button"
+                        on:click={() => todos.send({ type: 'DESTROY', id: todo.id })}
+                      ></button>
+                    </div>
+                  ))}
+                  {when(read(todos, (t) => t.editingId === todo.id), () => (
+                    <form class="edit-form" method="post" action="/todos/save">
+                      <input type="hidden" name="id" value={todo.id} />
+                      <input
+                        class="edit"
+                        name="title"
+                        value={read(todos, (t) => t.all.find((x) => x.id === todo.id)?.title ?? '')}
+                        autofocus
+                      />
+                    </form>
+                  ))}
+                </li>
+              ),
+              { key: (todo) => todo.id },
+            )}
+          </ul>
+        </section>
+      ))}
+
+      {when(read(todos, (t) => t.total > 0), () => (
+        <footer class="footer">
+          <span class="todo-count">
+            {read(todos, (t) => `${t.activeCount} item${t.activeCount === 1 ? '' : 's'} left`)}
+          </span>
+          <ul class="filters">
+            <li><a href="/" class={filter === 'all' ? 'selected' : ''}>All</a></li>
+            <li><a href="/?filter=active" class={filter === 'active' ? 'selected' : ''}>Active</a></li>
+            <li><a href="/?filter=completed" class={filter === 'completed' ? 'selected' : ''}>Completed</a></li>
+          </ul>
+          {when(read(todos, (t) => t.completedCount > 0), () => (
+            <button class="clear-completed" type="button" on:click={() => todos.send({ type: 'CLEAR_COMPLETED' })}>
+              Clear completed
+            </button>
+          ))}
+        </footer>
+      ))}
+    </section>
+
+    <footer class="info">
+      <p>Double-click to edit a todo — the edit form is <em>server</em> state (Enter saves; an emptied title deletes)</p>
+      <p>Reload any time: your list lives in a session machine, not this browser</p>
+      <p>Built with <a href="https://statorjs.dev">Stator</a> · spec at <a href="https://todomvc.com">TodoMVC</a></p>
+    </footer>
+  </body>
+</html>

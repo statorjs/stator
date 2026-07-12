@@ -166,6 +166,16 @@ importers:
       '@clack/prompts':
         specifier: ^1.7.0
         version: 1.7.0
+    devDependencies:
+      '@statorjs/stator':
+        specifier: workspace:*
+        version: link:../stator
+      '@types/node':
+        specifier: ^22.7.0
+        version: 22.19.19
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.19.19)(happy-dom@15.11.7)(tsx@4.21.0)
 
   packages/language-server:
     dependencies:

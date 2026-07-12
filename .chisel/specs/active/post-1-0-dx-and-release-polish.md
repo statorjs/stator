@@ -19,10 +19,15 @@ out. Not gated; ship piecewise.
 
 ## Queued
 
-1. **TodoMVC starter/example** — second create-stator template (select is
-   already plumbed). The Stator story: todos survive reload server-side,
-   keyed rows, forms doctrine, filters as URL query. Small, testable, the
-   lingua-franca comparison app.
+1. **TodoMVC starter — DONE 2026-07-12.** `--template todomvc`: official
+   todomvc-app-css vendored (canonical look = comparable code, per Tony),
+   TodosMachine with unit tests IN the template (teaches the testing guide),
+   draft-input island (keystrokes stay client-side; Enter commits one typed
+   dispatch, clears only on `committed`), zero-JS in-place editing (dblclick
+   → EDIT_START → server branch flips the row to a form → native Enter
+   submit → POST + navigate), filters as links. Wire-verified cold against
+   published 1.1.0. In-repo template editing type-resolves via create-stator
+   devDeps (never published). Ships with the next create-stator publish.
 2. **Changesets** (Tony 2026-07-12): adopt @changesets/cli for the three
    npm packages + a CI publish workflow (version-packages PR → merge →
    publish with NPM_TOKEN). Notes from first look: our root CHANGELOG.md is

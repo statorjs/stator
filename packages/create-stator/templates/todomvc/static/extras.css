@@ -1,0 +1,36 @@
+/* The few things the official stylesheet can't know about this
+ * implementation: the input lives in an island, and editing renders a
+ * real <form> (server-state editing — Enter submits natively). */
+todo-input {
+  display: block;
+}
+todo-input .new-todo {
+  position: relative;
+  margin: 0;
+  width: 100%;
+  font-size: 24px;
+  font-family: inherit;
+  line-height: 1.4em;
+  color: inherit;
+  padding: 16px 16px 16px 60px;
+  border: none;
+  background: rgba(0, 0, 0, 0.003);
+  box-shadow: inset 0 -2px 1px rgba(0, 0, 0, 0.03);
+}
+todo-input .new-todo::placeholder {
+  font-style: italic;
+  font-weight: 400;
+  color: rgba(0, 0, 0, 0.4);
+}
+.edit-form {
+  margin: 0;
+  display: contents;
+}
+.todo-list li .edit {
+  display: none;
+}
+.todo-list li.editing .edit {
+  display: block;
+  width: calc(100% - 43px);
+  margin-left: 43px;
+}
