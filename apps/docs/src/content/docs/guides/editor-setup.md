@@ -13,16 +13,18 @@ services.
 
 ## Install
 
-Until the Marketplace listing is live, install from the repo's `.vsix`:
+Search for **"Stator"** in your editor's extensions view, or install
+directly:
 
-```bash
-cd editors/vscode
-pnpm install && pnpm package
-code --install-extension stator-vscode-*.vsix
-```
+- **VS Code**: [`statorjs.stator-vscode` on the Marketplace](https://marketplace.visualstudio.com/items?itemName=statorjs.stator-vscode)
+- **VSCodium / Cursor / Gitpod / Theia / code-server**: [`statorjs/stator-vscode` on Open VSX](https://open-vsx.org/extension/statorjs/stator-vscode)
+- **Manual**: grab the `.vsix` from the
+  [latest release](https://github.com/statorjs/stator/releases/latest) and
+  use *Extensions → ⋯ → Install from VSIX*.
 
-The extension resolves `@statorjs/language-server` and your workspace's
-`typescript` automatically.
+The extension is self-contained (bundled language server and TypeScript).
+When your workspace has its own `typescript` installed, templates type-check
+against that version instead of the bundled one.
 
 ## Project setup the tooling expects
 
