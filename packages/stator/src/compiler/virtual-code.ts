@@ -43,10 +43,46 @@ export interface VirtualCodeResult {
   styles: VirtualFile[]
 }
 
-const TEMPLATE_IMPORTS =
-  "import { read, each, when, match, on, classList, styleList, raw } from '@statorjs/stator/template';\n"
-const CLIENT_IMPORTS =
-  "import { StatorElement, use, machine, defineElement, bind, effect, dispatch } from '@statorjs/stator/client';\n"
+// Must mirror the RUNTIME's auto-injected globals exactly (compile.ts
+// PRIMITIVES_IMPORT / client-emit.ts): a name injected here but not at
+// runtime hides a missing-import bug; a name in both collides with the
+// author's legitimate import (`raw` is NOT a runtime global — authors
+// import it — which is why it must not be in this list).
+const TEMPLATE_GLOBALS = ['read', 'each', 'when', 'match', 'on', 'classList', 'styleList']
+const CLIENT_GLOBALS = [
+  'StatorElement',
+  'use',
+  'machine',
+  'defineElement',
+  'bind',
+  'effect',
+  'dispatch',
+]
+
+/** Local names the user's code already binds from `modulePath` imports —
+ *  the runtime strips such habit-imports; the virtual emit (which must keep
+ *  offsets faithful) instead injects only what the user DIDN'T import. */
+function userImportedLocals(code: string, modulePath: string): Set<string> {
+  const locals = new Set<string>()
+  const re = new RegExp(
+    `import\\s+(?:type\\s+)?\\{([^}]*)\\}\\s+from\\s+['"]${modulePath.replace(/\//g, '\\/')}['"]`,
+    'g',
+  )
+  for (const m of code.matchAll(re)) {
+    for (const spec of m[1]!.split(',')) {
+      const parts = spec.trim().split(/\s+as\s+/)
+      const local = (parts[1] ?? parts[0] ?? '').trim().replace(/^type\s+/, '')
+      if (local) locals.add(local)
+    }
+  }
+  return locals
+}
+
+function injectImports(globals: string[], modulePath: string, userCode: string): string {
+  const bound = userImportedLocals(userCode, modulePath)
+  const missing = globals.filter((g) => !bound.has(g))
+  return missing.length > 0 ? `import { ${missing.join(', ')} } from '${modulePath}';\n` : ''
+}
 // Aliased so they never collide with a component's own `InstanceOf` import.
 // NOTE: `InstanceOf` comes from /template, not /machine — the template flavor
 // includes `send`/`state`/`snapshot` (what a route-level binding actually is,
@@ -99,7 +135,11 @@ export function toVirtualCode(source: string): VirtualCodeResult {
  *  template expressions see the frontmatter's bindings. */
 function buildServerTsx(regions: ScannedRegions): VirtualFile {
   const mappings: VirtualMapping[] = []
-  let code = TEMPLATE_IMPORTS + AMBIENT_TYPE_IMPORTS + STATOR_AMBIENT
+  const userCode = (regions.frontmatter?.content ?? '') + regions.template.content
+  let code =
+    injectImports(TEMPLATE_GLOBALS, '@statorjs/stator/template', userCode) +
+    AMBIENT_TYPE_IMPORTS +
+    STATOR_AMBIENT
 
   if (regions.frontmatter?.content.trim()) {
     push(
@@ -145,7 +185,12 @@ function buildServerTsx(regions: ScannedRegions): VirtualFile {
  *  resolution — `bind:text={theme.label}` → the class field — is a later phase.) */
 function buildClientTsx(regions: ScannedRegions): VirtualFile {
   const mappings: VirtualMapping[] = []
-  let code = TEMPLATE_IMPORTS + CLIENT_IMPORTS + AMBIENT_TYPE_IMPORTS + STATOR_AMBIENT
+  const userScript = regions.scripts.map((s) => s.content).join('\n')
+  let code =
+    injectImports(TEMPLATE_GLOBALS, '@statorjs/stator/template', userScript) +
+    injectImports(CLIENT_GLOBALS, '@statorjs/stator/client', userScript) +
+    AMBIENT_TYPE_IMPORTS +
+    STATOR_AMBIENT
 
   for (const script of regions.scripts) {
     push(mappings, script.contentOffset, code.length, script.content.length)

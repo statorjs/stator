@@ -1,4 +1,4 @@
-import { actorOf, type ClientInstance } from './use.ts'
+import { actorOf, type ClientInstanceBase } from './use.ts'
 
 /**
  * The one client binding mechanism: subscribe to a set of client actors, and on
@@ -12,7 +12,7 @@ import { actorOf, type ClientInstance } from './use.ts'
  * Returns a disposer that unsubscribes.
  */
 export function bind(
-  deps: ClientInstance[],
+  deps: ClientInstanceBase[],
   compute: () => unknown,
   apply: (value: unknown) => void,
 ): () => void {
@@ -38,7 +38,7 @@ export function bind(
  * dependency changes (no diffing — `fn` owns its own DOM writes). The lower-
  * level primitive `{key}Changed` desugars to. Returns a disposer.
  */
-export function effect(deps: ClientInstance[], fn: () => void): () => void {
+export function effect(deps: ClientInstanceBase[], fn: () => void): () => void {
   fn()
   const unsubs = deps.map((d) => actorOf(d).subscribe(fn).unsubscribe)
   return () => {

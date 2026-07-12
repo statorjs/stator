@@ -7,37 +7,38 @@ import { type ClientInstance, use } from '../src/client/use.ts'
 
 describe('client runtime (3b stage 0)', () => {
   it('machine() desugars to a usable single-state machine', () => {
-    const Qty = machine({
-      count: 1,
-      on: {
-        INC: (s: any) => {
-          s.count++
+    const Qty = machine(
+      { count: 1 },
+      {
+        on: {
+          INC: (s) => {
+            s.count++
+          },
+          DEC: (s) => {
+            s.count = Math.max(1, s.count - 1)
+          },
         },
-        DEC: (s: any) => {
-          s.count = Math.max(1, s.count - 1)
-        },
+        select: { atMax: (s) => s.count >= 3 },
       },
-      select: { atMax: (s: any) => s.count >= 3 },
-    })
+    )
     expect(Qty.name).toBe('ClientMachine')
     expect(Qty.context).toEqual({ count: 1 })
     expect(Object.keys(Qty.selectors)).toContain('atMax')
   })
 
-  it('use() exposes live context + selectors and send() drives them', () => {
+  it('use() exposes live context + selectors and send() drives them (legacy one-bag form)', () => {
+    // The deprecated one-bag form must keep working — loose types (the
+    // instance view is any-keyed), same runtime behavior.
     const Qty = machine({
       count: 1,
       on: {
-        INC: (s: any) => {
+        INC: (s) => {
           s.count++
         },
       },
-      select: { doubled: (s: any) => s.count * 2 },
+      select: { doubled: (s) => s.count * 2 },
     })
-    const inst = use(Qty) as ClientInstance & {
-      count: number
-      doubled: number
-    }
+    const inst = use(Qty)
     inst.__actor.start()
     expect(inst.count).toBe(1)
     expect(inst.doubled).toBe(2)
@@ -47,19 +48,19 @@ describe('client runtime (3b stage 0)', () => {
   })
 
   it('seeds initial context from a value (narrow hydration seed)', () => {
-    const Cart = machine({
-      unitPrice: 0,
-      count: 1,
-      on: {
-        INC: (s: any) => {
-          s.count++
+    const Cart = machine(
+      { unitPrice: 0, count: 1 },
+      {
+        on: {
+          INC: (s) => {
+            s.count++
+          },
         },
+        select: { lineTotal: (s) => s.unitPrice * s.count },
       },
-      select: { lineTotal: (s: any) => s.unitPrice * s.count },
-    })
-    const inst = use(Cart, { unitPrice: 12 }) as ClientInstance & {
-      lineTotal: number
-    }
+    )
+    // No cast: `lineTotal` is on the typed instance now.
+    const inst = use(Cart, { unitPrice: 12 })
     inst.__actor.start()
     expect(inst.lineTotal).toBe(12)
     inst.send('INC')
@@ -67,14 +68,16 @@ describe('client runtime (3b stage 0)', () => {
   })
 
   it('StatorElement owns actor lifecycle and bind() updates the DOM', () => {
-    const Qty = machine({
-      count: 1,
-      on: {
-        INC: (s: any) => {
-          s.count++
+    const Qty = machine(
+      { count: 1 },
+      {
+        on: {
+          INC: (s) => {
+            s.count++
+          },
         },
       },
-    })
+    )
 
     class QuantityStepper extends StatorElement {
       qty = use(Qty) as ClientInstance & { count: number }

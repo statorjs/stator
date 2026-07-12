@@ -14,7 +14,7 @@
       "!editors/vscode/*.vsix",
       // Shipped scaffold content, not repo source — a new app's files should
       // read like the docs, not like this repo's lint config.
-      "!packages/create-stator/template"
+      "!packages/create-stator/templates"
     ]
   },
   "formatter": {

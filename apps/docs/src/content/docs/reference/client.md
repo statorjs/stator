@@ -33,31 +33,34 @@ function use(
 ): ClientInstance
 ```
 
-Instantiates a client machine as a class field (`qty = use(Qty)`), owned by the element's lifecycle. The returned `ClientInstance` exposes every selector and context key as a live property (read through the actor's current snapshot on each access) plus `send(event)`.
+Instantiates a client machine as a class field (`qty = use(Qty)`), owned by the element's lifecycle. The returned `ClientInstance<D>` exposes every selector and context key as a live **typed** property (read through the actor's current snapshot on each access) plus `send(event)` — `qty.count` is a `number`, and a typo'd property is a compile error.
 
 The optional seed sets initial context. A plain object applies eagerly; pass a **thunk** — `use(Qty, () => ({ max: this.attrs.max }))` — when the seed reads `this.attrs`, because attributes aren't available during construction (the custom-element upgrade-timing rule). The thunk is deferred to connect.
 
 ## machine
 
 ```ts
-function machine(config: MachineConfig): MachineDef
+function machine<C, S>(context: C, behavior?: ClientBehavior<C> & { select?: S }): MachineDef<C, ClientEvent, 'active', S>
 
-// config: every key is initial context, except…
+// context: plain data (typed; handlers and selectors see it)
+// behavior:
 {
   name?: string                          // label only; defaults to "ClientMachine"
-  on?: Record<string, Transition>        // bare fn = action; object = { to?, when?, do?, emit? }
-  select?: Record<string, (ctx) => unknown>
+  on?: Record<string, Transition>        // bare fn = action; object = { when?, do?, emit? }
+  select?: Record<string, (ctx: C) => unknown>  // exposed as typed instance properties
 }
 ```
 
 Terse sugar for component-local state — desugars to a single-state `defineMachine`:
 
 ```ts
-const Counter = machine({
-  count: 1,
-  on: { INC: (s) => s.count++ },
-  select: { atMax: (s) => s.count >= 99 },
-})
+const Counter = machine(
+  { count: 1 },
+  {
+    on: { INC: (s) => s.count++ },       // s.count: number
+    select: { atMax: (s) => s.count >= 99 },
+  },
+)
 ```
 
 Reach for it when a full state chart is ceremony; graduate to `defineMachine` when you need real states.
@@ -65,8 +68,8 @@ Reach for it when a full state chart is ceremony; graduate to `defineMachine` wh
 ## bind
 
 ```ts
-function bind(deps: ClientInstance[], compute: () => unknown, apply: (value) => void): () => void
-function effect(deps: ClientInstance[], fn: () => void): () => void
+function bind(deps: ClientInstanceBase[], compute: () => unknown, apply: (value) => void): () => void
+function effect(deps: ClientInstanceBase[], fn: () => void): () => void
 ```
 
 The one client binding mechanism — the client mirror of the server's recompute loop. `bind` subscribes to the dep actors and, on any change, re-evaluates `compute`, diffs against the last value with `Object.is`, and calls `apply` only when it changed. The compiler emits one `bind()` per `bind:` directive; you rarely write it by hand. `effect` is the imperative escape hatch: run `fn` now and on every dep change, no diffing — `fn` owns its own DOM writes. Both return a disposer.
@@ -84,4 +87,4 @@ The one visible boundary crossing from an island: commits an event to a **server
 
 - `defineElement(UserClass, tag)` — registers an island class against its custom-element tag; the compiler emits this call.
 - `ClientInstance` — the reactive handle `use()` returns.
-- `MachineConfig` — the `machine()` config shape.
+- `ClientBehavior<C>` — the `machine()` behavior shape (`name` / `on` / `select`); `LegacyMachineConfig` — the deprecated one-bag form.

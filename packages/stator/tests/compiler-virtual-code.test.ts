@@ -168,3 +168,53 @@ describe('toVirtualCode — client component', () => {
     assertMappingsFaithful(src, styles[0]!)
   })
 })
+
+describe('virtual emit vs user imports (no duplicate identifiers)', () => {
+  it('a user import of raw (not a runtime global) is never duplicated', () => {
+    const src = `---
+import { raw } from '@statorjs/stator/template'
+---
+<div>{raw('<svg/>')}</div>
+`
+    const { tsx } = toVirtualCode(src)
+    const rawImports = tsx.code.match(/\braw\b(?=[^(]*\} from)/g) ?? []
+    expect(
+      tsx.code.match(/import \{[^}]*\braw\b[^}]*\} from '@statorjs\/stator\/template'/g),
+    ).toHaveLength(1)
+    void rawImports
+  })
+
+  it('a habit-import of an injected global suppresses the injection', () => {
+    const src = `---
+import { read } from '@statorjs/stator/template'
+---
+<p>{read(null as never, (x) => x)}</p>
+`
+    const { tsx } = toVirtualCode(src)
+    const importLines = tsx.code
+      .split('\n')
+      .filter((l) => l.includes("from '@statorjs/stator/template'"))
+    const readBindings = importLines.filter((l) => /\bread\b/.test(l))
+    expect(readBindings).toHaveLength(1) // the user's own line only
+  })
+
+  it('client scripts: user client-module imports suppress injected duplicates', () => {
+    const src = `<probe-x><p bind:text={m.v}></p></probe-x>
+<script>
+  import { dispatch } from '@statorjs/stator/client'
+  const M = machine({ v: 1 })
+  export class ProbeX extends StatorElement {
+    m = use(M)
+    go() { void dispatch }
+  }
+</script>`
+    const { tsx } = toVirtualCode(src)
+    const clientImportLines = tsx.code
+      .split('\n')
+      .filter((l) => l.includes("from '@statorjs/stator/client'"))
+    const dispatchBindings = clientImportLines.filter((l) => /\bdispatch\b/.test(l))
+    expect(dispatchBindings).toHaveLength(1)
+    // the other globals are still injected:
+    expect(clientImportLines.some((l) => /\bStatorElement\b/.test(l))).toBe(true)
+  })
+})

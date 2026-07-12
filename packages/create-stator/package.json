@@ -9,7 +9,7 @@
   },
   "files": [
     "index.js",
-    "template"
+    "templates"
   ],
   "repository": {
     "type": "git",
@@ -19,5 +19,8 @@
   "homepage": "https://github.com/statorjs/stator#readme",
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.7.0"
   }
 }

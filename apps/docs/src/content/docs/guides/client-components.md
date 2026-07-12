@@ -17,11 +17,13 @@ The root is a custom element; the `<script>` exports a name-matched `StatorEleme
 </theme-toggle>
 
 <script>
-  const Theme = machine({
-    mode: 'light',
-    on: { TOGGLE: (s) => { s.mode = s.mode === 'light' ? 'dark' : 'light' } },
-    select: { label: (s) => s.mode === 'dark' ? '☾' : '☀' },
-  })
+  const Theme = machine(
+    { mode: 'light' },
+    {
+      on: { TOGGLE: (s) => { s.mode = s.mode === 'light' ? 'dark' : 'light' } },
+      select: { label: (s) => s.mode === 'dark' ? '☾' : '☀' },
+    },
+  )
 
   export class ThemeToggle extends StatorElement {
     theme = use(Theme)
@@ -34,7 +36,7 @@ The root is a custom element; the `<script>` exports a name-matched `StatorEleme
 
 ## machine() and use()
 
-`machine({...})` defines a small client machine inline (`on` for events, `select` for derived values). `use(Def, seed?)` instantiates it as a class field — `this.theme.send(...)` and `this.theme.label` mirror a server machine.
+`machine(context, behavior?)` defines a small client machine inline — plain data first, then `on` (events) and `select` (derived values). The split is what makes the types work: handlers and selectors see the context fully typed (`s.mode` above is a `string`), and `use(Def, seed?)` returns an instance whose context keys and selector results are real typed properties — `this.theme.mode` and `this.theme.label` type-check like anything else. (A single combined bag is still accepted for compatibility, but its handlers see `any` — TypeScript cannot infer a context from the same object the handlers live in.)
 
 ### Eager vs deferred seeds
 

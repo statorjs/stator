@@ -8,11 +8,13 @@
   // Client-only state: the chosen theme. Source of truth at runtime is the
   // machine; localStorage is the persistence (read on connect via the seed
   // thunk, written on every toggle). No server involvement.
-  const Theme = machine({
-    mode: 'light',
-    on: { TOGGLE: (s) => { s.mode = s.mode === 'light' ? 'dark' : 'light' } },
-    select: { label: (s) => (s.mode === 'dark' ? '☾ Dark' : '☀ Light') },
-  })
+  const Theme = machine(
+    { mode: 'light' },
+    {
+      on: { TOGGLE: (s) => { s.mode = s.mode === 'light' ? 'dark' : 'light' } },
+      select: { label: (s) => (s.mode === 'dark' ? '☾ Dark' : '☀ Light') },
+    },
+  )
 
   export class ThemeToggle extends StatorElement {
     theme = use(Theme, () => ({ mode: readStoredTheme() }))

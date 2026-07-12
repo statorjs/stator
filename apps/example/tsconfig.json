@@ -1,8 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDirs": [".", ".stator/types"]
+    "rootDirs": [".", ".stator/types"],
+    "jsx": "preserve"
   },
-  "include": ["**/*.ts"],
+  "include": ["**/*.ts", "**/*.stator"],
   "exclude": ["node_modules", "static", "dist"]
 }

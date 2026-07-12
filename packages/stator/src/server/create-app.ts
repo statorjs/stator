@@ -1,6 +1,7 @@
 import { resolve } from 'node:path'
 import { serve } from '@hono/node-server'
 import type { AppStore } from './app-store.ts'
+import { installGracefulShutdown } from './banner.ts'
 import { discoverMachines } from './discovery.ts'
 import { wireAppEffects } from './effects.ts'
 import { buildHonoApp } from './http.ts'
@@ -71,10 +72,13 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
   return {
     listen(port: number): Promise<void> {
       return new Promise((resolveFn) => {
-        serve({ fetch: app.fetch, port }, () => {
+        const server = serve({ fetch: app.fetch, port }, () => {
           logger.info({ port, machines: defs.length, routes: routes.length }, 'listening')
           resolveFn()
         })
+        // Ctrl+C / SIGTERM (deploy rollover) exits 0, not 130 — quiet in
+        // prod: the structured logs are the record.
+        installGracefulShutdown(() => new Promise<void>((done) => server.close(() => done())), true)
       })
     },
     fetch: (request: Request) => app.fetch(request),

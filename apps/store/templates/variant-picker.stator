@@ -37,21 +37,21 @@
   // Which variant is the shopper looking at — ephemeral, client-owned.
   // The option buttons and the plate are SERVER-RENDERED from props (the
   // hydrate pattern): this class only wires and reflects.
-  const Sel = machine({
-    color: '',
-    colorLabel: '',
-    size: '',
-    on: {
-      PICK_COLOR: (s, ev) => {
-        s.color = String(ev.color)
-        s.colorLabel = String(ev.label)
+  const Sel = machine(
+    { color: '', colorLabel: '', size: '' },
+    {
+      on: {
+        PICK_COLOR: (s, ev) => {
+          s.color = String(ev.color)
+          s.colorLabel = String(ev.label)
+        },
+        PICK_SIZE: (s, ev) => { s.size = String(ev.size) },
       },
-      PICK_SIZE: (s, ev) => { s.size = String(ev.size) },
+      select: {
+        sizeLabel: (s) => (s.size === 'one-size' ? 'One size' : `EU ${s.size}`),
+      },
     },
-    select: {
-      sizeLabel: (s) => (s.size === 'one-size' ? 'One size' : `EU ${s.size}`),
-    },
-  })
+  )
 
   export class VariantPicker extends StatorElement {
     static attrs = {

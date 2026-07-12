@@ -26,11 +26,22 @@ const CLIENT_HELPERS = {
  *   - `send(event)` to drive transitions.
  *   - the underlying actor (non-enumerable) for the binding loop to subscribe.
  */
-export interface ClientInstance {
+export interface ClientInstanceBase {
   send(event: { type: string; [k: string]: unknown } | string): void
   /** @internal — the actor a binding subscribes to. */
   readonly __actor: AnyActor
 }
+
+/** Context keys + selector results as readonly live properties — the typed
+ *  mirror of what the runtime proxy exposes. */
+type ClientView<D> =
+  D extends MachineDef<infer C, infer _E, infer _S, infer Sel, infer _N>
+    ? { readonly [K in keyof C]: C[K] } & {
+        readonly [K in keyof Sel]: Sel[K] extends (...args: never[]) => infer R ? R : never
+      }
+    : unknown
+
+export type ClientInstance<D extends MachineDef = MachineDef> = ClientInstanceBase & ClientView<D>
 
 /** An actor plus an optional deferred seed thunk — evaluated at the element's
  *  connect (when attributes are available), not at construction. */
@@ -61,10 +72,12 @@ export function popCollector(): void {
  * connect — required when the seed reads `this.attrs`, since attributes aren't
  * available at construction (the custom-element upgrade-timing rule).
  */
-export function use(
-  def: MachineDef,
-  seed?: Record<string, unknown> | (() => Record<string, unknown>),
-): ClientInstance {
+export function use<D extends MachineDef>(
+  def: D,
+  seed?: Partial<D['__context']> | (() => Partial<D['__context']>),
+): ClientInstance<D> {
+  // The live properties are defined dynamically below; the mapped view type
+  // is the static mirror of that runtime work.
   const eager = typeof seed === 'object' ? seed : undefined
   const snapshot: Snapshot<object> | undefined = eager
     ? {
@@ -110,10 +123,10 @@ export function use(
     get: () => actor,
   })
 
-  return inst as unknown as ClientInstance
+  return inst as unknown as ClientInstance<D>
 }
 
 /** Extract the actor from a `use()` instance (for the binding loop). */
-export function actorOf(inst: ClientInstance): AnyActor {
+export function actorOf(inst: ClientInstanceBase): AnyActor {
   return inst.__actor
 }

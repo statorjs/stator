@@ -7,6 +7,7 @@ import { createServer as createViteServer, type ViteDevServer } from 'vite'
 import { compile } from '../compiler/index.ts'
 import { machineStub, stator } from '../vite/index.ts'
 import type { AppStore } from './app-store.ts'
+import { installGracefulShutdown, printDevBanner } from './banner.ts'
 import { logger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
@@ -194,17 +195,13 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
       const server = createHttpServer((req, res) => {
         vite.middlewares(req, res, () => honoListener(req, res))
       })
+      installGracefulShutdown(async () => {
+        await vite.close()
+        await new Promise<void>((done) => server.close(() => done()))
+      })
       return new Promise((resolveFn) => {
         server.listen(port, () => {
-          logger.info(
-            {
-              port,
-              mode: 'dev',
-              machines: machineCount,
-              routes: routes.length,
-            },
-            'listening',
-          )
+          printDevBanner({ port, machines: machineCount, routes: routes.length, inspector: true })
           resolveFn()
         })
       })
