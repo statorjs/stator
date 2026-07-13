@@ -35,50 +35,6 @@ importers:
 
   apps/landing: {}
 
-  apps/private/build-spike:
-    dependencies:
-      '@statorjs/stator':
-        specifier: workspace:*
-        version: link:../../../packages/stator
-      xstate:
-        specifier: ^5.18.0
-        version: 5.31.1
-    devDependencies:
-      '@types/node':
-        specifier: ^22.7.0
-        version: 22.19.19
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-      vite:
-        specifier: ^6.0.0
-        version: 6.4.3(@types/node@22.19.19)(tsx@4.21.0)
-
-  apps/private/spike:
-    dependencies:
-      '@statorjs/stator':
-        specifier: workspace:*
-        version: link:../../../packages/stator
-      xstate:
-        specifier: ^5.18.0
-        version: 5.31.1
-    devDependencies:
-      '@types/node':
-        specifier: ^22.7.0
-        version: 22.19.19
-      esbuild:
-        specifier: ^0.24.0
-        version: 0.24.2
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-
   apps/store:
     dependencies:
       '@statorjs/stator':
@@ -4692,9 +4648,6 @@ packages:
   xmlbuilder@11.0.1:
     resolution: {integrity: sha512-fDlsI/kFEx7gLvbecc0/ohLG50fugQp8ryHzMTuW9vSa1GJ0XYWKnhsUx7oie3G98+r56aTQIUB4kht42R3JvA==}
     engines: {node: '>=4.0'}
-
-  xstate@5.31.1:
-    resolution: {integrity: sha512-3P7t7GQ61BvLu+8Cj6Zq7rcS34vecL9pvfN2ucUWmIFIUG+rAREviOs4Xy4OO3BuJHSz6RLU8eqDXxSbVotjDQ==}
 
   xxhash-wasm@1.1.0:
     resolution: {integrity: sha512-147y/6YNh+tlp6nd/2pWq38i9h6mz/EuQ6njIrmW8D1BS5nCqs0P6DG+m6zTGnNz5I+uhZ0SHxBs9BsPrwcKDA==}
@@ -9686,8 +9639,6 @@ snapshots:
       xmlbuilder: 11.0.1
 
   xmlbuilder@11.0.1: {}
-
-  xstate@5.31.1: {}
 
   xxhash-wasm@1.1.0: {}
 

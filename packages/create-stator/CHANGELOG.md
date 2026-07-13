@@ -1,5 +1,26 @@
 # create-stator
 
+## 1.3.0
+
+### Minor Changes
+
+- 415c181: Scaffolding now offers to finish the job: an "install dependencies?" prompt
+  that detects whether you launched via pnpm, npm, yarn, or bun (and installs
+  with that), and a "initialize a git repository?" prompt (init + initial
+  commit). Next-steps output uses your package manager's real commands and
+  skips what's already done. Flags for scripts and CI: `--install/--no-install`,
+  `--git/--no-git`, and `-y`/`--yes` to accept all defaults; non-interactive
+  runs without flags skip both.
+- b9ffd1c: Two more first-party templates: `desksmith` (the tutorial's finished app —
+  catalog, cart, checkout, a client theme island) and `live-poll` (shared
+  app-machine state pushed to every visitor over SSE — the smallest example of
+  cross-session live views). The full reference storefront remains scaffoldable
+  directly: `--template github:statorjs/stator/apps/store`.
+- 8739e88: New `with-auth` template: a notice board with accounts — guarded login
+  (wrong password is literally `committed: false`), hash-at-the-edge
+  registration, role- and ownership-guarded actions, per-user durable state,
+  and session rotation on login/logout. Requires Node 24 (`node:sqlite`).
+
 ## 1.2.0
 
 ### Minor Changes
