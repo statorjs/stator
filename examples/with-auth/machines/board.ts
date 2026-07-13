@@ -15,12 +15,22 @@ export interface Notice {
   authorName: string
   title: string
   body: string
+  /** 'public' renders for everyone; 'members' only for signed-in viewers —
+   *  filtered SERVER-SIDE, so a visitor's page never even receives it. */
+  visibility: 'public' | 'members'
   pinned: boolean
   postedAt: number
 }
 
 type Events =
-  | { type: 'ADD'; authorId: string; authorName: string; title: string; body: string }
+  | {
+      type: 'ADD'
+      authorId: string
+      authorName: string
+      title: string
+      body: string
+      visibility: 'public' | 'members'
+    }
   | { type: 'WITHDRAW'; noticeId: string; requesterId: string }
   | { type: 'MODERATE'; noticeId: string; action: 'pin' | 'remove' }
 
@@ -44,6 +54,7 @@ export default defineMachine({
               authorName: ev.authorName,
               title: ev.title.trim(),
               body: ev.body.trim(),
+              visibility: ev.visibility === 'members' ? 'members' : 'public',
               pinned: false,
               postedAt: Date.now(),
             })
@@ -79,6 +90,12 @@ export default defineMachine({
   ],
   selectors: {
     all: (ctx) => [...ctx.notices].sort((a, b) => Number(b.pinned) - Number(a.pinned)),
+    /** The viewer-aware list: pages pass whether THIS viewer is a member.
+     *  (`?? 'public'` tolerates snapshots from before the field existed.) */
+    visibleTo: (ctx) => (member: boolean) =>
+      [...ctx.notices]
+        .filter((n) => member || (n.visibility ?? 'public') === 'public')
+        .sort((a, b) => Number(b.pinned) - Number(a.pinned)),
     count: (ctx) => ctx.notices.length,
   },
 })

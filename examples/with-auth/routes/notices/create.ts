@@ -12,6 +12,7 @@ export const POST = defineApiRoute({
       type: 'POST_NOTICE',
       title: String(form.get('title') ?? ''),
       body: String(form.get('body') ?? ''),
+      membersOnly: form.get('membersOnly') === 'on',
     })
     return { directives: [{ type: 'navigate', to: '/' }] }
   },

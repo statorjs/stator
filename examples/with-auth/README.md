@@ -13,7 +13,7 @@ pnpm dev
 
 Requires **Node 24+** (`node:sqlite`).
 
-## The five ideas, in the order they'll surprise you
+## The six ideas, in the order they'll surprise you
 
 1. **Identity is addressing.** No event carries a userId — the HttpOnly
    session cookie routes every request into *that browser's* machines, and
@@ -35,7 +35,13 @@ Requires **Node 24+** (`node:sqlite`).
    `authorId` from `AuthMachine`'s own context — the trust boundary between
    "a browser said" and "the server knows". (Try stuffing an `authorId`
    into the event via devtools; the tests do.)
-5. **Sessions rotate on privilege change.** Login/register call
+5. **Private content never crosses the wire.** Members-only notices are
+   filtered by a *server-side selector* per viewer — a visitor's HTML (and
+   their live-update stream) simply doesn't contain them. Not hidden with
+   CSS: absent. Each SSE connection diffs against its own viewer's render,
+   so a members-only post patches member pages and leaves visitor pages
+   untouched.
+6. **Sessions rotate on privilege change.** Login/register call
    `rotateSession()` — the whole session moves to a fresh id, so a captured
    pre-login cookie is worthless. Logout uses `rotateSession({ clear: true })`:
    state deleted, fresh anonymous id.

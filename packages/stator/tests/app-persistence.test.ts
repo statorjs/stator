@@ -222,3 +222,40 @@ describe('app-plane effects (stage 2)', () => {
     await expect(dispatchToApp(store, Ghost, { type: 'X' })).rejects.toThrow(/unknown machine/)
   })
 })
+
+describe('dispatchToApp reports committed', () => {
+  it('a handled event is committed: true; an unhandled one is false', async () => {
+    const { defineMachine } = await import('../src/server/define-machine.ts')
+    const { MachineStore } = await import('../src/server/machine-store.ts')
+    const { InMemoryStore } = await import('../src/server/store.ts')
+    const { dispatchToApp } = await import('../src/server/app-dispatch.ts')
+    const Gate = defineMachine({
+      name: 'GateAppMachine',
+      lifecycle: 'app',
+      events: {} as { type: 'OPEN'; key: string },
+      context: { open: false },
+      initial: 'ready',
+      states: {
+        ready: {
+          on: {
+            OPEN: {
+              when: (_ctx, ev) => ev.key === 'sesame',
+              do: (ctx) => {
+                ctx.open = true
+              },
+            },
+          },
+        },
+      },
+      selectors: { open: (ctx) => ctx.open },
+    })
+    const store = new MachineStore([Gate], new InMemoryStore())
+    await store.bootAppMachines()
+
+    const dropped = await dispatchToApp(store, Gate, { type: 'OPEN', key: 'wrong' })
+    expect(dropped.committed).toBe(false)
+
+    const opened = await dispatchToApp(store, Gate, { type: 'OPEN', key: 'sesame' })
+    expect(opened.committed).toBe(true)
+  })
+})

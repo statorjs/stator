@@ -80,3 +80,12 @@ code { background: var(--card); border: 1px solid var(--line); border-radius: 3p
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
   outline: 2px solid var(--harbor); outline-offset: 1px;
 }
+.check-row {
+  display: flex; align-items: center; gap: 0.45rem;
+  font-size: 0.85rem; color: var(--soft);
+}
+.members-flag {
+  font-size: 0.72rem; color: var(--buoy);
+  border: 1px solid currentColor; border-radius: 3px;
+  padding: 0 0.35rem; align-self: center;
+}

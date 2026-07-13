@@ -9,6 +9,7 @@ const [auth, board, prefs] = Stator.reads([AuthMachine, BoardMachine, PrefsMachi
 // Frontmatter reads identity ONCE per render; live bindings below close
 // over it. (A login/logout navigates, so the closure can't go stale.)
 const uid = auth.userId
+const isMember = auth.isAuthenticated
 ---
 <!doctype html>
 <html lang="en">
@@ -43,19 +44,26 @@ const uid = auth.userId
         <form class="post-form" method="post" action="/notices/create">
           <input name="title" placeholder="Notice title" required maxlength="80" />
           <textarea name="body" placeholder="What does the harbor need to know?" rows="2" maxlength="500"></textarea>
+          <label class="check-row">
+            <input type="checkbox" name="membersOnly" />
+            members only — visitors' pages never receive it
+          </label>
           <button class="btn" type="submit">Pin it to the wall</button>
         </form>
       ))}
 
       <ul class="notices">
         {each(
-          read(board, (b) => b.all),
+          read(board, (b) => b.visibleTo(isMember)),
           (notice) => (
             <li class={notice.pinned ? 'notice pinned' : 'notice'}>
               <div class="notice-head">
                 <strong>{read(board, (b) => b.all.find((n) => n.id === notice.id)?.title ?? '')}</strong>
                 {when(read(board, (b) => b.all.find((n) => n.id === notice.id)?.pinned ?? false), () => (
                   <span class="pin-flag">⚓ pinned</span>
+                ))}
+                {when(notice.visibility === 'members', () => (
+                  <span class="members-flag">members</span>
                 ))}
               </div>
               <p class="notice-body">{read(board, (b) => b.all.find((n) => n.id === notice.id)?.body ?? '')}</p>
@@ -102,7 +110,7 @@ const uid = auth.userId
           { key: (notice: Notice) => notice.id },
         )}
       </ul>
-      {when(read(board, (b) => b.count === 0), () => (
+      {when(read(board, (b) => b.visibleTo(isMember).length === 0), () => (
         <p class="empty">The wall is bare. First notice takes the best spot.</p>
       ))}
 

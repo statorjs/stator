@@ -24,7 +24,7 @@ type Events =
   | { type: 'LOGIN'; email: string; password: string }
   | { type: 'LOGOUT' }
   | { type: 'SET_NAME'; name: string }
-  | { type: 'POST_NOTICE'; title: string; body: string }
+  | { type: 'POST_NOTICE'; title: string; body: string; membersOnly: boolean }
   | { type: 'WITHDRAW_NOTICE'; noticeId: string }
   | { type: 'MODERATE'; noticeId: string; action: 'pin' | 'remove' }
   | { type: 'WATCH'; noticeId: string }
@@ -40,11 +40,12 @@ export default defineMachine({
     // selector runs server-side after the guard passed; it is the trust
     // boundary between "a browser said" and "the server knows".
     noticePosted: {
-      payload: (ctx, ev: { title: string; body: string }) => ({
+      payload: (ctx, ev: { title: string; body: string; membersOnly: boolean }) => ({
         authorId: ctx.userId,
         authorName: ctx.name,
         title: ev.title,
         body: ev.body,
+        visibility: ev.membersOnly ? 'members' : 'public',
       }),
     },
     withdrawRequested: {

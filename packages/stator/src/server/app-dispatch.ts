@@ -18,7 +18,7 @@ export async function dispatchToApp<D extends AnyMachineDef>(
   store: MachineStore,
   machine: D,
   event: EventOf<D>,
-): Promise<void> {
+): Promise<{ committed: boolean }> {
   const name = machine.name
   const handle = store.appInstance(name)
   if (!handle) {
@@ -46,6 +46,10 @@ export async function dispatchToApp<D extends AnyMachineDef>(
       await store.persistAppMachine(touchedName)
     }
     await fanOut(touched)
+    // Same contract as client and API-route dispatch: did the TARGET machine
+    // actually commit a transition? Webhook receivers use this to tell a
+    // processed event from a guard-dropped duplicate.
+    return { committed: touched.has(name) }
   } finally {
     runtime.dispose()
   }

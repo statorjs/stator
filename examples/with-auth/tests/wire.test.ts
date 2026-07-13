@@ -134,3 +134,43 @@ describe('the auth arc', () => {
     }
   })
 })
+
+describe('members-only visibility', () => {
+  it("private notices never reach a visitor's wire — and do reach members", async () => {
+    const anon0 = sidOf(await app.fetch(new Request('http://test/')))!
+    const member = sidOf(
+      await postForm('/auth/register', anon0, {
+        email: 'keeper@quay.test',
+        name: 'Keeper',
+        password: 'password-123',
+      }),
+    )!
+    await postForm('/notices/create', member, {
+      title: 'Public tide chart',
+      body: 'For all.',
+    })
+    await postForm('/notices/create', member, {
+      title: 'Secret members regatta',
+      body: 'Berth 9, dawn.',
+      membersOnly: 'on',
+    })
+
+    // A member sees both (with the members badge)…
+    const memberHtml = await (
+      await app.fetch(new Request('http://test/', { headers: { Cookie: `stator_sid=${member}` } }))
+    ).text()
+    expect(memberHtml).toContain('Public tide chart')
+    expect(memberHtml).toContain('Secret members regatta')
+    expect(memberHtml).toContain('members-flag')
+
+    // …a visitor's HTML contains no trace of the private one — not hidden,
+    // absent. Server-side filtering means it never crossed the wire.
+    const visitor = sidOf(await app.fetch(new Request('http://test/')))!
+    const visitorHtml = await (
+      await app.fetch(new Request('http://test/', { headers: { Cookie: `stator_sid=${visitor}` } }))
+    ).text()
+    expect(visitorHtml).toContain('Public tide chart')
+    expect(visitorHtml).not.toContain('Secret members regatta')
+    expect(visitorHtml).not.toContain('Berth 9')
+  })
+})
