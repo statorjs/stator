@@ -154,8 +154,8 @@ packages/stator/         # the framework (@statorjs/stator)
     wire/                # the patch/directive protocol, shared by both sides
 packages/language-server # Volar-based .stator language server
 editors/vscode           # VSCode extension (grammar + LSP client)
-apps/example             # Desksmith — the cart/checkout demo (all .stator)
-apps/poll                # live polls — SSE-focused second demo
+examples/desksmith       # the tutorial's companion app (cart/checkout, all .stator)
+examples/live-poll       # shared app-machine state + cross-session SSE
 apps/docs                # developer docs (Astro Starlight)
 ```
 

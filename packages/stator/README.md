@@ -96,7 +96,7 @@ const [counter] = Stator.reads([Counter])
 </html>
 ```
 
-Run with `tsx server.ts`. See the repo's `apps/example` for the full wiring
+Run with `tsx server.ts`. See the repo's `examples/desksmith` for the full wiring
 (type sync, production build, deploy).
 
 ## License

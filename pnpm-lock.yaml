@@ -33,39 +33,7 @@ importers:
         specifier: ^0.12.0
         version: 0.12.0(@astrojs/starlight@0.34.8(astro@5.18.2(@azure/identity@4.13.1)(@types/node@24.13.2)(ioredis@5.10.1)(rollup@4.60.3)(tsx@4.21.0)(typescript@5.9.3)))
 
-  apps/example:
-    dependencies:
-      '@statorjs/stator':
-        specifier: workspace:*
-        version: link:../../packages/stator
-    devDependencies:
-      '@types/node':
-        specifier: ^22.7.0
-        version: 22.19.19
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-
   apps/landing: {}
-
-  apps/poll:
-    dependencies:
-      '@statorjs/stator':
-        specifier: workspace:*
-        version: link:../../packages/stator
-    devDependencies:
-      '@types/node':
-        specifier: ^22.7.0
-        version: 22.19.19
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
 
   apps/private/build-spike:
     dependencies:
@@ -163,6 +131,38 @@ importers:
       ovsx:
         specifier: ^1.0.2
         version: 1.0.2
+
+  examples/desksmith:
+    dependencies:
+      '@statorjs/stator':
+        specifier: workspace:*
+        version: link:../../packages/stator
+    devDependencies:
+      '@types/node':
+        specifier: ^22.7.0
+        version: 22.19.19
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  examples/live-poll:
+    dependencies:
+      '@statorjs/stator':
+        specifier: workspace:*
+        version: link:../../packages/stator
+    devDependencies:
+      '@types/node':
+        specifier: ^22.7.0
+        version: 22.19.19
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
 
   examples/minimal:
     dependencies:

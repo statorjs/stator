@@ -27,6 +27,16 @@ const TEMPLATES = [
     label: 'TodoMVC',
     hint: 'the classic, with server-owned todos and zero-JS editing',
   },
+  {
+    value: 'desksmith',
+    label: 'Desksmith',
+    hint: "the tutorial's finished app — catalog, cart, checkout, theme island",
+  },
+  {
+    value: 'live-poll',
+    label: 'Live poll',
+    hint: 'shared app-machine state, pushed to every visitor over SSE',
+  },
 ]
 
 /** First-party templates resolve into the monorepo's examples/. */

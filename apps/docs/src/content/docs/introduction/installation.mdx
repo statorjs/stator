@@ -13,7 +13,8 @@ This page gets a Stator project onto disk and the dev loop running.
 
 ```bash
 pnpm create stator my-app
-# or pick a starter: --template minimal | todomvc
+# or pick a starter: --template minimal | todomvc | desksmith | live-poll
+# (any repo works too: --template github:user/repo/path)
 cd my-app && pnpm install && pnpm dev
 ```
 
@@ -101,7 +102,7 @@ const { written } = await syncTypes(here)
 console.log(`stator: wrote ${written} .stator.d.ts files`)
 ```
 
-Wire your `package.json` scripts to match `apps/example`:
+Wire your `package.json` scripts to match the scaffolded templates:
 
 ```json
 {

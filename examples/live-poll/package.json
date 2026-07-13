@@ -1,5 +1,5 @@
 {
-  "name": "poll",
+  "name": "stator-example-live-poll",
   "version": "0.0.0",
   "private": true,
   "type": "module",
