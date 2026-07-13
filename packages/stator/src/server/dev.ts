@@ -7,7 +7,7 @@ import { createServer as createViteServer, type ViteDevServer } from 'vite'
 import { compile } from '../compiler/index.ts'
 import { machineStub, stator } from '../vite/index.ts'
 import type { AppStore } from './app-store.ts'
-import { installGracefulShutdown, printDevBanner } from './banner.ts'
+import { findFreePort, installGracefulShutdown, printDevBanner } from './banner.ts'
 import { logger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
@@ -52,10 +52,14 @@ export interface DevApp {
 }
 
 export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
+  // Vite's HMR websocket defaults to 24678 for EVERY dev server — two
+  // stator apps side by side would fight over it (the loser's live reload
+  // silently dies). Probe a free one instead.
+  const hmrPort = await findFreePort(24678)
   const vite = await createViteServer({
     root: resolve(config.root),
     appType: 'custom',
-    server: { middlewareMode: true },
+    server: { middlewareMode: true, hmr: { port: hmrPort } },
     // machineStub keeps server machines out of browser module graphs: island
     // imports of a machine resolve to a `{ name }` stub (SSR loads are
     // untouched — `options.ssr` gates it).
@@ -199,12 +203,23 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
         await vite.close()
         await new Promise<void>((done) => server.close(() => done()))
       })
-      return new Promise((resolveFn) => {
-        server.listen(port, () => {
-          printDevBanner({ port, machines: machineCount, routes: routes.length, inspector: true })
-          resolveFn()
-        })
-      })
+      // Busy port? Shift up like every modern dev server (the requested
+      // port is someone's other project, not an error).
+      return findFreePort(port).then(
+        (freePort) =>
+          new Promise((resolveFn) => {
+            server.listen(freePort, () => {
+              printDevBanner({
+                port: freePort,
+                requestedPort: port,
+                machines: machineCount,
+                routes: routes.length,
+                inspector: true,
+              })
+              resolveFn()
+            })
+          }),
+      )
     },
     close: () => vite.close(),
   }

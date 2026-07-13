@@ -76,6 +76,18 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
           logger.info({ port, machines: defs.length, routes: routes.length }, 'listening')
           resolveFn()
         })
+        // Production is strict about its port (a collision is a deploy
+        // error) — but says so in one line, not a stack trace.
+        server.on('error', (err: NodeJS.ErrnoException) => {
+          if (err.code === 'EADDRINUSE') {
+            logger.error(
+              { port },
+              `port ${port} is already in use — is another instance running? (set PORT to change it)`,
+            )
+            process.exit(1)
+          }
+          throw err
+        })
         // Ctrl+C / SIGTERM (deploy rollover) exits 0, not 130 — quiet in
         // prod: the structured logs are the record.
         installGracefulShutdown(() => new Promise<void>((done) => server.close(() => done())), true)

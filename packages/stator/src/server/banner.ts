@@ -40,12 +40,18 @@ function lanAddress(): string | undefined {
 
 export function printDevBanner(info: {
   port: number
+  /** The port originally asked for, when the server had to shift off it. */
+  requestedPort?: number
   machines: number
   routes: number
   inspector?: boolean
 }): void {
   const v = statorVersion()
   const lan = lanAddress()
+  const shifted =
+    info.requestedPort !== undefined && info.requestedPort !== info.port
+      ? [`  ${c.dim(`port ${info.requestedPort} was busy — using ${info.port}`)}`]
+      : []
   const lines = [
     '',
     `  ${c.copper(c.bold('stator'))}${v ? c.dim(` v${v}`) : ''}  ${c.dim('dev server')}`,
@@ -58,6 +64,7 @@ export function printDevBanner(info: {
         info.routes === 1 ? '' : 's'
       }${info.inspector ? ' · inspector on' : ''} — Ctrl+C to stop`,
     )}`,
+    ...shifted,
     '',
   ]
   process.stdout.write(`${lines.join('\n')}\n`)
@@ -87,4 +94,21 @@ export function installGracefulShutdown(close: () => Promise<void> | void, quiet
   }
   process.on('SIGINT', handler)
   process.on('SIGTERM', handler)
+}
+
+/** First free TCP port at or above `start` (bounded probe). The dev plane
+ *  auto-shifts off busy ports like every modern dev server; production
+ *  never calls this — a taken port there is a deploy error to surface. */
+export async function findFreePort(start: number, attempts = 10): Promise<number> {
+  const { createServer } = await import('node:net')
+  for (let port = start; port < start + attempts; port++) {
+    const free = await new Promise<boolean>((resolve) => {
+      const probe = createServer()
+      probe.once('error', () => resolve(false))
+      probe.once('listening', () => probe.close(() => resolve(true)))
+      probe.listen(port)
+    })
+    if (free) return port
+  }
+  throw new Error(`stator: no free port found in ${start}–${start + attempts - 1}`)
 }
