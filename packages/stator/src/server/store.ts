@@ -29,6 +29,10 @@ export interface Store {
   ): Promise<void>
   has(sessionId: string, machineName: string): Promise<boolean>
   deleteSession(sessionId: string): Promise<void>
+  /** Move EVERY machine snapshot from one session id to another (used by
+   *  session rotation on privilege change). Optional for custom adapters;
+   *  rotation fails loudly when the configured store lacks it. */
+  renameSession?(oldSessionId: string, newSessionId: string): Promise<void>
 }
 
 /**
@@ -91,5 +95,17 @@ export class InMemoryStore implements Store {
 
   async deleteSession(sid: string): Promise<void> {
     this.dropSession(sid)
+  }
+
+  async renameSession(oldSid: string, newSid: string): Promise<void> {
+    if (this.isExpired(oldSid)) {
+      this.dropSession(oldSid)
+      return
+    }
+    const session = this.data.get(oldSid)
+    const expiry = this.expiryAt.get(oldSid)
+    this.dropSession(oldSid)
+    if (session) this.data.set(newSid, session)
+    if (expiry !== undefined) this.expiryAt.set(newSid, expiry)
   }
 }

@@ -99,6 +99,20 @@ export class CachedStore implements Store {
     await this.backing.deleteSession(sid)
   }
 
+  async renameSession(oldSid: string, newSid: string): Promise<void> {
+    // Drop (don't move) cache entries — the next read repopulates from the
+    // backing under the new id. Simpler than key surgery, and rotation is
+    // rare (login/logout).
+    const prefix = `${oldSid}:`
+    for (const k of [...this.cache.keys()]) {
+      if (k.startsWith(prefix)) this.cache.delete(k)
+    }
+    if (!this.backing.renameSession) {
+      throw new Error('stator: CachedStore backing store does not support renameSession')
+    }
+    await this.backing.renameSession(oldSid, newSid)
+  }
+
   /** Insert / refresh an entry at LRU-end and evict oldest if over capacity. */
   private populate(key: string, snapshot: unknown, ttlMs: number): void {
     this.cache.delete(key)

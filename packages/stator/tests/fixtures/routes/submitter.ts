@@ -9,6 +9,7 @@ export const GET = defineRoute({
     <html>
       <body>
         <p>Status: ${read(submitter, (s) => s.status)}</p>
+        <p>Pokes: ${read(submitter, (s) => s.pokes)}</p>
       </body>
     </html>
   `,

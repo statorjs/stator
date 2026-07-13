@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { Context } from 'hono'
 import { setCookie } from 'hono/cookie'
 import { scheduleSessionEffects } from './effects.ts'
@@ -13,7 +14,7 @@ import type {
   Directive,
   RouteRequest,
 } from './routing.ts'
-import { getOrCreateSessionId } from './session.ts'
+import { getOrCreateSessionId, setSessionCookie } from './session.ts'
 import { withSessionLock } from './session-lock.ts'
 import { SessionRuntime } from './session-runtime.ts'
 import { fanOut } from './sse.ts'
@@ -42,6 +43,7 @@ export async function runApiRoute(
   params?: Record<string, string>,
 ): Promise<Response> {
   const { sessionId } = getOrCreateSessionId(c)
+  let rotation: { clear: boolean } | null = null
   const request = params
     ? { ...buildRouteRequest(c, discovered.paramNames), params }
     : buildRouteRequest(c, discovered.paramNames)
@@ -64,6 +66,9 @@ export async function runApiRoute(
           const dispatchedTouched = runtime.processEvent(machine.name, event)
           for (const name of dispatchedTouched) touched.add(name)
         },
+        rotateSession: (opts) => {
+          rotation = { clear: opts?.clear === true }
+        },
       }
 
       let result: Response | ApiRouteEnvelope
@@ -78,9 +83,32 @@ export async function runApiRoute(
         await runtime.persistTouched(touched)
         await fanOut(touched, { sessionId })
       }
+
+      // Session rotation (fixation defense). Order matters: the runtime has
+      // already persisted under the OLD id and fan-out has reached the old
+      // id's connections (about to be navigated away) — now the whole
+      // session moves (or, for logout, dies) and the response carries the
+      // new cookie. Effect completions must chase the NEW id.
+      let effectsSessionId = sessionId
+      if (rotation !== null) {
+        const newSessionId = randomUUID()
+        if ((rotation as { clear: boolean }).clear) {
+          await store.persistence.deleteSession(sessionId)
+        } else {
+          if (!store.persistence.renameSession) {
+            throw new Error(
+              'stator: rotateSession requires a store with renameSession — ' +
+                'the configured custom store does not implement it.',
+            )
+          }
+          await store.persistence.renameSession(sessionId, newSessionId)
+        }
+        setSessionCookie(c, newSessionId)
+        effectsSessionId = newSessionId
+      }
       // Effects queued by dispatched events run after this callback returns
       // (never under the session lock); see server/effects.ts.
-      scheduleSessionEffects(runtime, store, sessionId)
+      scheduleSessionEffects(runtime, store, effectsSessionId)
 
       // Escape hatch: handler returned a real Response. Pass through.
       if (result instanceof Response) return result

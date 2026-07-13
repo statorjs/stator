@@ -137,6 +137,14 @@ export interface ApiRouteHelpers {
    *  fires cross-machine subscriptions. The machine must be in the route's
    *  loaded graph (its `reads`, transitively). */
   dispatch: <D extends AnyMachineDef>(machine: D, event: EventOf<D>) => Promise<void>
+  /** Rotate the session id — the fixation defense for privilege changes.
+   *  Call on login (state moves to a fresh id; the old id becomes worthless
+   *  to anyone who captured it) and on logout with `{ clear: true }` (the
+   *  old session's state is DELETED and the browser starts anonymous).
+   *  Applied after the handler returns: state persists under the new id and
+   *  the response carries the new cookie. Requires a store with
+   *  `renameSession` (all built-in stores have it). */
+  rotateSession: (opts?: { clear?: boolean }) => void
 }
 
 export interface ApiRouteDefinition {

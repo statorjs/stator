@@ -12,6 +12,17 @@ function shouldUseSecureCookie(): boolean {
   return process.env.NODE_ENV === 'production'
 }
 
+/** Write the session cookie — shared by session creation and rotation so
+ *  the flags can never drift apart. */
+export function setSessionCookie(c: Context, sessionId: string): void {
+  setCookie(c, SESSION_COOKIE, sessionId, {
+    httpOnly: true,
+    sameSite: 'Lax',
+    path: '/',
+    secure: shouldUseSecureCookie(),
+  })
+}
+
 export function getOrCreateSessionId(c: Context): {
   sessionId: string
   isNew: boolean
@@ -19,11 +30,6 @@ export function getOrCreateSessionId(c: Context): {
   const existing = getCookie(c, SESSION_COOKIE)
   if (existing) return { sessionId: existing, isNew: false }
   const sessionId = randomUUID()
-  setCookie(c, SESSION_COOKIE, sessionId, {
-    httpOnly: true,
-    sameSite: 'Lax',
-    path: '/',
-    secure: shouldUseSecureCookie(),
-  })
+  setSessionCookie(c, sessionId)
   return { sessionId, isNew: true }
 }

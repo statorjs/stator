@@ -69,6 +69,14 @@ export class RedisStore implements Store {
     await this.client.del(this.key(sid))
   }
 
+  async renameSession(oldSid: string, newSid: string): Promise<void> {
+    // RENAME is atomic and carries the hash's TTL; it throws when the source
+    // is missing (an empty session has nothing to move — fine).
+    if ((await this.client.exists(this.key(oldSid))) === 1) {
+      await this.client.rename(this.key(oldSid), this.key(newSid))
+    }
+  }
+
   /** Close the connection. Call on graceful shutdown. */
   async close(): Promise<void> {
     await this.client.quit()
