@@ -20,3 +20,6 @@ coverage/
 apps/private/
 dump.rdb
 cf-chain.pem
+
+# Private working notes (backed up outside source control)
+.private/
