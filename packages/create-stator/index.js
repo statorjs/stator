@@ -9,6 +9,7 @@
 //   pnpm create stator                                → prompts
 //   pnpm create stator my-app --template todomvc      → no prompts
 //   pnpm create stator my-app -t github:you/your-template
+import { spawn, spawnSync } from 'node:child_process'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
@@ -39,16 +40,48 @@ const { values: flags, positionals } = parseArgs({
   options: {
     template: { type: 'string', short: 't' },
     ref: { type: 'string' },
+    install: { type: 'boolean' },
+    'no-install': { type: 'boolean' },
+    git: { type: 'boolean' },
+    'no-git': { type: 'boolean' },
+    yes: { type: 'boolean', short: 'y' },
     help: { type: 'boolean', short: 'h' },
   },
 })
+
+/** The package manager that LAUNCHED us (`pnpm create stator` → pnpm), via
+ *  the standard npm_config_user_agent header. Defaults to npm. */
+function detectPackageManager() {
+  const agent = process.env.npm_config_user_agent ?? ''
+  if (agent.startsWith('pnpm')) return 'pnpm'
+  if (agent.startsWith('yarn')) return 'yarn'
+  if (agent.startsWith('bun')) return 'bun'
+  return 'npm'
+}
+const pm = detectPackageManager()
+const runCmd = (script) => (pm === 'npm' ? `npm run ${script}` : `${pm} ${script}`)
+
+/** Resolve a yes/no choice: explicit flag > --yes > prompt (TTY) > safe
+ *  default for non-interactive runs. */
+async function decide({ yesFlag, noFlag, message, fallback }) {
+  if (yesFlag) return true
+  if (noFlag) return false
+  if (flags.yes) return true
+  if (!process.stdout.isTTY) return fallback
+  const answer = await p.confirm({ message, initialValue: true })
+  bailIfCancelled(answer)
+  return answer
+}
 
 if (flags.help) {
   console.log(
     `Usage: pnpm create stator [directory] [--template ${TEMPLATES.map((t) => t.value).join('|')}]`,
   )
   console.log('       pnpm create stator my-app --template github:user/repo/path')
-  console.log('       --ref <branch|tag>   fetch first-party templates from a specific ref')
+  console.log('       --ref <branch|tag>     fetch first-party templates from a specific ref')
+  console.log('       --install/--no-install install dependencies after scaffolding')
+  console.log('       --git/--no-git         initialize a git repository')
+  console.log('       -y, --yes              accept all defaults (install + git)')
   process.exit(0)
 }
 
@@ -128,7 +161,53 @@ try {
   s.stop(`Scaffolded ${name} (${template}) — no package.json to stamp`)
 }
 
-p.note([`cd ${target}`, 'pnpm install', 'pnpm dev'].join('\n'), 'Next steps')
+// --- install? ---
+const wantInstall = await decide({
+  yesFlag: flags.install,
+  noFlag: flags['no-install'],
+  message: `Install dependencies with ${pm}?`,
+  fallback: false,
+})
+let installed = false
+if (wantInstall) {
+  const si = p.spinner()
+  si.start(`Installing with ${pm}`)
+  installed = await new Promise((done) => {
+    const child = spawn(pm, ['install'], { cwd: dest, stdio: 'ignore', shell: true })
+    child.on('close', (code) => done(code === 0))
+    child.on('error', () => done(false))
+  })
+  si.stop(installed ? 'Dependencies installed' : `${pm} install failed — run it yourself`)
+}
+
+// --- git? ---
+const wantGit = await decide({
+  yesFlag: flags.git,
+  noFlag: flags['no-git'],
+  message: 'Initialize a git repository?',
+  fallback: false,
+})
+if (wantGit) {
+  const hasGit = spawnSync('git', ['--version'], { stdio: 'ignore' }).status === 0
+  if (hasGit) {
+    spawnSync('git', ['init', '-q'], { cwd: dest, stdio: 'ignore' })
+    spawnSync('git', ['add', '-A'], { cwd: dest, stdio: 'ignore' })
+    // May no-op if user.name/email are unset — an initialized repo without
+    // a first commit is still a win.
+    spawnSync('git', ['commit', '-q', '-m', 'Initial commit from create-stator'], {
+      cwd: dest,
+      stdio: 'ignore',
+    })
+    p.log.success('Initialized a git repository')
+  } else {
+    p.log.warn('git not found — skipped repository setup')
+  }
+}
+
+p.note(
+  [`cd ${target}`, ...(installed ? [] : [`${pm} install`]), runCmd('dev')].join('\n'),
+  'Next steps',
+)
 p.outro('Docs: https://docs.statorjs.dev · Demo: https://demo.statorjs.dev')
 
 function bailIfCancelled(v) {
