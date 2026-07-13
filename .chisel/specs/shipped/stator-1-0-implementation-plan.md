@@ -1,8 +1,8 @@
 ---
 title: Stator 1.0 implementation plan
-status: draft
+status: shipped
 created: 2026-06-17
-updated: 2026-07-03
+updated: 2026-07-13
 area: runtime
 ---
 

@@ -1,8 +1,8 @@
 ---
 title: Stator compiler and Vite plugin implementation plan
-status: draft
+status: shipped
 created: 2026-06-19
-updated: 2026-06-19
+updated: 2026-07-13
 area: compiler
 ---
 

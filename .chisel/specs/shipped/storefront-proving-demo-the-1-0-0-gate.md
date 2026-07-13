@@ -1,8 +1,8 @@
 ---
 title: Storefront proving demo (the 1.0.0 gate)
-status: draft
+status: shipped
 created: 2026-07-04
-updated: 2026-07-04
+updated: 2026-07-13
 area: runtime
 ---
 

@@ -1,8 +1,8 @@
 ---
 title: Typed events and machine-mediated dispatch
-status: draft
+status: shipped
 created: 2026-06-17
-updated: 2026-06-17
+updated: 2026-07-13
 area: runtime
 ---
 

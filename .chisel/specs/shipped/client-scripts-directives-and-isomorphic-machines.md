@@ -1,8 +1,8 @@
 ---
 title: Client scripts, directives, and isomorphic machines
-status: ready
+status: shipped
 created: 2026-06-16
-updated: 2026-06-17
+updated: 2026-07-13
 area: compiler
 ---
 
