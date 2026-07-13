@@ -159,6 +159,12 @@ examples/live-poll       # shared app-machine state + cross-session SSE
 apps/docs                # developer docs (Astro Starlight)
 ```
 
+## Roadmap
+
+Where this is going — and why each item earned its place — lives in
+[ROADMAP.md](ROADMAP.md): upcoming example starters, docs recipes, and the
+primitives our own apps proved missing.
+
 ## Known limitations (1.0 scope)
 
 - **Single replica.** SSE fan-out and app machines are in-process. The

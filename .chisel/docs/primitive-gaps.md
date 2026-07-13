@@ -1,5 +1,10 @@
 # Primitive gaps — the thought experiment (2026-07-13, with Tony)
 
+> Working analysis. The commitments promoted from here live in the public
+> [ROADMAP.md](../../ROADMAP.md); items graduate when an example or real
+> app provides the evidence. This file keeps the full ranked list, the
+> evidence, and the speculative tail.
+
 What real apps need that has no home in the framework today. Ranked by
 confidence, with the in-repo evidence that exposed each. The tell for a
 missing PRIMITIVE (vs a missing recipe): we "solved" it by stepping outside
