@@ -12,10 +12,14 @@
     "format": "biome format --write .",
     "dev": "pnpm --filter example dev",
     "build": "pnpm --filter stator build",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "git config core.hooksPath .githooks || true",
+    "changeset": "changeset",
+    "version-packages": "changeset version && pnpm install --lockfile-only",
+    "release": "changeset publish"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.2",
+    "@changesets/cli": "^2.31.0",
     "typescript": "^5.6.0"
   },
   "engines": {

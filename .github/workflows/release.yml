@@ -1,0 +1,38 @@
+# Release automation, changesets-style — with one deliberate difference:
+# CI only maintains the "Version Packages" PR (bumps + changelogs computed
+# from accumulated .changeset/*.md). PUBLISHING stays local (`pnpm release`)
+# because npm publishes here use 2FA one-time codes, which CI can't have.
+#
+# Requires once, in repo Settings → Actions → General → Workflow permissions:
+# "Read and write" + "Allow GitHub Actions to create and approve pull requests".
+name: Release PR
+
+on:
+  push:
+    branches: [main]
+
+concurrency: release-${{ github.ref }}
+
+jobs:
+  version-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: changesets/action@v1
+        with:
+          version: pnpm version-packages
+          title: 'Version Packages'
+          commit: 'Version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
