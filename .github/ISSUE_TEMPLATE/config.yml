@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Docs
+    url: https://docs.statorjs.dev
+    about: Guides, tutorial, and reference
+  - name: Security vulnerability
+    url: https://github.com/statorjs/stator/security/advisories/new
+    about: Please report vulnerabilities privately, not as public issues

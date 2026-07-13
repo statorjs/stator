@@ -1,0 +1,19 @@
+name: Use case report
+description: "I tried to build X, and there was no home for Y"
+labels: [use-case]
+body:
+  - type: textarea
+    id: story
+    attributes:
+      label: The story
+      description: >
+        What you were building, how you attempted it with Stator's pieces,
+        and where it ran out of road. This is the evidence the roadmap runs
+        on — detail welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Your workaround (if any)
+      description: Stepping outside the framework counts — that's the interesting signal.

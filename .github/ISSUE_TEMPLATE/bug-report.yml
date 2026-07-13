@@ -1,0 +1,34 @@
+name: Bug report
+description: Something broke — help us reproduce it
+labels: [bug]
+body:
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: "`@statorjs/stator` version, Node version, OS"
+      placeholder: "stator 1.1.1 · node 24.1 · macOS 15"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: >
+        The smallest thing that shows it — ideally steps from
+        `pnpm create stator repro`, or a link to a minimal repo.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+    validations:
+      required: true
+  - type: textarea
+    id: wire
+    attributes:
+      label: Wire inspector output (if relevant)
+      description: >
+        For live-update/patch weirdness, paste the relevant entries from the
+        dev inspector's patch log (bottom of the page in `pnpm dev`).

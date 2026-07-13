@@ -1,0 +1,16 @@
+name: DX paper cut
+description: A confusing error, misleading doc, editor squiggle, or rough edge
+labels: [dx]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you were doing, what the tooling said, what you expected it to say.
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      placeholder: "editor / dev server / create-stator / docs page URL"
