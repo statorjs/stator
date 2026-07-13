@@ -1,0 +1,82 @@
+:root {
+  --paper: #f4f2ec;
+  --card: #fffdf7;
+  --ink: #26292d;
+  --soft: #6d7176;
+  --line: #e0dcd0;
+  --harbor: #35596d;
+  --buoy: #b0562f;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.55 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+.wall { max-width: 40rem; margin: 0 auto; padding: 2.2rem 1rem 4rem; }
+.wall.narrow { max-width: 26rem; }
+.masthead h1 { margin: 0; font-size: 1.9rem; letter-spacing: -0.01em; }
+.masthead .sub { margin: 0.15rem 0 0.4rem; color: var(--soft); font-size: 0.9rem; }
+.who { font-size: 0.9rem; }
+.plain { color: inherit; text-decoration: none; }
+.link { color: var(--harbor); }
+.inline { display: inline; }
+.linkish {
+  font: inherit; font-size: 0.85rem;
+  border: none; background: none; padding: 0;
+  color: var(--harbor); cursor: pointer;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.linkish.danger { color: var(--buoy); }
+.post-form {
+  display: flex; flex-direction: column; gap: 0.5rem;
+  background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+  padding: 0.9rem; margin: 1.2rem 0;
+}
+.post-form input, .post-form textarea, .card input {
+  font: inherit; padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line); border-radius: 4px; background: #fff;
+}
+.btn {
+  font: inherit; font-weight: 600; align-self: flex-start;
+  padding: 0.5rem 1rem; border: 1px solid var(--harbor); border-radius: 4px;
+  background: var(--harbor); color: #fff; cursor: pointer;
+}
+.notices { list-style: none; margin: 1.2rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; }
+.notice {
+  background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+  padding: 0.8rem 1rem;
+}
+.notice.pinned { border-color: var(--harbor); box-shadow: 0 0 0 1px var(--harbor); }
+.notice-head { display: flex; justify-content: space-between; gap: 0.5rem; }
+.pin-flag { font-size: 0.75rem; color: var(--harbor); }
+.notice-body { margin: 0.3rem 0 0.5rem; white-space: pre-wrap; }
+.notice-meta {
+  display: flex; gap: 0.9rem; align-items: baseline; flex-wrap: wrap;
+  font-size: 0.82rem; color: var(--soft);
+}
+.notice-actions { display: inline-flex; gap: 0.6rem; }
+.empty, .note { color: var(--soft); font-size: 0.9rem; }
+.error {
+  color: var(--buoy); border-left: 3px solid var(--buoy);
+  padding-left: 0.7rem; font-size: 0.92rem;
+}
+.stack { display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem; }
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+  padding: 1rem 1.1rem;
+}
+.card h2 { margin: 0 0 0.6rem; font-size: 1.05rem; }
+.card form { display: flex; flex-direction: column; gap: 0.6rem; }
+.card label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.88rem; color: var(--soft); }
+.watchlist { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+.watching {
+  margin-top: 1.4rem; font-size: 0.85rem; color: var(--soft);
+  border-top: 1px solid var(--line); padding-top: 0.7rem;
+}
+.watch-label { font-weight: 600; margin-right: 0.35rem; }
+code { background: var(--card); border: 1px solid var(--line); border-radius: 3px; padding: 0 0.3rem; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--harbor); outline-offset: 1px;
+}

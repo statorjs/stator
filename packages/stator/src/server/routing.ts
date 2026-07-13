@@ -136,7 +136,10 @@ export interface ApiRouteHelpers {
    *  Processes the event under the dispatch context, persists touched machines,
    *  fires cross-machine subscriptions. The machine must be in the route's
    *  loaded graph (its `reads`, transitively). */
-  dispatch: <D extends AnyMachineDef>(machine: D, event: EventOf<D>) => Promise<void>
+  dispatch: <D extends AnyMachineDef>(
+    machine: D,
+    event: EventOf<D>,
+  ) => Promise<{ committed: boolean }>
   /** Rotate the session id — the fixation defense for privilege changes.
    *  Call on login (state moves to a fresh id; the old id becomes worthless
    *  to anyone who captured it) and on logout with `{ clear: true }` (the

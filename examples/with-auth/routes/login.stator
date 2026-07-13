@@ -1,0 +1,49 @@
+---
+import AuthMachine from '../machines/auth.ts'
+import Layout from '../templates/auth-layout.stator'
+
+const [auth] = Stator.reads([AuthMachine])
+const { query } = Stator.request
+const error = query.error
+---
+<Layout title="Sign in">
+  {when(read(auth, (a) => a.isAuthenticated), () => (
+    <p class="note">Already aboard as {read(auth, (a) => a.name)} — <a class="link" href="/">back to the wall</a>.</p>
+  ))}
+  {when(read(auth, (a) => !a.isAuthenticated), () => (
+    <div class="stack">
+      {when(error === 'bad-credentials', () => (
+        <p class="error">That email/password combination didn't check out.</p>
+      ))}
+      {when(error === 'exists', () => (
+        <p class="error">An account with that email already exists — sign in instead.</p>
+      ))}
+      {when(error === 'invalid', () => (
+        <p class="error">Registration needs an email, a name, and a password (8+ characters).</p>
+      ))}
+
+      <section class="card">
+        <h2>Sign in</h2>
+        <form method="post" action="/auth/login">
+          <label>Email <input name="email" type="email" required /></label>
+          <label>Password <input name="password" type="password" required /></label>
+          <button class="btn" type="submit">Sign in</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>New to the harbor?</h2>
+        <form method="post" action="/auth/register">
+          <label>Email <input name="email" type="email" required /></label>
+          <label>Display name <input name="name" required maxlength="40" /></label>
+          <label>Password <input name="password" type="password" required minlength="8" /></label>
+          <button class="btn" type="submit">Register</button>
+        </form>
+      </section>
+
+      <p class="note">
+        Demo harbormaster: <code>harbormaster@quay.test</code> / <code>let-me-in</code>
+      </p>
+    </div>
+  ))}
+</Layout>

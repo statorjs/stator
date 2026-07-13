@@ -1,0 +1,51 @@
+---
+import AuthMachine from '../machines/auth.ts'
+import BoardMachine from '../machines/board.ts'
+import PrefsMachine from '../machines/prefs.ts'
+import Layout from '../templates/auth-layout.stator'
+
+const [auth, board, prefs] = Stator.reads([AuthMachine, BoardMachine, PrefsMachine])
+const uid = auth.userId
+if (!auth.isAuthenticated) Stator.response.status = 401
+---
+<Layout title="Profile">
+  {when(read(auth, (a) => !a.isAuthenticated), () => (
+    <p class="note">You're not signed in — <a class="link" href="/login">sign in</a> first.</p>
+  ))}
+  {when(read(auth, (a) => a.isAuthenticated), () => (
+    <div class="stack">
+      <section class="card">
+        <h2>Display name</h2>
+        <form method="post" action="/profile/name">
+          <label>Shown on your notices
+            <input name="name" value={read(auth, (a) => a.name)} required maxlength="40" />
+          </label>
+          <button class="btn" type="submit">Save</button>
+        </form>
+        <p class="note">Existing notices keep the name they were posted under.</p>
+      </section>
+
+      <section class="card">
+        <h2>Watched notices</h2>
+        <p class="note">
+          These follow your <em>account</em>, not your session — sign out,
+          sign in from another browser, and they're still here.
+        </p>
+        <ul class="watchlist">
+          {each(
+            read(prefs, (p) => p.watchedBy(uid).map((id) => ({ id }))),
+            (w) => (
+              <li>
+                {read(board, (b) => b.all.find((n) => n.id === w.id)?.title ?? '(withdrawn notice)')}
+              </li>
+            ),
+            { key: (w) => w.id },
+          )}
+        </ul>
+        {when(read(prefs, (p) => p.watchedBy(uid).length === 0), () => (
+          <p class="note">Nothing watched yet — hit “watch” on any notice.</p>
+        ))}
+      </section>
+    </div>
+  ))}
+</Layout>

@@ -65,6 +65,9 @@ export async function runApiRoute(
           // The target machine is addressed by its def; read the name off it.
           const dispatchedTouched = runtime.processEvent(machine.name, event)
           for (const name of dispatchedTouched) touched.add(name)
+          // Same honesty as client dispatch: a guard-dropped event commits
+          // nothing, and handlers (login flows especially) need to know.
+          return { committed: dispatchedTouched.size > 0 }
         },
         rotateSession: (opts) => {
           rotation = { clear: opts?.clear === true }

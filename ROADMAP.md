@@ -23,8 +23,10 @@ Shipped: `minimal`, `todomvc`, `desksmith` (the tutorial's finished app),
 `apps/store` (it's deployed) and scaffolds directly via
 `--template github:statorjs/stator/apps/store`.
 
-- **`with-auth`** — login/logout with hashed credentials, gated routes,
-  role-guarded machines, per-user durable state.
+- **`with-auth`** *(shipped 2026-07-14)* — login/logout with hashed
+  credentials, gated routes, role-guarded machines, per-user durable state,
+  and session rotation (which shipped as a framework primitive,
+  `rotateSession()`, because this example demanded it).
   *Motivation*: the most-asked question any framework gets, and Stator's
   answer is genuinely distinctive — identity is *addressing* (events arrive
   into the sender's session; there's no userId field to forge), and

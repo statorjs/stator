@@ -10,6 +10,20 @@ confidence, with the in-repo evidence that exposed each. The tell for a
 missing PRIMITIVE (vs a missing recipe): we "solved" it by stepping outside
 the framework entirely.
 
+## Discovered by with-auth (2026-07-14)
+
+- **Server-only events / event provenance.** A session machine cannot
+  distinguish a handler's dispatch from a devtools POST to /__events, so
+  any bare "grant" event (SET_IDENTITY) is forgeable. with-auth's answer:
+  events must PROVE themselves (LOGIN carries credentials, verified in the
+  guard) — sound, but the ceremony suggests a primitive (an origin marker
+  or a `serverOnly` event flag). Evidence: the with-auth design had to
+  reject the natural handler-verifies-then-dispatches shape entirely.
+- **rotateSession SHIPPED** (was the Q3 experiment): renameSession on all
+  stores + API-route orchestration. Promoted off this list.
+- **API-route dispatch now returns `{committed}`** (login flows need to
+  distinguish guard drops) — small, shipped alongside.
+
 ## Near-certain (our own repo worked around them)
 
 1. **Async data loaders.** Frontmatter/render is synchronous (permanent

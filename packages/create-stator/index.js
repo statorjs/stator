@@ -37,6 +37,11 @@ const TEMPLATES = [
     label: 'Live poll',
     hint: 'shared app-machine state, pushed to every visitor over SSE',
   },
+  {
+    value: 'with-auth',
+    label: 'With auth',
+    hint: 'accounts, guarded login, roles, session rotation (Node 24+)',
+  },
 ]
 
 /** First-party templates resolve into the monorepo's examples/. */

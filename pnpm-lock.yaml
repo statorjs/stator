@@ -211,6 +211,31 @@ importers:
         specifier: ^3.0.0
         version: 3.2.7(@types/debug@4.1.13)(@types/node@22.19.19)(happy-dom@15.11.7)(tsx@4.21.0)
 
+  examples/with-auth:
+    dependencies:
+      '@statorjs/stator':
+        specifier: workspace:*
+        version: link:../../packages/stator
+    devDependencies:
+      '@types/node':
+        specifier: ^22.7.0
+        version: 22.19.19
+      pino-pretty:
+        specifier: ^13.1.3
+        version: 13.1.3
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vite:
+        specifier: ^6.0.0
+        version: 6.4.3(@types/node@22.19.19)(tsx@4.21.0)
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.19.19)(happy-dom@15.11.7)(tsx@4.21.0)
+
   packages/create-stator:
     dependencies:
       '@clack/prompts':

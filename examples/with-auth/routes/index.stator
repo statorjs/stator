@@ -1,0 +1,120 @@
+---
+// @stator live
+import AuthMachine from '../machines/auth.ts'
+import BoardMachine, { type Notice } from '../machines/board.ts'
+import PrefsMachine from '../machines/prefs.ts'
+
+const [auth, board, prefs] = Stator.reads([AuthMachine, BoardMachine, PrefsMachine])
+
+// Frontmatter reads identity ONCE per render; live bindings below close
+// over it. (A login/logout navigates, so the closure can't go stale.)
+const uid = auth.userId
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Quay Wall</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <main class="wall">
+      <header class="masthead">
+        <h1>The Quay Wall</h1>
+        <p class="sub">harbor notices · live for everyone in port</p>
+        <nav class="who">
+          {when(read(auth, (a) => !a.isAuthenticated), () => (
+            <a class="link" href="/login">Sign in to post</a>
+          ))}
+          {when(read(auth, (a) => a.isAuthenticated), () => (
+            <span>
+              <a class="link" href="/profile">{read(auth, (a) => a.name)}</a>
+              {' · '}
+              <form class="inline" method="post" action="/auth/logout">
+                <button class="linkish" type="submit">sign out</button>
+              </form>
+            </span>
+          ))}
+        </nav>
+      </header>
+
+      {when(read(auth, (a) => a.isAuthenticated), () => (
+        <form class="post-form" method="post" action="/notices/create">
+          <input name="title" placeholder="Notice title" required maxlength="80" />
+          <textarea name="body" placeholder="What does the harbor need to know?" rows="2" maxlength="500"></textarea>
+          <button class="btn" type="submit">Pin it to the wall</button>
+        </form>
+      ))}
+
+      <ul class="notices">
+        {each(
+          read(board, (b) => b.all),
+          (notice) => (
+            <li class={notice.pinned ? 'notice pinned' : 'notice'}>
+              <div class="notice-head">
+                <strong>{read(board, (b) => b.all.find((n) => n.id === notice.id)?.title ?? '')}</strong>
+                {when(read(board, (b) => b.all.find((n) => n.id === notice.id)?.pinned ?? false), () => (
+                  <span class="pin-flag">⚓ pinned</span>
+                ))}
+              </div>
+              <p class="notice-body">{read(board, (b) => b.all.find((n) => n.id === notice.id)?.body ?? '')}</p>
+              <div class="notice-meta">
+                <span>— {notice.authorName}</span>
+                {when(read(auth, (a) => a.isAuthenticated), () => (
+                  <span class="notice-actions">
+                    <button
+                      class="linkish"
+                      type="button"
+                      on:click={() => auth.send({ type: 'WATCH', noticeId: notice.id })}
+                    >watch</button>
+                    <button
+                      class="linkish"
+                      type="button"
+                      on:click={() => auth.send({ type: 'UNWATCH', noticeId: notice.id })}
+                    >unwatch</button>
+                  </span>
+                ))}
+                {when(read(auth, (a) => a.isAuthenticated && a.userId === notice.authorId), () => (
+                  <button
+                    class="linkish danger"
+                    type="button"
+                    on:click={() => auth.send({ type: 'WITHDRAW_NOTICE', noticeId: notice.id })}
+                  >withdraw</button>
+                ))}
+                {when(read(auth, (a) => a.isHarbormaster), () => (
+                  <span class="notice-actions">
+                    <button
+                      class="linkish"
+                      type="button"
+                      on:click={() => auth.send({ type: 'MODERATE', noticeId: notice.id, action: 'pin' })}
+                    >pin/unpin</button>
+                    <button
+                      class="linkish danger"
+                      type="button"
+                      on:click={() => auth.send({ type: 'MODERATE', noticeId: notice.id, action: 'remove' })}
+                    >remove</button>
+                  </span>
+                ))}
+              </div>
+            </li>
+          ),
+          { key: (notice: Notice) => notice.id },
+        )}
+      </ul>
+      {when(read(board, (b) => b.count === 0), () => (
+        <p class="empty">The wall is bare. First notice takes the best spot.</p>
+      ))}
+
+      {when(read(auth, (a) => a.isAuthenticated), () => (
+        <footer class="watching">
+          <span class="watch-label">watching:</span>
+          {read(prefs, (p) => {
+            const ids = p.watchedBy(uid)
+            return ids.length === 0 ? 'nothing yet' : `${ids.length} notice${ids.length === 1 ? '' : 's'}`
+          })}
+        </footer>
+      ))}
+    </main>
+  </body>
+</html>
