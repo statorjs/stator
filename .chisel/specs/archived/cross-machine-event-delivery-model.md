@@ -1,10 +1,14 @@
 ---
 title: Cross-machine event delivery model
-status: draft
+status: archived
 created: 2026-05-20
-updated: 2026-05-20
+updated: 2026-07-13
 area: runtime
 ---
+
+> **Archived 2026-07-13**: superseded by the shipped subscriptions model
+> (`cross-machine-subscriptions-with-payloads`) and the engine rewrite’s
+> emit/subscribe wiring. Kept for design history.
 
 ## What and Why
 

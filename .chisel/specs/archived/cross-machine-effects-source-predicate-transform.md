@@ -1,10 +1,15 @@
 ---
 title: 'Cross-machine effects: source, predicate, transform'
-status: draft
+status: archived
 created: 2026-05-20
-updated: 2026-05-20
+updated: 2026-07-13
 area: runtime
 ---
+
+> **Archived 2026-07-13**: the position held (subscribes stayed declarative),
+> and async work landed as transition-level engine effects instead
+> (`engine-effects-async-i-o-from-machine-transitions`). Kept for design
+> history.
 
 ## What and Why
 

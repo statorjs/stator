@@ -1,3 +1,11 @@
+---
+title: "Post-1.0: DX, starters, and release-flow polish"
+status: shipped
+created: 2026-07-12
+updated: 2026-07-13
+area: dx
+---
+
 # Post-1.0: DX, starters, and release-flow polish
 
 The "fun list" (Tony, 2026-07-12) — quality-of-life work now that 1.0 is
