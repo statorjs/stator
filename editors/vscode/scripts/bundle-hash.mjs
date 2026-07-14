@@ -10,9 +10,11 @@
 // this at base and at head and compares.
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 
-const root = new URL('..', import.meta.url).pathname
+// Optional argv[1]: hash a DIFFERENT extension dir (the gate hashes the
+// base-worktree build with this same HEAD script — the base commit predates it).
+const root = process.argv[2] ? resolve(process.argv[2]) : new URL('..', import.meta.url).pathname
 
 function filesUnder(dir) {
   const out = []
@@ -36,7 +38,7 @@ const targets = [
 
 const h = createHash('sha256')
 for (const f of targets) {
-  h.update(f.slice(root.length))
+  h.update(relative(root, f))
   h.update(readFileSync(f))
 }
 process.stdout.write(`${h.digest('hex')}\n`)
