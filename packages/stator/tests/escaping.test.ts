@@ -39,12 +39,29 @@ describe('template escaping (XSS)', () => {
     expect(out).not.toContain('<script>')
   })
 
-  it('escapes javascript: payloads the same as any text (no URL allowlisting yet)', () => {
-    const out = render(() => html`<a href="${'javascript:alert(1)'}">x</a>`)
-    // Attribute escaping neutralizes breakouts; scheme filtering is the
-    // author's job (documented) — assert the value can't escape the attr.
-    expect(out).toContain('href="javascript:alert(1)"')
-    expect(out.split('href').length).toBe(2)
+  it('strips javascript:/vbscript: from url-bearing attributes, keeps data: images', () => {
+    const hrefOut = render(() => html`<a href="${'javascript:alert(1)'}">x</a>`)
+    expect(hrefOut).not.toContain('javascript:')
+    expect(hrefOut).toContain('href=""')
+
+    // Case-insensitive + control-char obfuscation is caught.
+    const srcOut = render(() => html`<img src="${'JavaScript:alert(1)'}" />`)
+    expect(srcOut.toLowerCase()).not.toContain('javascript:')
+
+    // data:image on src is a legitimate resource — left intact.
+    const dataOut = render(() => html`<img src="${'data:image/png;base64,AAA'}" />`)
+    expect(dataOut).toContain('data:image/png;base64,AAA')
+
+    // A non-url attribute is unaffected by scheme filtering.
+    const titleOut = render(() => html`<a title="${'javascript:alert(1)'}">x</a>`)
+    expect(titleOut).toContain('javascript:alert(1)')
+  })
+
+  it('escapes single quotes so single-quoted attributes cannot be broken out of', () => {
+    const payload = "' onfocus='alert(1)"
+    const out = render(() => html`<input value='${payload}' />`)
+    expect(out).not.toContain("onfocus='alert(1)'")
+    expect(out).toContain('&#39;')
   })
 
   it('raw() bypasses escaping — the one documented unsafe seam', () => {

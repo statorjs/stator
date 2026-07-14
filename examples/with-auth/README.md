@@ -58,8 +58,24 @@ Requires **Node 24+** (`node:sqlite`).
 
 ## In production you'd add
 
-Rate limiting on login attempts (scrypt's ~50ms under the session lock is a
-floor, not a strategy), a durable "remember me" token if you want logins to
-outlive the session TTL (store hashed tokens per user; re-authenticate on a
-fresh session; revoke server-side), password reset via your mailer, and
-HTTPS (the session cookie is `Secure` under NODE_ENV=production).
+Rate limiting on login attempts — the ~25–50ms of scrypt is a per-request cost,
+not a throttle (an attacker just uses a fresh session per guess), so pair it
+with real per-IP + per-account limits. A durable "remember me" token if you
+want logins to outlive the session TTL (store hashed tokens per user;
+re-authenticate on a fresh session; revoke server-side), password reset via your
+mailer, and HTTPS (the session cookie is `Secure` under NODE_ENV=production).
+
+## CSRF posture
+
+State-changing requests are cookie-authenticated (`stator_sid`). The framework
+defends them two ways: the cookie is `SameSite=Lax` (a cross-site POST won't
+carry it), and every mutating route (form POSTs and `/__events`) rejects
+browser requests whose `Sec-Fetch-Site`/`Origin` says `cross-site`. That covers
+classic cross-origin CSRF without a per-form token. Two caveats to know: a
+sibling **subdomain** is `same-site`, not cross-site, so it isn't blocked by
+either defense (use `SameSite=Strict` or an app check if subdomains are
+untrusted); and **login CSRF** specifically (forcing a victim to log in as the
+attacker) is only as strong as the Origin check — add a per-form token if that's
+in your threat model. Registration reveals whether an email already exists
+(`?error=exists`); swap for an email-verification flow if account enumeration
+matters.

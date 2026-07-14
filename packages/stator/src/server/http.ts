@@ -1,11 +1,12 @@
 import { readFile } from 'node:fs/promises'
-import { dirname, extname, resolve } from 'node:path'
+import { dirname, extname, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { type Context, Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
 import { applyRenderedEffects, runApiRoute } from './api-route.ts'
+import { isBlockedCrossSite } from './csrf.ts'
 import { scheduleSessionEffects } from './effects.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
@@ -161,12 +162,20 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   }
 
   if (config.staticDir) {
-    const staticDir = config.staticDir
+    const staticDir = resolve(config.staticDir)
     app.get('/static/*', async (c) => {
       const rel = c.req.path.replace(/^\/static\//, '')
-      if (rel.includes('..')) return c.text('forbidden', 403)
+      // Containment check: resolve, then require the result to stay under
+      // staticDir. This defeats `..` traversal AND absolute-path escapes —
+      // `/static//etc/passwd` yields rel `/etc/passwd`, which `resolve` would
+      // otherwise honor verbatim (discarding staticDir) and serve. A lexical
+      // `..` check alone misses the absolute-path case.
+      const full = resolve(staticDir, rel)
+      if (full !== staticDir && !full.startsWith(staticDir + sep)) {
+        return c.text('forbidden', 403)
+      }
       try {
-        const buf = await readFile(resolve(staticDir, rel))
+        const buf = await readFile(full)
         c.header('Content-Type', contentTypeFor(rel))
         return c.body(buf)
       } catch {
@@ -260,6 +269,9 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   })
 
   app.post('/__events', async (c) => {
+    if (isBlockedCrossSite(c)) {
+      return c.json({ error: 'cross-site request blocked' }, 403)
+    }
     const { sessionId } = getOrCreateSessionId(c)
     const routeKey = c.req.header('X-Stator-Route')
     if (!routeKey) {
@@ -285,6 +297,16 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       body = eventSchema.parse(await c.req.json())
     } catch (e) {
       return c.json({ error: 'invalid event payload', detail: String(e) }, 400)
+    }
+
+    // Reserved `@`-prefixed events (e.g. the engine's built-in `@set`) are
+    // framework-internal and only ever originate in-browser for client-island
+    // binds. They must never reach a server machine from the wire, where `@set`
+    // would be a guard-bypassing arbitrary-context write. Server actors also
+    // ignore them (createActor without `internalEvents`); this is the clean
+    // 400 at the boundary rather than a silent no-op.
+    if (body.event.type.startsWith('@')) {
+      return c.json({ error: `event type "${body.event.type}" is reserved` }, 400)
     }
 
     const originDef = config.store.getDef(body.machine)
@@ -339,6 +361,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       const matched = matchPath(matchers, c.req.path)
       const apiRoute = matched?.route[method]
       if (!matched || !apiRoute) return next()
+      if (isBlockedCrossSite(c)) return c.text('cross-site request blocked', 403)
       return runApiRoute(c, matched.route, apiRoute, config.store, matched.params)
     })
   }

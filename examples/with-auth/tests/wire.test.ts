@@ -174,3 +174,36 @@ describe('members-only visibility', () => {
     expect(visitorHtml).not.toContain('Berth 9')
   })
 })
+
+describe('@set cannot forge identity or escalate privilege', () => {
+  it('a member @set over /__events is rejected (reserved) and grants nothing', async () => {
+    const anon = sidOf(await app.fetch(new Request('http://test/')))!
+    const member = sidOf(
+      await postForm('/auth/register', anon, {
+        email: 'mallory@quay.test',
+        name: 'Mallory',
+        password: 'password-123',
+      }),
+    )!
+
+    // A plain member cannot moderate — the role guard drops it.
+    const before = (await (
+      await postEvent(member, 'AuthMachine', { type: 'MODERATE', noticeId: 'n1', action: 'remove' })
+    ).json()) as { committed: boolean }
+    expect(before.committed).toBe(false)
+
+    // The built-in @set is refused at the wire boundary…
+    const set = await postEvent(member, 'AuthMachine', {
+      type: '@set',
+      key: 'role',
+      value: 'harbormaster',
+    })
+    expect(set.status).toBe(400)
+
+    // …so MODERATE is still guard-dropped: no self-promotion happened.
+    const after = (await (
+      await postEvent(member, 'AuthMachine', { type: 'MODERATE', noticeId: 'n1', action: 'remove' })
+    ).json()) as { committed: boolean }
+    expect(after.committed).toBe(false)
+  })
+})

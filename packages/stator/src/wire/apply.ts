@@ -9,6 +9,7 @@
  * path applied it.
  */
 import type { Directive, Patch } from './index.ts'
+import { isSafeNavigationUrl } from './safe-url.ts'
 
 function emit(name: string, detail: unknown): void {
   window.dispatchEvent(new CustomEvent(name, { detail }))
@@ -66,15 +67,29 @@ export function applyDirectives(directives: Directive[]): void {
     emit('stator:directive-applied', { directive, timestamp: Date.now() })
     switch (directive.type) {
       case 'navigate':
+        // Reject javascript:/vbscript:/data: targets — a navigation directive
+        // must not be an in-page script sink or off-document jump.
+        if (!isSafeNavigationUrl(directive.to)) {
+          console.error('stator: refusing unsafe navigate target', directive.to)
+          return
+        }
         location.href = directive.to
         return // stop processing further directives; we're leaving
       case 'reload':
         location.reload()
         return
       case 'push-url':
+        if (!isSafeNavigationUrl(directive.to)) {
+          console.error('stator: refusing unsafe push-url target', directive.to)
+          break
+        }
         history.pushState({}, '', directive.to)
         break
       case 'replace-url':
+        if (!isSafeNavigationUrl(directive.to)) {
+          console.error('stator: refusing unsafe replace-url target', directive.to)
+          break
+        }
         history.replaceState({}, '', directive.to)
         break
       case 'focus': {

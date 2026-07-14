@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Context } from 'hono'
 import { setCookie } from 'hono/cookie'
+import { safeNavigationUrl } from '../wire/safe-url.ts'
 import { scheduleSessionEffects } from './effects.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
@@ -124,6 +125,21 @@ export async function runApiRoute(
   })
 }
 
+/** The Referer header is attacker-controllable, so redirecting back to it is an
+ *  open-redirect vector. Return a same-origin relative path (pathname+search)
+ *  when the referer matches this request's origin, else '/'. */
+function sameOriginReferer(request: RouteRequest): string {
+  const ref = request.headers.get('referer')
+  if (!ref) return '/'
+  try {
+    const refUrl = new URL(ref)
+    if (refUrl.origin !== new URL(request.url).origin) return '/'
+    return `${refUrl.pathname}${refUrl.search}`
+  } catch {
+    return '/'
+  }
+}
+
 /**
  * Content-negotiated response synthesis from a directives envelope.
  *
@@ -146,12 +162,14 @@ function synthesizeResponse(
       (d): d is Extract<Directive, { type: 'navigate' }> => d.type === 'navigate',
     )
     if (navigate) {
-      return c.redirect(navigate.to, 303)
+      // Never emit a javascript:/vbscript:/data: Location — coerce to '/'.
+      return c.redirect(safeNavigationUrl(navigate.to), 303)
     }
     const reload = envelope.directives?.find((d) => d.type === 'reload')
     if (reload) {
-      const ref = request.headers.get('referer') ?? '/'
-      return c.redirect(ref, 303)
+      // The Referer is attacker-controllable; only bounce back to it when it's
+      // same-origin, else fall back to '/' (no open redirect).
+      return c.redirect(sameOriginReferer(request), 303)
     }
     // No actionable directive for a no-JS client. Send a minimal 204.
     return new Response(null, { status: 204 })

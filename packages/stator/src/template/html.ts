@@ -3,6 +3,7 @@ import {
   registerBinding,
   requireCurrentRenderState,
 } from '../server/render-context.ts'
+import { isUrlAttribute, safeAttrUrl } from '../wire/safe-url.ts'
 import { escapeAttribute, escapeText, HtmlBuilder, type ValuePosition } from './parser.ts'
 import { createHtmlFragment, type HtmlFragment, isHtmlFragment } from './types.ts'
 
@@ -41,6 +42,14 @@ export function html(strings: TemplateStringsArray, ...values: unknown[]): HtmlF
   }
 
   return createHtmlFragment(builder.toString())
+}
+
+/** URL-scheme guard for attribute interpolation: on url-bearing attributes
+ *  (href/src/…), strip a javascript:/vbscript: value; other attributes pass
+ *  through unchanged. Mirrored on the live-update path (server/recompute.ts) so
+ *  a value that's safe at first render can't turn dangerous via a patch. */
+function sanitizeAttrValue(attrName: string, value: string): string {
+  return isUrlAttribute(attrName) ? safeAttrUrl(value) : value
 }
 
 function processValue(builder: HtmlBuilder, state: RenderState, value: unknown): void {
@@ -101,7 +110,7 @@ function processValue(builder: HtmlBuilder, state: RenderState, value: unknown):
     return
   }
   if (pos.kind === 'attr-value') {
-    builder.pushRaw(escapeAttribute(stringifyValue(value)))
+    builder.pushRaw(escapeAttribute(sanitizeAttrValue(pos.attrName, stringifyValue(value))))
     return
   }
   throw new Error(`stator: cannot interpolate a plain value at ${pos.kind} position`)
@@ -164,7 +173,7 @@ function handleRead(
     if (r.value === false || r.value === null || r.value === undefined) {
       builder.omitCurrentAttribute()
     } else if (r.value !== true) {
-      builder.pushRaw(escapeAttribute(stringifyValue(r.value)))
+      builder.pushRaw(escapeAttribute(sanitizeAttrValue(pos.attrName, stringifyValue(r.value))))
     }
     return
   }

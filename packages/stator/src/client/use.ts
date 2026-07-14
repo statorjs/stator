@@ -85,7 +85,10 @@ export function use<D extends MachineDef>(
         context: { ...(def.context as object), ...eager },
       }
     : undefined
-  const actor = createActor(def as AnyMachineDef, { snapshot })
+  // Client islands honor framework-internal events (`@set` for two-way
+  // `bind:value`); the actor lives in the browser and only its own compiled
+  // bind code sends them. Server actors deliberately do NOT (see createActor).
+  const actor = createActor(def as AnyMachineDef, { snapshot, internalEvents: true })
 
   // Register with the element under construction so its lifecycle owns the actor.
   const bucket = collectors[collectors.length - 1]
