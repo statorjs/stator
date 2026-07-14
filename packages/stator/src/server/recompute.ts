@@ -1,6 +1,7 @@
 import { renderBranchBody } from '../template/conditional.ts'
 import { coerceKeys, renderKeyedItem, renderListBody } from '../template/each.ts'
 import type { Patch } from '../wire/index.ts'
+import { isUrlAttribute, safeAttrUrl } from '../wire/safe-url.ts'
 import {
   keyedScopePrefix,
   keyToken,
@@ -68,7 +69,7 @@ export function recompute(
             target: { kind: 'element', id: binding.parentId },
             op: 'attr',
             name: binding.attrName,
-            value: attrWireValue(newValue),
+            value: sanitizeAttrWire(binding.attrName, attrWireValue(newValue)),
           },
           sourceSlot: slotId,
         })
@@ -284,4 +285,13 @@ function attrWireValue(v: unknown): string | null {
   if (v === false || v === null || v === undefined) return null
   if (v === true) return ''
   return stringify(v)
+}
+
+/** Mirror of html.ts `sanitizeAttrValue` for the live-update path: strip a
+ *  javascript:/vbscript: value from a url-bearing attribute patch so a binding
+ *  that was safe at first render can't turn dangerous via a diff. Null
+ *  (attribute-absent) passes through. */
+function sanitizeAttrWire(attrName: string, value: string | null): string | null {
+  if (value === null) return null
+  return isUrlAttribute(attrName) ? safeAttrUrl(value) : value
 }

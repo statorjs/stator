@@ -1,6 +1,6 @@
 import { defineMachine } from '@statorjs/stator/server'
 import { findUserByEmail, updateUserName } from '../lib/db.ts'
-import { verifyPassword } from '../lib/passwords.ts'
+import { verifyPasswordConstantTime } from '../lib/passwords.ts'
 
 /**
  * The session's identity — TEACHING MOMENT #1: identity is ADDRESSING.
@@ -75,9 +75,14 @@ export default defineMachine({
       on: {
         LOGIN: {
           // Authentication as a guard: wrong credentials = committed:false.
+          // Constant-time: an unknown email still runs one scrypt (decoy), so
+          // response latency doesn't reveal whether the account exists.
           when: (_ctx, ev) => {
             const user = findUserByEmail(ev.email)
-            return user !== undefined && verifyPassword(ev.password, user.pass_salt, user.pass_hash)
+            return verifyPasswordConstantTime(
+              ev.password,
+              user && { salt: user.pass_salt, hash: user.pass_hash },
+            )
           },
           do: (ctx, ev) => {
             // Guard passed — identity facts come from the DATABASE ROW, not

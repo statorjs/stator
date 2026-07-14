@@ -11,11 +11,52 @@
  *
  * GETs are read-only and do not acquire the lock.
  */
+import { scopedLogger } from './logger.ts'
+
+const lockLog = scopedLogger('session-lock')
 const sessionLocks = new Map<string, Promise<unknown>>()
+
+/** A single mutation that neither resolves nor rejects (a hung store I/O, a
+ *  wedged effect) would otherwise pin the session's whole promise chain
+ *  forever — every later mutation queues behind it with no recovery. This cap
+ *  converts a hang into a rejection so the chain drains. The abandoned work may
+ *  still complete in the background, so the timeout is generous (a real
+ *  mutation is milliseconds); it's a wedge backstop, not a deadline. */
+const LOCK_TIMEOUT_MS = 30_000
+
+function withTimeout<T>(sid: string, fn: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let done = false
+    const timer = setTimeout(() => {
+      if (done) return
+      done = true
+      lockLog.error({ sid, ms: LOCK_TIMEOUT_MS }, 'session lock timed out — mutation abandoned')
+      reject(new Error(`stator: session "${sid}" lock held > ${LOCK_TIMEOUT_MS}ms — abandoned`))
+    }, LOCK_TIMEOUT_MS)
+    ;(timer as unknown as { unref?: () => void }).unref?.()
+    Promise.resolve()
+      .then(fn)
+      .then(
+        (v) => {
+          if (done) return
+          done = true
+          clearTimeout(timer)
+          resolve(v)
+        },
+        (e) => {
+          if (done) return
+          done = true
+          clearTimeout(timer)
+          reject(e)
+        },
+      )
+  })
+}
 
 export function withSessionLock<T>(sid: string, fn: () => Promise<T>): Promise<T> {
   const prev = sessionLocks.get(sid) ?? Promise.resolve()
-  const next = prev.then(fn, fn)
+  const run = () => withTimeout(sid, fn)
+  const next = prev.then(run, run)
   const settled = next.then(
     () => undefined,
     () => undefined,

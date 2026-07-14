@@ -119,9 +119,22 @@ function walkStyle(spec: StyleListSpec, out: string[]): void {
     for (const [prop, raw] of Object.entries(spec)) {
       const value = evalRead(raw)
       if (value == null || value === '') continue
-      out.push(`${prop}: ${value}`)
+      // A single property's value must not carry `;` — a `read()`-sourced value
+      // like `red; position: fixed; …` would otherwise inject extra
+      // declarations (overlay / `url()` exfil). Cut at the first `;`.
+      const safe = cssValue(String(value))
+      if (safe === '') continue
+      out.push(`${prop}: ${safe}`)
     }
   }
+}
+
+/** One declaration's value: everything up to the first `;` (the declaration
+ *  separator), trimmed. Blocks reactive CSS-value injection while leaving legit
+ *  values — including `url(...)` — intact. */
+function cssValue(v: string): string {
+  const semi = v.indexOf(';')
+  return (semi === -1 ? v : v.slice(0, semi)).trim()
 }
 
 /**
