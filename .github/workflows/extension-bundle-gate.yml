@@ -1,0 +1,63 @@
+# Gate: if a PR changes the VS Code extension's BEHAVIORAL bundle, it must
+# include a `stator-vscode` changeset. Unlike require-changeset (which fires
+# on any source touch), this compares the actual COMPILED output at the PR
+# base vs head — so a comment-only or tree-shaken-away change in the
+# compiler/language-server produces no false alarm, and a real behavioral
+# change can't ship to the marketplace undocumented.
+#
+# The extension bundles the language-server + compiler source at build time,
+# so its inputs are three trees (see the paths filter).
+name: Extension bundle gate
+
+on:
+  pull_request:
+    paths:
+      - 'editors/vscode/**'
+      - 'packages/language-server/src/**'
+      - 'packages/stator/src/compiler/**'
+
+jobs:
+  bundle-diff:
+    name: extension-bundle-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Build HEAD bundle
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter stator-vscode run build:code
+          echo "HEAD_HASH=$(node editors/vscode/scripts/bundle-hash.mjs)" >> "$GITHUB_ENV"
+
+      - name: Build BASE bundle in a worktree
+        run: |
+          git worktree add /tmp/base ${{ github.event.pull_request.base.sha }}
+          cd /tmp/base
+          pnpm install --frozen-lockfile
+          pnpm --filter stator-vscode run build:code
+          echo "BASE_HASH=$(node editors/vscode/scripts/bundle-hash.mjs)" >> "$GITHUB_ENV"
+
+      - name: Require a changeset iff the bundle actually changed
+        run: |
+          echo "base: $BASE_HASH"
+          echo "head: $HEAD_HASH"
+          if [ "$BASE_HASH" = "$HEAD_HASH" ]; then
+            echo "Behavioral bundle unchanged — no extension changeset required."
+            exit 0
+          fi
+          notes="$(cat .changeset/*.md 2>/dev/null | grep -v -e '^# ' || true)"
+          if echo "$notes" | grep -qE "[\"']?stator-vscode[\"']?[[:space:]]*:"; then
+            echo "stator-vscode changeset present — gate satisfied."
+            exit 0
+          fi
+          echo "::error::The extension bundle changed but there is no \`stator-vscode\` changeset."
+          echo "Run \`pnpm changeset\`, pick stator-vscode, describe the change (it becomes the"
+          echo "extension changelog). The Version PR bumps it; you publish with vsce/ovsx."
+          exit 1
