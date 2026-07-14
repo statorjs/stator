@@ -59,6 +59,20 @@ export function verifyPassword(plain: string, salt: string, expected: string) {
   const exp = Buffer.from(expected, 'hex')
   return actual.length === exp.length && timingSafeEqual(actual, exp)
 }
+
+// Constant-time verify. An unknown email still runs one scrypt against a decoy,
+// so login latency doesn't reveal whether the account exists — otherwise the
+// skipped derivation is a timing oracle that enumerates users.
+const DECOY = hashPassword('decoy — never matches a real password')
+
+export function verifyPasswordConstantTime(
+  plain: string,
+  creds: { salt: string; hash: string } | undefined,
+) {
+  const { salt, hash } = creds ?? DECOY
+  const matched = verifyPassword(plain, salt, hash)
+  return creds !== undefined && matched
+}
 ```
 
 ## Login is a guarded transition
@@ -81,9 +95,11 @@ export default defineMachine({
     anonymous: {
       on: {
         LOGIN: {
+          // Constant-time: an unknown email still runs one (decoy) scrypt, so
+          // response latency can't be used to enumerate accounts.
           when: (_ctx, ev) => {
             const u = findUserByEmail(ev.email)
-            return !!u && verifyPassword(ev.password, u.pass_salt, u.pass_hash)
+            return verifyPasswordConstantTime(ev.password, u && { salt: u.pass_salt, hash: u.pass_hash })
           },
           do: (ctx, ev) => {
             // Guard passed — identity comes from the DB ROW, not the event.
@@ -114,8 +130,10 @@ Never give a session machine a bare identity-granting event like
 `SET_IDENTITY { userId, role }`. Anything dispatchable is dispatchable from
 browser devtools via `/__events` — that would be instant privilege
 escalation. An event must either **prove itself** (`LOGIN` carries
-credentials) or **grant nothing**. This is the one rule the framework can't
-enforce for you yet.
+credentials) or **grant nothing**. The framework blocks its *own* generic
+writes — reserved `@`-prefixed events (like the engine's built-in `@set`) are
+rejected at `/__events` — but it can't stop you from *authoring* a forgeable
+event, so this rule is yours to keep.
 :::
 
 ## Register: hash at the edge
@@ -202,6 +220,25 @@ if (!committed) return { directives: [{ type: 'navigate', to: '/login?error=bad'
 rotateSession()
 ```
 
+## CSRF: cookie writes are origin-checked
+
+Every state-changing request is authenticated by the `stator_sid` cookie, so
+cross-site request forgery is a concern the framework handles — no per-form
+token required. Two defenses cover the classic cross-site POST: the cookie is
+`SameSite=Lax` (a cross-site POST won't carry it), and every mutating route
+(form POSTs **and** `/__events`) rejects browser requests whose `Sec-Fetch-Site`
+/ `Origin` header says `cross-site`. Cookieless server-to-server callers
+(webhooks) send no such header and are unaffected.
+
+Two caveats worth keeping in your threat model:
+
+- A sibling **subdomain** is `same-site`, not `cross-site`, so neither defense
+  blocks it — use `SameSite=Strict` or an app-level check if you don't trust
+  every subdomain on your registrable domain.
+- **Login CSRF** (making a victim's browser sign in as the attacker) isn't
+  fully neutralized by `SameSite` alone; add a per-form token on the login
+  route if it's in scope for you.
+
 ## Bonus: private content never crosses the wire
 
 To show members more than visitors, filter with a **viewer-aware selector**,
@@ -228,6 +265,9 @@ out — but a real app wants them:
 - **Rate limiting** on login (scrypt's cost is a floor, not a strategy;
   `/__events` is a brute-force channel for the `LOGIN` guard without per-IP
   limits in front).
+- **Account enumeration**: login is constant-time above, but registration still
+  reveals whether an email is taken (`?error=exists`). Swap it for an
+  email-verification flow if enumeration matters.
 - **Durable "remember me"** if logins should outlive the session TTL: store
   hashed tokens per user, re-authenticate on a fresh session, revoke
   server-side. (A first-class token cookie is a roadmap candidate.)
