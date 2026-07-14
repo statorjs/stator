@@ -31,6 +31,7 @@ export default defineConfig({
         { label: 'Tutorial', autogenerate: { directory: 'tutorial' } },
         { label: 'Core Concepts', autogenerate: { directory: 'concepts' } },
         { label: 'Guides', autogenerate: { directory: 'guides' } },
+        { label: 'Recipes', autogenerate: { directory: 'recipes' } },
         { label: 'API Reference', autogenerate: { directory: 'reference' } },
       ],
     }),
