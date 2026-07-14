@@ -7,9 +7,18 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": [],
-  "privatePackages": {
-    "version": false,
-    "tag": false
-  }
+  "___comment_privatePackages": "version:true lets the VS Code extension (stator-vscode, private — publishes to the marketplace, not npm) ride the normal Version-PR flow. Every OTHER private package (apps + examples) must be listed in ignore, or it would be versioned too. scripts/check-ignore-list.mjs asserts completeness in CI.",
+  "privatePackages": { "version": true, "tag": false },
+  "ignore": [
+    "docs",
+    "landing",
+    "store",
+    "build-spike",
+    "spike-client-model",
+    "stator-example-minimal",
+    "stator-example-todomvc",
+    "stator-example-desksmith",
+    "stator-example-live-poll",
+    "stator-example-with-auth"
+  ]
 }

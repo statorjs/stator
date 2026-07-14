@@ -1,0 +1,74 @@
+# Gate: if a PR changes the VS Code extension's BEHAVIORAL bundle, it must
+# include a `stator-vscode` changeset. Runs on EVERY PR (no trigger `paths:`
+# filter — that hangs a required check "Expected"); the first step detects
+# whether the three input trees changed and short-circuits to green when they
+# didn't. When they did, it builds the bundle at the PR base and head and
+# compares the compiled output — so comment-only / tree-shaken changes cause
+# no false alarm, and a real behavioral change can't ship undocumented.
+name: Extension bundle gate
+
+on:
+  pull_request:
+
+jobs:
+  extension-bundle-gate:
+    name: extension-bundle-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Did the extension's input trees change?
+        id: scope
+        run: |
+          changed="$(git diff --name-only origin/${{ github.base_ref }}...HEAD)"
+          if echo "$changed" | grep -qE '^(editors/vscode/|packages/language-server/src/|packages/stator/src/compiler/)'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+            echo "No extension inputs changed — nothing to check."
+          fi
+
+      - uses: pnpm/action-setup@v4
+        if: steps.scope.outputs.relevant == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.scope.outputs.relevant == 'true'
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Build HEAD bundle
+        if: steps.scope.outputs.relevant == 'true'
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter stator-vscode run build
+          echo "HEAD_HASH=$(node editors/vscode/scripts/bundle-hash.mjs)" >> "$GITHUB_ENV"
+
+      - name: Build BASE bundle (hashed with the HEAD script)
+        if: steps.scope.outputs.relevant == 'true'
+        run: |
+          git worktree add /tmp/base ${{ github.event.pull_request.base.sha }}
+          ( cd /tmp/base && pnpm install --frozen-lockfile && pnpm --filter stator-vscode run build )
+          # The base commit may predate bundle-hash.mjs — hash it with the
+          # HEAD script pointed at the base build.
+          echo "BASE_HASH=$(node editors/vscode/scripts/bundle-hash.mjs /tmp/base/editors/vscode)" >> "$GITHUB_ENV"
+
+      - name: Require a changeset iff the bundle actually changed
+        if: steps.scope.outputs.relevant == 'true'
+        run: |
+          echo "base: $BASE_HASH"
+          echo "head: $HEAD_HASH"
+          if [ "$BASE_HASH" = "$HEAD_HASH" ]; then
+            echo "Behavioral bundle unchanged — no extension changeset required."
+            exit 0
+          fi
+          notes="$(cat .changeset/*.md 2>/dev/null | grep -v -e '^# ' || true)"
+          if echo "$notes" | grep -qE "[\"']?stator-vscode[\"']?[[:space:]]*:"; then
+            echo "stator-vscode changeset present — gate satisfied."
+            exit 0
+          fi
+          echo "::error::The extension bundle changed but there is no \`stator-vscode\` changeset."
+          echo "Run \`pnpm changeset\`, pick stator-vscode, describe the change (it becomes the"
+          echo "extension changelog). The Version PR bumps it; you publish with vsce/ovsx."
+          exit 1

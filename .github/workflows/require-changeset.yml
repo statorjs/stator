@@ -1,0 +1,36 @@
+# Gate: a PR that changes a PUBLISHED package's source must include a
+# changeset. Runs on EVERY PR (no trigger `paths:` filter — that would make
+# a required check hang "Expected" on PRs that don't touch those paths) and
+# detects the relevant changes internally, passing green when not applicable.
+name: Require changeset
+
+on:
+  pull_request:
+
+jobs:
+  require-changeset:
+    name: require-changeset
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require a changeset for each changed published package
+        run: |
+          changed="$(git diff --name-only origin/${{ github.base_ref }}...HEAD)"
+          notes="$(cat .changeset/*.md 2>/dev/null | grep -v -e '^# ' || true)"
+          fail=0
+          check() { # $1 = path regex, $2 = package name
+            if echo "$changed" | grep -qE "$1"; then
+              if ! echo "$notes" | grep -qE "[\"']?$2[\"']?[[:space:]]*:"; then
+                echo "::error::changed $2 but no changeset covers it — run \`pnpm changeset\`"
+                fail=1
+              else
+                echo "$2: changed, changeset present ✓"
+              fi
+            fi
+          }
+          check '^packages/stator/src/'          '@statorjs/stator'
+          check '^packages/language-server/src/' '@statorjs/language-server'
+          check '^packages/create-stator/'       'create-stator'
+          [ "$fail" = 0 ] && echo "changeset coverage OK" || exit 1
