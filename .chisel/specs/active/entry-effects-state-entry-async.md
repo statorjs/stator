@@ -127,19 +127,29 @@ composes with `defer`'s v1 (which also made the initial render's async
 framework-orchestrated); the two share the "GET can now kick off-lock work"
 change.
 
-## Relationship to `defer` and `after`
+## Relationship to `defer` and the state-lifecycle family
 
 - **`defer`** ([[async-data-defer-boundary]]) is the *view-scoped, one-shot* door
   and kicks its own thunk; it does **not** depend on entry effects. Entry effects
   are the *reactive/stateful/shared* door — a machine that loads once, caches in
   its (persisted) state, and streams updates live over SSE. The two are the two
   halves of the async-data story; this spec completes the machine half.
-- **`after` / state timeouts** is a sibling that **builds on** this: a per-state
-  timer (`after: { 30_000: 'TIMEOUT' }`) is armed on state entry and cancelled on
-  state exit — the same entry-scheduling this spec adds, plus a timer variant and
-  exit-cancellation. Scoped out here; `after` is its own follow-on that reuses
-  the machinery. (Together they also cover expiring carts, debounced saves, turn
-  timers — the planning-poker example will want them.)
+- **`entry` is the first of a state-node lifecycle-hook family.** Its siblings —
+  **`exit`** (cleanup when a state is *left*) and **`after`** (a delayed event
+  while in a state, armed on entry and cancelled on exit) — build on the same
+  entry/exit scheduling this spec establishes. Both are scoped out (no current
+  need for either), but `entry`'s design should **reserve the family, not
+  foreclose it**:
+  - Keep the hooks **distinct**. `exit` is *leave*-triggered; `after` is
+    *duration*-triggered — different triggers, not one overloaded key. "Cleanup
+    on leave" is `exit`, not an `after` variant.
+  - Do **not** bake `after`'s trigger into a bare-ms key (`{ 30_000: EVENT }`).
+    Shape the trigger as a *described* value so it can grow — dynamic delays
+    (`(ctx) => ms`), and durable/cron schedules later — without a breaking
+    change. The ms-only form is the trap to avoid.
+
+  Together the family covers expiring carts, debounced saves, turn timers, and
+  cleanup — planning-poker will want several.
 
 ## Alternatives Considered
 
