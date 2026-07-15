@@ -91,6 +91,49 @@ genuinely-cold source). If a slow `defer` blocking the whole response becomes a
 real complaint, streaming (below) is the escape valve — added without changing
 author code.
 
+### Guidance: put the fetch in the thunk, not the frontmatter (the Astro trap)
+
+Do the async work **inside** the `defer` thunk. Don't create the promise as a
+frontmatter const and hand it in:
+
+```
+// ANTI-PATTERN — the kick is un-gated and re-fires on every render
+---
+const data = Promise.all([api.fetchProducts(), api.fetchReviews()])
+---
+{defer(() => data, { ready: ([p, r]) => … })}
+
+// DO THIS — the framework owns the kick
+{defer(() => Promise.all([api.fetchProducts(), api.fetchReviews()]), {
+  ready: ([p, r]) => …,
+})}
+```
+
+Creating the promise in frontmatter is *legal* — it's a synchronous call, not an
+`await` — but then the kick is a bare frontmatter statement, which runs on
+**every** execution of the render function, including every `/__events` baseline
+re-render (each `on:click` re-runs the frontmatter under the session lock to
+rebuild the diff). So the fetch re-fires on every interaction; the framework
+can't gate it (it only recognizes a `defer()` call as a skippable/memoizable
+seam, not an arbitrary const); and the results are discarded (the defer slot is
+static, skipped on re-diff) — wasted duplicate load on your API. Inside the
+thunk, the framework fires it only on a cold render, memoizes it against the
+slot id, and skips it on re-diffs. Passing a pre-made promise (`() => data`) is a
+thunk in form but not in effect: the kick already happened.
+
+**The Astro trap.** Devs arriving from Astro (or any top-level-`await` SSR
+framework) reach for `const data = await fetch(...)` in frontmatter, and when
+that's rejected, for `const data = fetch(...)` + `defer(() => data)`. Both belong
+in the thunk here — frontmatter is synchronous *setup*; `defer` is where a
+per-request fetch lives. The docs recipe should lead with this contrast.
+
+Parallelism doesn't motivate the frontmatter form either: separate `defer`
+blocks kick their thunks in parallel during the sync pass and await together.
+Sharing one fetch across several `defer` slots is the one thing a frontmatter
+const uniquely expresses — and it has the same re-fire problem — so shared data
+belongs in a machine (app/session) or a request-scoped cache, not a frontmatter
+promise.
+
 ## Internals: the peekable resource + resolve window
 
 **Why a resource, not a raw promise.** You cannot synchronously read a native
@@ -261,6 +304,10 @@ with prop-checking and binding resolution.
   block or hold the lock the way `await` does) and are best done type-aware in
   the LSP layer, where the checker can confirm a Promise-typed receiver and avoid
   false positives. Lower priority than the `await` class.
+- Same LSP family: a Promise-typed frontmatter const flowing into a `defer()`
+  thunk (`const data = fetch(…)` → `defer(() => data)`) — nudge "move the call
+  into the thunk so the framework gates it" (see the Astro-trap guidance above).
+  A lint, not an error; the pattern is legal, just un-gated.
 
 ## Open Questions
 
