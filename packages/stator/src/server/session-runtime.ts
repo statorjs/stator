@@ -4,6 +4,7 @@ import { type DispatchContext, recordTouch, withDispatchContext } from './dispat
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
 import { buildDispatchEvent, MAX_CASCADE_DEPTH, type MachineStore } from './machine-store.ts'
 import { serverReadsResolver } from './reads-helpers.ts'
+import { armAfterTimers, cancelAfterTimers } from './timers.ts'
 
 /**
  * Per-request scope for session-lifecycle machine actors. Created at the
@@ -67,6 +68,11 @@ export class SessionRuntime {
       // Server plane: never run effects inline — queue them for the entry
       // point to schedule after persist + lock release.
       onEffect: (invocation) => this.pendingEffects.push(invocation),
+      // `after` state timeouts: arm on entry, cancel on exit. Timers live in the
+      // process-wide registry (server/timers.ts), not this transient runtime.
+      onStateEnter: (stateKey, ctx) =>
+        armAfterTimers(this.store, this.sessionId, def, stateKey, ctx),
+      onStateExit: (stateKey) => cancelAfterTimers(this.sessionId, def.name, stateKey),
     }).start()
     this.actors.set(
       def.name,

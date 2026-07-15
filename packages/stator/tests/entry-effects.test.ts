@@ -150,3 +150,42 @@ describe('entry effects over HTTP (GET path)', () => {
     expect(loaderEntryFires()).toBe(1)
   })
 })
+
+describe('state enter/exit hooks (the surface `after` timers arm on)', () => {
+  const spies = () => {
+    const onStateEnter = vi.fn()
+    const onStateExit = vi.fn()
+    return { onStateEnter, onStateExit, onEffect: () => {} }
+  }
+
+  it('a fresh start calls onStateEnter(initial); never onStateExit', () => {
+    const opts = spies()
+    createActor(makeLoader(), opts).start()
+    expect(opts.onStateEnter).toHaveBeenCalledWith('loading', expect.anything())
+    expect(opts.onStateExit).not.toHaveBeenCalled()
+  })
+
+  it('hydration calls neither', () => {
+    const opts = spies()
+    createActor(makeLoader(), { ...hydratedIn('loading'), ...opts }).start()
+    expect(opts.onStateEnter).not.toHaveBeenCalled()
+    expect(opts.onStateExit).not.toHaveBeenCalled()
+  })
+
+  it('a value-changing transition calls onStateExit(old) and onStateEnter(new)', () => {
+    const opts = spies()
+    const actor = createActor(makeLoader(), { ...hydratedIn('ready'), ...opts }).start()
+    actor.send({ type: 'RELOAD' }) // ready -> loading
+    expect(opts.onStateExit).toHaveBeenCalledWith('ready')
+    expect(opts.onStateEnter).toHaveBeenCalledWith('loading', expect.anything())
+  })
+
+  it('self-transitions and action-only transitions call neither', () => {
+    const opts = spies()
+    const actor = createActor(makeLoader(), { ...hydratedIn('ready'), ...opts }).start()
+    actor.send({ type: 'REFRESH' }) // ready -> ready
+    actor.send({ type: 'NUDGE' }) // no `to`
+    expect(opts.onStateEnter).not.toHaveBeenCalled()
+    expect(opts.onStateExit).not.toHaveBeenCalled()
+  })
+})

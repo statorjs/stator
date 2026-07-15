@@ -1,4 +1,4 @@
-import type { AnyMachineDef, EffectInvocation } from '../engine/index.ts'
+import type { AnyMachineDef, EffectInvocation, EventObject } from '../engine/index.ts'
 import { dispatchToApp } from './app-dispatch.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
@@ -95,26 +95,45 @@ async function runSessionEffect(
   if (!completion) return
 
   try {
-    await withSessionLock(sessionId, async () => {
-      const runtime = new SessionRuntime(sessionId, store)
-      try {
-        const def = store.getDef(machineName)
-        if (!def) return // machine graph changed under us (dev reload) — drop
-        // loadGraph pulls reads + subscribers transitively, so completion
-        // emits reach cross-machine listeners like any other event.
-        await runtime.loadGraph([def])
-        runtime.wireSubscriptions()
-        const touched = runtime.processEvent(machineName, completion)
-        await runtime.persistTouched(touched)
-        await fanOut(touched, { sessionId })
-      } finally {
-        runtime.dispose()
-      }
-    })
+    await reenterSessionEvent(store, sessionId, machineName, completion)
   } catch (err) {
     effectLog.error(
       { machine: machineName, effectId, err: String(err) },
       'effect completion dispatch failed',
     )
   }
+}
+
+/**
+ * Re-enter an out-of-band event (an effect completion, or an `after` timeout)
+ * through the full session event path: fresh lock, hydrate the machine (the
+ * triggering runtime is long gone — the transient-actor model working for us),
+ * process, persist (including a machine that fired an entry effect on the
+ * resulting transition), fan out to live connections, and schedule any effect
+ * the event chained. Shared by effect completions and state timeouts.
+ */
+export async function reenterSessionEvent(
+  store: MachineStore,
+  sessionId: string,
+  machineName: string,
+  event: EventObject,
+): Promise<void> {
+  await withSessionLock(sessionId, async () => {
+    const runtime = new SessionRuntime(sessionId, store)
+    try {
+      const def = store.getDef(machineName)
+      if (!def) return // machine graph changed under us (dev reload) — drop
+      // loadGraph pulls reads + subscribers transitively, so emits reach
+      // cross-machine listeners like any other event.
+      await runtime.loadGraph([def])
+      runtime.wireSubscriptions()
+      const touched = runtime.processEvent(machineName, event)
+      await runtime.persistTouched(new Set([...touched, ...runtime.entryFiredMachines()]))
+      await fanOut(touched, { sessionId })
+      // A transition or entry effect chained off this event surfaces here.
+      scheduleSessionEffects(runtime, store, sessionId)
+    } finally {
+      runtime.dispose()
+    }
+  })
 }
