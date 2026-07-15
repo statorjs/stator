@@ -212,6 +212,56 @@ render, it's a machine; if it's fetched once for this view, it's a `defer`.**
   template partials). `defer` matches the actual mechanic and has server-stream
   lineage (Remix `defer`/`<Await>`).
 
+## Tooling: enforcing synchronous frontmatter (and an LSP scoping note)
+
+The sync-frontmatter contract needs to be *enforced*, or the whole `defer`
+story leaks: an author who writes `await db.query()` in frontmatter must get a
+clear "move this into `defer(…)`" error, not silent surprising behavior.
+
+**Current gap (found 2026-07-14).** `await` in frontmatter is *not* flagged in
+the editor today. The runtime `compile()` emits the frontmatter body inside a
+synchronous function (where `await` would be TS1308), but the language server
+uses a *separate* emitter — `compiler/virtual-code.ts` `buildServerTsx` — which
+places the executable body at **module scope**, and top-level `await` is legal
+in an ES module. So the two emitters disagree on scope, and TS stays silent.
+
+**This is a latent class, not a one-off.** The module-vs-function-body gap also
+mis-models `return`, top-level `this`, `using`, `import.meta` in frontmatter —
+same failure shape (fine in the editor, different at runtime). It matters more
+as frontmatter grows (this spec's `defer` adds real frontmatter/template
+interplay).
+
+**The module-scope choice isn't principled.** Its stated reason ("so the
+template sees the frontmatter's bindings", `virtual-code.ts:134`) holds equally
+if the body sits *inside* the same `export default function` as the template
+`return` — same scope, same visibility. The real driver is v1 mapping
+simplicity (one contiguous source→generated run vs a hoist/body split).
+
+**Decision: converge, don't just guard.** Align the LSP emitter's scoping onto
+the runtime's — hoist imports/type/interface decls to module scope, emit the
+executable body inside `export default function (_props: PropsType) { <body>;
+return (<>…</>) }`. This makes `await` (and `return`, `this`, …) native TS errors
+— killing the whole class, not one symptom — while keeping the intended emitter
+difference (JSX-for-intelligence vs `html` for execution) and staying compatible
+with prop-checking and binding resolution.
+
+- **Risk to watch:** the source→generated mappings are the load-bearing part;
+  they go from one contiguous run to a hoist/body split (clean for the common
+  "imports first" layout, messier if imports interleave with statements). Gate
+  the change on `compiler-virtual-code` / `virtual-code-typecheck` tests plus new
+  "await/return in frontmatter now errors, and hover/completion still land" cases.
+- **Fallback if convergence gets too hairy:** ship a compiler async-guard — a
+  `CompileError` on a frontmatter `AwaitExpression` with a "move it into
+  `defer(…)`" message (surfaced in-editor via the `stator-diagnostics` service,
+  in dev via the Vite overlay, and at build) — and record the module-scope
+  divergence as tracked debt to revisit before frontmatter grows further.
+- **Either way**, a friendly compiler-level message beats the generic TS1308, so
+  the async-guard is worth keeping as message polish even after convergence.
+- `.then`/`.catch` and floating promises are belt-and-suspenders (they don't
+  block or hold the lock the way `await` does) and are best done type-aware in
+  the LSP layer, where the checker can confirm a Promise-typed receiver and avoid
+  false positives. Lower priority than the `await` class.
+
 ## Open Questions
 
 - Exact resolve-window drain: single microtask vs `setTimeout(0)` macrotask
