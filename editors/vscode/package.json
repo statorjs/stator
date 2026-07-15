@@ -29,6 +29,7 @@
     "build:server": "esbuild ../../packages/language-server/src/index.ts --bundle --platform=node --format=cjs --minify --alias:vscode-css-languageservice=vscode-css-languageservice/lib/esm/cssLanguageService.js --outfile=dist/server.cjs",
     "build:client": "esbuild src/extension.ts --bundle --platform=node --format=cjs --outfile=dist/extension.js --external:vscode",
     "build": "mkdir -p dist && pnpm run build:client && pnpm run build:server && pnpm run build:tsdk",
+    "vscode:prepublish": "pnpm run build",
     "package": "pnpm run build && vsce package --no-dependencies",
     "publish:vsce": "vsce publish --no-dependencies",
     "publish:ovsx": "ovsx publish --no-dependencies",
