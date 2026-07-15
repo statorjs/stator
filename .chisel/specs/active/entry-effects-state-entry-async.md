@@ -106,7 +106,8 @@ Inherited from the effect model, unchanged: if the machine leaves `loading`
 (e.g. a user cancels) before the entry effect resolves, the completion event
 re-enters the normal path and is **guard-dropped / unhandled** because the state
 moved on. In-flight work is **not** aborted — effect cancellation (`AbortSignal`
-on state exit) is a separate, later primitive (gap analysis #7). A crash between
+on state exit) is a separate, later primitive (gap analysis #7), and the primary
+motivation for the `exit` hook (see the lifecycle family). A crash between
 firing and completion loses the effect and strands the machine in `loading` —
 the same at-most-once limitation transition effects have; durability rides the
 1.x inbox. The escape from a hung or stranded `loading` is a **state timeout**
@@ -145,9 +146,12 @@ change.
   (`after: <delay> → error`) recovers the stranded/lost case. So `after` shares
   the entry-scheduling this spec establishes and is a **co-development / immediate
   fast-follow**, not a someday-item.
-- **`exit`** (cleanup when a state is *left*) is the genuinely speculative
-  sibling — no current need — but reserve it in the family rather than foreclose
-  it. Two constraints on the family whenever built:
+- **`exit`** (run when a state is *left*) isn't needed today, but plan for it
+  specifically as the home for **`AbortSignal`-based cancellation**: aborting an
+  entry effect's still-in-flight work when the state is left (effect
+  cancellation, gap analysis #7) is its primary anticipated use case — more than
+  generic cleanup. Reserve it in the family rather than foreclose it. Two
+  constraints on the family whenever built:
   - Keep the hooks **distinct**. `exit` is *leave*-triggered; `after` is
     *duration*-triggered — different triggers, not one overloaded key. "Cleanup
     on leave" is `exit`, not an `after` variant.
