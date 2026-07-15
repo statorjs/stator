@@ -18,6 +18,7 @@
  * load-bearing part.
  */
 
+import ts from 'typescript'
 import { analyzeScriptClasses } from './client-script.ts'
 import { componentPropsType, extractFrontmatterTypes } from './dts.ts'
 import { type ScannedRegions, scanRegions } from './split.ts'
@@ -131,24 +132,29 @@ export function toVirtualCode(source: string): VirtualCodeResult {
   }
 }
 
-/** Server component: frontmatter (module scope) + template as a JSX fragment, so
- *  template expressions see the frontmatter's bindings. */
+/** Server component: import/type/interface declarations hoist to module scope;
+ *  the executable frontmatter body + the template (a JSX fragment) live inside
+ *  the render function, so template expressions see the frontmatter's bindings.
+ *
+ *  The body is deliberately NOT at module scope: it runs as a synchronous
+ *  function body at runtime (compile.ts wraps it the same way), so modelling it
+ *  as one here is what makes top-level `await` / `return` the TS errors they
+ *  should be. Emitting the body at module scope (the previous shape) silently
+ *  made them legal in-editor while diverging from runtime semantics. */
 function buildServerTsx(regions: ScannedRegions): VirtualFile {
   const mappings: VirtualMapping[] = []
-  const userCode = (regions.frontmatter?.content ?? '') + regions.template.content
+  const fm = regions.frontmatter?.content ?? ''
+  const fmOffset = regions.frontmatter?.contentOffset ?? 0
+  const userCode = fm + regions.template.content
   let code =
     injectImports(TEMPLATE_GLOBALS, '@statorjs/stator/template', userCode) +
     AMBIENT_TYPE_IMPORTS +
     STATOR_AMBIENT
 
-  if (regions.frontmatter?.content.trim()) {
-    push(
-      mappings,
-      regions.frontmatter.contentOffset,
-      code.length,
-      regions.frontmatter.content.length,
-    )
-    code += `${regions.frontmatter.content}\n`
+  const { hoisted, body } = splitFrontmatter(fm, fmOffset)
+  for (const seg of hoisted) {
+    push(mappings, seg.sourceOffset, code.length, seg.text.length)
+    code += `${seg.text}\n`
   }
 
   // A leading <!doctype> is static HTML, not JSX — drop it from the shell (no
@@ -162,22 +168,58 @@ function buildServerTsx(regions: ScannedRegions): VirtualFile {
   }
 
   // `export default function` gives importers a default export (`import X from
-  // './x.stator'`) and puts the template in a scope that closes over the
-  // frontmatter bindings. The param is typed from `Stator.props<P>()` (same
-  // extraction as the .d.ts generator), so `<Component bad={...}/>` in OTHER
-  // .stator files is checked in-editor — TS validates value-based JSX against
-  // the component function's first parameter. Named prop types resolve
-  // because the frontmatter is emitted into this same module above.
-  const propsT = componentPropsType(
-    extractFrontmatterTypes(regions.frontmatter?.content ?? '').propsType,
-    regions.template.content,
-  )
-  code += `export default function (_props: ${propsT}) {\n  return (<>`
+  // './x.stator'`) and a scope that closes over the frontmatter body. The param
+  // is typed from `Stator.props<P>()` (same extraction as the .d.ts generator),
+  // so `<Component bad={...}/>` in OTHER .stator files is checked in-editor.
+  // Named prop types resolve because their type/interface decls hoisted above.
+  const propsT = componentPropsType(extractFrontmatterTypes(fm).propsType, regions.template.content)
+  code += `export default function (_props: ${propsT}) {\n`
+  for (const seg of body) {
+    code += '  '
+    push(mappings, seg.sourceOffset, code.length, seg.text.length)
+    code += `${seg.text}\n`
+  }
+  code += '  return (<>'
   push(mappings, tplOffset, code.length, tpl.length)
   code += tpl
   code += '</>);\n}\n'
 
   return { lang: 'tsx', code, mappings }
+}
+
+interface FmSegment {
+  sourceOffset: number
+  text: string
+}
+
+/**
+ * Split frontmatter into hoisted declarations (import/type/interface — must be
+ * module scope) and body statements (everything else — the render function).
+ * Mirrors the runtime classification in `compile.ts` `processFrontmatter`, so
+ * the editor models the same scoping. Each segment keeps its exact source range
+ * (`getStart`..`getText`) so the mapping stays a verbatim 1:1 run.
+ */
+function splitFrontmatter(
+  fm: string,
+  fmOffset: number,
+): { hoisted: FmSegment[]; body: FmSegment[] } {
+  const hoisted: FmSegment[] = []
+  const body: FmSegment[] = []
+  if (!fm.trim()) return { hoisted, body }
+  const sf = ts.createSourceFile('fm.ts', fm, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  for (const stmt of sf.statements) {
+    const seg: FmSegment = { sourceOffset: fmOffset + stmt.getStart(sf), text: stmt.getText(sf) }
+    if (
+      ts.isImportDeclaration(stmt) ||
+      ts.isTypeAliasDeclaration(stmt) ||
+      ts.isInterfaceDeclaration(stmt)
+    ) {
+      hoisted.push(seg)
+    } else {
+      body.push(seg)
+    }
+  }
+  return { hoisted, body }
 }
 
 /** Client component: the `<script>` is the module. Emit it as TS so the class,
