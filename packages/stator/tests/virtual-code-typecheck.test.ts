@@ -70,6 +70,16 @@ import CustomerLayout from './customer-layout.stator'
 </CustomerLayout>
 `
 
+// Frontmatter is synchronous — its body compiles into a non-async render
+// function, so a top-level `await` must be a TS error in the editor too (the
+// emitter once placed the body at module scope, where top-level await is legal,
+// silently diverging from runtime).
+const COMPONENT_AWAIT = `---
+const data = await Promise.resolve(1)
+---
+<p>{String(data)}</p>
+`
+
 function emitAll(): Record<string, string> {
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'cart-machine.ts'), CART_MACHINE)
@@ -78,6 +88,7 @@ function emitAll(): Record<string, string> {
     ['customer-layout', LAYOUT],
     ['route-good', ROUTE_GOOD],
     ['route-bad', ROUTE_BAD],
+    ['component-await', COMPONENT_AWAIT],
   ] as const) {
     // The editor resolves `.stator` imports through the language plugin; here
     // tsc plays that role by resolving the emitted sibling `.tsx`.
@@ -126,5 +137,15 @@ describe('virtual code under real tsc (the editor contract)', () => {
     const bad = diags.get('route-bad')!
     expect(bad.length).toBeGreaterThan(0)
     expect(bad.join('\n')).toMatch(/notACart|not assignable/)
+  })
+
+  it('a top-level await in frontmatter is a TS error (sync-frontmatter contract)', () => {
+    // The body compiles into a non-async render function, so `await` there is
+    // TS1308 — surfaced in-editor, matching the runtime. A regression that moved
+    // the body back to module scope would make this pass silently.
+    const awaited = diags.get('component-await')!
+    expect(awaited.join('\n')).toMatch(
+      /'await' expressions are only allowed within async functions/,
+    )
   })
 })
