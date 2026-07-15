@@ -109,7 +109,9 @@ moved on. In-flight work is **not** aborted — effect cancellation (`AbortSigna
 on state exit) is a separate, later primitive (gap analysis #7). A crash between
 firing and completion loses the effect and strands the machine in `loading` —
 the same at-most-once limitation transition effects have; durability rides the
-1.x inbox.
+1.x inbox. The escape from a hung or stranded `loading` is a **state timeout**
+(`after: <delay> → error`) — which is why `after` is a *needed* companion to
+entry effects, not an optional one (see the lifecycle family below).
 
 ## The GET-path implication
 
@@ -134,22 +136,28 @@ change.
   are the *reactive/stateful/shared* door — a machine that loads once, caches in
   its (persisted) state, and streams updates live over SSE. The two are the two
   halves of the async-data story; this spec completes the machine half.
-- **`entry` is the first of a state-node lifecycle-hook family.** Its siblings —
-  **`exit`** (cleanup when a state is *left*) and **`after`** (a delayed event
-  while in a state, armed on entry and cancelled on exit) — build on the same
-  entry/exit scheduling this spec establishes. Both are scoped out (no current
-  need for either), but `entry`'s design should **reserve the family, not
-  foreclose it**:
+- **`entry` is the first of a state-node lifecycle-hook family**, and **`after`
+  is a needed companion, not a speculative one.** The loading pattern wants a
+  **timeout**: an entry effect can hang, and — because effects are at-most-once —
+  a lost one *strands the machine in `loading`* with no event to escape on (see
+  Stale completions). A `Promise.race` inside the effect covers a *slow* fetch,
+  but not an effect that never returns; only a state-level timeout
+  (`after: <delay> → error`) recovers the stranded/lost case. So `after` shares
+  the entry-scheduling this spec establishes and is a **co-development / immediate
+  fast-follow**, not a someday-item.
+- **`exit`** (cleanup when a state is *left*) is the genuinely speculative
+  sibling — no current need — but reserve it in the family rather than foreclose
+  it. Two constraints on the family whenever built:
   - Keep the hooks **distinct**. `exit` is *leave*-triggered; `after` is
     *duration*-triggered — different triggers, not one overloaded key. "Cleanup
     on leave" is `exit`, not an `after` variant.
   - Do **not** bake `after`'s trigger into a bare-ms key (`{ 30_000: EVENT }`).
-    Shape the trigger as a *described* value so it can grow — dynamic delays
-    (`(ctx) => ms`), and durable/cron schedules later — without a breaking
-    change. The ms-only form is the trap to avoid.
+    Shape it as a *described* value so it can grow — dynamic delays
+    (`(ctx) => ms`), durable/cron schedules later — without a breaking change.
+    The ms-only form is the trap to avoid.
 
-  Together the family covers expiring carts, debounced saves, turn timers, and
-  cleanup — planning-poker will want several.
+  Together the family covers loading timeouts, expiring carts, debounced saves,
+  turn timers, and cleanup — planning-poker will want several.
 
 ## Alternatives Considered
 
