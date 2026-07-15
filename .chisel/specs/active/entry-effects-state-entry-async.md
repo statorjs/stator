@@ -66,6 +66,19 @@ returned event dispatched through the normal path (reaching live pages over
 SSE), at-most-once and non-durable in v1. **Only the trigger differs** —
 state entry instead of a matched transition.
 
+**Return typing** is the same contract transition effects already use, so this
+is a solved problem rather than a new inference one. `entry` is the `Effect`
+shape (`types.ts:80`) minus `ev`, with the machine's event union `EAll` threaded
+through `StateNode` exactly as `TransitionConfig.effect` threads it. You
+**annotate** the return (`: Promise<Events | null>`) and TS checks the returned
+event against the declared union (`events: {} as Events`): an undeclared type or
+a missing/mistyped field is a compile error. The annotation is *required*, not
+optional — full inference from inside `defineMachine`'s generics is intractable
+(the nested context-sensitive arrow widens its literals), so an unannotated
+return **fails to typecheck loudly**, never passes silently. The engine's
+`Effect` doc comment already spells this out for the transition case; the sample
+above is type-checked, not just illustrative.
+
 ## Fire semantics (the crux)
 
 An entry effect fires when a state is **entered**:
