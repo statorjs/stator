@@ -96,6 +96,10 @@ export function createActor<C extends object, E extends EventObject, S extends s
   let context: C = opts.snapshot
     ? (structuredClone(opts.snapshot.context) as C)
     : (structuredClone(def.context) as C)
+  // Hydrated actors have already lived: their current state's entry effect fired
+  // when it was entered, so `start()` must NOT re-fire it. Fresh actors (no
+  // snapshot) enter their initial state for the first time.
+  const hydrated = opts.snapshot !== undefined
 
   const subscribers = new Set<(s: Snapshot<C>) => void>()
   const emitListeners = new Map<string, Set<(e: EmittedEvent) => void>>()
@@ -112,6 +116,39 @@ export function createActor<C extends object, E extends EventObject, S extends s
     for (const fn of subscribers) fn(snap)
   }
 
+  // Schedule a state's entry effect (if declared) — the same host-scheduled,
+  // commit-time-snapshot, at-most-once path as a transition effect, minus the
+  // event. Firing does NOT bump `commits` (an entry is not a committed
+  // transition); the server persists an entry-firing machine via the host's
+  // pending-effects queue instead (see server/session-runtime.ts).
+  const fireEntryEffect = (stateKey: string): void => {
+    const entry = def.states[stateKey]?.entry
+    if (!entry) return
+    const effectId = newEffectId()
+    const ctxSnapshot = structuredClone(context)
+    const invocation: EffectInvocation = {
+      machineName: def.name,
+      effectId,
+      run: () => Promise.resolve(entry(ctxSnapshot, { effectId })),
+    }
+    if (opts.onEffect) {
+      opts.onEffect(invocation)
+    } else {
+      void invocation
+        .run()
+        .then((completion) => {
+          if (completion) actor.send(completion as E)
+        })
+        .catch((err) => {
+          console.error(
+            `stator: entry effect ${effectId} of "${def.name}" threw — effects must catch ` +
+              `and return their failure event. Dropped.`,
+            err,
+          )
+        })
+    }
+  }
+
   const actor: Actor<C, E> = {
     seed(partial: Partial<C>) {
       if (!started) context = { ...context, ...partial }
@@ -120,6 +157,8 @@ export function createActor<C extends object, E extends EventObject, S extends s
       if (!started) {
         started = true
         notify() // let subscribe-before-start consumers sync initial state
+        // Fresh initial-state entry (a hydrated actor already fired its).
+        if (!hydrated) fireEntryEffect(value[value.length - 1]!)
       }
       return actor
     },
@@ -227,6 +266,10 @@ export function createActor<C extends object, E extends EventObject, S extends s
             })
         }
       }
+
+      // Entering a new state fires its entry effect — value-changing transitions
+      // only (not self-transitions or action-only transitions).
+      if (config.to && config.to !== stateKey) fireEntryEffect(config.to)
 
       notify()
     },

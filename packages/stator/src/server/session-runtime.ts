@@ -104,6 +104,14 @@ export class SessionRuntime {
     return this.store.getDef(name)?.lifecycle
   }
 
+  /** Machines whose entry effect fired on a fresh `start()` — queued in
+   *  `pendingEffects` but distinct from `touched` (an entry commits no
+   *  transition). Entry points persist this set so a freshly-entered state
+   *  isn't re-created and re-fired next request. Read before draining. */
+  entryFiredMachines(): Set<string> {
+    return new Set(this.pendingEffects.map((e) => e.machineName))
+  }
+
   /** Hand queued effect invocations to the scheduler, clearing the queue. */
   drainPendingEffects(): EffectInvocation[] {
     const drained = this.pendingEffects
