@@ -320,7 +320,11 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         await runtime.loadGraph([...route.reads, originDef])
         runtime.wireSubscriptions()
 
-        const { renderState } = await renderRoute(route, routeKey, sessionId, runtime, request)
+        // Baseline render for the diff runs UNDER the session lock — never
+        // resolve defer slots here (that would kick their I/O under the lock).
+        const { renderState } = await renderRoute(route, routeKey, sessionId, runtime, request, {
+          resolveDeferred: false,
+        })
 
         const touched = runtime.processEvent(body.machine, body.event)
 

@@ -22,6 +22,7 @@ export function raw(html: string): HtmlFragment {
 }
 
 import { isBranchResult } from './conditional.ts'
+import { isDeferResult } from './defer.ts'
 import {
   type DirectiveContext,
   type DirectiveInvocation,
@@ -95,6 +96,14 @@ function processValue(builder: HtmlBuilder, state: RenderState, value: unknown):
   if (isBranchResult(value)) {
     if (pos.kind !== 'text') {
       throw new Error('stator: cannot inline a when()/match() result outside text position')
+    }
+    builder.pushRaw(value.html)
+    return
+  }
+
+  if (isDeferResult(value)) {
+    if (pos.kind !== 'text') {
+      throw new Error('stator: cannot inline a defer() result outside text position')
     }
     builder.pushRaw(value.html)
     return
