@@ -83,8 +83,14 @@ export async function runApiRoute(
         return c.text('Internal Server Error', 500)
       }
 
+      // Persist committed machines plus any fresh machine that fired its initial
+      // entry effect (not in `touched` — an entry commits no transition), so it
+      // isn't re-created and re-fired next request. Fan-out stays on `touched`.
+      const toPersist = new Set([...touched, ...runtime.entryFiredMachines()])
+      if (toPersist.size > 0) {
+        await runtime.persistTouched(toPersist)
+      }
       if (touched.size > 0) {
-        await runtime.persistTouched(touched)
         await fanOut(touched, { sessionId })
       }
 

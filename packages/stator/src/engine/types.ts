@@ -83,6 +83,19 @@ export type Effect<C, E extends EventObject, EAll extends EventObject = EventObj
   meta: EffectMeta,
 ) => Promise<EAll | null>
 
+/**
+ * A state ENTRY effect: async I/O the host schedules when a state is *entered* —
+ * a fresh start at the initial state, or a transition that changes the state
+ * value; never on hydration. Same host-scheduled, off-lock, at-most-once
+ * pipeline as a transition `Effect`, minus the event argument (a state entry has
+ * no triggering event). Returns the completion event to dispatch (annotate the
+ * return with your machine's event union, exactly as for `Effect`), or null.
+ */
+export type EntryEffect<C, EAll extends EventObject = EventObject> = (
+  ctx: C,
+  meta: EffectMeta,
+) => Promise<EAll | null>
+
 /** A scheduled effect surfaced to the host: everything needed to run it and
  *  dispatch its completion. `run` closes over the commit-time snapshots. */
 export interface EffectInvocation {
@@ -132,6 +145,11 @@ export type OnMap<C, E extends EventObject, S extends string, R = Record<string,
 
 export interface StateNode<C, E extends EventObject, S extends string, R = Record<string, any>> {
   on?: OnMap<C, E, S, R>
+  /** Async I/O run on *entering* this state (a fresh start at the initial state,
+   *  or a value-changing transition — never on hydration), host-scheduled like a
+   *  transition effect. `EAll` is the machine's full event union. See
+   *  `EntryEffect`. */
+  entry?: EntryEffect<C, E>
 }
 
 /** Payload selector runs synchronously AFTER the transition's action, so it

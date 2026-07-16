@@ -333,7 +333,10 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
           patches.push(...recompute(renderState, name, runtime))
         }
 
-        await runtime.persistTouched(touched)
+        // Persist committed machines plus any fresh machine that fired its
+        // initial entry effect (an entry commits no transition, so it's not in
+        // `touched`) — so it isn't re-created and re-fired next request.
+        await runtime.persistTouched(new Set([...touched, ...runtime.entryFiredMachines()]))
 
         await fanOut(touched, {
           sessionId,
@@ -479,6 +482,17 @@ async function handleGet(
         bodyEnd: bodyHtml.join(''),
       })
       applyRenderedEffects(c, result.response)
+
+      // A fresh machine that fired its initial entry effect on load must be
+      // persisted (so the next request hydrates instead of re-firing) and its
+      // effect scheduled off-lock, after the response. The common GET (no entry
+      // effect) skips both and stays a pure read.
+      const entryFired = runtime.entryFiredMachines()
+      if (entryFired.size > 0) {
+        await runtime.persistTouched(entryFired)
+        scheduleSessionEffects(runtime, store, sessionId)
+      }
+
       return c.html(html)
     } finally {
       runtime.dispose()
