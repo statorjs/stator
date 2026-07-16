@@ -401,3 +401,9 @@ const CARDINALS = [
 export function cardinal(deg: number): string {
   return CARDINALS[Math.round(deg / 22.5) % 16]!
 }
+
+/** A stable key for a place, from its coordinates — used to key saved locations
+ *  and their fetched data. */
+export function placeId(p: { lat: number; lon: number }): string {
+  return `${p.lat.toFixed(3)}_${p.lon.toFixed(3)}`
+}

@@ -64,11 +64,32 @@ one place atmosphere lives; everything else is flat Metro.
 - **Hourly** (24h) and **10-day**: surface tiles (neutral, theme-aware) holding
   the detailed rows — icons, temps, precip %, wind, min/max range bars.
 
-## Location
+## Locations & settings
 
-A Metro search field (sharp underline + magnifier). Selecting a saved location
-re-renders and the sky adapts. In the real app this hits Open-Meteo's keyless
-**geocoding** endpoint; saved locations persist.
+**Multiple saved locations.** The user tracks several places and switches between
+them. A Metro **Pivot** — tab headers up top, full panels below — is the switcher;
+built on **native CSS scroll-snap** (`scroll-snap-type` + `scroll-snap-align`),
+which gives swipe/snap control with no gesture library. Adding a location uses a
+Metro search field (sharp underline + magnifier) over Open-Meteo's keyless
+**geocoding** endpoint.
+
+**Settings** (units °C/°F, wind km/h↔mph, precip mm↔in, and a 12/24-hour clock)
+are **server-canonical**: a `Settings` session machine holds them, persists them,
+and syncs them **live across tabs** over SSE. This is the standout Stator
+demonstration — toggle units in one tab, every open tab reformats instantly, no
+client state.
+
+### Machine architecture
+
+- **`Settings`** (session) — `units` + `clock`. Emits `CHANGED` on any toggle.
+- **`Weather`** (session, multi-location) — `places[]` + `activeId` + a `data` map
+  keyed by place. **`entry`** loads every saved place in parallel; **`after`**
+  revalidates; a transition **`effect`** on `ADD_PLACE` fetches just the new one.
+  It **subscribes** to `Settings.CHANGED` and mirrors `units`/`clock` into its own
+  context — because a live binding's selector sees only its own machine, so the
+  formatting selectors (`tempDisplay`, `windDisplay`, …) must have the unit local
+  to re-render on toggle. One feature exercises entry effects, transition effects,
+  `after`, and a cross-machine subscription.
 
 ## Colors & type
 

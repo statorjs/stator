@@ -1,30 +1,37 @@
 ---
 // @stator live
+import SettingsMachine from '../machines/settings.ts'
 import WeatherMachine from '../machines/weather.ts'
 import Layout from '../templates/layout.stator'
-import { cardinal, conditionLabel } from '../lib/open-meteo.ts'
+import { conditionLabel } from '../lib/open-meteo.ts'
 
-const [weather] = Stator.reads([WeatherMachine])
+const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
 ---
 <Layout>
   <section class="wx">
-    <h1>{read(weather, (w) => w.place.name)}</h1>
+    <h1>{read(weather, (w) => w.active?.name ?? '—')}</h1>
+    <p class="muted">
+      Units: {read(settings, (s) => s.units)} · Clock: {read(settings, (s) => s.clock)}
+    </p>
 
-    {match(read(weather, (w) => w.status), {
+    {match(read(weather, (w) => w.activeStatus), {
       loading: () => <p class="muted">Loading conditions…</p>,
-      error: () => <p class="muted">Couldn't reach the weather service. Retrying…</p>,
+      error: () => <p class="muted">Couldn't reach the weather service.</p>,
       ready: () => (
         <div class="now">
-          <div class="temp">{read(weather, (w) => (w.current ? Math.round(w.current.temp) : '—'))}°</div>
-          <div class="cond">{read(weather, (w) => (w.current ? conditionLabel(w.current.code) : ''))}</div>
-          <div class="meta">
-            Feels {read(weather, (w) => (w.current ? Math.round(w.current.feels) : '—'))}° · Wind{' '}
-            {read(weather, (w) => (w.current ? Math.round(w.current.wind) : '—'))} km/h{' '}
-            {read(weather, (w) => (w.current ? cardinal(w.current.dir) : ''))} · Humidity{' '}
-            {read(weather, (w) => (w.current ? w.current.humidity : '—'))}%
+          <div class="temp">{read(weather, (w) => w.activeTempDisplay)}</div>
+          <div class="cond">
+            {read(weather, (w) => (w.activeCurrent ? conditionLabel(w.activeCurrent.code) : ''))}
           </div>
         </div>
       ),
     })}
+
+    <nav class="places">
+      {each(
+        read(weather, (w) => w.places),
+        (p) => <span class="place-tab">{p.name}</span>,
+      )}
+    </nav>
   </section>
 </Layout>
