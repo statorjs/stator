@@ -34,6 +34,15 @@ a supplementary line.
 
 The effect is a per-tile choice (mirrors Metro's `data-effect`).
 
+### Component architecture
+
+- The **live-sky** stays its own dedicated client component — it's a canvas
+  animation, genuinely different from the CSS-driven text tiles, so it doesn't
+  share a base with them.
+- A base **`LiveTile`** component (flip / peek / static variants) is worth doing
+  *only if it actually earns its place* as a demonstration of component
+  hierarchy — not forced. Decide during Phase 3 against the real templates.
+
 ## The current-conditions tile (live sky)
 
 A wide tile whose background is a small canvas "sky" scene keyed to the current
