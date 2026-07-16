@@ -1,0 +1,41 @@
+/* Phase 2: minimal styling to prove the data flow. The Metro tile UI lands in
+   Phase 3 (see design/DESIGN.md). */
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: #0a0a0a;
+  color: #fff;
+}
+main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px 24px;
+}
+.wx h1 {
+  font-weight: 200;
+  font-size: clamp(36px, 8vw, 56px);
+  letter-spacing: -0.02em;
+  margin: 0 0 20px;
+}
+.temp {
+  font-size: clamp(64px, 16vw, 104px);
+  font-weight: 200;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.cond {
+  font-size: 20px;
+  margin-top: 4px;
+}
+.meta {
+  color: #9aa0a6;
+  margin-top: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.muted {
+  color: #9aa0a6;
+}

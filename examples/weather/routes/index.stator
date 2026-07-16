@@ -1,0 +1,30 @@
+---
+// @stator live
+import WeatherMachine from '../machines/weather.ts'
+import Layout from '../templates/layout.stator'
+import { cardinal, conditionLabel } from '../lib/open-meteo.ts'
+
+const [weather] = Stator.reads([WeatherMachine])
+---
+<Layout>
+  <section class="wx">
+    <h1>{read(weather, (w) => w.place.name)}</h1>
+
+    {match(read(weather, (w) => w.status), {
+      loading: () => <p class="muted">Loading conditions…</p>,
+      error: () => <p class="muted">Couldn't reach the weather service. Retrying…</p>,
+      ready: () => (
+        <div class="now">
+          <div class="temp">{read(weather, (w) => (w.current ? Math.round(w.current.temp) : '—'))}°</div>
+          <div class="cond">{read(weather, (w) => (w.current ? conditionLabel(w.current.code) : ''))}</div>
+          <div class="meta">
+            Feels {read(weather, (w) => (w.current ? Math.round(w.current.feels) : '—'))}° · Wind{' '}
+            {read(weather, (w) => (w.current ? Math.round(w.current.wind) : '—'))} km/h{' '}
+            {read(weather, (w) => (w.current ? cardinal(w.current.dir) : ''))} · Humidity{' '}
+            {read(weather, (w) => (w.current ? w.current.humidity : '—'))}%
+          </div>
+        </div>
+      ),
+    })}
+  </section>
+</Layout>
