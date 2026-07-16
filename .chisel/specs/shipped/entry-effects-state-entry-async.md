@@ -1,8 +1,8 @@
 ---
 title: 'Entry effects: async I/O on state entry'
-status: draft
+status: shipped
 created: 2026-07-15
-updated: 2026-07-15
+updated: 2026-07-16
 area: runtime
 ---
 
@@ -18,7 +18,7 @@ That blocks two things:
 
 - **The reactive-load pattern** — a machine in `loading` that fetches and moves
   to `ready | error`. This is the machine-based (reactive/stateful/shared) door
-  of the async-data story: [async-data-defer-boundary](./async-data-defer-boundary.md) routes one-shot,
+  of the async-data story: [async-data-defer-boundary](../active/async-data-defer-boundary.md) routes one-shot,
   view-scoped async through `defer`, and routes *reactive* async through "a
   machine with `loading → ready | error` states, kicked by an entry effect."
   This spec is that entry effect — without it, the machine door has no trigger.
@@ -145,7 +145,7 @@ change.
 
 ## Relationship to `defer` and the state-lifecycle family
 
-- **`defer`** ([async-data-defer-boundary](./async-data-defer-boundary.md)) is the *view-scoped, one-shot* door
+- **`defer`** ([async-data-defer-boundary](../active/async-data-defer-boundary.md)) is the *view-scoped, one-shot* door
   and kicks its own thunk; it does **not** depend on entry effects. Entry effects
   are the *reactive/stateful/shared* door — a machine that loads once, caches in
   its (persisted) state, and streams updates live over SSE. The two are the two
@@ -229,6 +229,6 @@ change.
   requests), even with no context mutation.
 - A GET that creates a fresh machine with an entry effect schedules it
   (post-response, off-lock) and persists — without holding a lock across I/O.
-- The reactive-load pattern from [async-data-defer-boundary](./async-data-defer-boundary.md) (machine
+- The reactive-load pattern from [async-data-defer-boundary](../active/async-data-defer-boundary.md) (machine
   `loading → ready | error`, streamed over SSE) works end to end with no
   client-side trigger.

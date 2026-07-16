@@ -1,8 +1,8 @@
 ---
 title: 'Entry effects + `after`: implementation plan'
-status: draft
+status: shipped
 created: 2026-07-15
-updated: 2026-07-15
+updated: 2026-07-16
 area: runtime
 ---
 
