@@ -81,13 +81,13 @@ function createResponseContext(): {
  * returns the rendered HTML; the HTTP layer combines the HTML with the
  * response effects to build the final Response.
  */
-export function renderRoute(
+export async function renderRoute(
   route: RouteDefinition,
   routeKey: string,
   sessionId: string,
   runtime: SessionRuntime,
   request: RouteRequest,
-): RenderResult {
+): Promise<RenderResult> {
   const state = createRenderState(sessionId, routeKey)
   const { ctx: responseCtx, effects } = createResponseContext()
   const renderCtx: RouteRenderContext = {

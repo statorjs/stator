@@ -222,7 +222,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     return streamSSE(c, async (stream) => {
       const runtime = new SessionRuntime(sessionId, config.store)
       await runtime.loadGraph(route.reads)
-      const { renderState } = renderRoute(route, routeKey, sessionId, runtime, request)
+      const { renderState } = await renderRoute(route, routeKey, sessionId, runtime, request)
       const conn = registerConnection({
         sessionId,
         clientId: c.req.query('client'),
@@ -320,7 +320,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         await runtime.loadGraph([...route.reads, originDef])
         runtime.wireSubscriptions()
 
-        const { renderState } = renderRoute(route, routeKey, sessionId, runtime, request)
+        const { renderState } = await renderRoute(route, routeKey, sessionId, runtime, request)
 
         const touched = runtime.processEvent(body.machine, body.event)
 
@@ -457,7 +457,7 @@ async function handleGet(
     const runtime = new SessionRuntime(sessionId, store)
     try {
       await runtime.loadGraph(route.reads)
-      const result = renderRoute(route, routeKey, sessionId, runtime, request)
+      const result = await renderRoute(route, routeKey, sessionId, runtime, request)
       let html = result.html
 
       const headHtml: string[] = []
