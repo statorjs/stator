@@ -7,6 +7,7 @@ import {
   type Forecast,
   type Place,
   placeId,
+  sceneKind,
 } from '../lib/open-meteo.ts'
 import SettingsMachine, { type Clock, type Units } from './settings.ts'
 
@@ -208,5 +209,10 @@ export default defineMachine({
     /** Temperature in the chosen unit — a single binding that re-renders on both
      *  a weather refresh and a units toggle (units are mirrored into this ctx). */
     activeTempDisplay: (ctx) => fmtTemp(ctx.data[ctx.activeId]?.forecast?.current?.temp, ctx.units),
+    /** Scene id for the live-sky island — updates live on refresh / location switch. */
+    activeScene: (ctx) => {
+      const c = ctx.data[ctx.activeId]?.forecast?.current
+      return c ? sceneKind(c.code, c.isDay) : 'cloudy'
+    },
   },
 })

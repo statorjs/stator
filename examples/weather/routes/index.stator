@@ -3,6 +3,7 @@
 import SettingsMachine from '../machines/settings.ts'
 import WeatherMachine from '../machines/weather.ts'
 import Layout from '../templates/layout.stator'
+import LiveSky from '../templates/live-sky.stator'
 import { conditionLabel } from '../lib/open-meteo.ts'
 
 const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
@@ -18,10 +19,13 @@ const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
       loading: () => <p class="muted">Loading conditions…</p>,
       error: () => <p class="muted">Couldn't reach the weather service.</p>,
       ready: () => (
-        <div class="now">
-          <div class="temp">{read(weather, (w) => w.activeTempDisplay)}</div>
-          <div class="cond">
-            {read(weather, (w) => (w.activeCurrent ? conditionLabel(w.activeCurrent.code) : ''))}
+        <div class="sky-tile">
+          <LiveSky scene={read(weather, (w) => w.activeScene)} />
+          <div class="sky-overlay">
+            <div class="temp">{read(weather, (w) => w.activeTempDisplay)}</div>
+            <div class="cond">
+              {read(weather, (w) => (w.activeCurrent ? conditionLabel(w.activeCurrent.code) : ''))}
+            </div>
           </div>
         </div>
       ),

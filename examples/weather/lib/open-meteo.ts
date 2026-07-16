@@ -74,6 +74,39 @@ export function conditionKind(code: number): ConditionKind {
   return 'cloudy'
 }
 
+/** The animated-sky scene id (with day/night variants) the live-sky island draws. */
+export type SceneKind =
+  | 'clear-day'
+  | 'clear-night'
+  | 'partly-day'
+  | 'partly-night'
+  | 'cloudy'
+  | 'fog'
+  | 'rain'
+  | 'snow'
+  | 'thunder'
+
+export function sceneKind(code: number, isDay: boolean): SceneKind {
+  switch (conditionKind(code)) {
+    case 'clear':
+      return isDay ? 'clear-day' : 'clear-night'
+    case 'partly':
+      return isDay ? 'partly-day' : 'partly-night'
+    case 'fog':
+      return 'fog'
+    case 'drizzle':
+    case 'rain':
+    case 'showers':
+      return 'rain'
+    case 'snow':
+      return 'snow'
+    case 'thunder':
+      return 'thunder'
+    default:
+      return 'cloudy'
+  }
+}
+
 // ---- Domain types -------------------------------------------------------
 export interface Place {
   name: string
