@@ -52,3 +52,38 @@ const x = 1
     }
   })
 })
+
+describe('compiler: defer/machine boundary (build-time gate)', () => {
+  it('rejects a read() directly inside a defer arm, located at the read', () => {
+    const src = `<main>
+  {defer(() => db.get(1), { ready: () => <span>{read(cart, c => c.total)}</span> })}
+</main>`
+    try {
+      compile(src, { id: 'p.stator' })
+      throw new Error('expected compile to throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(CompileError)
+      const err = e as CompileError
+      expect(err.message).toContain('defer() arm')
+      expect(err.loc!.line).toBe(2) // the read() is on line 2
+      expect(err.loc!.frame).toContain('read(cart')
+    }
+  })
+
+  it('rejects a read() reached through a machine-bound when() inside a defer arm', () => {
+    const src = `<main>
+  {defer(() => db.get(1), {
+    ready: () => <div>{when(read(cart, c => c.open), () => <p>open</p>)}</div>,
+  })}
+</main>`
+    expect(() => compile(src, { id: 'p.stator' })).toThrow(/defer\(\) arm/)
+  })
+
+  it('allows a read() as a SIBLING of a defer (the correct composition)', () => {
+    const src = `<main>
+  <span>{read(cart, c => c.total)}</span>
+  {defer(() => db.get(1), { ready: (v) => <p>{v}</p> })}
+</main>`
+    expect(() => compile(src, { id: 'p.stator' })).not.toThrow()
+  })
+})
