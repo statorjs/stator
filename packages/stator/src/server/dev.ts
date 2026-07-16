@@ -135,8 +135,10 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
       sessionTtlSeconds: config.sessionTtlSeconds,
       appStore: config.appStore,
     })
-    await store.bootAppMachines()
+    // Wire the effect scheduler before booting — a fresh app machine's
+    // initial-state entry effect fires during boot and needs a live scheduler.
     runtime.wireAppEffects(store)
+    await store.bootAppMachines()
   }
   const rebuildRoutes = async (): Promise<void> => {
     routes = await runtime.discoverRoutes(routesDir, loader)

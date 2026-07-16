@@ -96,6 +96,18 @@ export type EntryEffect<C, EAll extends EventObject = EventObject> = (
   meta: EffectMeta,
 ) => Promise<EAll | null>
 
+/**
+ * A state timeout: after `delay` ms in the state, the host dispatches `send`.
+ * Armed on entry, cancelled on exit — host-scheduled, in-memory, non-durable in
+ * v1 (a restart drops armed timers). `delay` may depend on context. The trigger
+ * is a *described* value, not a bare-ms key, so it can grow (dynamic delays now;
+ * durable/cron schedules later) without a breaking change.
+ */
+export interface AfterEntry<C, EAll extends EventObject = EventObject> {
+  delay: number | ((ctx: C) => number)
+  send: EAll
+}
+
 /** A scheduled effect surfaced to the host: everything needed to run it and
  *  dispatch its completion. `run` closes over the commit-time snapshots. */
 export interface EffectInvocation {
@@ -150,6 +162,9 @@ export interface StateNode<C, E extends EventObject, S extends string, R = Recor
    *  transition effect. `EAll` is the machine's full event union. See
    *  `EntryEffect`. */
   entry?: EntryEffect<C, E>
+  /** State timeouts: each fires `send` after its `delay` ms in this state
+   *  (armed on entry, cancelled on exit). See `AfterEntry`. */
+  after?: AfterEntry<C, E>[]
 }
 
 /** Payload selector runs synchronously AFTER the transition's action, so it

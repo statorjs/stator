@@ -52,8 +52,10 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     sessionTtlSeconds: config.sessionTtlSeconds,
     appStore: config.appStore,
   })
-  await store.bootAppMachines()
+  // Wire the effect scheduler BEFORE booting: a fresh app machine fires its
+  // initial-state entry effect during boot, and that must have somewhere to go.
   wireAppEffects(store)
+  await store.bootAppMachines()
 
   const routes = await discoverRoutes(routesDir)
   const app = await buildHonoApp({

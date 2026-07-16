@@ -63,6 +63,13 @@ export interface CreateActorOptions<C> {
    *  they take events straight from the untrusted wire (`/__events`), where a
    *  `@set` would be an arbitrary-context-write that bypasses every guard. */
   internalEvents?: boolean
+  /** Host hook: a state was ENTERED (fresh start or a value-changing transition —
+   *  never hydration). The server uses it to arm `after` timers from the state's
+   *  config; `ctx` is the current context (for context-dependent delays). */
+  onStateEnter?: (stateKey: string, ctx: C) => void
+  /** Host hook: a state was LEFT (a value-changing transition). The server uses
+   *  it to cancel that state's `after` timers. */
+  onStateExit?: (stateKey: string) => void
 }
 
 /** Unique per-invocation effect id — usable as an idempotency key, so it must
@@ -158,7 +165,11 @@ export function createActor<C extends object, E extends EventObject, S extends s
         started = true
         notify() // let subscribe-before-start consumers sync initial state
         // Fresh initial-state entry (a hydrated actor already fired its).
-        if (!hydrated) fireEntryEffect(value[value.length - 1]!)
+        if (!hydrated) {
+          const initial = value[value.length - 1]!
+          fireEntryEffect(initial)
+          opts.onStateEnter?.(initial, context)
+        }
       }
       return actor
     },
@@ -267,9 +278,14 @@ export function createActor<C extends object, E extends EventObject, S extends s
         }
       }
 
-      // Entering a new state fires its entry effect — value-changing transitions
-      // only (not self-transitions or action-only transitions).
-      if (config.to && config.to !== stateKey) fireEntryEffect(config.to)
+      // A value-changing transition leaves the old state and enters the new one:
+      // fire the new state's entry effect and let the host arm/cancel `after`
+      // timers (self-transitions and action-only transitions do neither).
+      if (config.to && config.to !== stateKey) {
+        opts.onStateExit?.(stateKey)
+        fireEntryEffect(config.to)
+        opts.onStateEnter?.(config.to, context)
+      }
 
       notify()
     },

@@ -6,6 +6,7 @@ import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
 import { scopedLogger } from './logger.ts'
 import { serverReadsResolver } from './reads-helpers.ts'
 import type { Store } from './store.ts'
+import { APP_SCOPE, armAfterTimers, cancelAfterTimers } from './timers.ts'
 
 const storeLog = scopedLogger('machine-store')
 
@@ -259,6 +260,12 @@ export class MachineStore {
                 'app-machine effect dropped — no scheduler wired (call wireAppEffects(store))',
               )
           },
+          // `after` state timeouts, at app scope: arm on entry, cancel on exit.
+          // Timers live in the process-wide registry (server/timers.ts) and fire
+          // through dispatchToApp — no session, wall-clock only (revalidation,
+          // circuit breakers). See armAfterTimers.
+          onStateEnter: (stateKey, ctx) => armAfterTimers(this, APP_SCOPE, def, stateKey, ctx),
+          onStateExit: (stateKey) => cancelAfterTimers(APP_SCOPE, def.name, stateKey),
         }).start()
         this.appInstances.set(
           def.name,
