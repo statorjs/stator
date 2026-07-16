@@ -2,6 +2,6 @@
 "@statorjs/stator": minor
 ---
 
-State timeouts (`after`). A state can now declare `after: [{ delay, send }]` — after `delay` ms in the state, the host dispatches `send`. Timers are armed on entry and cancelled on exit; `delay` may depend on context. This is the companion to entry effects: an `after` on a `loading` state rescues a load whose entry effect never completes (a hung fetch, a dropped completion), moving the machine to `error` instead of stranding it.
+Add `after` state timeouts: a state may declare `after: [{ delay, send }]` to dispatch `send` after `delay` ms in the state (armed on entry, cancelled on exit; `delay` may depend on context). The companion to entry effects — rescues a state whose entry effect never completes. Timers are in-memory and non-durable (a restart drops them); on fire the event is guard-dropped if the state has already moved on.
 
-Because session runtimes are transient, the timers live in a process-wide, in-memory registry (non-durable in v1, like effects — a restart drops armed timers) and fire across or between requests. On elapse the event re-enters through the full session path (lock, hydrate, process, persist, fan out to live pages), and is guard-dropped if the state has already moved on. The same re-entry now also schedules an entry/transition effect that an effect *completion* chains into — previously such a chained effect was dropped.
+Entry effects and `after` now also work on app-lifecycle machines, firing on wall-clock with no session (self-revalidating caches, circuit breakers). Also fixes a chained effect being dropped when one effect's completion triggers another.
