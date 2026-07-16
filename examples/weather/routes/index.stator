@@ -34,7 +34,14 @@ const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
     <nav class="places">
       {each(
         read(weather, (w) => w.places),
-        (p) => <span class="place-tab">{p.name}</span>,
+        (p) => (
+          <button
+            class:list={['place-tab', { active: read(weather, (w) => w.activeId === p.id) }]}
+            on:click={() => weather.send({ type: 'SET_ACTIVE', id: p.id })}
+          >
+            {p.name}
+          </button>
+        ),
       )}
     </nav>
   </section>
