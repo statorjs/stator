@@ -88,6 +88,21 @@ promotes it.
   teaches well, unlocks a whole class of flows (expiring carts, debounced
   saves, turn timers — planning-poker will want it).
 
+## Developer tooling
+
+**Why this category**: not app-facing primitives — DX for *building* with
+Stator. Held to the same evidence bar (a spike proves it before it ships).
+
+- **Client-side time-travel debugger** *(spike first)*: scrub back through what
+  happened by inverting the wire patches on the client — the framework already
+  ships fine-grained, cleanly-invertible DOM ops, so a patch-inverse undo stack +
+  a scrubber in the inspector gives DOM/visual history with **no** server-side
+  rewind. *Motivation*: Redux-style time-travel is a top-tier debugging win, and
+  Stator is unusually well-positioned for it; the design + open edges (client
+  islands, focus/scroll, keyed-list ordering) live in
+  [`.chisel/specs/active/client-time-travel-devtool.md`](.chisel/specs/active/client-time-travel-devtool.md).
+  Spike first because those DOM edge cases are where the surprises hide.
+
 ## Sequencing
 
 1. `with-auth` + the authentication recipe (co-developed)
@@ -95,6 +110,8 @@ promotes it.
 3. Webhooks + file-uploads recipes
 4. Snapshot versioning/migrations (implement)
 5. `planning-poker` → presence findings → state timeouts (implement)
+6. **Time-travel debugger spike** → findings note → ship if it holds (dev-tooling
+   track; can run in parallel — it depends on nothing new server-side)
 
 Known 1.x infrastructure (unchanged, tracked in the gap analysis): Redis
 fan-out backplane, durable effects, `waitFor` coordination, lazy machine
