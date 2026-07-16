@@ -14,7 +14,7 @@ const { cart } = Stator.props<{ cart: InstanceOf<typeof CartMachine> }>()
 
     // Primitives auto-injected.
     expect(serverCode).toContain(
-      "import { html, read, each, when, match, on, classList, styleList } from '@statorjs/stator/template'",
+      "import { html, read, each, when, match, defer, on, classList, styleList } from '@statorjs/stator/template'",
     )
     // Author imports hoisted.
     expect(serverCode).toContain("import type CartMachine from '../machines/cart.ts'")
@@ -27,6 +27,17 @@ const { cart } = Stator.props<{ cart: InstanceOf<typeof CartMachine> }>()
     expect(serverCode).toContain(
       'return html`<div class="cart">Total: ${read(cart, c => c.total)}</div>`',
     )
+  })
+
+  it('recognizes defer() as an ambient template global (no author import needed)', () => {
+    const src = `<main>{defer(() => db.getPost(1), { ready: (p) => <article>{p.title}</article> })}</main>`
+    const { serverCode } = compile(src)
+    // `defer` is in the auto-injected import…
+    expect(serverCode).toContain(
+      "import { html, read, each, when, match, defer, on, classList, styleList } from '@statorjs/stator/template'",
+    )
+    // …and the call is lowered into the template unchanged.
+    expect(serverCode).toContain('defer(() => db.getPost(1),')
   })
 
   it('handles a template with no frontmatter (no props param)', () => {

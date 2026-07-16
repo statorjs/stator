@@ -49,7 +49,7 @@ export interface VirtualCodeResult {
 // runtime hides a missing-import bug; a name in both collides with the
 // author's legitimate import (`raw` is NOT a runtime global — authors
 // import it — which is why it must not be in this list).
-const TEMPLATE_GLOBALS = ['read', 'each', 'when', 'match', 'on', 'classList', 'styleList']
+const TEMPLATE_GLOBALS = ['read', 'each', 'when', 'match', 'defer', 'on', 'classList', 'styleList']
 const CLIENT_GLOBALS = [
   'StatorElement',
   'use',
