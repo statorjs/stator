@@ -1,4 +1,13 @@
-import { createRenderState, type RenderState, runInRender } from './render-context.ts'
+import { deferSentinel } from '../template/defer.ts'
+import { isHtmlFragment } from '../template/types.ts'
+import {
+  createRenderState,
+  type DeferRecord,
+  popDeferScope,
+  pushDeferScope,
+  type RenderState,
+  runInRender,
+} from './render-context.ts'
 import type {
   RouteDefinition,
   RouteRenderContext,
@@ -81,14 +90,23 @@ function createResponseContext(): {
  * returns the rendered HTML; the HTTP layer combines the HTML with the
  * response effects to build the final Response.
  */
-export function renderRoute(
+export interface RenderRouteOptions {
+  /** Resolve `defer` slots (default true). The `/__events` re-diff baseline
+   *  passes false: it runs under the session lock and must not kick defer I/O;
+   *  its defer slots emit inert placeholders that the diff never touches. */
+  resolveDeferred?: boolean
+}
+
+export async function renderRoute(
   route: RouteDefinition,
   routeKey: string,
   sessionId: string,
   runtime: SessionRuntime,
   request: RouteRequest,
-): RenderResult {
+  opts: RenderRouteOptions = {},
+): Promise<RenderResult> {
   const state = createRenderState(sessionId, routeKey)
+  state.resolveDeferred = opts.resolveDeferred ?? true
   const { ctx: responseCtx, effects } = createResponseContext()
   const renderCtx: RouteRenderContext = {
     response: responseCtx,
@@ -107,5 +125,60 @@ export function renderRoute(
     ;(renderCtx as Record<string, unknown>)[def.name] = proxy
   }
   const fragment = runInRender(state, () => route.render(renderCtx, request))
-  return { html: fragment.html, renderState: state, response: effects }
+  let html = fragment.html
+  if (state.resolveDeferred && state.deferred.length > 0) {
+    html = await resolveDeferred(state, html)
+  }
+  return { html, renderState: state, response: effects }
+}
+
+/**
+ * The `defer` resolve phase (v1: blocking-inline, no streaming). Runs after the
+ * synchronous render, so it can `await` without losing `currentRenderState`.
+ *
+ * Drains `state.deferred` in batches: a resolve-window yield lets already-ready
+ * data settle with no added latency, then the batch's resources are awaited in
+ * parallel (bounded by the slowest, not the sum), then each slot's arm is
+ * rendered and spliced into its sentinel. A defer arm may itself contain a
+ * defer, which records during fill — so the loop drains until the page is quiet.
+ */
+async function resolveDeferred(state: RenderState, html: string): Promise<string> {
+  while (state.deferred.length > 0) {
+    const batch = state.deferred
+    state.deferred = []
+    // Macrotask yield: sync values, warm caches, already-resolved promises, and
+    // multi-hop-but-instant chains settle here; real network/disk I/O does not.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await Promise.all(batch.map((record) => record.resource.settled))
+    for (const record of batch) {
+      html = html.replace(deferSentinel(record.slotId), fillDeferSlot(state, record))
+    }
+  }
+  return html
+}
+
+/** Render a resolved defer slot's arm, scoped under the slot id (so nested
+ *  static constructs get stable ids and machine reads are rejected). */
+function fillDeferSlot(state: RenderState, record: DeferRecord): string {
+  return runInRender(state, () => {
+    pushDeferScope(state, record.slotId)
+    try {
+      const { resource } = record
+      let fragment: ReturnType<DeferRecord['ready']>
+      if (resource.status === 'fulfilled') {
+        fragment = record.ready(resource.value)
+      } else if (record.error) {
+        fragment = record.error(resource.reason)
+      } else {
+        // No error arm — let the rejection bubble to route-level error handling.
+        throw resource.reason
+      }
+      if (!isHtmlFragment(fragment)) {
+        throw new Error('stator: a defer() ready/error arm must return an html`...` result')
+      }
+      return fragment.html
+    } finally {
+      popDeferScope(state)
+    }
+  })
 }

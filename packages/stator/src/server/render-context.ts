@@ -1,3 +1,4 @@
+import type { Resource } from '../template/resource.ts'
 import type { HtmlFragment } from '../template/types.ts'
 
 export type SlotId = string
@@ -73,6 +74,22 @@ export interface BranchBinding extends BindingBase {
  *  recompute narrows on the discriminant instead of asserting optionals. */
 export type Binding = TextBinding | AttrBinding | ListBinding | KeyedListBinding | BranchBinding
 
+/**
+ * A `defer` slot recorded during the sync render pass, resolved and filled in
+ * the async resolve phase (see server/render.ts). Deliberately NOT a `Binding`
+ * — it never enters `byMachine`, so `recompute` provably never revisits it: the
+ * slot is static/one-shot, which is what keeps `defer` I/O off the session lock.
+ */
+export interface DeferRecord {
+  slotId: SlotId
+  resource: Resource
+  /** Rendered with the resolved value when the resource fulfills. */
+  ready: (value: unknown) => HtmlFragment
+  /** Rendered with the reason when the resource rejects; absent ⇒ the rejection
+   *  bubbles to route-level error handling. */
+  error?: (reason: unknown) => HtmlFragment
+}
+
 interface Scope {
   prefix: string
   counter: number
@@ -85,6 +102,15 @@ export interface RenderState {
   byMachine: Map<MachineName, Set<SlotId>>
   scopeStack: Scope[]
   elementIdCounter: number
+  /** `defer` slots recorded during the sync pass, drained by the resolve phase. */
+  deferred: DeferRecord[]
+  /** >0 while rendering inside a `defer` arm — machine bindings are illegal there
+   *  (a defer slot is never re-diffed), so `registerBinding` throws. */
+  deferDepth: number
+  /** Whether this render should resolve `defer` slots. True on the read paths
+   *  (GET, SSE-connect — off-lock); false for the `/__events` re-diff baseline,
+   *  which runs UNDER the session lock and must never kick a defer thunk. */
+  resolveDeferred: boolean
 }
 
 export function createRenderState(sessionId: SessionId, routeKey: string): RenderState {
@@ -95,6 +121,9 @@ export function createRenderState(sessionId: SessionId, routeKey: string): Rende
     byMachine: new Map(),
     scopeStack: [{ prefix: '', counter: 0 }],
     elementIdCounter: 0,
+    deferred: [],
+    deferDepth: 0,
+    resolveDeferred: true,
   }
 }
 
@@ -173,7 +202,37 @@ export function popListScope(state: RenderState): void {
   state.scopeStack.pop()
 }
 
+/**
+ * Enter a `defer` arm's render scope (used by the resolve phase when it renders
+ * the resolved arm). Scopes descendant slot ids under `${slotId}:d` — like a
+ * branch arm — and raises `deferDepth` so machine reads inside the arm throw.
+ */
+export function pushDeferScope(state: RenderState, slotId: SlotId): void {
+  state.scopeStack.push({ prefix: `${slotId}:d`, counter: 0 })
+  state.deferDepth += 1
+}
+
+export function popDeferScope(state: RenderState): void {
+  if (state.scopeStack.length <= 1) {
+    throw new Error('stator: cannot pop root render scope')
+  }
+  state.scopeStack.pop()
+  state.deferDepth -= 1
+}
+
 export function registerBinding(state: RenderState, binding: Binding): void {
+  // Runtime backstop for the defer/machine boundary (the static compile check is
+  // the primary, build-time gate). A machine read — read(), or a machine-bound
+  // each/when/match — inside a defer arm would need live re-diffing, but a defer
+  // slot is one-shot and never revisited. Catch it (direct or reached through a
+  // helper) rather than silently freeze the value.
+  if (state.deferDepth > 0) {
+    throw new Error(
+      `stator: a machine read (read() / a machine-bound each/when/match) cannot appear inside a ` +
+        `defer() arm — defer is one-shot and static, so the value would never update. For a live ` +
+        `value, use a machine and place the read in a sibling slot outside the defer.`,
+    )
+  }
   state.bindings.set(binding.slotId, binding)
   let slotIds = state.byMachine.get(binding.machineName)
   if (!slotIds) {

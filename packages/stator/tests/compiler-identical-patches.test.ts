@@ -6,7 +6,17 @@ import { recompute } from '../src/server/recompute.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import { SessionRuntime } from '../src/server/session-runtime.ts'
 import { InMemoryStore } from '../src/server/store.ts'
-import { classList, each, html, match, on, read, styleList, when } from '../src/template/index.ts'
+import {
+  classList,
+  defer,
+  each,
+  html,
+  match,
+  on,
+  read,
+  styleList,
+  when,
+} from '../src/template/index.ts'
 import type { HtmlFragment } from '../src/template/types.ts'
 
 /**
@@ -81,7 +91,7 @@ describe('compiler: identical patches vs hand-written template', () => {
       )}</ul></div>`
 
     const lowered = lowerTemplate(statorTemplate)
-    const scope = { html, read, each, when, match, on, classList, styleList }
+    const scope = { html, read, each, when, match, defer, on, classList, styleList }
 
     // Two independent runtimes/render states so bindings don't collide.
     const a = await cartProxy()

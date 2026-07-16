@@ -48,7 +48,7 @@ export interface CompileResult {
 }
 
 const PRIMITIVES_IMPORT =
-  "import { html, read, each, when, match, on, classList, styleList } from '@statorjs/stator/template'"
+  "import { html, read, each, when, match, defer, on, classList, styleList } from '@statorjs/stator/template'"
 
 export interface CompileOptions {
   /** Stable id for the component (file path). Used for the scope hash so the
@@ -186,7 +186,7 @@ function compileClient(
   const attrDecl = `{ ${[...cls.staticAttrs].map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(', ')} }`
   const rootScope = ctx.scopeAttr ? ` data-s-${ctx.hash}` : ''
   const serverCode = [
-    "import { html, read, each, when, match, on, classList, styleList, createHtmlFragment, clientShellAttrs } from '@statorjs/stator/template'",
+    "import { html, read, each, when, match, defer, on, classList, styleList, createHtmlFragment, clientShellAttrs } from '@statorjs/stator/template'",
     '',
     `export default function (props = {}) {`,
     `  const __inner = ${innerExpr}`,

@@ -6,6 +6,8 @@ export {
   renderBranchBody,
   when,
 } from './conditional.ts'
+export type { DeferArms, DeferResult } from './defer.ts'
+export { defer, isDeferResult } from './defer.ts'
 export type {
   Directive,
   DirectiveContext,

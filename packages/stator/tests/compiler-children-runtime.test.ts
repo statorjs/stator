@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { lowerTemplate } from '../src/compiler/lower.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
-import { classList, each, html, match, on, read, styleList, when } from '../src/template/index.ts'
+import {
+  classList,
+  defer,
+  each,
+  html,
+  match,
+  on,
+  read,
+  styleList,
+  when,
+} from '../src/template/index.ts'
 import type { HtmlFragment } from '../src/template/types.ts'
 
 /**
@@ -10,7 +20,7 @@ import type { HtmlFragment } from '../src/template/types.ts'
  * the caller's children into the right regions and produce the expected HTML.
  */
 
-const scope = { html, read, each, when, match, on, classList, styleList }
+const scope = { html, read, each, when, match, defer, on, classList, styleList }
 
 function evalComponent(template: string): (props?: any) => HtmlFragment {
   const expr = lowerTemplate(template) // returns the html`` expression
