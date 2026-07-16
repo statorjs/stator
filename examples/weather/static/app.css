@@ -67,9 +67,13 @@ main {
   padding: 22px 26px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-end;
   color: #fff;
   text-shadow: 0 2px 18px rgba(0, 0, 0, 0.35);
+}
+.sky-msg {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 16px;
 }
 .sky-overlay::before {
   content: "";

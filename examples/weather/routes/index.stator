@@ -15,21 +15,27 @@ const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
       Units: {read(settings, (s) => s.units)} · Clock: {read(settings, (s) => s.clock)}
     </p>
 
-    {match(read(weather, (w) => w.activeStatus), {
-      loading: () => <p class="muted">Loading conditions…</p>,
-      error: () => <p class="muted">Couldn't reach the weather service.</p>,
-      ready: () => (
-        <div class="sky-tile">
-          <LiveSky scene={read(weather, (w) => w.activeScene)} />
-          <div class="sky-overlay">
-            <div class="temp">{read(weather, (w) => w.activeTempDisplay)}</div>
-            <div class="cond">
-              {read(weather, (w) => (w.activeCurrent ? conditionLabel(w.activeCurrent.code) : ''))}
+    {/* The live-sky lives OUTSIDE the match so its element id (used to patch the
+        `scene` attribute) is stable — element ids are a flat counter, not
+        arm-scoped like slot ids, so an island inside a conditional gets an
+        unstable id. Only the overlay text is conditional. */}
+    <div class="sky-tile">
+      <LiveSky scene={read(weather, (w) => w.activeScene)} />
+      <div class="sky-overlay">
+        {match(read(weather, (w) => w.activeStatus), {
+          loading: () => <p class="sky-msg">Loading conditions…</p>,
+          error: () => <p class="sky-msg">Couldn't reach the weather service.</p>,
+          ready: () => (
+            <div class="now-lines">
+              <div class="temp">{read(weather, (w) => w.activeTempDisplay)}</div>
+              <div class="cond">
+                {read(weather, (w) => (w.activeCurrent ? conditionLabel(w.activeCurrent.code) : ''))}
+              </div>
             </div>
-          </div>
-        </div>
-      ),
-    })}
+          ),
+        })}
+      </div>
+    </div>
 
     <nav class="places">
       {each(
