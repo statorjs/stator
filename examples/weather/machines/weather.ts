@@ -230,6 +230,7 @@ export interface HourRow {
   time: string
   temp: string
   precip: string
+  rain: string
   icon: string
 }
 export interface DayRow {
@@ -238,6 +239,7 @@ export interface DayRow {
   hi: string
   lo: string
   precip: string
+  rain: string
   icon: string
 }
 
@@ -249,6 +251,11 @@ const weekdayOf = (dateStr: string, i: number): string => {
 }
 /** Only surface a meaningful chance of precipitation; dry hours/days stay blank. */
 const pop = (prob: number): string => (prob >= 15 ? `${prob}%` : '')
+/** Expected precipitation amount, unit-aware — blank below a meaningful trace. */
+const rainAmt = (mm: number | null | undefined, units: Units): string => {
+  if (mm == null || mm < 0.1) return ''
+  return units === 'imperial' ? `${(mm * 0.0393701).toFixed(2)} in` : `${mm.toFixed(1)} mm`
+}
 /** Rough day/night for an hour label, for the glyph (no per-hour is_day field). */
 const hourIsDay = (time: string): boolean => time >= '07:00' && time <= '19:00'
 
@@ -257,6 +264,7 @@ const hourlyVM = (ctx: Ctx, id: string): HourRow[] =>
     time: i === 0 ? 'Now' : fmtClock(h.time, ctx.clock),
     temp: fmtTemp(h.temp, ctx.units),
     precip: pop(h.precipProb),
+    rain: rainAmt(h.precip, ctx.units),
     icon: weatherIconSvg(h.code, hourIsDay(h.time)),
   }))
 
@@ -269,6 +277,7 @@ const dailyVM = (ctx: Ctx, id: string): DayRow[] =>
     // Daily shows a dash for dry days (the aligned column reads cleaner than a
     // blank); the denser hourly strip stays blank via `pop`.
     precip: d.precipProb >= 15 ? `${d.precipProb}%` : '—',
+    rain: rainAmt(d.precipSum, ctx.units),
     icon: weatherIconSvg(d.code, true),
   }))
 

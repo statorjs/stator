@@ -225,7 +225,7 @@ const [weather, settings, search] = Stator.reads([WeatherMachine, SettingsMachin
                     <div class="fc-title">Next 12 hours</div>
                     <div class="hourly">
                       {each(read(weather, (w) => w.hourlyForId(p.id).slice(0, 12)), (h) => (
-                        <div class="hour"><div class="h-time">{h.time}</div>{raw(h.icon)}<div class="h-temp num">{h.temp}</div><div class="h-pop num">{h.precip}</div></div>
+                        <div class="hour"><div class="h-time">{h.time}</div>{raw(h.icon)}<div class="h-temp num">{h.temp}</div><div class="h-pop num">{h.precip}</div><div class="h-rain num">{h.rain}</div></div>
                       ))}
                     </div>
                   </div>
@@ -233,7 +233,7 @@ const [weather, settings, search] = Stator.reads([WeatherMachine, SettingsMachin
                     <div class="fc-title">In 12–24 hours</div>
                     <div class="hourly">
                       {each(read(weather, (w) => w.hourlyForId(p.id).slice(12, 24)), (h) => (
-                        <div class="hour"><div class="h-time">{h.time}</div>{raw(h.icon)}<div class="h-temp num">{h.temp}</div><div class="h-pop num">{h.precip}</div></div>
+                        <div class="hour"><div class="h-time">{h.time}</div>{raw(h.icon)}<div class="h-temp num">{h.temp}</div><div class="h-pop num">{h.precip}</div><div class="h-rain num">{h.rain}</div></div>
                       ))}
                     </div>
                   </div>
@@ -247,7 +247,7 @@ const [weather, settings, search] = Stator.reads([WeatherMachine, SettingsMachin
                     <div class="daily">
                       <div class="drow drow-head"><span class="d-day">Next 5 days</span><span></span><span class="d-pop">Rain</span><span class="d-lo">Lo</span><span class="d-hi">Hi</span></div>
                       {each(read(weather, (w) => w.dailyForId(p.id).slice(0, 5)), (d) => (
-                        <div class="drow"><div class="d-day"><span class="d-date num">{d.date}</span>{d.day}</div>{raw(d.icon)}<div class="d-pop num">{d.precip}</div><div class="d-lo num">{d.lo}</div><div class="d-hi num">{d.hi}</div></div>
+                        <div class="drow"><div class="d-day"><span class="d-date num">{d.date}</span>{d.day}</div>{raw(d.icon)}<div class="d-pop"><span class="num">{d.precip}</span><span class="d-rain num">{d.rain}</span></div><div class="d-lo num">{d.lo}</div><div class="d-hi num">{d.hi}</div></div>
                       ))}
                     </div>
                   </div>
@@ -255,7 +255,7 @@ const [weather, settings, search] = Stator.reads([WeatherMachine, SettingsMachin
                     <div class="daily">
                       <div class="drow drow-head"><span class="d-day">Days 6–10</span><span></span><span class="d-pop">Rain</span><span class="d-lo">Lo</span><span class="d-hi">Hi</span></div>
                       {each(read(weather, (w) => w.dailyForId(p.id).slice(5, 10)), (d) => (
-                        <div class="drow"><div class="d-day"><span class="d-date num">{d.date}</span>{d.day}</div>{raw(d.icon)}<div class="d-pop num">{d.precip}</div><div class="d-lo num">{d.lo}</div><div class="d-hi num">{d.hi}</div></div>
+                        <div class="drow"><div class="d-day"><span class="d-date num">{d.date}</span>{d.day}</div>{raw(d.icon)}<div class="d-pop"><span class="num">{d.precip}</span><span class="d-rain num">{d.rain}</span></div><div class="d-lo num">{d.lo}</div><div class="d-hi num">{d.hi}</div></div>
                       ))}
                     </div>
                   </div>
