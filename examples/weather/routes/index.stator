@@ -89,6 +89,12 @@ const [weather, settings, search] = Stator.reads([WeatherMachine, SettingsMachin
           <section class="panel" data-id={p.id}>
             <div class="hero">
               <LiveSky scene={read(weather, (w) => w.panelForId(p.id).scene)} />
+              <button
+                class="panel-remove"
+                on:click={() => weather.send({ type: 'REMOVE_PLACE', id: p.id })}
+                aria-label="Remove this location"
+                title="Remove location"
+              >×</button>
               <div class="hero-body">
                 <div class="hero-temp num">{read(weather, (w) => w.panelForId(p.id).temp)}</div>
                 <div class="hero-cond">{read(weather, (w) => w.panelForId(p.id).cond)}</div>
