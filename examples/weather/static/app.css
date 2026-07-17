@@ -112,15 +112,11 @@ header {
   grid-template-columns: repeat(4, var(--u));
   grid-auto-rows: var(--u);
   gap: 8px;
-  justify-content: center;
+  justify-content: start;
 }
 @media (min-width: 720px) {
   .grid {
     grid-template-columns: repeat(6, var(--u));
-    justify-content: center;
-  }
-  .hero {
-    width: calc(6 * var(--u) + 5 * 8px);
   }
 }
 tile-motion {
@@ -292,11 +288,12 @@ tile-motion {
   min-width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
 }
 /* Match the tile grid's exact width (columns + gaps) so the hero lines up with
-   the tiles below instead of stretching to the full panel. */
+   the tiles below — both left-aligned with the header text (Metro). The desktop
+   override MUST come after this base rule to win at equal specificity. */
 .hero {
   position: relative;
   width: calc(4 * var(--u) + 3 * 8px);
@@ -304,6 +301,11 @@ tile-motion {
   max-height: 320px;
   overflow: hidden;
   background: linear-gradient(168deg, #589fdb, #d6e7f4);
+}
+@media (min-width: 720px) {
+  .hero {
+    width: calc(6 * var(--u) + 5 * 8px);
+  }
 }
 .hero .live-sky,
 .hero .sky-canvas {
