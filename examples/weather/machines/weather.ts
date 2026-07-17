@@ -1,13 +1,23 @@
 import { defineMachine } from '@statorjs/stator/server'
 import {
   type AirQuality,
+  aqiInfo,
+  cardinal,
+  conditionLabel,
   type Current,
+  type DayPoint,
   fetchAirQuality,
   fetchForecast,
   type Forecast,
+  hhmm,
+  moonPath,
+  moonPhase,
   type Place,
   placeId,
   sceneKind,
+  sunArc,
+  uvAdvice,
+  uvRating,
 } from '../lib/open-meteo.ts'
 import SettingsMachine, { type Clock, type Units } from './settings.ts'
 
@@ -109,6 +119,33 @@ const fmtTemp = (t: number | null | undefined, units: Units): string => {
   return units === 'imperial' ? `${Math.round(t * (9 / 5) + 32)}°` : `${Math.round(t)}°`
 }
 
+const fmtWind = (kmh: number | null | undefined, units: Units): string => {
+  if (kmh == null) return '—'
+  return units === 'imperial' ? `${Math.round(kmh * 0.621371)}` : `${Math.round(kmh)}`
+}
+
+const fmtPrecip = (mm: number | null | undefined, units: Units): string => {
+  if (mm == null) return '—'
+  return units === 'imperial' ? (mm * 0.0393701).toFixed(2) : mm.toFixed(1)
+}
+
+const windUnit = (units: Units): string => (units === 'imperial' ? 'mph' : 'km/h')
+const precipUnit = (units: Units): string => (units === 'imperial' ? 'in' : 'mm')
+
+/** Reformat a 24h "HH:MM" into the chosen clock — exercises the Settings.clock
+ *  toggle end-to-end (server-canonical, synced across tabs). */
+const fmtClock = (hm: string, clock: Clock): string => {
+  if (clock === '24h' || !/^\d{2}:\d{2}$/.test(hm)) return hm
+  const [h, m] = hm.split(':').map(Number) as [number, number]
+  const ap = h >= 12 ? 'pm' : 'am'
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ap}`
+}
+
+// Active-place accessors shared by the tile selectors below.
+const curOf = (ctx: Ctx): Current | null => ctx.data[ctx.activeId]?.forecast?.current ?? null
+const day0Of = (ctx: Ctx): DayPoint | null => ctx.data[ctx.activeId]?.forecast?.daily?.[0] ?? null
+const aqiOf = (ctx: Ctx): AirQuality | null => ctx.data[ctx.activeId]?.aqi ?? null
+
 export default defineMachine({
   name: 'WeatherMachine',
   lifecycle: 'session',
@@ -204,6 +241,10 @@ export default defineMachine({
     units: (ctx) => ctx.units,
     clock: (ctx) => ctx.clock,
     dataFor: (ctx) => (id: string): PlaceData | null => ctx.data[id] ?? null,
+    /** Per-place current temperature, formatted in the active units — lets each
+     *  Pivot tab show its own reading. Curried so a template can call it per row. */
+    tempForId: (ctx) => (id: string): string =>
+      fmtTemp(ctx.data[id]?.forecast?.current?.temp, ctx.units),
     activeStatus: (ctx) => ctx.data[ctx.activeId]?.status ?? 'loading',
     activeCurrent: (ctx): Current | null => ctx.data[ctx.activeId]?.forecast?.current ?? null,
     /** Temperature in the chosen unit — a single binding that re-renders on both
@@ -213,6 +254,98 @@ export default defineMachine({
     activeScene: (ctx) => {
       const c = ctx.data[ctx.activeId]?.forecast?.current
       return c ? sceneKind(c.code, c.isDay) : 'cloudy'
+    },
+    activeConditionLabel: (ctx) => {
+      const c = curOf(ctx)
+      return c ? conditionLabel(c.code) : ''
+    },
+
+    // --- Current-tile meta line -------------------------------------------
+    activeFeelsDisplay: (ctx) => fmtTemp(curOf(ctx)?.feels, ctx.units),
+    activeHumidity: (ctx) => curOf(ctx)?.humidity ?? '—',
+
+    // --- UV tile (peek) ---------------------------------------------------
+    activeUv: (ctx) => curOf(ctx)?.uv ?? '—',
+    activeUvRating: (ctx) => {
+      const c = curOf(ctx)
+      return c ? uvRating(c.uv) : '—'
+    },
+    activeUvAdvice: (ctx) => {
+      const c = curOf(ctx)
+      return c ? uvAdvice(c.uv) : ''
+    },
+
+    // --- Air-quality tile (peek, colour-keyed) ----------------------------
+    activeAqi: (ctx) => aqiOf(ctx)?.aqi ?? '—',
+    activeAqiLabel: (ctx) => {
+      const a = aqiOf(ctx)
+      return a ? aqiInfo(a.aqi).label : '—'
+    },
+    activeAqiColor: (ctx) => {
+      const a = aqiOf(ctx)
+      return a ? aqiInfo(a.aqi).color : '#647687'
+    },
+    activeAqiTextColor: (ctx) => {
+      const a = aqiOf(ctx)
+      return a ? aqiInfo(a.aqi).textColor : '#fff'
+    },
+    activeAqiAdvice: (ctx) => {
+      const a = aqiOf(ctx)
+      return a ? aqiInfo(a.aqi).advice : ''
+    },
+    activeAqiPollutant: (ctx) => aqiOf(ctx)?.pollutant ?? '',
+
+    // --- Wind tile (flip, compass) ----------------------------------------
+    activeWindDisplay: (ctx) => fmtWind(curOf(ctx)?.wind, ctx.units),
+    activeGustDisplay: (ctx) => fmtWind(curOf(ctx)?.gust, ctx.units),
+    activeWindUnit: (ctx) => windUnit(ctx.units),
+    activeWindCardinal: (ctx) => {
+      const c = curOf(ctx)
+      return c ? cardinal(c.dir) : '—'
+    },
+    activeWindDir: (ctx) => curOf(ctx)?.dir ?? 0,
+    /** SVG transform for the compass needle (points FROM the wind's origin). */
+    activeWindTransform: (ctx) => {
+      const c = curOf(ctx)
+      return `rotate(${c ? (c.dir + 180) % 360 : 0} 12 12)`
+    },
+
+    // --- Humidity / precip tiles (static) ---------------------------------
+    activePrecipDisplay: (ctx) => fmtPrecip(curOf(ctx)?.precip, ctx.units),
+    activePrecipUnit: (ctx) => precipUnit(ctx.units),
+    activePressure: (ctx) => curOf(ctx)?.pressure ?? '—',
+
+    // --- Sun tile (static, arc) -------------------------------------------
+    activeSunrise: (ctx) => {
+      const d = day0Of(ctx)
+      return d ? fmtClock(hhmm(d.sunrise), ctx.clock) : '—'
+    },
+    activeSunset: (ctx) => {
+      const d = day0Of(ctx)
+      return d ? fmtClock(hhmm(d.sunset), ctx.clock) : '—'
+    },
+    activeSunPath: (ctx) => {
+      const d = day0Of(ctx)
+      const c = curOf(ctx)
+      return d && c ? sunArc(d.sunrise, d.sunset, c.time).progressPath : ''
+    },
+    activeSunX: (ctx) => {
+      const d = day0Of(ctx)
+      const c = curOf(ctx)
+      return d && c ? sunArc(d.sunrise, d.sunset, c.time).sx : 64
+    },
+    activeSunY: (ctx) => {
+      const d = day0Of(ctx)
+      const c = curOf(ctx)
+      return d && c ? sunArc(d.sunrise, d.sunset, c.time).sy : 44
+    },
+
+    // --- Moon tile (static, date-driven) ----------------------------------
+    activeMoonName: () => moonPhase(Date.now()).name,
+    activeMoonIllumPct: () => Math.round(moonPhase(Date.now()).illum * 100),
+    activeMoonPath: () => {
+      const m = moonPhase(Date.now())
+      return moonPath(m.illum, m.waxing)
     },
   },
 })

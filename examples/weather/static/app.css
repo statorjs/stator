@@ -1,116 +1,400 @@
-/* Phase 2: minimal styling to prove the data flow. The Metro tile UI lands in
-   Phase 3 (see design/DESIGN.md). */
+/* Metro / Modern-UI tile system — ported from design/prototype.html.
+   Flat, sharp-cornered, vibrant tiles; light-weight Segoe typography; dark
+   default with a light theme. See design/DESIGN.md for the locked direction. */
+
+:root {
+  --bg: #0a0a0a;
+  --fg: #ffffff;
+  --fg-2: #9aa0a6;
+  --line: rgba(255, 255, 255, 0.12);
+  --tile-surface: #1a1a1a;
+  --sans: "Segoe UI", "Segoe UI Variable Text", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  --u: clamp(84px, 15.5vw, 132px);
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #fbfbfb;
+    --fg: #14171a;
+    --fg-2: #5c636b;
+    --line: rgba(20, 30, 40, 0.12);
+    --tile-surface: #ececec;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --fg: #ffffff;
+  --fg-2: #9aa0a6;
+  --line: rgba(255, 255, 255, 0.12);
+  --tile-surface: #1a1a1a;
+}
+:root[data-theme="light"] {
+  --bg: #fbfbfb;
+  --fg: #14171a;
+  --fg-2: #5c636b;
+  --line: rgba(20, 30, 40, 0.12);
+  --tile-surface: #ececec;
+}
+
 * {
   box-sizing: border-box;
 }
 body {
   margin: 0;
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-  background: #0a0a0a;
-  color: #fff;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
 }
 main {
-  max-width: 640px;
+  max-width: 1080px;
   margin: 0 auto;
-  padding: 48px 24px;
+  padding: clamp(20px, 4vw, 44px) clamp(16px, 4vw, 40px) 60px;
 }
-.wx h1 {
-  font-weight: 200;
-  font-size: clamp(36px, 8vw, 56px);
-  letter-spacing: -0.02em;
-  margin: 0 0 20px;
-}
-.temp {
-  font-size: clamp(64px, 16vw, 104px);
-  font-weight: 200;
-  line-height: 1;
-  letter-spacing: -0.03em;
+.num {
   font-variant-numeric: tabular-nums;
-}
-.cond {
-  font-size: 20px;
-  margin-top: 4px;
-}
-.meta {
-  color: #9aa0a6;
-  margin-top: 12px;
-  font-variant-numeric: tabular-nums;
-}
-.muted {
-  color: #9aa0a6;
 }
 
-/* Current-conditions tile backed by the live-sky island. */
-.sky-tile {
-  position: relative;
-  overflow: hidden;
-  width: 100%;
-  aspect-ratio: 2 / 1;
-  max-height: 340px;
-  margin: 8px 0 16px;
+/* ---- Header ---------------------------------------------------------- */
+header {
+  margin-bottom: 24px;
 }
-.live-sky,
-.sky-canvas {
+.eyebrow {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--fg-2);
+  font-weight: 600;
+}
+.wx h1 {
+  margin: 2px 0 0;
+  font-size: clamp(40px, 8vw, 72px);
+  font-weight: 200;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.sub {
+  margin-top: 8px;
+  color: var(--fg-2);
+  font-size: 14px;
+}
+.units {
+  float: right;
+  display: inline-flex;
+  border: 1px solid var(--line);
+}
+.u-btn {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  border: 0;
+  background: transparent;
+  color: var(--fg-2);
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.u-btn.active {
+  background: var(--fg);
+  color: var(--bg);
+}
+.u-clock {
+  border-left: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+.u-btn:focus-visible {
+  outline: 2px solid #1ba1e2;
+  outline-offset: 2px;
+}
+
+/* ---- Tile grid ------------------------------------------------------- */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, var(--u));
+  grid-auto-rows: var(--u);
+  gap: 8px;
+  justify-content: center;
+}
+@media (min-width: 720px) {
+  .grid {
+    grid-template-columns: repeat(6, var(--u));
+    justify-content: start;
+  }
+}
+tile-motion {
+  display: none;
+}
+.tile {
+  --c: #0050ef;
+  --tc: #fff;
+  position: relative;
+  background: var(--c);
+  color: var(--tc);
+  padding: 0;
+  border: 0;
+  text-align: left;
+  transform-origin: center;
+}
+.tile.press {
+  cursor: pointer;
+}
+.tile.press:active {
+  transform: scale(0.94);
+  transition: transform 0.1s;
+}
+.m2 {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+.w4 {
+  grid-column: span 4;
+  grid-row: span 2;
+}
+.tcontent {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 13px 14px;
+}
+
+.t-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  font-weight: 600;
+  opacity: 0.82;
+}
+.t-big {
+  font-size: 34px;
+  font-weight: 250;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.t-big .u {
+  font-size: 15px;
+  opacity: 0.7;
+  font-weight: 400;
+}
+.t-sub {
+  font-size: 12.5px;
+  opacity: 0.82;
+}
+.t-adv {
+  font-size: 13.5px;
+  opacity: 1;
+  line-height: 1.35;
+}
+.t-moon-name {
+  font-size: 14px;
+  opacity: 1;
+}
+.t-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.t-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Whole-tile flip: two full-tile faces rotate independently on the X axis,
+   each hidden edge-on at ±90°. No preserve-3d / backface — Firefox-safe. */
+.flip-tile {
+  background: transparent;
+}
+.flip-inner {
+  position: absolute;
+  inset: 0;
+  perspective: 640px;
+}
+.flip-face {
+  position: absolute;
+  inset: 0;
+  background: var(--c);
+  color: var(--tc);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 13px 14px;
+}
+.flip-face.front {
+  transform: rotateX(0deg);
+  transition: transform 0.32s ease-out 0.32s;
+}
+.flip-face.back {
+  transform: rotateX(-90deg);
+  transition: transform 0.32s ease-in;
+}
+.flip-tile.flipped .flip-face.front {
+  transform: rotateX(90deg);
+  transition: transform 0.32s ease-in;
+}
+.flip-tile.flipped .flip-face.back {
+  transform: rotateX(0deg);
+  transition: transform 0.32s ease-out 0.32s;
+}
+.flip-face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.14));
+  pointer-events: none;
+}
+
+/* Peek / slide: the panel slides up, the next slides in from below. Pure 2D. */
+.peek-tile {
+  overflow: hidden;
+}
+.peek-tile .slides {
+  position: absolute;
+  inset: 0;
+  transition: transform 0.55s cubic-bezier(0.25, 0.9, 0.25, 1);
+}
+.peek-tile .slide {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--c);
+  color: var(--tc);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 13px 14px;
+}
+.peek-tile.peeked .slides {
+  transform: translateY(-100%);
+}
+
+/* ---- Current-conditions (live sky) tile ------------------------------ */
+.sky-tile {
+  background: linear-gradient(168deg, #589fdb, #d6e7f4);
+  overflow: hidden;
+}
+.sky-tile .live-sky,
+.sky-tile .sky-canvas {
   position: absolute;
   inset: 0;
   display: block;
   width: 100%;
   height: 100%;
-  z-index: 0;
 }
-/* Absolute + inset:0 (not height:100%) so it fills the aspect-ratio box reliably,
-   above the canvas. */
-.sky-overlay {
-  position: absolute;
-  inset: 0;
+.sky-tile .tcontent {
   z-index: 1;
-  padding: 22px 26px;
+  color: #fff;
+}
+.sky-tile .cur-top {
   display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  color: #fff;
-  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.35);
+  align-items: center;
+  gap: 12px;
 }
-.sky-msg {
-  color: rgba(255, 255, 255, 0.92);
+.sky-tile .cur-temp {
+  font-size: clamp(46px, 8vw, 66px);
+  font-weight: 200;
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.22);
+}
+.sky-tile .cur-cond {
   font-size: 16px;
-}
-.sky-overlay::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(120% 90% at 18% 8%, rgba(0, 0, 0, 0.3), transparent 55%),
-    linear-gradient(180deg, transparent 45%, rgba(0, 0, 0, 0.22));
-}
-.sky-overlay .temp {
-  color: #fff;
-}
-.sky-overlay .cond {
-  font-size: 18px;
   font-weight: 500;
 }
-.places {
+.sky-tile .cur-meta {
+  font-size: 12.5px;
+  opacity: 0.9;
   display: flex;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 14px;
   flex-wrap: wrap;
 }
-.place-tab {
-  font-family: inherit;
+.sky-tile .cur-meta .num {
+  font-weight: 600;
+}
+.sky-msg {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.92);
   font-size: 14px;
-  color: #9aa0a6;
+}
+.sky-msg-none {
+  display: none;
+}
+
+/* ---- Tile glyphs ----------------------------------------------------- */
+.compass {
+  width: 30px;
+  height: 30px;
+  color: #fff;
+  opacity: 0.9;
+}
+.mini-moon {
+  width: 42px;
+  height: 42px;
+}
+.mini-arc {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+/* ---- Metro Pivot: horizontal scroll-snap location strip -------------- */
+.pivot {
+  display: flex;
+  gap: 22px;
+  margin: 2px 0 22px;
+  padding-bottom: 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.pivot::-webkit-scrollbar {
+  display: none;
+}
+.pivot-item {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
   background: transparent;
   border: 0;
-  padding: 6px 10px;
+  padding: 2px 0;
   cursor: pointer;
+  font-family: inherit;
+  color: var(--fg-2);
+  opacity: 0.45;
+  transition: opacity 0.2s;
 }
-.place-tab:hover {
-  color: #fff;
+.pivot-item:hover {
+  opacity: 0.8;
 }
-.place-tab.active {
-  color: #fff;
-  font-weight: 600;
+.pivot-item.active {
+  opacity: 1;
+}
+.pivot-name {
+  font-size: clamp(21px, 4vw, 30px);
+  font-weight: 200;
+  letter-spacing: -0.01em;
+}
+.pivot-item.active .pivot-name {
+  color: var(--fg);
+}
+.pivot-temp {
+  font-size: 14px;
+  color: var(--fg-2);
+  font-weight: 400;
+}
+.pivot-item:focus-visible {
+  outline: 2px solid #1ba1e2;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flip-face,
+  .peek-tile .slides {
+    transition: none;
+  }
 }

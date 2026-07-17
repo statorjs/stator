@@ -412,6 +412,110 @@ export function uvRating(uv: number): string {
   return 'Extreme'
 }
 
+export function uvAdvice(uv: number): string {
+  if (uv <= 2) return 'No protection needed'
+  if (uv <= 5) return 'Sunglasses on bright days'
+  if (uv <= 7) return 'Cover up · SPF 30+'
+  if (uv <= 10) return 'Avoid the midday sun'
+  return 'Stay in shade · SPF 50+'
+}
+
+/** AQI tile styling + guidance, keyed to the European AQI bands. `color` drives
+ *  the tile background (`--c`); `textColor` keeps the label legible on it. */
+export interface AqiInfo {
+  label: string
+  color: string
+  textColor: string
+  advice: string
+}
+export function aqiInfo(aqi: number): AqiInfo {
+  if (aqi <= 20) return { label: 'Good', color: '#60A917', textColor: '#fff', advice: 'Air quality is ideal' }
+  if (aqi <= 40) return { label: 'Fair', color: '#A4C400', textColor: '#14210a', advice: 'Acceptable for everyone' }
+  if (aqi <= 60) return { label: 'Moderate', color: '#E3C800', textColor: '#211d00', advice: 'Sensitive groups take care' }
+  if (aqi <= 80) return { label: 'Poor', color: '#FA6800', textColor: '#fff', advice: 'Limit prolonged exertion' }
+  if (aqi <= 100) return { label: 'Very poor', color: '#E51400', textColor: '#fff', advice: 'Reduce outdoor activity' }
+  return { label: 'Extreme', color: '#A20025', textColor: '#fff', advice: 'Avoid outdoor exertion' }
+}
+
+// ---- Moon phase (location-independent, date-driven) ---------------------
+export interface MoonPhase {
+  illum: number // 0..1 illuminated fraction
+  waxing: boolean
+  name: string
+}
+
+const SYNODIC_MONTH = 29.530588853
+const KNOWN_NEW_MOON = Date.UTC(2000, 0, 6, 18, 14) // 2000-01-06 18:14 UTC
+
+export function moonPhase(nowMs: number): MoonPhase {
+  const days = (nowMs - KNOWN_NEW_MOON) / 86_400_000
+  const frac = ((days / SYNODIC_MONTH) % 1 + 1) % 1 // 0..1 through the cycle
+  const illum = (1 - Math.cos(2 * Math.PI * frac)) / 2
+  const waxing = frac < 0.5
+  let name = 'New moon'
+  if (frac < 0.03 || frac > 0.97) name = 'New moon'
+  else if (frac < 0.22) name = 'Waxing crescent'
+  else if (frac < 0.28) name = 'First quarter'
+  else if (frac < 0.47) name = 'Waxing gibbous'
+  else if (frac < 0.53) name = 'Full moon'
+  else if (frac < 0.72) name = 'Waning gibbous'
+  else if (frac < 0.78) name = 'Last quarter'
+  else name = 'Waning crescent'
+  return { illum, waxing, name }
+}
+
+/** SVG `d` for the lit portion of a moon disc (viewBox centred on 0,0, r=26) —
+ *  the terminator is a half-ellipse whose width tracks illumination. */
+export function moonPath(illum: number, waxing: boolean): string {
+  const r = 26
+  const b = r * (1 - 2 * illum)
+  const limb = waxing ? 1 : 0
+  const term = b >= 0 ? limb : 1 - limb
+  return `M 0 ${-r} A ${r} ${r} 0 0 ${limb} 0 ${r} A ${Math.abs(b).toFixed(1)} ${r} 0 0 ${term} 0 ${-r} Z`
+}
+
+// ---- Sun arc geometry ---------------------------------------------------
+export interface SunArc {
+  polar: boolean
+  /** Progress path `d` (sunrise → current sun position) for the mini arc. */
+  progressPath: string
+  sx: number
+  sy: number
+}
+
+const arcMinutes = (iso: string): number | null => {
+  // iso like "2026-07-17T05:12" — take HH:MM.
+  const m = iso.match(/T(\d{2}):(\d{2})/)
+  if (!m) return null
+  return Number(m[1]) * 60 + Number(m[2])
+}
+
+/** Place the sun along a fixed arc (viewBox 0 0 128 52) by how far `now` is
+ *  between sunrise and sunset. `polar` when the times are missing/degenerate. */
+export function sunArc(sunriseISO: string, sunsetISO: string, nowISO: string): SunArc {
+  const R = 54
+  const cx = 64
+  const base = 44
+  const rise = arcMinutes(sunriseISO)
+  const set = arcMinutes(sunsetISO)
+  const now = arcMinutes(nowISO)
+  if (rise == null || set == null || now == null || set <= rise) {
+    return { polar: true, progressPath: '', sx: cx, sy: base }
+  }
+  const frac = Math.max(0, Math.min(1, (now - rise) / (set - rise)))
+  const ang = Math.PI * (1 - frac)
+  const sx = cx - R * Math.cos(ang)
+  const sy = base - R * Math.sin(ang)
+  const progressPath = `M ${cx - R} ${base} A ${R} ${R} 0 0 1 ${sx.toFixed(1)} ${sy.toFixed(1)}`
+  return { polar: false, progressPath, sx: Number(sx.toFixed(1)), sy: Number(sy.toFixed(1)) }
+}
+
+/** "HH:MM" from an Open-Meteo local ISO timestamp. */
+export function hhmm(iso: string): string {
+  const m = iso.match(/T(\d{2}:\d{2})/)
+  return m ? m[1]! : '—'
+}
+
 const CARDINALS = [
   'N',
   'NNE',
