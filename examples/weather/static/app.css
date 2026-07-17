@@ -363,6 +363,14 @@ tile-motion {
   justify-content: flex-start;
   gap: 4px;
 }
+.fc-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  font-weight: 600;
+  opacity: 0.85;
+  margin-bottom: 4px;
+}
 .hourly {
   flex: 1;
   display: grid;
@@ -397,7 +405,8 @@ tile-motion {
 .daily {
   flex: 1;
   display: grid;
-  align-content: center;
+  align-content: stretch;
+  grid-auto-rows: 1fr;
 }
 .drow {
   display: grid;
@@ -422,10 +431,12 @@ tile-motion {
 .d-day {
   font-size: 13.5px;
 }
-.d-day small {
+.d-date {
+  display: inline-block;
+  width: 1.5em;
+  margin-right: 7px;
+  text-align: right;
   opacity: 0.6;
-  margin-left: 4px;
-  font-size: 11px;
 }
 .d-pop {
   font-size: 11px;
@@ -454,11 +465,12 @@ tile-motion {
 }
 .t-bg-glyph {
   position: absolute;
-  right: -8px;
-  bottom: -10px;
-  width: 88px;
-  height: 88px;
-  opacity: 0.16;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  opacity: 0.5;
   pointer-events: none;
 }
 .compass {
