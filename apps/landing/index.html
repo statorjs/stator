@@ -3,9 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Stator 1.0 · the server-canonical state-machine framework</title>
-  <meta name="description" content="A JavaScript framework where state machines are the unit of composition and DOM renders where its state lives. One .stator file, a compiler-checked server/client boundary, typed events, and slot-level wire patches. Honest about what it does and doesn't do.">
+  <title>Stator · the server-canonical JavaScript framework built on state machines</title>
+  <meta name="description" content="A web framework where state machines are the unit of composition and the DOM renders where its state lives — almost always the server.">
+  <link rel="canonical" href="https://statorjs.dev/">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://statorjs.dev/">
+  <meta property="og:title" content="Stator · the server-canonical JavaScript framework built on state machines">
+  <meta property="og:description" content="A web framework where state machines are the unit of composition and the DOM renders where its state lives — almost always the server.">
+  <meta property="og:image" content="https://statorjs.dev/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The Stator mark — a stator ring around a rotor — above the wordmark and the tagline 'Render HTML where your state lives.'">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://statorjs.dev/">
+  <meta name="twitter:title" content="Stator · the server-canonical JavaScript framework built on state machines">
+  <meta name="twitter:description" content="A web framework where state machines are the unit of composition and the DOM renders where its state lives — almost always the server.">
+  <meta name="twitter:image" content="https://statorjs.dev/og-image.png">
 
   <!-- Inline theme application BEFORE stylesheet to prevent FOUC -->
   <script>
@@ -53,7 +71,7 @@
     </a>
 
     <nav class="nav">
-      <span class="nav__meta">REV 1.0-PREVIEW</span>
+      <span class="nav__meta">REV 1.3</span>
       <a href="https://docs.statorjs.dev" class="nav__link">Docs</a>
       <a href="https://demo.statorjs.dev" class="nav__link">Demo</a>
       <a href="https://github.com/statorjs/stator" class="nav__link">Source</a>
@@ -85,11 +103,11 @@
 
     <!-- HERO -->
     <section class="hero">
-      <p class="hero__spec">DOC-002 · v1.0 · preview</p>
+      <p class="hero__spec">DOC-002 · v1.3 · released</p>
       <h1 class="hero__title">
-        <span class="hero__title-line">Render where</span>
-        <span class="hero__title-line">state</span>
-        <span class="hero__title-line"><span class="hero__title-accent">lives.</span></span>
+        <span class="hero__title-line">Render HTML</span>
+        <span class="hero__title-line">where your</span>
+        <span class="hero__title-line">state <span class="hero__title-accent">lives.</span></span>
       </h1>
 
       <div class="dimension" aria-hidden="true">
@@ -108,15 +126,25 @@
       </p>
 
       <div class="poc">
-        <p class="poc__label">/* 1.0 PREVIEW */</p>
+        <p class="poc__label">/* RELEASED */</p>
         <p class="poc__text">
-          This page describes the committed 1.0 design. The runtime, wire
-          protocol, routing, and live SSE are built and running — the demo at
-          <a href="https://demo.statorjs.dev" class="link">demo.statorjs.dev</a>
-          exercises them end-to-end. The 1.0 developer surface below — the
-          <code class="inline">.stator</code> compiler, the client model, typed
-          events — is specified and in build. We're publishing the shape first,
-          on purpose, so the API gets pressure before it ossifies.
+          What this is: released, v1 software — on npm today via
+          <code class="inline">pnpm create stator</code>, with docs at
+          <a href="https://docs.statorjs.dev" class="link">docs.statorjs.dev</a>
+          and a deployed reference demo at
+          <a href="https://demo.statorjs.dev" class="link">demo.statorjs.dev</a>.
+          The API grows by addition. Breaking changes are the rare exception.
+        </p>
+        <p class="poc__text">
+          What it isn't: mature. Stator is a small team moving fast on an
+          experimental new direction for web frameworks. The vision and
+          fundamentals are set — what we're still finding are the rough
+          edges of an approach this different.
+        </p>
+        <p class="poc__text">
+          Where it's going: every example pressure-tests the API, and what
+          it proves missing becomes a primitive. The full shipped / planned /
+          not-a-goal ledger is in §6.
         </p>
       </div>
     </section>
@@ -444,20 +472,20 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
       <div class="section-head">
         <span class="section-head__id">§6</span>
         <span class="section-head__divider"></span>
-        <span class="section-head__title">What 1.0 is, and isn't</span>
+        <span class="section-head__title">What's shipped, and what isn't</span>
       </div>
 
       <div class="prose">
         <p>
           The fastest way to evaluate a framework is to know its edges. Here are
-          ours, plainly: what ships in 1.0, what's planned for after, and what
+          ours, plainly: what's shipped as of 1.3, what's planned next, and what
           Stator is deliberately <em>not</em> going to do.
         </p>
       </div>
 
       <div class="matrix">
         <div class="matrix__col">
-          <p class="matrix__head matrix__head--now">/// IN 1.0</p>
+          <p class="matrix__head matrix__head--now">/// SHIPPED</p>
           <ul class="matrix__list matrix__list--now">
             <li>Server-canonical rendering with slot-level wire patches</li>
             <li><code class="inline">.stator</code> SFC: frontmatter, template, client <code class="inline">&lt;script&gt;</code>, scoped styles</li>
@@ -468,6 +496,8 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
             <li>Typed machine-mediated <code class="inline">dispatch</code></li>
             <li>File routing, path params, API routes, response directives</li>
             <li>Per-route opt-in SSE for cross-session live views</li>
+            <li>Async effects on transitions and state entry; <code class="inline">after</code> state timeouts (1.3)</li>
+            <li>Session rotation — <code class="inline">rotateSession()</code> on privilege change (1.2)</li>
             <li>Pluggable Store (in-memory / Redis), per-session TTL</li>
             <li>Keyed lists; small (~6 KB) isomorphic engine, no XState</li>
           </ul>
@@ -478,7 +508,6 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
             <li>Horizontal scaling across replicas (Redis pub/sub backplane)</li>
             <li>Durable app→session delivery: webhooks, cron, and background jobs pushing into idle sessions</li>
             <li>Statechart depth: nested, parallel, and history states</li>
-            <li>Delayed transitions / timers</li>
             <li>Editor LSP beyond syntax highlighting</li>
             <li>Schema export for tooling and LLM context</li>
           </ul>
@@ -488,7 +517,7 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
           <ul class="matrix__list matrix__list--no">
             <li>A virtual DOM or re-rendering JSX in the browser</li>
             <li>Using React / Vue / Svelte components or their ecosystems</li>
-            <li>Async inside machines — async lives in routes and API handlers</li>
+            <li>Awaiting inside actions and guards — async is host-scheduled effects, never under the session lock</li>
             <li>A client-side SPA router as the default</li>
             <li>Batteries-included backend: auth, ORM, and storage are yours to bring</li>
             <li>Winning a hydration-cost benchmark by hydrating less cleverly — we don't hydrate</li>
@@ -614,9 +643,9 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
 
   <footer class="footer">
     <div class="footer__row">
-      <span class="footer__cell">STATOR · v1.0-preview</span>
+      <span class="footer__cell">STATOR · v1.3.0</span>
       <span class="footer__cell">DOC-002</span>
-      <span class="footer__cell">REV. 2026.06</span>
+      <span class="footer__cell">REV. 2026.07</span>
     </div>
     <p class="footer__note">Opinionated on purpose. Honest about the edges.</p>
   </footer>

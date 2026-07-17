@@ -19,9 +19,32 @@ import { isReadResult, type ReadResult } from './read.ts'
 export function clientShellAttrs(
   props: Record<string, unknown>,
   decl: Record<string, 'number' | 'string' | 'boolean'>,
+  base: Record<string, string | boolean> = {},
 ): string {
-  let out = ''
+  // The component's own root static attributes are the BASE; usage-site props
+  // (below) win on scalar conflict and `class`/`style` concatenate (FINDINGS #4).
+  // Live read() props emit separately since their value changes over the wire.
+  const staticAttrs = new Map<string, string | true>()
+  for (const key in base) {
+    const v = base[key]
+    if (v === false) continue
+    staticAttrs.set(key, v === true ? true : String(v))
+  }
+  const setMerged = (name: string, value: string | true): void => {
+    const prev = staticAttrs.get(name)
+    if (
+      (name === 'class' || name === 'style') &&
+      typeof prev === 'string' &&
+      typeof value === 'string'
+    ) {
+      staticAttrs.set(name, `${prev} ${value}`.trim())
+    } else {
+      staticAttrs.set(name, value)
+    }
+  }
+
   let elementId: string | null = null
+  let liveOut = ''
   for (const key in decl) {
     const v = props[key]
     if (v == null) continue
@@ -35,10 +58,7 @@ export function clientShellAttrs(
             `live island attrs only make sense inside a route render.`,
         )
       }
-      if (!elementId) {
-        elementId = allocElementId(state)
-        out += ` data-stator-id="${elementId}"`
-      }
+      if (!elementId) elementId = allocElementId(state)
       const r = v as ReadResult
       registerBinding(state, {
         slotId: r.slotId,
@@ -51,15 +71,21 @@ export function clientShellAttrs(
       })
       // Same value semantics as template attr bindings (boolean-aware).
       if (r.value === false || r.value === null || r.value === undefined) continue
-      out += r.value === true ? ` ${name}` : ` ${name}="${escapeAttribute(String(r.value))}"`
+      liveOut += r.value === true ? ` ${name}` : ` ${name}="${escapeAttribute(String(r.value))}"`
       continue
     }
 
     if (decl[key] === 'boolean') {
-      if (v) out += ` ${name}`
+      if (v) setMerged(name, true)
     } else {
-      out += ` ${name}="${escapeAttribute(String(v))}"`
+      setMerged(name, String(v))
     }
   }
-  return out
+
+  let out = ''
+  if (elementId) out += ` data-stator-id="${elementId}"`
+  for (const [name, value] of staticAttrs) {
+    out += value === true ? ` ${name}` : ` ${name}="${escapeAttribute(value)}"`
+  }
+  return out + liveOut
 }

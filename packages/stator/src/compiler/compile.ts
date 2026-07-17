@@ -190,7 +190,7 @@ function compileClient(
     '',
     `export default function (props = {}) {`,
     `  const __inner = ${innerExpr}`,
-    `  const __attrs = clientShellAttrs(props, ${attrDecl})`,
+    `  const __attrs = clientShellAttrs(props, ${attrDecl}, ${JSON.stringify(root.rootAttrs)})`,
     `  return createHtmlFragment(\`<${root.tag}\${__attrs}${rootScope}>\` + __inner.html + \`</${root.tag}>\`)`,
     '}',
     '',
@@ -214,9 +214,36 @@ function compileClient(
   }
 }
 
-/** Parse a client template, returning the custom-element root tag and the inner
- *  source (its children). Enforces "root must be the custom element". */
-function extractClientRoot(template: string, file?: string): { tag: string; inner: string } {
+/** Static attributes authored on a client component's ROOT element — its own
+ *  base `class`, `hidden`, ARIA, `data-*`. These are carried across the
+ *  split-and-reassemble so a component can style/flag its own root; the use site
+ *  merges them under its props (FINDINGS #4). Namespaced directives (class:list,
+ *  on:) and expression-valued attrs are not static and are skipped here. */
+function staticRootAttrs(
+  attrs: ts.JsxAttributes,
+  sf: ts.SourceFile,
+): Record<string, string | boolean> {
+  const out: Record<string, string | boolean> = {}
+  for (const attr of attrs.properties) {
+    if (!ts.isJsxAttribute(attr) || ts.isJsxNamespacedName(attr.name)) continue
+    const name = attr.name.getText(sf)
+    const init = attr.initializer
+    if (init === undefined) {
+      out[name] = true // valueless boolean attribute
+    } else if (ts.isStringLiteral(init)) {
+      out[name] = init.text
+    }
+  }
+  return out
+}
+
+/** Parse a client template, returning the custom-element root tag, its inner
+ *  source (its children), and the root's own static attributes. Enforces "root
+ *  must be the custom element". */
+function extractClientRoot(
+  template: string,
+  file?: string,
+): { tag: string; inner: string; rootAttrs: Record<string, string | boolean> } {
   const wrapped = `const __t = (<>${template}</>);`
   const sf = ts.createSourceFile('t.tsx', wrapped, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   let fragment: ts.JsxFragment | undefined
@@ -241,13 +268,13 @@ function extractClientRoot(template: string, file?: string): { tag: string; inne
   if (ts.isJsxSelfClosingElement(rootEl)) {
     const tag = rootEl.tagName.getText(sf)
     requireCustomRoot(tag, file)
-    return { tag, inner: '' }
+    return { tag, inner: '', rootAttrs: staticRootAttrs(rootEl.attributes, sf) }
   }
   const el = rootEl as ts.JsxElement
   const tag = el.openingElement.tagName.getText(sf)
   requireCustomRoot(tag, file)
   const inner = wrapped.slice(el.openingElement.getEnd(), el.closingElement.getStart())
-  return { tag, inner }
+  return { tag, inner, rootAttrs: staticRootAttrs(el.openingElement.attributes, sf) }
 }
 
 function requireCustomRoot(tag: string, file?: string): void {

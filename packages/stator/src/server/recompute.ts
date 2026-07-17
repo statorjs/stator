@@ -34,6 +34,19 @@ export function recompute(
   machineName: string,
   runtime: SessionRuntime,
 ): Patch[] {
+  // Expose the fan-out runtime to nested `read()`s so an arm/list body that
+  // re-renders this pass resolves the CURRENT proxy, not its frozen closure
+  // instance (FINDINGS #3). Restored after so nothing leaks across passes.
+  const prevRuntime = state.currentRuntime
+  state.currentRuntime = runtime
+  try {
+    return recomputeInner(state, machineName, runtime)
+  } finally {
+    state.currentRuntime = prevRuntime
+  }
+}
+
+function recomputeInner(state: RenderState, machineName: string, runtime: SessionRuntime): Patch[] {
   const proxy = runtime.proxyFor(machineName)
   if (!proxy) return []
 

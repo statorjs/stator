@@ -2,6 +2,7 @@ import {
   allocSlotId,
   type ErasedSelector,
   keyToken,
+  makeScope,
   popListScope,
   type RenderState,
   registerBinding,
@@ -49,7 +50,7 @@ export function renderBranchBody(
 ): string {
   unregisterBindingsForScope(state, slotId)
   if (!renderer) return ''
-  state.scopeStack.push({ prefix: `${slotId}:b${keyToken(String(armKey))}`, counter: 0 })
+  state.scopeStack.push(makeScope(`${slotId}:b${keyToken(String(armKey))}`))
   try {
     const fragment = renderer()
     if (!isHtmlFragment(fragment)) {

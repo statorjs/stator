@@ -30,7 +30,8 @@ describe('compiler: client-component integration (3b stage 6a)', () => {
   it('server shell renders the custom-element root with declared attrs + inner markers', () => {
     const r = compile(CLIENT, { id: 'quantity-stepper.stator' })
     expect(r.serverCode).toContain('export default function (props = {})')
-    expect(r.serverCode).toContain('clientShellAttrs(props, { unitPrice: "number" })')
+    // Third arg carries the root's own static attributes (none here → {}).
+    expect(r.serverCode).toContain('clientShellAttrs(props, { unitPrice: "number" }, {})')
     expect(r.serverCode).toContain('<quantity-stepper')
     expect(r.serverCode).toContain('</quantity-stepper>')
     // inner shell carries the data-b markers, directives stripped
