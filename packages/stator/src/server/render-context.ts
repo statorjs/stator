@@ -122,6 +122,13 @@ export interface RenderState {
    *  (GET, SSE-connect — off-lock); false for the `/__events` re-diff baseline,
    *  which runs UNDER the session lock and must never kick a defer thunk. */
   resolveDeferred: boolean
+  /** Set only during a recompute-driven re-render (fan-out): nested `read()`s
+   *  resolve their proxy from THIS runtime by machine name, instead of the
+   *  closure-captured instance — which fan-out `rehydrate()` froze at
+   *  connect-time, so an arm/list interior would otherwise render stale on the
+   *  first data arrival (FINDINGS #3). Null on the initial render, where the
+   *  closure instance already IS the current proxy. */
+  currentRuntime: { proxyFor(name: string): unknown } | null
 }
 
 export function createRenderState(sessionId: SessionId, routeKey: string): RenderState {
@@ -134,6 +141,7 @@ export function createRenderState(sessionId: SessionId, routeKey: string): Rende
     deferred: [],
     deferDepth: 0,
     resolveDeferred: true,
+    currentRuntime: null,
   }
 }
 
