@@ -4,6 +4,7 @@ import SettingsMachine from '../machines/settings.ts'
 import WeatherMachine from '../machines/weather.ts'
 import Layout from '../templates/layout.stator'
 import LiveSky from '../templates/live-sky.stator'
+import PivotCtl from '../templates/pivot-ctl.stator'
 import TileMotion from '../templates/tile-motion.stator'
 
 const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
@@ -36,66 +37,57 @@ const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
       </div>
     </header>
 
-    {/* Metro Pivot: a horizontal, scroll-snap strip of saved locations (native
-        CSS `scroll-snap-type`/`scroll-snap-align` — no gesture library). Tabs
-        carry only text + `on:click` + `class:list` (no islands / bound attrs),
-        so they stay clear of the element-ids-in-a-list hazard (FINDINGS #2). */}
+    {/* Metro Pivot headers. The strip is native CSS scroll-snap; the controller
+        island (below) drives everything client-side: click a pill to scroll its
+        hero into view, and the highlight follows whichever hero is centred. No
+        server binding for `active` here — scroll position is the source of truth,
+        and the controller syncs it to the server on settle. */}
     <nav class="pivot" aria-label="Saved locations">
       {each(
         read(weather, (w) => w.places),
         (p) => (
-          <button
-            class:list={['pivot-item', { active: read(weather, (w) => w.activeId === p.id) }]}
-            on:click={() => weather.send({ type: 'SET_ACTIVE', id: p.id })}
-          >
+          <button class="pivot-item" data-id={p.id}>
             <span class="pivot-name">{p.name}</span>
             <span class="pivot-temp num">{read(weather, (w) => w.tempForId(p.id))}</span>
           </button>
         ),
-        // NOTE: intentionally NON-keyed for now. Keying stops the wasteful
-        // per-transition re-render (FINDINGS #5), BUT the active-tab highlight
-        // is a `class:list` (element-id) binding, and element ids inside a list
-        // desync after the SSE initial-sync re-render (FINDINGS #2) — so the
-        // keyed path's separate class patch lands on a stale id and the
-        // highlight never moves. Non-keyed re-renders the whole strip on switch,
-        // which re-bakes the correct `active` class into the fresh HTML. The
-        // real fix (scroll-derived highlight + #2) is the Pivot rework.
+        { key: (p) => p.id },
       )}
     </nav>
 
-    {/* The tile grid. Every tile is unconditional and every data value is a
-        top-level `read()` (leaf) binding — deliberately: element-id'd nodes and
-        data reads must stay OUTSIDE `match`/`when`/`each` arms on the live path
-        (see FINDINGS.md #2, #3). The only conditional is the sky overlay
-        message, whose arms hold static text (no reads, no element ids). */}
+    {/* Panorama carousel: one live hero per saved location, swiped with native
+        scroll-snap. Each hero has its OWN live-sky island and per-place reads,
+        INSIDE a keyed `each` — element ids are key-scoped and nested reads
+        resolve the current runtime, so every panel is independently live. */}
+    <div class="hero-carousel" aria-label="Locations">
+      {each(
+        read(weather, (w) => w.places),
+        (p) => (
+          <article class="hero" data-id={p.id}>
+            <LiveSky scene={read(weather, (w) => w.sceneForId(p.id))} />
+            <div class="hero-body">
+              <div class="hero-temp num">{read(weather, (w) => w.tempForId(p.id))}</div>
+              <div class="hero-cond">{read(weather, (w) => w.condForId(p.id))}</div>
+              <div class="hero-meta">
+                <span>Feels <span class="num">{read(weather, (w) => w.feelsForId(p.id))}</span></span>
+                <span>
+                  <span class="num">{read(weather, (w) => w.windForId(p.id))}</span>
+                  {' '}{read(settings, (s) => (s.units === 'imperial' ? 'mph' : 'km/h'))}
+                  {' '}{read(weather, (w) => w.cardinalForId(p.id))}
+                </span>
+                <span class="num">{read(weather, (w) => w.humidityForId(p.id))}% RH</span>
+              </div>
+            </div>
+          </article>
+        ),
+        { key: (p) => p.id },
+      )}
+    </div>
+
+    {/* Detail tiles for the ACTIVE (centred) location — the controller fires
+        SET_ACTIVE as you swipe, and these `active*` bindings follow. */}
     <div class="grid">
       <TileMotion />
-
-      {/* Current conditions — live canvas sky + Metro overlay */}
-      <div class="tile w4 sky-tile">
-        <LiveSky scene={read(weather, (w) => w.activeScene)} />
-        <div class="tcontent">
-          <div class="cur-top">
-            <div class="cur-temp num">{read(weather, (w) => w.activeTempDisplay)}</div>
-          </div>
-          <div>
-            <div class="cur-cond">{read(weather, (w) => w.activeConditionLabel)}</div>
-            <div class="cur-meta">
-              <span>Feels <span class="num">{read(weather, (w) => w.activeFeelsDisplay)}</span></span>
-              <span>
-                <span class="num">{read(weather, (w) => w.activeWindDisplay)}</span>
-                {' '}{read(weather, (w) => w.activeWindUnit)} {read(weather, (w) => w.activeWindCardinal)}
-              </span>
-              <span class="num">{read(weather, (w) => w.activeHumidity)}% RH</span>
-            </div>
-          </div>
-          {match(read(weather, (w) => w.activeStatus), {
-            loading: () => <p class="sky-msg">Loading conditions…</p>,
-            error: () => <p class="sky-msg">Couldn't reach the weather service.</p>,
-            ready: () => <span class="sky-msg-none"></span>,
-          })}
-        </div>
-      </div>
 
       {/* UV — peek */}
       <div class="tile m2 press peek-tile" style="--c:#F0A30A;--tc:#231700">
@@ -221,5 +213,6 @@ const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
       </div>
     </div>
 
+    <PivotCtl />
   </section>
 </Layout>

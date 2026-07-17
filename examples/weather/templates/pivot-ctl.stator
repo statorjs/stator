@@ -1,0 +1,78 @@
+<pivot-ctl hidden></pivot-ctl>
+
+<script>
+  import WeatherMachine from '../machines/weather.ts'
+
+  // Thin Pivot controller. The carousel itself is pure CSS scroll-snap — this
+  // island only wires clicks and scroll, like an image carousel's pill row:
+  //   - click a pill  → smooth-scroll its hero into view
+  //   - scroll        → highlight the centred pill (client-side, every frame)
+  //   - scroll settle → sync the active location to the server (SET_ACTIVE), so
+  //                     the title + detail tiles follow the hero you landed on
+  // It owns no data and holds no `active` binding; scroll position is the truth.
+  export class PivotCtl extends StatorElement {
+    connectedCallback() {
+      super.connectedCallback()
+      const root = (this.closest('.wx') ?? document) as ParentNode
+      const carousel = root.querySelector('.hero-carousel') as HTMLElement | null
+      const pivot = root.querySelector('.pivot') as HTMLElement | null
+      if (!carousel || !pivot) return
+
+      const heroes = () => Array.from(carousel.querySelectorAll('.hero')) as HTMLElement[]
+      const pills = () => Array.from(pivot.querySelectorAll('.pivot-item')) as HTMLElement[]
+
+      // The location whose hero is nearest the carousel's centre.
+      const centredId = (): string | null => {
+        const mid = carousel.scrollLeft + carousel.clientWidth / 2
+        let best: HTMLElement | null = null
+        let bestDist = Infinity
+        for (const h of heroes()) {
+          const d = Math.abs(h.offsetLeft + h.offsetWidth / 2 - mid)
+          if (d < bestDist) {
+            bestDist = d
+            best = h
+          }
+        }
+        return best?.dataset.id ?? null
+      }
+
+      const highlight = (id: string | null) => {
+        for (const p of pills()) p.classList.toggle('active', p.dataset.id === id)
+      }
+
+      const onPillClick = (e: Event) => {
+        const pill = (e.target as HTMLElement).closest('.pivot-item') as HTMLElement | null
+        if (!pill) return
+        const hero = heroes().find((h) => h.dataset.id === pill.dataset.id)
+        hero?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+      }
+      pivot.addEventListener('click', onPillClick)
+
+      let raf = 0
+      let settle = 0
+      let synced: string | null = centredId()
+      const onScroll = () => {
+        cancelAnimationFrame(raf)
+        raf = requestAnimationFrame(() => highlight(centredId()))
+        clearTimeout(settle)
+        settle = window.setTimeout(() => {
+          const id = centredId()
+          if (id && id !== synced) {
+            synced = id
+            dispatch(WeatherMachine, { type: 'SET_ACTIVE', id })
+          }
+        }, 140)
+      }
+      carousel.addEventListener('scroll', onScroll, { passive: true })
+
+      highlight(synced)
+
+      this.track(() => {
+        cancelAnimationFrame(raf)
+        clearTimeout(settle)
+        pivot.removeEventListener('click', onPillClick)
+        carousel.removeEventListener('scroll', onScroll)
+      })
+    }
+  }
+</script>

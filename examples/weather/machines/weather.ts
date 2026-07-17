@@ -245,6 +245,28 @@ export default defineMachine({
      *  Pivot tab show its own reading. Curried so a template can call it per row. */
     tempForId: (ctx) => (id: string): string =>
       fmtTemp(ctx.data[id]?.forecast?.current?.temp, ctx.units),
+    /** Per-place hero fields — one live panel per saved location in the carousel.
+     *  Element ids inside the keyed `each` are key-scoped, and nested reads
+     *  resolve the current runtime, so each panel's island + bindings are live. */
+    sceneForId: (ctx) => (id: string): string => {
+      const c = ctx.data[id]?.forecast?.current
+      return c ? sceneKind(c.code, c.isDay) : 'cloudy'
+    },
+    statusForId: (ctx) => (id: string): string => ctx.data[id]?.status ?? 'loading',
+    condForId: (ctx) => (id: string): string => {
+      const c = ctx.data[id]?.forecast?.current
+      return c ? conditionLabel(c.code) : ''
+    },
+    feelsForId: (ctx) => (id: string): string =>
+      fmtTemp(ctx.data[id]?.forecast?.current?.feels, ctx.units),
+    windForId: (ctx) => (id: string): string =>
+      fmtWind(ctx.data[id]?.forecast?.current?.wind, ctx.units),
+    cardinalForId: (ctx) => (id: string): string => {
+      const c = ctx.data[id]?.forecast?.current
+      return c ? cardinal(c.dir) : '—'
+    },
+    humidityForId: (ctx) => (id: string): number | string =>
+      ctx.data[id]?.forecast?.current?.humidity ?? '—',
     activeStatus: (ctx) => ctx.data[ctx.activeId]?.status ?? 'loading',
     activeCurrent: (ctx): Current | null => ctx.data[ctx.activeId]?.forecast?.current ?? null,
     /** Temperature in the chosen unit — a single binding that re-renders on both
