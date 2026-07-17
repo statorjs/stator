@@ -65,11 +65,20 @@
       }
       carousel.addEventListener('scroll', onScroll, { passive: true })
 
-      highlight(synced)
+      // Apply the initial highlight (deferred a frame so layout is ready), and
+      // re-apply it whenever the pills re-render — the SSE initial-sync
+      // re-renders the keyed pivot list wholesale, which would otherwise wipe
+      // the client-set `.active`. (childList only, so our own class toggle in
+      // highlight() doesn't re-trigger it.)
+      const applyHighlight = () => highlight(centredId())
+      requestAnimationFrame(applyHighlight)
+      const mo = new MutationObserver(applyHighlight)
+      mo.observe(pivot, { childList: true, subtree: true })
 
       this.track(() => {
         cancelAnimationFrame(raf)
         clearTimeout(settle)
+        mo.disconnect()
         pivot.removeEventListener('click', onPillClick)
         carousel.removeEventListener('scroll', onScroll)
       })
