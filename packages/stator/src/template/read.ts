@@ -38,13 +38,19 @@ export function read<TDef extends AnyMachineDef, TResult>(
     )
   }
   const slotId = allocSlotId(state)
-  const value = selector(instance)
+  // During a recompute-driven re-render (fan-out), resolve the CURRENT proxy for
+  // this machine so arm/list interiors see fresh state — the closure `instance`
+  // was frozen at connect-time by `rehydrate()` (FINDINGS #3). On the initial
+  // render `currentRuntime` is null and `instance` already IS the current proxy.
+  const live = state.currentRuntime?.proxyFor(def.name) as InstanceOf<TDef> | undefined
+  const source = live ?? instance
+  const value = selector(source)
   return {
     __isReadResult: true,
     slotId,
     machineName: def.name,
     selector: selector as ErasedSelector,
-    instance,
+    instance: source,
     value: value as TResult,
   }
 }

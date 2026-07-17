@@ -38,6 +38,14 @@ Shipped: `minimal`, `todomvc`, `desksmith` (the tutorial's finished app),
   tools) is a common starting point, and it only lands experientially — two
   browsers or it didn't happen. Doubles as the scout for the **presence /
   connection-lifecycle** gap.
+- **`weather`** *(in progress)* — a Metro-styled multi-location weather app on
+  keyless Open-Meteo: one feature exercises entry effects, `after`
+  revalidation, a transition effect, a cross-machine subscription, live client
+  islands (canvas sky, flip/peek tiles), and server-canonical settings synced
+  across tabs.
+  *Motivation*: the densest single exercise of the effect model + islands we
+  have — and it earned its keep immediately, surfacing two live-path
+  correctness bugs (see **Runtime correctness** below).
 
 ## Docs recipes
 
@@ -103,14 +111,49 @@ Stator. Held to the same evidence bar (a spike proves it before it ships).
   [`.chisel/specs/active/client-time-travel-devtool.md`](.chisel/specs/active/client-time-travel-devtool.md).
   Spike first because those DOM edge cases are where the surprises hide.
 
+## Runtime correctness
+
+**Why this category**: not new surface — places the framework silently does the
+*wrong* thing on a natural template, found by an example and confirmed with a
+runnable repro. These jump the evidence queue: a correctness bug on a documented
+pattern is a bigger liability than any missing primitive.
+
+- **Conditional-arm interiors on the live path** *(confirmed, fix pending)*: two
+  independent bugs where content inside a `match`/`when`/`each` arm is
+  second-class on SSE fan-out. **Bug A** — element ids are a flat global counter
+  (not arm-scoped like slot ids), so an island / `on:` handler / `read()`-bound
+  attribute inside an arm gets an unstable id and its patch mis-targets (can
+  silently hit a real element). **Bug B** — a `read()` inside an arm renders
+  stale on the *first* data arrival, because the fan-out re-render evaluates the
+  arm body against a frozen render-time closure proxy while leaf bindings use the
+  fresh one. Both are worked around in `weather` (keep element-id'd nodes and
+  data reads outside arms); the real fix (arm-scope element ids; resolve nested
+  reads against the current runtime) is designed in
+  [`.chisel/specs/active/conditional-arm-interiors-are-second-class-on-the-live-update-path.md`](.chisel/specs/active/conditional-arm-interiors-are-second-class-on-the-live-update-path.md),
+  with live SSE evidence in `examples/weather/FINDINGS.md` (#2, #3).
+  *Motivation*: natural templates hit it, it fails silently, and it undercuts the
+  live-update guarantee that is the framework's whole pitch.
+- **Attribute composition is drop-not-merge** *(confirmed, fix pending)*: the
+  compiler-path sibling. Static `class` + `class:list` on one element emits two
+  `class` attributes (browser keeps one, the other silently vanishes); a
+  component/island's *root* static attributes (`class`, `hidden`, ARIA, `data-*`)
+  are dropped entirely, so a component can't style or flag its own root. Both are
+  attribute application treated as last-writer-wins instead of a merge —
+  designed in
+  [`.chisel/specs/active/attribute-composition-on-an-element-is-drop-not-merge.md`](.chisel/specs/active/attribute-composition-on-an-element-is-drop-not-merge.md),
+  evidence in `examples/weather/FINDINGS.md` (#1, #4).
+  *Motivation*: silent attribute loss on ordinary markup; small, mechanical fix.
+
 ## Sequencing
 
 1. `with-auth` + the authentication recipe (co-developed)
-2. "Where data lives" recipe → **async loaders design note**
-3. Webhooks + file-uploads recipes
-4. Snapshot versioning/migrations (implement)
-5. `planning-poker` → presence findings → state timeouts (implement)
-6. **Time-travel debugger spike** → findings note → ship if it holds (dev-tooling
+2. **Conditional-arm live-path fix** (Runtime correctness) — near-term; the
+   `weather` example is already blocked-by-workaround on it
+3. "Where data lives" recipe → **async loaders design note**
+4. Webhooks + file-uploads recipes
+5. Snapshot versioning/migrations (implement)
+6. `planning-poker` → presence findings → state timeouts (implement)
+7. **Time-travel debugger spike** → findings note → ship if it holds (dev-tooling
    track; can run in parallel — it depends on nothing new server-side)
 
 Known 1.x infrastructure (unchanged, tracked in the gap analysis): Redis
