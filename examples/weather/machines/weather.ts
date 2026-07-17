@@ -190,7 +190,7 @@ const panelVM = (ctx: Ctx, id: string): PanelVM => {
   const moon = moonPhase(Date.now())
   return {
     status: d?.status ?? 'loading',
-    scene: c ? sceneKind(c.code, c.isDay) : 'cloudy',
+    scene: c ? sceneKind(c.code, c.isDay) : 'cloudy-day',
     temp: fmtTemp(c?.temp, ctx.units),
     cond: c ? conditionLabel(c.code) : '',
     feels: fmtTemp(c?.feels, ctx.units),

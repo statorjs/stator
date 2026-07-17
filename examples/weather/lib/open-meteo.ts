@@ -74,36 +74,44 @@ export function conditionKind(code: number): ConditionKind {
   return 'cloudy'
 }
 
-/** The animated-sky scene id (with day/night variants) the live-sky island draws. */
+/** The animated-sky scene id the live-sky island draws — every condition has a
+ *  day AND night variant, keyed to the WEATHER's `isDay` (not the UI theme), so
+ *  a daytime overcast reads as day even in dark mode. */
 export type SceneKind =
   | 'clear-day'
   | 'clear-night'
   | 'partly-day'
   | 'partly-night'
-  | 'cloudy'
-  | 'fog'
-  | 'rain'
-  | 'snow'
-  | 'thunder'
+  | 'cloudy-day'
+  | 'cloudy-night'
+  | 'fog-day'
+  | 'fog-night'
+  | 'rain-day'
+  | 'rain-night'
+  | 'snow-day'
+  | 'snow-night'
+  | 'thunder-day'
+  | 'thunder-night'
 
 export function sceneKind(code: number, isDay: boolean): SceneKind {
+  const v = (day: SceneKind, night: SceneKind): SceneKind => (isDay ? day : night)
   switch (conditionKind(code)) {
     case 'clear':
-      return isDay ? 'clear-day' : 'clear-night'
+      return v('clear-day', 'clear-night')
     case 'partly':
-      return isDay ? 'partly-day' : 'partly-night'
+      return v('partly-day', 'partly-night')
     case 'fog':
-      return 'fog'
+      return v('fog-day', 'fog-night')
     case 'drizzle':
     case 'rain':
     case 'showers':
-      return 'rain'
+      return v('rain-day', 'rain-night')
     case 'snow':
-      return 'snow'
+      return v('snow-day', 'snow-night')
     case 'thunder':
-      return 'thunder'
+      return v('thunder-day', 'thunder-night')
     default:
-      return 'cloudy'
+      return v('cloudy-day', 'cloudy-night')
   }
 }
 
