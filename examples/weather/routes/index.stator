@@ -202,21 +202,26 @@ const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
               </div>
             </section>
 
-            {/* 10-day — full-width live tile */}
-            <section class="bigtile" style="--c:#0050EF;--tc:#fff">
-              <div class="bt-label">10-day forecast</div>
-              <div class="daily">
-                {each(
-                  read(weather, (w) => w.dailyForId(p.id)),
-                  (d) => (
-                    <div class="drow">
-                      <div class="d-day">{d.day}</div>
-                      <div class="d-pop num">{d.precip}</div>
-                      <div class="d-lo num">{d.lo}</div>
-                      <div class="d-hi num">{d.hi}</div>
-                    </div>
-                  ),
-                )}
+            {/* 10-day — full-width peek tile: 5 days per frame, peeks to 6–10.
+                Clamped to the grid row height; the peek reveals the rest. */}
+            <section class="bigtile peek-tile" style="--c:#0050EF;--tc:#fff">
+              <div class="slides">
+                <div class="slide fc-slide">
+                  <div class="bt-label">Next 5 days</div>
+                  <div class="daily">
+                    {each(read(weather, (w) => w.dailyForId(p.id).slice(0, 5)), (d) => (
+                      <div class="drow"><div class="d-day">{d.day}</div><div class="d-pop num">{d.precip}</div><div class="d-lo num">{d.lo}</div><div class="d-hi num">{d.hi}</div></div>
+                    ))}
+                  </div>
+                </div>
+                <div class="slide fc-slide">
+                  <div class="bt-label">Days 6–10</div>
+                  <div class="daily">
+                    {each(read(weather, (w) => w.dailyForId(p.id).slice(5, 10)), (d) => (
+                      <div class="drow"><div class="d-day">{d.day}</div><div class="d-pop num">{d.precip}</div><div class="d-lo num">{d.lo}</div><div class="d-hi num">{d.hi}</div></div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </section>
           </section>

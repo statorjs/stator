@@ -13,7 +13,9 @@
       super.connectedCallback()
       if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
-      const root = this.parentElement ?? document
+      // Scope to the whole panel so the full-width forecast peek tiles (siblings
+      // of the grid) animate too, not just the grid's flip/peek tiles.
+      const root = this.closest('.panel') ?? this.parentElement ?? document
       const tiles = Array.from(
         root.querySelectorAll('.flip-tile, .peek-tile'),
       ) as HTMLElement[]

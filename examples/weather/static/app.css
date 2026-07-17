@@ -359,15 +359,33 @@ tile-motion {
 
 /* ---- Forecast tiles (hourly + 10-day): full grid-width live tiles ----- */
 .bigtile {
+  position: relative;
   width: calc(4 * var(--u) + 3 * 8px);
+  /* Clamp to two grid rows so it reads as a Metro tile, not a bar. */
+  height: calc(2 * var(--u) + 8px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   background: var(--c, #1ba1e2);
   color: var(--tc, #fff);
-  padding: 14px 16px 16px;
+  padding: 14px 16px;
 }
 @media (min-width: 720px) {
   .bigtile {
     width: calc(6 * var(--u) + 5 * 8px);
   }
+}
+/* Peek variant (10-day): the two slides fill the tile and carry their own
+   padding, so the tile itself has none. */
+.bigtile.peek-tile {
+  padding: 0;
+}
+.bigtile.peek-tile .slide {
+  padding: 14px 16px;
+}
+.fc-slide {
+  justify-content: flex-start;
+  gap: 8px;
 }
 .bt-label {
   font-size: 11px;
@@ -375,13 +393,15 @@ tile-motion {
   letter-spacing: 0.11em;
   font-weight: 600;
   opacity: 0.85;
-  margin-bottom: 12px;
 }
 .hourly {
+  flex: 1;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(46px, 1fr);
   gap: 2px;
+  align-content: center;
+  margin-top: 10px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -407,7 +427,9 @@ tile-motion {
   opacity: 0.9;
 }
 .daily {
+  flex: 1;
   display: grid;
+  align-content: center;
 }
 .drow {
   display: grid;
