@@ -136,6 +136,14 @@ recompute heals it — which is why "reload, or trigger any other event" fixes i
 
 ## Implementation Notes
 
+- **Landed** on `fix/live-path-element-ids-and-reads`: Bug A — element ids scoped
+  by arm/list like slot ids (`render-context.ts` per-scope `elementCounter`;
+  `tests/element-id-scoping.test.ts`). Bug B — `read()` resolves the current
+  runtime proxy during a recompute re-render via `RenderState.currentRuntime`
+  (`read.ts` + `recompute.ts`; `tests/stale-arm-read.test.ts`). Verified
+  end-to-end against `examples/weather`: a keyed pivot's initial-sync re-render
+  now reproduces the same key-scoped ids the class:list bindings target, so the
+  active-tab highlight patches land (was desyncing to fresh flat ids).
 - Source evidence and live SSE captures are in `examples/weather/FINDINGS.md`
   (#2 = Bug A, #3 = Bug B). Both worked around there by keeping element-id'd
   nodes and data `read()`s outside conditional arms.

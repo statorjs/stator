@@ -79,6 +79,15 @@ over definition-root, explicit wins over directive) without dropping the loser.
 
 ## Implementation Notes
 
+- **Landed** on `fix/live-path-element-ids-and-reads`: Bug A — `class`+`class:list`
+  (and `style`+`style:list`) on one element is now a compile-time error, per the
+  decision to force everything through the `:list` rather than merge
+  (`lower.ts`; `tests/class-list-collision.test.ts`). Bug B — a client
+  component's own root static attributes are carried across the
+  split-and-reassemble and merged under usage-site props (class/style concat)
+  (`compile.ts` `staticRootAttrs` + `client-shell.ts`;
+  `tests/component-root-attrs.test.ts`). Note the two halves diverged by design:
+  #1 errors, #4 merges.
 - Evidence + workarounds in `examples/weather/FINDINGS.md` (#1 = Bug A, #4 = Bug
   B). Weather currently: everything-in-`class:list`, islands styled by tag
   selector.
