@@ -93,6 +93,18 @@ export interface DeferRecord {
 interface Scope {
   prefix: string
   counter: number
+  /** Per-scope element-id counter. Element ids are scoped by the arm/list they
+   *  render in — exactly like slot ids — so a node inside a `match`/`when`/`each`
+   *  keeps a STABLE id across a re-render. (A flat global counter shifted the id
+   *  whenever the element-id'd sibling set changed, so the live wire patched the
+   *  wrong node — FINDINGS #2.) */
+  elementCounter: number
+}
+
+/** A fresh child scope: slot and element counters both start at 0, so ids inside
+ *  are deterministic from the scope prefix regardless of surrounding renders. */
+export function makeScope(prefix: string): Scope {
+  return { prefix, counter: 0, elementCounter: 0 }
 }
 
 export interface RenderState {
@@ -101,7 +113,6 @@ export interface RenderState {
   bindings: Map<SlotId, Binding>
   byMachine: Map<MachineName, Set<SlotId>>
   scopeStack: Scope[]
-  elementIdCounter: number
   /** `defer` slots recorded during the sync pass, drained by the resolve phase. */
   deferred: DeferRecord[]
   /** >0 while rendering inside a `defer` arm — machine bindings are illegal there
@@ -119,8 +130,7 @@ export function createRenderState(sessionId: SessionId, routeKey: string): Rende
     routeKey,
     bindings: new Map(),
     byMachine: new Map(),
-    scopeStack: [{ prefix: '', counter: 0 }],
-    elementIdCounter: 0,
+    scopeStack: [makeScope('')],
     deferred: [],
     deferDepth: 0,
     resolveDeferred: true,
@@ -163,11 +173,12 @@ export function allocSlotId(state: RenderState): SlotId {
 }
 
 export function allocElementId(state: RenderState): ElementId {
-  return `e${state.elementIdCounter++}`
+  const scope = topScope(state)
+  return `${scope.prefix ? `${scope.prefix}:` : ''}e${scope.elementCounter++}`
 }
 
 export function pushListScope(state: RenderState, listSlotId: SlotId, iterIndex: number): void {
-  state.scopeStack.push({ prefix: `${listSlotId}:i${iterIndex}`, counter: 0 })
+  state.scopeStack.push(makeScope(`${listSlotId}:i${iterIndex}`))
 }
 
 /**
@@ -177,7 +188,7 @@ export function pushListScope(state: RenderState, listSlotId: SlotId, iterIndex:
  * primitive keyed `each` is built on.
  */
 export function pushKeyedScope(state: RenderState, listSlotId: SlotId, token: string): void {
-  state.scopeStack.push({ prefix: `${listSlotId}:k${token}`, counter: 0 })
+  state.scopeStack.push(makeScope(`${listSlotId}:k${token}`))
 }
 
 /** Keyed scope prefix for a key token (shared by render and recompute). */
@@ -208,7 +219,7 @@ export function popListScope(state: RenderState): void {
  * branch arm — and raises `deferDepth` so machine reads inside the arm throw.
  */
 export function pushDeferScope(state: RenderState, slotId: SlotId): void {
-  state.scopeStack.push({ prefix: `${slotId}:d`, counter: 0 })
+  state.scopeStack.push(makeScope(`${slotId}:d`))
   state.deferDepth += 1
 }
 
