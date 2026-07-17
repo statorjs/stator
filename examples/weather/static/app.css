@@ -357,73 +357,41 @@ tile-motion {
   font-weight: 600;
 }
 
-/* ---- Forecast tiles (hourly + 10-day): full grid-width live tiles ----- */
-.bigtile {
-  position: relative;
-  width: calc(4 * var(--u) + 3 * 8px);
-  /* Clamp to two grid rows so it reads as a Metro tile, not a bar. */
-  height: calc(2 * var(--u) + 8px);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  background: var(--c, #1ba1e2);
-  color: var(--tc, #fff);
-  padding: 14px 16px;
-}
-@media (min-width: 720px) {
-  .bigtile {
-    width: calc(6 * var(--u) + 5 * 8px);
-  }
-}
-/* Peek variant (10-day): the two slides fill the tile and carry their own
-   padding, so the tile itself has none. */
-.bigtile.peek-tile {
-  padding: 0;
-}
-.bigtile.peek-tile .slide {
-  padding: 14px 16px;
-}
+/* ---- Forecast tiles (hourly + 10-day) — w4 grid tiles ---------------- */
+/* hourly: a 6×2 grid inside .tcontent; 10-day: a peek tile of day rows. */
 .fc-slide {
   justify-content: flex-start;
-  gap: 8px;
-}
-.bt-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.11em;
-  font-weight: 600;
-  opacity: 0.85;
+  gap: 4px;
 }
 .hourly {
   flex: 1;
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(46px, 1fr);
-  gap: 2px;
-  align-content: center;
-  margin-top: 10px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.hourly::-webkit-scrollbar {
-  display: none;
+  grid-template-columns: repeat(6, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 2px 4px;
 }
 .hour {
   display: grid;
+  grid-template-rows: auto 1fr auto auto;
   justify-items: center;
-  gap: 6px;
-  padding: 4px 2px;
+  align-content: center;
+  gap: 3px;
 }
 .h-time {
-  font-size: 12px;
-  opacity: 0.8;
+  font-size: 11.5px;
+  opacity: 0.85;
+}
+.hour .wx-ico {
+  width: 26px;
+  height: 26px;
+  opacity: 0.95;
 }
 .h-temp {
-  font-size: 17px;
+  font-size: 16px;
 }
 .h-pop {
-  font-size: 11px;
-  min-height: 14px;
+  font-size: 10.5px;
+  min-height: 13px;
   opacity: 0.9;
 }
 .daily {
@@ -433,30 +401,44 @@ tile-motion {
 }
 .drow {
   display: grid;
-  grid-template-columns: 1fr 44px 40px 40px;
+  grid-template-columns: 1fr 26px 40px 32px 32px;
   align-items: center;
-  gap: 10px;
-  padding: 7px 2px;
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  gap: 8px;
+  padding: 4px 0;
 }
-.drow:first-child {
-  border-top: 0;
+.drow-head {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  opacity: 0.6;
+  padding-bottom: 3px;
+}
+.drow .wx-ico {
+  width: 22px;
+  height: 22px;
+  opacity: 0.9;
+  justify-self: center;
 }
 .d-day {
-  font-size: 14px;
+  font-size: 13.5px;
+}
+.d-day small {
+  opacity: 0.6;
+  margin-left: 4px;
+  font-size: 11px;
 }
 .d-pop {
-  font-size: 12px;
+  font-size: 11px;
   text-align: right;
   opacity: 0.85;
 }
 .d-lo {
-  font-size: 14px;
+  font-size: 13px;
   text-align: right;
   opacity: 0.65;
 }
 .d-hi {
-  font-size: 14px;
+  font-size: 13px;
   text-align: right;
   font-weight: 500;
 }

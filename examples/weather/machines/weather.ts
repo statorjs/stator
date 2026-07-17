@@ -18,6 +18,7 @@ import {
   sunArc,
   uvAdvice,
   uvRating,
+  weatherIconSvg,
 } from '../lib/open-meteo.ts'
 import SettingsMachine, { type Clock, type Units } from './settings.ts'
 
@@ -229,12 +230,15 @@ export interface HourRow {
   time: string
   temp: string
   precip: string
+  icon: string
 }
 export interface DayRow {
   day: string
+  date: string
   hi: string
   lo: string
   precip: string
+  icon: string
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -245,20 +249,25 @@ const weekdayOf = (dateStr: string, i: number): string => {
 }
 /** Only surface a meaningful chance of precipitation; dry hours/days stay blank. */
 const pop = (prob: number): string => (prob >= 15 ? `${prob}%` : '')
+/** Rough day/night for an hour label, for the glyph (no per-hour is_day field). */
+const hourIsDay = (time: string): boolean => time >= '07:00' && time <= '19:00'
 
 const hourlyVM = (ctx: Ctx, id: string): HourRow[] =>
   (ctx.data[id]?.forecast?.hourly ?? []).slice(0, 12).map((h, i) => ({
     time: i === 0 ? 'Now' : h.time,
     temp: fmtTemp(h.temp, ctx.units),
     precip: pop(h.precipProb),
+    icon: weatherIconSvg(h.code, hourIsDay(h.time)),
   }))
 
 const dailyVM = (ctx: Ctx, id: string): DayRow[] =>
   (ctx.data[id]?.forecast?.daily ?? []).map((d, i) => ({
     day: weekdayOf(d.date, i),
+    date: d.date.slice(8, 10),
     hi: fmtTemp(d.tmax, ctx.units),
     lo: fmtTemp(d.tmin, ctx.units),
     precip: pop(d.precipProb),
+    icon: weatherIconSvg(d.code, true),
   }))
 
 export default defineMachine({
