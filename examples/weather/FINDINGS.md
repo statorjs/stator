@@ -143,3 +143,21 @@ and bound attrs inside list items churn ids on unrelated events.
   array doesn't re-render just because clone changed its identity — the whole
   point of the clone is that content, not identity, is canonical. Related to the
   "Where data lives" perf story in ROADMAP.
+
+## 6. (Enhancement idea) First-class SVG icon handling
+
+Rendering weather glyphs in the forecast rows meant hand-writing SVG in a lib
+helper and injecting it with `raw()` (an unescaped sink) per row. It works, but
+there's no ergonomic, safe story for "use an icon" in a Stator app — every
+icon is bespoke inline SVG or a `raw()` string.
+
+- **Idea:** an [`astro-icon`](https://github.com/natemoo-re/astro-icon)-style
+  approach — an `<Icon name="…"/>` primitive backed by a local icon dir and/or
+  icon sets, resolved and inlined at build/render time (so it's server-rendered,
+  cacheable, tree-shaken, and never ships a runtime sprite fetch). Server
+  rendering has real challenges (the astro-icon author knows them well) but
+  Stator's compile-time template lowering is a good fit.
+- **Why:** icons are universal; today the only paths are inline SVG (verbose) or
+  `raw()` (unsafe by default). A first-class primitive removes both papercuts.
+- Not a bug — a DX gap worth a design pass. (Raised while building the weather
+  example's hourly/daily forecast glyphs.)

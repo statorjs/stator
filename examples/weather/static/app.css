@@ -470,7 +470,7 @@ tile-motion {
   transform: translate(-50%, -50%);
   width: 64px;
   height: 64px;
-  opacity: 0.5;
+  opacity: 0.9;
   pointer-events: none;
 }
 .compass {
