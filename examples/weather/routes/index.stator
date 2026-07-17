@@ -192,23 +192,25 @@ const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
                   </div>
                 </div>
               </div>
-              {/* Hourly — w4 tile (two tile columns): 6×2 grid, fills the row
-                  next to the sun/moon tile. */}
-              <div class="tile w4" style="--c:#1BA1E2;--tc:#fff">
-                <div class="tcontent">
-                  <div class="fc-title">Next 12 hours</div>
-                  <div class="hourly">
-                    {each(
-                      read(weather, (w) => w.hourlyForId(p.id)),
-                      (h) => (
-                        <div class="hour">
-                          <div class="h-time">{h.time}</div>
-                          {raw(h.icon)}
-                          <div class="h-temp num">{h.temp}</div>
-                          <div class="h-pop num">{h.precip}</div>
-                        </div>
-                      ),
-                    )}
+              {/* Hourly — w4 peek tile: a 6×2 grid of the next 12 hours, peeks
+                  to the following 12. Fills the row next to the sun/moon tile. */}
+              <div class="tile w4 press peek-tile" style="--c:#1BA1E2;--tc:#fff">
+                <div class="slides">
+                  <div class="slide fc-slide">
+                    <div class="fc-title">Next 12 hours</div>
+                    <div class="hourly">
+                      {each(read(weather, (w) => w.hourlyForId(p.id).slice(0, 12)), (h) => (
+                        <div class="hour"><div class="h-time">{h.time}</div>{raw(h.icon)}<div class="h-temp num">{h.temp}</div><div class="h-pop num">{h.precip}</div></div>
+                      ))}
+                    </div>
+                  </div>
+                  <div class="slide fc-slide">
+                    <div class="fc-title">In 12–24 hours</div>
+                    <div class="hourly">
+                      {each(read(weather, (w) => w.hourlyForId(p.id).slice(12, 24)), (h) => (
+                        <div class="hour"><div class="h-time">{h.time}</div>{raw(h.icon)}<div class="h-temp num">{h.temp}</div><div class="h-pop num">{h.precip}</div></div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>

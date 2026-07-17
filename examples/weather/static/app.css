@@ -290,6 +290,9 @@ tile-motion {
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
+  /* Clip each panel so a tile's flip/peek 3D overhang can't bleed into the
+     adjacent (offscreen) panel during the carousel. */
+  overflow: hidden;
 }
 /* Match the tile grid's exact width (columns + gaps) so the hero lines up with
    the tiles below — both left-aligned with the header text (Metro). The desktop

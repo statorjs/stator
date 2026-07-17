@@ -253,7 +253,7 @@ const pop = (prob: number): string => (prob >= 15 ? `${prob}%` : '')
 const hourIsDay = (time: string): boolean => time >= '07:00' && time <= '19:00'
 
 const hourlyVM = (ctx: Ctx, id: string): HourRow[] =>
-  (ctx.data[id]?.forecast?.hourly ?? []).slice(0, 12).map((h, i) => ({
+  (ctx.data[id]?.forecast?.hourly ?? []).slice(0, 24).map((h, i) => ({
     time: i === 0 ? 'Now' : fmtClock(h.time, ctx.clock),
     temp: fmtTemp(h.temp, ctx.units),
     precip: pop(h.precipProb),
@@ -266,7 +266,9 @@ const dailyVM = (ctx: Ctx, id: string): DayRow[] =>
     date: d.date.slice(8, 10),
     hi: fmtTemp(d.tmax, ctx.units),
     lo: fmtTemp(d.tmin, ctx.units),
-    precip: pop(d.precipProb),
+    // Daily shows a dash for dry days (the aligned column reads cleaner than a
+    // blank); the denser hourly strip stays blank via `pop`.
+    precip: d.precipProb >= 15 ? `${d.precipProb}%` : '—',
     icon: weatherIconSvg(d.code, true),
   }))
 
