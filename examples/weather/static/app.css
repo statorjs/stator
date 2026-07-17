@@ -374,16 +374,21 @@ tile-motion {
 .hourly {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  /* Content-width columns spread edge-to-edge: the first hour aligns flush-left
+     with the title, the last flush-right — no per-cell centering offset. */
+  grid-template-columns: repeat(6, auto);
   grid-auto-rows: 1fr;
-  gap: 2px 4px;
+  justify-content: space-between;
+  gap: 4px 8px;
 }
 .hour {
-  display: grid;
-  grid-template-rows: auto 1fr auto auto;
-  justify-items: center;
-  align-content: center;
-  gap: 3px;
+  /* Group the values tightly and centre them in the row, so the spare vertical
+     space sits above/below the group rather than between the icon and temp. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
 }
 .h-time {
   font-size: 11.5px;

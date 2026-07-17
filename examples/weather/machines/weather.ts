@@ -254,7 +254,7 @@ const hourIsDay = (time: string): boolean => time >= '07:00' && time <= '19:00'
 
 const hourlyVM = (ctx: Ctx, id: string): HourRow[] =>
   (ctx.data[id]?.forecast?.hourly ?? []).slice(0, 12).map((h, i) => ({
-    time: i === 0 ? 'Now' : h.time,
+    time: i === 0 ? 'Now' : fmtClock(h.time, ctx.clock),
     temp: fmtTemp(h.temp, ctx.units),
     precip: pop(h.precipProb),
     icon: weatherIconSvg(h.code, hourIsDay(h.time)),

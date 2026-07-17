@@ -155,7 +155,7 @@ const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
                     <div class="t-label">Gusts</div>
                     <div>
                       <div class="t-big num">{read(weather, (w) => w.panelForId(p.id).gust)}<span class="u">{read(weather, (w) => w.panelForId(p.id).windUnit)}</span></div>
-                      <div class="t-sub">bearing <span class="num">{read(weather, (w) => w.panelForId(p.id).dir)}</span>°</div>
+                      <div class="t-sub">from {read(weather, (w) => w.panelForId(p.id).cardinal)}</div>
                     </div>
                   </div>
                 </div>
