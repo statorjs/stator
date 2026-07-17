@@ -379,6 +379,10 @@ svg {
 	margin: 0;
 }
 
+.poc__text + .poc__text {
+	margin-top: 0.55rem;
+}
+
 /* ---- Section heads ---- */
 .section-head {
 	display: flex;
