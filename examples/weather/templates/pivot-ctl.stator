@@ -14,11 +14,11 @@
     connectedCallback() {
       super.connectedCallback()
       const root = (this.closest('.wx') ?? document) as ParentNode
-      const carousel = root.querySelector('.hero-carousel') as HTMLElement | null
+      const carousel = root.querySelector('.panorama') as HTMLElement | null
       const pivot = root.querySelector('.pivot') as HTMLElement | null
       if (!carousel || !pivot) return
 
-      const heroes = () => Array.from(carousel.querySelectorAll('.hero')) as HTMLElement[]
+      const heroes = () => Array.from(carousel.querySelectorAll('.panel')) as HTMLElement[]
       const pills = () => Array.from(pivot.querySelectorAll('.pivot-item')) as HTMLElement[]
 
       // The location whose hero is nearest the carousel's centre.

@@ -269,24 +269,33 @@ tile-motion {
   transform: translateY(-100%);
 }
 
-/* ---- Panorama hero carousel (live sky per location) ------------------ */
-.hero-carousel {
+/* ---- Panorama: one full page per location, whole panel slides -------- */
+.panorama {
   display: flex;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   margin: 6px 0 16px;
+  /* Let the horizontal swipe win over vertical scroll inside a panel. */
+  overscroll-behavior-x: contain;
 }
-.hero-carousel::-webkit-scrollbar {
+.panorama::-webkit-scrollbar {
   display: none;
 }
-.hero {
-  scroll-snap-align: center;
+.panel {
+  scroll-snap-align: start;
   flex: 0 0 100%;
+  min-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.hero {
   position: relative;
+  width: 100%;
   aspect-ratio: 16 / 9;
-  max-height: 360px;
+  max-height: 320px;
   overflow: hidden;
   background: linear-gradient(168deg, #589fdb, #d6e7f4);
 }

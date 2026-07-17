@@ -141,10 +141,87 @@ const fmtClock = (hm: string, clock: Clock): string => {
   return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ap}`
 }
 
-// Active-place accessors shared by the tile selectors below.
-const curOf = (ctx: Ctx): Current | null => ctx.data[ctx.activeId]?.forecast?.current ?? null
-const day0Of = (ctx: Ctx): DayPoint | null => ctx.data[ctx.activeId]?.forecast?.daily?.[0] ?? null
-const aqiOf = (ctx: Ctx): AirQuality | null => ctx.data[ctx.activeId]?.aqi ?? null
+/** Everything one city panel renders, computed for a single place id. The whole
+ *  panel (hero + every tile) is per-location, so the Panorama slides between
+ *  complete pages — the template binds `panelForId(p.id).<field>` throughout. */
+interface PanelVM {
+  status: 'loading' | 'ready' | 'error'
+  scene: string
+  temp: string
+  cond: string
+  feels: string
+  wind: string
+  gust: string
+  windUnit: string
+  cardinal: string
+  dir: number
+  windTransform: string
+  humidity: number | string
+  uv: number | string
+  uvRating: string
+  uvAdvice: string
+  aqi: number | string
+  aqiLabel: string
+  aqiColor: string
+  aqiTextColor: string
+  aqiAdvice: string
+  aqiPollutant: string
+  precip: string
+  precipUnit: string
+  pressure: number | string
+  sunrise: string
+  sunset: string
+  sunPath: string
+  sunX: number
+  sunY: number
+  moonName: string
+  moonIllumPct: number
+  moonPath: string
+}
+
+const panelVM = (ctx: Ctx, id: string): PanelVM => {
+  const d = ctx.data[id]
+  const c = d?.forecast?.current ?? null
+  const day0 = d?.forecast?.daily?.[0] ?? null
+  const aq = d?.aqi ?? null
+  const aqInfo = aq ? aqiInfo(aq.aqi) : null
+  const sun = day0 && c ? sunArc(day0.sunrise, day0.sunset, c.time) : null
+  const moon = moonPhase(Date.now())
+  return {
+    status: d?.status ?? 'loading',
+    scene: c ? sceneKind(c.code, c.isDay) : 'cloudy',
+    temp: fmtTemp(c?.temp, ctx.units),
+    cond: c ? conditionLabel(c.code) : '',
+    feels: fmtTemp(c?.feels, ctx.units),
+    wind: fmtWind(c?.wind, ctx.units),
+    gust: fmtWind(c?.gust, ctx.units),
+    windUnit: windUnit(ctx.units),
+    cardinal: c ? cardinal(c.dir) : '—',
+    dir: c?.dir ?? 0,
+    windTransform: `rotate(${c ? (c.dir + 180) % 360 : 0} 12 12)`,
+    humidity: c?.humidity ?? '—',
+    uv: c?.uv ?? '—',
+    uvRating: c ? uvRating(c.uv) : '—',
+    uvAdvice: c ? uvAdvice(c.uv) : '',
+    aqi: aq?.aqi ?? '—',
+    aqiLabel: aqInfo?.label ?? '—',
+    aqiColor: aqInfo?.color ?? '#647687',
+    aqiTextColor: aqInfo?.textColor ?? '#fff',
+    aqiAdvice: aqInfo?.advice ?? '',
+    aqiPollutant: aq?.pollutant ?? '',
+    precip: fmtPrecip(c?.precip, ctx.units),
+    precipUnit: precipUnit(ctx.units),
+    pressure: c?.pressure ?? '—',
+    sunrise: day0 ? fmtClock(hhmm(day0.sunrise), ctx.clock) : '—',
+    sunset: day0 ? fmtClock(hhmm(day0.sunset), ctx.clock) : '—',
+    sunPath: sun && !sun.polar ? sun.progressPath : '',
+    sunX: sun ? sun.sx : 64,
+    sunY: sun ? sun.sy : 44,
+    moonName: moon.name,
+    moonIllumPct: Math.round(moon.illum * 100),
+    moonPath: moonPath(moon.illum, moon.waxing),
+  }
+}
 
 export default defineMachine({
   name: 'WeatherMachine',
@@ -240,134 +317,11 @@ export default defineMachine({
     active: (ctx) => ctx.places.find((p) => p.id === ctx.activeId) ?? ctx.places[0] ?? null,
     units: (ctx) => ctx.units,
     clock: (ctx) => ctx.clock,
-    dataFor: (ctx) => (id: string): PlaceData | null => ctx.data[id] ?? null,
-    /** Per-place current temperature, formatted in the active units — lets each
-     *  Pivot tab show its own reading. Curried so a template can call it per row. */
-    tempForId: (ctx) => (id: string): string =>
-      fmtTemp(ctx.data[id]?.forecast?.current?.temp, ctx.units),
-    /** Per-place hero fields — one live panel per saved location in the carousel.
-     *  Element ids inside the keyed `each` are key-scoped, and nested reads
-     *  resolve the current runtime, so each panel's island + bindings are live. */
-    sceneForId: (ctx) => (id: string): string => {
-      const c = ctx.data[id]?.forecast?.current
-      return c ? sceneKind(c.code, c.isDay) : 'cloudy'
-    },
-    statusForId: (ctx) => (id: string): string => ctx.data[id]?.status ?? 'loading',
-    condForId: (ctx) => (id: string): string => {
-      const c = ctx.data[id]?.forecast?.current
-      return c ? conditionLabel(c.code) : ''
-    },
-    feelsForId: (ctx) => (id: string): string =>
-      fmtTemp(ctx.data[id]?.forecast?.current?.feels, ctx.units),
-    windForId: (ctx) => (id: string): string =>
-      fmtWind(ctx.data[id]?.forecast?.current?.wind, ctx.units),
-    cardinalForId: (ctx) => (id: string): string => {
-      const c = ctx.data[id]?.forecast?.current
-      return c ? cardinal(c.dir) : '—'
-    },
-    humidityForId: (ctx) => (id: string): number | string =>
-      ctx.data[id]?.forecast?.current?.humidity ?? '—',
-    activeStatus: (ctx) => ctx.data[ctx.activeId]?.status ?? 'loading',
-    activeCurrent: (ctx): Current | null => ctx.data[ctx.activeId]?.forecast?.current ?? null,
-    /** Temperature in the chosen unit — a single binding that re-renders on both
-     *  a weather refresh and a units toggle (units are mirrored into this ctx). */
-    activeTempDisplay: (ctx) => fmtTemp(ctx.data[ctx.activeId]?.forecast?.current?.temp, ctx.units),
-    /** Scene id for the live-sky island — updates live on refresh / location switch. */
-    activeScene: (ctx) => {
-      const c = ctx.data[ctx.activeId]?.forecast?.current
-      return c ? sceneKind(c.code, c.isDay) : 'cloudy'
-    },
-    activeConditionLabel: (ctx) => {
-      const c = curOf(ctx)
-      return c ? conditionLabel(c.code) : ''
-    },
-
-    // --- Current-tile meta line -------------------------------------------
-    activeFeelsDisplay: (ctx) => fmtTemp(curOf(ctx)?.feels, ctx.units),
-    activeHumidity: (ctx) => curOf(ctx)?.humidity ?? '—',
-
-    // --- UV tile (peek) ---------------------------------------------------
-    activeUv: (ctx) => curOf(ctx)?.uv ?? '—',
-    activeUvRating: (ctx) => {
-      const c = curOf(ctx)
-      return c ? uvRating(c.uv) : '—'
-    },
-    activeUvAdvice: (ctx) => {
-      const c = curOf(ctx)
-      return c ? uvAdvice(c.uv) : ''
-    },
-
-    // --- Air-quality tile (peek, colour-keyed) ----------------------------
-    activeAqi: (ctx) => aqiOf(ctx)?.aqi ?? '—',
-    activeAqiLabel: (ctx) => {
-      const a = aqiOf(ctx)
-      return a ? aqiInfo(a.aqi).label : '—'
-    },
-    activeAqiColor: (ctx) => {
-      const a = aqiOf(ctx)
-      return a ? aqiInfo(a.aqi).color : '#647687'
-    },
-    activeAqiTextColor: (ctx) => {
-      const a = aqiOf(ctx)
-      return a ? aqiInfo(a.aqi).textColor : '#fff'
-    },
-    activeAqiAdvice: (ctx) => {
-      const a = aqiOf(ctx)
-      return a ? aqiInfo(a.aqi).advice : ''
-    },
-    activeAqiPollutant: (ctx) => aqiOf(ctx)?.pollutant ?? '',
-
-    // --- Wind tile (flip, compass) ----------------------------------------
-    activeWindDisplay: (ctx) => fmtWind(curOf(ctx)?.wind, ctx.units),
-    activeGustDisplay: (ctx) => fmtWind(curOf(ctx)?.gust, ctx.units),
-    activeWindUnit: (ctx) => windUnit(ctx.units),
-    activeWindCardinal: (ctx) => {
-      const c = curOf(ctx)
-      return c ? cardinal(c.dir) : '—'
-    },
-    activeWindDir: (ctx) => curOf(ctx)?.dir ?? 0,
-    /** SVG transform for the compass needle (points FROM the wind's origin). */
-    activeWindTransform: (ctx) => {
-      const c = curOf(ctx)
-      return `rotate(${c ? (c.dir + 180) % 360 : 0} 12 12)`
-    },
-
-    // --- Humidity / precip tiles (static) ---------------------------------
-    activePrecipDisplay: (ctx) => fmtPrecip(curOf(ctx)?.precip, ctx.units),
-    activePrecipUnit: (ctx) => precipUnit(ctx.units),
-    activePressure: (ctx) => curOf(ctx)?.pressure ?? '—',
-
-    // --- Sun tile (static, arc) -------------------------------------------
-    activeSunrise: (ctx) => {
-      const d = day0Of(ctx)
-      return d ? fmtClock(hhmm(d.sunrise), ctx.clock) : '—'
-    },
-    activeSunset: (ctx) => {
-      const d = day0Of(ctx)
-      return d ? fmtClock(hhmm(d.sunset), ctx.clock) : '—'
-    },
-    activeSunPath: (ctx) => {
-      const d = day0Of(ctx)
-      const c = curOf(ctx)
-      return d && c ? sunArc(d.sunrise, d.sunset, c.time).progressPath : ''
-    },
-    activeSunX: (ctx) => {
-      const d = day0Of(ctx)
-      const c = curOf(ctx)
-      return d && c ? sunArc(d.sunrise, d.sunset, c.time).sx : 64
-    },
-    activeSunY: (ctx) => {
-      const d = day0Of(ctx)
-      const c = curOf(ctx)
-      return d && c ? sunArc(d.sunrise, d.sunset, c.time).sy : 44
-    },
-
-    // --- Moon tile (static, date-driven) ----------------------------------
-    activeMoonName: () => moonPhase(Date.now()).name,
-    activeMoonIllumPct: () => Math.round(moonPhase(Date.now()).illum * 100),
-    activeMoonPath: () => {
-      const m = moonPhase(Date.now())
-      return moonPath(m.illum, m.waxing)
-    },
+    /** Everything a single city panel renders. The Panorama binds
+     *  `panelForId(p.id).<field>` per tile inside a keyed `each`, so each panel
+     *  is fully per-location and slides as one page. Element ids inside the arm
+     *  are key-scoped and nested reads resolve the current runtime, so every
+     *  panel's island + bindings stay independently live. */
+    panelForId: (ctx) => (id: string): PanelVM => panelVM(ctx, id),
   },
 })
