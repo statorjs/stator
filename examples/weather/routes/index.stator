@@ -1,14 +1,16 @@
 ---
 // @stator live
+import SearchMachine from '../machines/search.ts'
 import SettingsMachine from '../machines/settings.ts'
 import WeatherMachine from '../machines/weather.ts'
 import Layout from '../templates/layout.stator'
 import LiveSky from '../templates/live-sky.stator'
+import LocationSearch from '../templates/location-search.stator'
 import PivotCtl from '../templates/pivot-ctl.stator'
 import TileMotion from '../templates/tile-motion.stator'
 import { raw } from '@statorjs/stator/template'
 
-const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
+const [weather, settings, search] = Stator.reads([WeatherMachine, SettingsMachine, SearchMachine])
 ---
 <Layout>
   <section class="wx">
@@ -35,6 +37,29 @@ const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
         {read(weather, (w) =>
           w.active ? (w.active.admin ? `${w.active.admin}, ${w.active.country}` : w.active.country) : '',
         )}
+      </div>
+
+      <div class="search-wrap">
+        <LocationSearch query={read(search, (s) => s.query)} />
+        {when(read(search, (s) => s.hasResults), () => (
+          <div class="search-results" role="listbox">
+            {each(
+              read(search, (s) => s.results),
+              (r) => (
+                <button
+                  class="search-result"
+                  on:click={() => weather.send({ type: 'ADD_PLACE', place: r })}
+                >
+                  <span class="sr-name">{r.name}</span>
+                  <span class="sr-region">{r.admin ? `${r.admin}, ${r.country}` : r.country}</span>
+                </button>
+              ),
+            )}
+          </div>
+        ))}
+        {when(read(search, (s) => s.empty), () => (
+          <div class="search-empty">No matches — try another name.</div>
+        ))}
       </div>
     </header>
 

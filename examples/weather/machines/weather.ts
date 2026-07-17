@@ -279,6 +279,8 @@ export default defineMachine({
   // Mirror display prefs from the Settings machine so our formatting selectors
   // re-render when units/clock change.
   subscribes: [{ from: SettingsMachine, event: 'CHANGED', dispatch: 'SETTINGS_CHANGED' }],
+  // Announce an added location so the search box can clear itself.
+  emits: { PLACE_ADDED: { payload: () => ({}) } },
   context: {
     places: DEFAULT_PLACES,
     activeId: DEFAULT_PLACES[0]!.id,
@@ -314,6 +316,7 @@ export default defineMachine({
             }
             ctx.activeId = id
           },
+          emit: 'PLACE_ADDED',
           // Transition effect: fetch only the newly-added place.
           effect: async (_ctx, ev): Promise<Events | null> => {
             const id = placeId(ev.place)

@@ -1,0 +1,51 @@
+<location-search>
+  <input
+    ref:input
+    class="search-input"
+    type="text"
+    placeholder="Add a location…"
+    autocomplete="off"
+    aria-label="Search for a location to add"
+  />
+  <svg class="search-mag" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8" />
+    <line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+  </svg>
+</location-search>
+
+<script>
+  import SearchMachine from '../machines/search.ts'
+
+  // The input half of location search: owns the field, debounces keystrokes, and
+  // dispatches SEARCH to the (server) SearchMachine, which geocodes and feeds
+  // back RESULTS. The results dropdown is rendered server-side from that state.
+  export class LocationSearch extends StatorElement {
+    static attrs = { query: String }
+
+    connectedCallback() {
+      super.connectedCallback()
+      const input = this.refs.input as HTMLInputElement | undefined
+      if (!input) return
+
+      let timer = 0
+      const onInput = () => {
+        clearTimeout(timer)
+        timer = window.setTimeout(
+          () => dispatch(SearchMachine, { type: 'SEARCH', query: input.value }),
+          280,
+        )
+      }
+      input.addEventListener('input', onInput)
+      this.track(() => {
+        clearTimeout(timer)
+        input.removeEventListener('input', onInput)
+      })
+    }
+
+    // The server cleared the search (a place was added) → clear the field too.
+    queryChanged(next: string) {
+      const input = this.refs.input as HTMLInputElement | undefined
+      if (input && next === '' && input.value !== '') input.value = ''
+    }
+  }
+</script>
