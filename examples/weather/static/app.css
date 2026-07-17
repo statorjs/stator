@@ -462,6 +462,23 @@ tile-motion {
 }
 
 /* ---- Tile glyphs ----------------------------------------------------- */
+/* Small accent on a tile's primary face; large faint version fills the empty
+   space on the secondary face. Both inherit the tile's text colour. */
+.t-glyph {
+  width: 24px;
+  height: 24px;
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+.t-bg-glyph {
+  position: absolute;
+  right: -8px;
+  bottom: -10px;
+  width: 88px;
+  height: 88px;
+  opacity: 0.16;
+  pointer-events: none;
+}
 .compass {
   width: 30px;
   height: 30px;

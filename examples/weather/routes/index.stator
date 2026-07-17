@@ -85,13 +85,17 @@ const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
               <div class="tile m2 press peek-tile" style="--c:#F0A30A;--tc:#231700">
                 <div class="slides">
                   <div class="slide">
-                    <div class="t-top"><span class="t-label">UV index</span></div>
+                    <div class="t-top">
+                      <span class="t-label">UV index</span>
+                      <svg class="t-glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="currentColor" /><g stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="4.2" /><line x1="12" y1="19.8" x2="12" y2="22" /><line x1="2" y1="12" x2="4.2" y2="12" /><line x1="19.8" y1="12" x2="22" y2="12" /><line x1="4.9" y1="4.9" x2="6.4" y2="6.4" /><line x1="17.6" y1="17.6" x2="19.1" y2="19.1" /><line x1="4.9" y1="19.1" x2="6.4" y2="17.6" /><line x1="17.6" y1="6.4" x2="19.1" y2="4.9" /></g></svg>
+                    </div>
                     <div>
                       <div class="t-big">{read(weather, (w) => w.panelForId(p.id).uv)}</div>
                       <div class="t-sub">{read(weather, (w) => w.panelForId(p.id).uvRating)}</div>
                     </div>
                   </div>
                   <div class="slide">
+                    <svg class="t-bg-glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="currentColor" /><g stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="4.2" /><line x1="12" y1="19.8" x2="12" y2="22" /><line x1="2" y1="12" x2="4.2" y2="12" /><line x1="19.8" y1="12" x2="22" y2="12" /><line x1="4.9" y1="4.9" x2="6.4" y2="6.4" /><line x1="17.6" y1="17.6" x2="19.1" y2="19.1" /><line x1="4.9" y1="19.1" x2="6.4" y2="17.6" /><line x1="17.6" y1="6.4" x2="19.1" y2="4.9" /></g></svg>
                     <div class="t-label">UV · {read(weather, (w) => w.panelForId(p.id).uvRating)}</div>
                     <div class="t-sub t-adv">{read(weather, (w) => w.panelForId(p.id).uvAdvice)}</div>
                   </div>
@@ -108,13 +112,17 @@ const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
               >
                 <div class="slides">
                   <div class="slide">
-                    <div class="t-top"><span class="t-label">Air quality</span></div>
+                    <div class="t-top">
+                      <span class="t-label">Air quality</span>
+                      <svg class="t-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M3 8q3-2.4 6 0t6 0" /><path d="M3 13q3-2.4 6 0t6 0" /><path d="M3 18q3-2.4 6 0t6 0" /></svg>
+                    </div>
                     <div>
                       <div class="t-big">{read(weather, (w) => w.panelForId(p.id).aqi)}</div>
                       <div class="t-sub">{read(weather, (w) => w.panelForId(p.id).aqiLabel)}</div>
                     </div>
                   </div>
                   <div class="slide">
+                    <svg class="t-bg-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M3 8q3-2.4 6 0t6 0" /><path d="M3 13q3-2.4 6 0t6 0" /><path d="M3 18q3-2.4 6 0t6 0" /></svg>
                     <div class="t-label">
                       {read(weather, (w) => w.panelForId(p.id).aqiLabel)} · {read(weather, (w) => w.panelForId(p.id).aqiPollutant)}
                     </div>
@@ -142,6 +150,7 @@ const [weather, settings] = Stator.reads([WeatherMachine, SettingsMachine])
                     </div>
                   </div>
                   <div class="flip-face back">
+                    <svg class="t-bg-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M3 8h9.5a2.3 2.3 0 1 0-2.3-2.3" /><path d="M3 13h13.5a2.7 2.7 0 1 1-2.7 2.7" /><path d="M3 18h7" /></svg>
                     <div class="t-label">Gusts</div>
                     <div>
                       <div class="t-big num">{read(weather, (w) => w.panelForId(p.id).gust)}<span class="u">{read(weather, (w) => w.panelForId(p.id).windUnit)}</span></div>
