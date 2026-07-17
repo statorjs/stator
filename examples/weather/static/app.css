@@ -357,6 +357,88 @@ tile-motion {
   font-weight: 600;
 }
 
+/* ---- Forecast tiles (hourly + 10-day): full grid-width live tiles ----- */
+.bigtile {
+  width: calc(4 * var(--u) + 3 * 8px);
+  background: var(--c, #1ba1e2);
+  color: var(--tc, #fff);
+  padding: 14px 16px 16px;
+}
+@media (min-width: 720px) {
+  .bigtile {
+    width: calc(6 * var(--u) + 5 * 8px);
+  }
+}
+.bt-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  font-weight: 600;
+  opacity: 0.85;
+  margin-bottom: 12px;
+}
+.hourly {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(46px, 1fr);
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.hourly::-webkit-scrollbar {
+  display: none;
+}
+.hour {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+}
+.h-time {
+  font-size: 12px;
+  opacity: 0.8;
+}
+.h-temp {
+  font-size: 17px;
+}
+.h-pop {
+  font-size: 11px;
+  min-height: 14px;
+  opacity: 0.9;
+}
+.daily {
+  display: grid;
+}
+.drow {
+  display: grid;
+  grid-template-columns: 1fr 44px 40px 40px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+.drow:first-child {
+  border-top: 0;
+}
+.d-day {
+  font-size: 14px;
+}
+.d-pop {
+  font-size: 12px;
+  text-align: right;
+  opacity: 0.85;
+}
+.d-lo {
+  font-size: 14px;
+  text-align: right;
+  opacity: 0.65;
+}
+.d-hi {
+  font-size: 14px;
+  text-align: right;
+  font-weight: 500;
+}
+
 /* ---- Tile glyphs ----------------------------------------------------- */
 .compass {
   width: 30px;

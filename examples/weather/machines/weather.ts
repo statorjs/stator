@@ -223,6 +223,44 @@ const panelVM = (ctx: Ctx, id: string): PanelVM => {
   }
 }
 
+// ---- Forecast rows (separate from the scalar VM so a scalar read doesn't
+//      rebuild these arrays) ------------------------------------------------
+export interface HourRow {
+  time: string
+  temp: string
+  precip: string
+}
+export interface DayRow {
+  day: string
+  hi: string
+  lo: string
+  precip: string
+}
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const weekdayOf = (dateStr: string, i: number): string => {
+  if (i === 0) return 'Today'
+  const wd = new Date(`${dateStr}T12:00:00`).getDay()
+  return WEEKDAYS[wd] ?? dateStr
+}
+/** Only surface a meaningful chance of precipitation; dry hours/days stay blank. */
+const pop = (prob: number): string => (prob >= 15 ? `${prob}%` : '')
+
+const hourlyVM = (ctx: Ctx, id: string): HourRow[] =>
+  (ctx.data[id]?.forecast?.hourly ?? []).slice(0, 12).map((h, i) => ({
+    time: i === 0 ? 'Now' : h.time,
+    temp: fmtTemp(h.temp, ctx.units),
+    precip: pop(h.precipProb),
+  }))
+
+const dailyVM = (ctx: Ctx, id: string): DayRow[] =>
+  (ctx.data[id]?.forecast?.daily ?? []).map((d, i) => ({
+    day: weekdayOf(d.date, i),
+    hi: fmtTemp(d.tmax, ctx.units),
+    lo: fmtTemp(d.tmin, ctx.units),
+    precip: pop(d.precipProb),
+  }))
+
 export default defineMachine({
   name: 'WeatherMachine',
   lifecycle: 'session',
@@ -323,5 +361,10 @@ export default defineMachine({
      *  are key-scoped and nested reads resolve the current runtime, so every
      *  panel's island + bindings stay independently live. */
     panelForId: (ctx) => (id: string): PanelVM => panelVM(ctx, id),
+    /** Forecast rows, kept off the scalar VM so a scalar tile read doesn't
+     *  rebuild them. Bound with a NON-keyed `each` so a units toggle reformats
+     *  the whole strip (the rows are static text — no islands to churn). */
+    hourlyForId: (ctx) => (id: string): HourRow[] => hourlyVM(ctx, id),
+    dailyForId: (ctx) => (id: string): DayRow[] => dailyVM(ctx, id),
   },
 })
