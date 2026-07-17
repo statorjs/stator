@@ -14,18 +14,21 @@
     night: boolean
     part: 'stars' | 'rain' | 'snow' | 'fog' | null
     clouds: number
+    // A crisp sun/moon disc — the sharp focal element the soft day/cloud scenes
+    // were missing (night already had crisp stars). null when overcast/wet.
+    disc: 'sun' | 'moon' | null
   }
 
   const SCENES: Record<string, Scene> = {
-    'clear-day': { light: ['#4f9fe0', '#cfe6f7'], dark: ['#15304a', '#0d1a28'], glow: '255,206,120', night: false, part: null, clouds: 1 },
-    'partly-day': { light: ['#589fdb', '#d6e7f4'], dark: ['#173350', '#0e1b29'], glow: '255,206,120', night: false, part: null, clouds: 3 },
-    'clear-night': { light: ['#1f345c', '#48618c'], dark: ['#0a1326', '#131d33'], glow: '190,206,255', night: true, part: 'stars', clouds: 0 },
-    'partly-night': { light: ['#243a63', '#4b6284'], dark: ['#0b1428', '#141e34'], glow: '190,206,255', night: true, part: 'stars', clouds: 3 },
-    cloudy: { light: ['#8ba2b8', '#dbe4ec'], dark: ['#1b2833', '#111a24'], glow: '225,234,244', night: false, part: null, clouds: 5 },
-    fog: { light: ['#a7b4c0', '#dfe6ec'], dark: ['#1e2a34', '#141d26'], glow: '220,228,236', night: false, part: 'fog', clouds: 3 },
-    rain: { light: ['#6f8498', '#b3c1d0'], dark: ['#141f2a', '#0d151d'], glow: '175,195,214', night: false, part: 'rain', clouds: 5 },
-    snow: { light: ['#9fb0c2', '#dbe3ec'], dark: ['#1a2634', '#111923'], glow: '220,230,242', night: false, part: 'snow', clouds: 4 },
-    thunder: { light: ['#5c6b7e', '#9aa8b8'], dark: ['#12181f', '#0b0f14'], glow: '240,180,90', night: false, part: 'rain', clouds: 6 },
+    'clear-day': { light: ['#4f9fe0', '#cfe6f7'], dark: ['#15304a', '#0d1a28'], glow: '255,206,120', night: false, part: null, clouds: 1, disc: 'sun' },
+    'partly-day': { light: ['#589fdb', '#d6e7f4'], dark: ['#173350', '#0e1b29'], glow: '255,206,120', night: false, part: null, clouds: 3, disc: 'sun' },
+    'clear-night': { light: ['#1f345c', '#48618c'], dark: ['#0a1326', '#131d33'], glow: '190,206,255', night: true, part: 'stars', clouds: 0, disc: 'moon' },
+    'partly-night': { light: ['#243a63', '#4b6284'], dark: ['#0b1428', '#141e34'], glow: '190,206,255', night: true, part: 'stars', clouds: 3, disc: 'moon' },
+    cloudy: { light: ['#8ba2b8', '#dbe4ec'], dark: ['#1b2833', '#111a24'], glow: '225,234,244', night: false, part: null, clouds: 5, disc: null },
+    fog: { light: ['#a7b4c0', '#dfe6ec'], dark: ['#1e2a34', '#141d26'], glow: '220,228,236', night: false, part: 'fog', clouds: 3, disc: null },
+    rain: { light: ['#6f8498', '#b3c1d0'], dark: ['#141f2a', '#0d151d'], glow: '175,195,214', night: false, part: 'rain', clouds: 5, disc: null },
+    snow: { light: ['#9fb0c2', '#dbe3ec'], dark: ['#1a2634', '#111923'], glow: '220,230,242', night: false, part: 'snow', clouds: 4, disc: null },
+    thunder: { light: ['#5c6b7e', '#9aa8b8'], dark: ['#12181f', '#0b0f14'], glow: '240,180,90', night: false, part: 'rain', clouds: 6, disc: null },
   }
   const sceneOf = (name: string): Scene => SCENES[name] ?? SCENES.cloudy
 
@@ -94,6 +97,34 @@
           ctx.beginPath()
           ctx.arc(s.x, s.y, s.r, 0, 6.29)
           ctx.fill()
+        }
+        // Crisp sun/moon disc — the sharp focal element (drawn behind the clouds,
+        // which pass in front of it).
+        if (scene.disc) {
+          const dr = Math.max(16, Math.min(W, H) * 0.1)
+          if (scene.disc === 'sun') {
+            const sg = ctx.createRadialGradient(gx, gy, 0, gx, gy, dr)
+            sg.addColorStop(0, 'rgba(255,246,220,1)')
+            sg.addColorStop(0.72, `rgba(${scene.glow},0.96)`)
+            sg.addColorStop(1, `rgba(${scene.glow},0)`)
+            ctx.fillStyle = sg
+            ctx.beginPath()
+            ctx.arc(gx, gy, dr, 0, 6.29)
+            ctx.fill()
+          } else {
+            const mr = dr * 0.82
+            ctx.fillStyle = 'rgba(230,236,250,0.94)'
+            ctx.beginPath()
+            ctx.arc(gx, gy, mr, 0, 6.29)
+            ctx.fill()
+            const mg = ctx.createRadialGradient(gx - mr * 0.35, gy - mr * 0.35, 0, gx, gy, mr)
+            mg.addColorStop(0, 'rgba(255,255,255,0.2)')
+            mg.addColorStop(1, 'rgba(120,140,190,0.22)')
+            ctx.fillStyle = mg
+            ctx.beginPath()
+            ctx.arc(gx, gy, mr, 0, 6.29)
+            ctx.fill()
+          }
         }
         for (const c of clouds) {
           c.x += c.v * dt
