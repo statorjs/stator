@@ -230,11 +230,11 @@ needs the actual error before anyone "fixes" the wrong thing:
   language server can serve pre-refactor diagnostics until restarted. The bundled
   `language-server/dist/server.cjs` was also one commit stale (missing `defer`);
   **rebuilt** it to be safe.
-- **To close:** restart the Stator/TS language server and reload the editor
-  window. If red persists on a clean restart, capture the exact hover text on
-  `w` — "cannot find module `@statorjs/stator/template`" (resolution) vs
-  "property `panelForId` does not exist" (type) vs "implicitly `any`" (inference)
-  each point somewhere different — and only then is there a real bug to chase.
+- **Closed (confirmed):** a language-server restart + window reload cleared the
+  red. It was stale editor state, not a code defect. (If it ever recurs on a
+  *clean* restart, the exact hover text on `w` — "cannot find module
+  `@statorjs/stator/template`" (resolution) vs "property `panelForId` does not
+  exist" (type) vs "implicitly `any`" (inference) — would point at a real bug.)
 
 ## 9. Components can't own reads → shared state is prop-drilled
 
