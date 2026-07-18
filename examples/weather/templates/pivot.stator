@@ -1,0 +1,24 @@
+---
+import WeatherMachine from '../machines/weather.ts'
+import type { InstanceOf } from '@statorjs/stator/template'
+
+const { weather } = Stator.props<{ weather: InstanceOf<typeof WeatherMachine> }>()
+---
+<nav class="pivot" aria-label="Saved locations">
+  {each(
+    read(weather, (w) => w.places),
+    (p) => (
+      <button class="pivot-item" data-id={p.id}>
+        <span class="pivot-name">{p.name}</span>
+        <span class="pivot-temp num">{read(weather, (w) => w.panelForId(p.id).temp)}</span>
+        <span
+          class="pivot-remove"
+          role="button"
+          aria-label="Remove location"
+          on:click={() => weather.send({ type: 'REMOVE_PLACE', id: p.id })}
+        ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18" /></svg></span>
+      </button>
+    ),
+    { key: (p) => p.id },
+  )}
+</nav>

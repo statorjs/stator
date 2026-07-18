@@ -1,0 +1,30 @@
+---
+import WeatherMachine from '../machines/weather.ts'
+import { raw } from '@statorjs/stator/template'
+import type { InstanceOf } from '@statorjs/stator/template'
+
+const { weather, placeId } = Stator.props<{
+  weather: InstanceOf<typeof WeatherMachine>
+  placeId: string
+}>()
+---
+<div class="tile w4 press peek-tile" style="--c:#1BA1E2;--tc:#fff">
+  <div class="slides">
+    <div class="slide fc-slide">
+      <div class="fc-title">Next 12 hours</div>
+      <div class="hourly">
+        {each(read(weather, (w) => w.hourlyForId(placeId).slice(0, 12)), (h) => (
+          <div class="hour"><div class="h-time">{h.time}</div>{raw(h.icon)}<div class="h-temp num">{h.temp}</div><div class="h-pop num">{h.precip}</div><div class="h-rain num">{h.rain}</div></div>
+        ))}
+      </div>
+    </div>
+    <div class="slide fc-slide">
+      <div class="fc-title">In 12–24 hours</div>
+      <div class="hourly">
+        {each(read(weather, (w) => w.hourlyForId(placeId).slice(12, 24)), (h) => (
+          <div class="hour"><div class="h-time">{h.time}</div>{raw(h.icon)}<div class="h-temp num">{h.temp}</div><div class="h-pop num">{h.precip}</div><div class="h-rain num">{h.rain}</div></div>
+        ))}
+      </div>
+    </div>
+  </div>
+</div>

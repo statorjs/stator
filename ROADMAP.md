@@ -95,6 +95,18 @@ promotes it.
   schedules later (pairs with durable effects). *Motivation*: small,
   teaches well, unlocks a whole class of flows (expiring carts, debounced
   saves, turn timers — planning-poker will want it).
+- **Ambient by-def reads + a typed requirement channel** *(design note first)*:
+  components can't own `Stator.reads` (route-only, correctly), so the weather
+  refactor threads `weather={weather}` through every tile — prop-drilling
+  *state*. A component should read a machine by its imported def from the
+  ambient request context (`read(WeatherMachine, …)`, symmetric with client
+  `dispatch(Machine, …)`), with the dependency carried in the type and enforced
+  up the tree: any renderer must provide the machine or propagate the
+  requirement until a route discharges it — a compile error, not today's runtime
+  throw. Designed in
+  [`.chisel/specs/active/ambient-by-def-machine-reads-with-a-typed-requirement-channel.md`](.chisel/specs/active/ambient-by-def-machine-reads-with-a-typed-requirement-channel.md).
+  *Motivation*: prop-drilling shared state is the first DX wall a component tree
+  hits at scale; the fix is inversion of control done with types.
 
 ## Developer tooling
 

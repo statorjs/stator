@@ -1,0 +1,232 @@
+<live-sky class="live-sky">
+  <canvas ref:sky class="sky-canvas"></canvas>
+</live-sky>
+
+<script>
+  // A client island: the animated weather "sky" that backs the current-conditions
+  // tile. It owns a <canvas> and runs a requestAnimationFrame loop; the server
+  // feeds it the `scene` (condition + day/night) as a live attribute, so it
+  // re-tints when the weather refreshes or the active location changes.
+  type Scene = {
+    // ONE gradient — day/night is already baked in from the weather's is_day, so
+    // the sky reflects reality, not the app's light/dark UI theme.
+    sky: [string, string]
+    glow: string
+    clouds: number
+    // A crisp sun/moon disc — the sharp focal element the soft day/cloud scenes
+    // were missing (night already had crisp stars). null when overcast/wet.
+    disc: 'sun' | 'moon' | null
+    part: 'stars' | 'rain' | 'snow' | 'fog' | null
+    night: boolean
+  }
+
+  const SCENES: Record<string, Scene> = {
+    'clear-day': { sky: ['#4f9fe0', '#cfe6f7'], glow: '255,206,120', clouds: 1, disc: 'sun', part: null, night: false },
+    'clear-night': { sky: ['#0a1326', '#131d33'], glow: '190,206,255', clouds: 0, disc: 'moon', part: 'stars', night: true },
+    'partly-day': { sky: ['#589fdb', '#d6e7f4'], glow: '255,206,120', clouds: 3, disc: 'sun', part: null, night: false },
+    'partly-night': { sky: ['#0b1428', '#141e34'], glow: '190,206,255', clouds: 3, disc: 'moon', part: 'stars', night: true },
+    'cloudy-day': { sky: ['#8ba2b8', '#dbe4ec'], glow: '236,242,250', clouds: 5, disc: null, part: null, night: false },
+    'cloudy-night': { sky: ['#1b2833', '#111a24'], glow: '150,165,190', clouds: 5, disc: null, part: null, night: true },
+    'fog-day': { sky: ['#a7b4c0', '#dfe6ec'], glow: '232,238,244', clouds: 3, disc: null, part: 'fog', night: false },
+    'fog-night': { sky: ['#1e2a34', '#141d26'], glow: '140,155,175', clouds: 3, disc: null, part: 'fog', night: true },
+    'rain-day': { sky: ['#6f8498', '#b3c1d0'], glow: '205,216,228', clouds: 5, disc: null, part: 'rain', night: false },
+    'rain-night': { sky: ['#141f2a', '#0d151d'], glow: '120,140,165', clouds: 5, disc: null, part: 'rain', night: true },
+    'snow-day': { sky: ['#9fb0c2', '#dbe3ec'], glow: '232,240,248', clouds: 4, disc: null, part: 'snow', night: false },
+    'snow-night': { sky: ['#1a2634', '#111923'], glow: '150,168,195', clouds: 4, disc: null, part: 'snow', night: true },
+    'thunder-day': { sky: ['#5c6b7e', '#9aa8b8'], glow: '240,180,90', clouds: 6, disc: null, part: 'rain', night: false },
+    'thunder-night': { sky: ['#12181f', '#0b0f14'], glow: '150,160,180', clouds: 6, disc: null, part: 'rain', night: true },
+  }
+  const sceneOf = (name: string): Scene => SCENES[name] ?? SCENES['cloudy-day']!
+
+  export class LiveSky extends StatorElement {
+    static attrs = { scene: String }
+    setScene?: (name: string) => void
+
+    connectedCallback() {
+      super.connectedCallback()
+      const canvas = this.refs.sky as HTMLCanvasElement | undefined
+      const ctx = canvas?.getContext('2d')
+      if (!canvas || !ctx) return
+
+      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+      let W = 0, H = 0, dpr = 1, raf = 0, t0 = 0
+      let clouds: Array<{ x: number; y: number; s: number; v: number; a: number }> = []
+      let stars: Array<{ x: number; y: number; r: number; tw: number }> = []
+      let parts: Array<{ x: number; y: number; z: number }> = []
+      // `this.attrs.scene` is typed `unknown` (StatorElement's attrs getter is
+      // Record<string, unknown> — see FINDINGS #10); it's coerced to a string by
+      // the `scene: String` declaration, so the cast is safe.
+      let scene = sceneOf(this.attrs.scene as string)
+
+      const seed = () => {
+        clouds = Array.from({ length: scene.clouds }, () => ({ x: Math.random() * W, y: 8 + Math.random() * (H * 0.55), s: 0.7 + Math.random(), v: 5 + Math.random() * 9, a: 0.5 + Math.random() * 0.4 }))
+        stars = scene.part === 'stars' ? Array.from({ length: Math.max(14, Math.round((W * H) / 6000)) }, () => ({ x: Math.random() * W, y: Math.random() * H * 0.8, r: Math.random() * 1.1 + 0.3, tw: Math.random() * 6.28 })) : []
+        const pc = scene.part === 'rain' ? Math.round(W / 6) : scene.part === 'snow' ? Math.round(W / 11) : scene.part === 'fog' ? 4 : 0
+        parts = Array.from({ length: pc }, () => ({ x: Math.random() * W, y: Math.random() * H, z: 0.5 + Math.random() }))
+      }
+
+      const cloud = (c: { x: number; y: number; s: number; a: number }) => {
+        const base = scene.night ? '234,241,250' : '255,255,255'
+        // Firm core: full alpha out to ~75% of each lobe's radius, feathering
+        // only the outer rim — so clouds read as defined masses with a soft
+        // edge, not an all-over haze.
+        const al = (scene.night ? c.a * 0.22 : c.a * 0.55), w = 78 * c.s, h = 28 * c.s
+        for (const [dx, dy, rr] of [[-w * 0.5, 4, 0.7], [-w * 0.15, -4, 1], [w * 0.2, -2, 0.85], [w * 0.5, 5, 0.6]] as const) {
+          const rad = h * rr * 1.35
+          const g = ctx.createRadialGradient(c.x + dx, c.y + dy, 0, c.x + dx, c.y + dy, rad)
+          g.addColorStop(0, `rgba(${base},${al})`)
+          g.addColorStop(0.75, `rgba(${base},${al})`)
+          g.addColorStop(1, `rgba(${base},0)`)
+          ctx.fillStyle = g
+          ctx.beginPath()
+          ctx.arc(c.x + dx, c.y + dy, rad, 0, 6.29)
+          ctx.fill()
+        }
+      }
+
+      const frame = (ts: number) => {
+        if (!t0) t0 = ts
+        const dt = Math.min((ts - t0) / 1000, 0.05)
+        t0 = ts
+        const T = ts / 1000
+        const [top, bot] = scene.sky
+        const bg = ctx.createLinearGradient(0, 0, 0, H)
+        bg.addColorStop(0, top)
+        bg.addColorStop(1, bot)
+        ctx.fillStyle = bg
+        ctx.fillRect(0, 0, W, H)
+        const gx = W * 0.82, gy = H * 0.22, gr = Math.max(W, H) * 0.6 * (1 + Math.sin(T * 0.5) * 0.05)
+        const gg = ctx.createRadialGradient(gx, gy, 0, gx, gy, gr)
+        // Ambient halo behind the disc — kept modest even for sun/moon, since the
+        // crisp disc now carries its own tight corona; this is just a soft lift,
+        // not a wash. Dimmer still for disc-less scenes (overcast/rain/…).
+        const glowA = scene.disc ? (scene.night ? 0.22 : 0.28) : scene.night ? 0.08 : 0.12
+        gg.addColorStop(0, `rgba(${scene.glow},${glowA})`)
+        gg.addColorStop(0.5, `rgba(${scene.glow},${glowA * 0.3})`)
+        gg.addColorStop(1, `rgba(${scene.glow},0)`)
+        ctx.fillStyle = gg
+        ctx.fillRect(0, 0, W, H)
+        for (const s of stars) {
+          const a = 0.45 + Math.sin(T * 1.4 + s.tw) * 0.4
+          ctx.fillStyle = `rgba(228,234,248,${a})`
+          ctx.beginPath()
+          ctx.arc(s.x, s.y, s.r, 0, 6.29)
+          ctx.fill()
+        }
+        // Crisp sun/moon disc — the sharp focal element (drawn behind the clouds,
+        // which pass in front of it).
+        if (scene.disc) {
+          const dr = Math.max(16, Math.min(W, H) * 0.1)
+          if (scene.disc === 'sun') {
+            // A soft corona behind a CRISP body. The old sun was one gradient
+            // that faded to transparent at its own edge, so it had no defined
+            // rim and read as a blur next to the solid-filled moon. Draw the
+            // halo separately (larger, soft) and the body as a fully-opaque
+            // disc, so its edge is as sharp as the moon's.
+            const cr = dr * 2.4
+            const corona = ctx.createRadialGradient(gx, gy, dr * 0.7, gx, gy, cr)
+            corona.addColorStop(0, `rgba(${scene.glow},0.34)`)
+            corona.addColorStop(1, `rgba(${scene.glow},0)`)
+            ctx.fillStyle = corona
+            ctx.beginPath()
+            ctx.arc(gx, gy, cr, 0, 6.29)
+            ctx.fill()
+            const body = ctx.createRadialGradient(gx - dr * 0.25, gy - dr * 0.25, 0, gx, gy, dr)
+            body.addColorStop(0, 'rgba(255,250,231,1)')
+            body.addColorStop(1, 'rgba(255,223,150,1)')
+            ctx.fillStyle = body
+            ctx.beginPath()
+            ctx.arc(gx, gy, dr, 0, 6.29)
+            ctx.fill()
+          } else {
+            const mr = dr * 0.82
+            ctx.fillStyle = 'rgba(230,236,250,0.94)'
+            ctx.beginPath()
+            ctx.arc(gx, gy, mr, 0, 6.29)
+            ctx.fill()
+            const mg = ctx.createRadialGradient(gx - mr * 0.35, gy - mr * 0.35, 0, gx, gy, mr)
+            mg.addColorStop(0, 'rgba(255,255,255,0.2)')
+            mg.addColorStop(1, 'rgba(120,140,190,0.22)')
+            ctx.fillStyle = mg
+            ctx.beginPath()
+            ctx.arc(gx, gy, mr, 0, 6.29)
+            ctx.fill()
+          }
+        }
+        for (const c of clouds) {
+          c.x += c.v * dt
+          if (c.x - 90 * c.s > W) c.x = -90 * c.s
+          cloud(c)
+        }
+        if (scene.part === 'rain') {
+          ctx.strokeStyle = `rgba(${scene.night ? '150,178,205' : '236,244,252'},0.5)`
+          ctx.lineWidth = 1.1
+          ctx.beginPath()
+          for (const p of parts) {
+            p.y += (380 + p.z * 160) * dt
+            p.x += 28 * dt
+            if (p.y > H) { p.y = -10; p.x = Math.random() * W }
+            ctx.moveTo(p.x, p.y)
+            ctx.lineTo(p.x - 4, p.y + 12 * p.z)
+          }
+          ctx.stroke()
+        } else if (scene.part === 'snow') {
+          ctx.fillStyle = `rgba(${scene.night ? '210,222,238' : '255,255,255'},0.85)`
+          for (const p of parts) {
+            p.y += (26 + p.z * 20) * dt
+            p.x += Math.sin(T + p.z * 6) * 8 * dt
+            if (p.y > H) { p.y = -6; p.x = Math.random() * W }
+            ctx.beginPath()
+            ctx.arc(p.x, p.y, 1.4 * p.z, 0, 6.29)
+            ctx.fill()
+          }
+        } else if (scene.part === 'fog') {
+          for (const p of parts) {
+            p.x += 7 * dt
+            if (p.x - W * 0.7 > W) p.x = -W * 0.7
+            const y = H * (0.4 + p.z * 0.35)
+            const cc = scene.night ? '180,195,210' : '246,250,253'
+            const g2 = ctx.createLinearGradient(p.x, 0, p.x + W * 0.7, 0)
+            g2.addColorStop(0, `rgba(${cc},0)`)
+            g2.addColorStop(0.5, `rgba(${cc},0.13)`)
+            g2.addColorStop(1, `rgba(${cc},0)`)
+            ctx.fillStyle = g2
+            ctx.fillRect(p.x, y, W * 0.7, 22 * p.z + 10)
+          }
+        }
+        if (!reduce) raf = requestAnimationFrame(frame)
+      }
+
+      const resize = () => {
+        dpr = Math.min(devicePixelRatio || 1, 2)
+        W = canvas.clientWidth
+        H = canvas.clientHeight
+        if (!W || !H) return
+        canvas.width = Math.round(W * dpr)
+        canvas.height = Math.round(H * dpr)
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+        seed()
+        if (reduce) frame(0)
+      }
+
+      this.setScene = (name: string) => {
+        scene = sceneOf(name)
+        seed()
+      }
+
+      const ro = new ResizeObserver(resize)
+      ro.observe(canvas)
+      resize()
+      if (!reduce) raf = requestAnimationFrame(frame)
+      else frame(0)
+      this.track(() => {
+        cancelAnimationFrame(raf)
+        ro.disconnect()
+      })
+    }
+
+    sceneChanged(next: string) {
+      this.setScene?.(next)
+    }
+  }
+</script>

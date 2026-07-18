@@ -1,0 +1,22 @@
+---
+import SettingsMachine from '../machines/settings.ts'
+import type { InstanceOf } from '@statorjs/stator/template'
+
+const { settings } = Stator.props<{ settings: InstanceOf<typeof SettingsMachine> }>()
+---
+<div class="units" role="group" aria-label="Units and clock">
+  <button
+    class:list={['u-btn', { active: read(settings, (s) => s.units === 'metric') }]}
+    aria-pressed={read(settings, (s) => (s.units === 'metric' ? 'true' : 'false'))}
+    on:click={() => settings.send({ type: 'SET_UNITS', units: 'metric' })}
+  >°C</button>
+  <button
+    class:list={['u-btn', { active: read(settings, (s) => s.units === 'imperial') }]}
+    aria-pressed={read(settings, (s) => (s.units === 'imperial' ? 'true' : 'false'))}
+    on:click={() => settings.send({ type: 'SET_UNITS', units: 'imperial' })}
+  >°F</button>
+  <button
+    class="u-btn u-clock"
+    on:click={() => settings.send({ type: 'TOGGLE_CLOCK' })}
+  >{read(settings, (s) => s.clock)}</button>
+</div>

@@ -1,0 +1,44 @@
+<tile-motion hidden></tile-motion>
+
+<script>
+  // A client island that drives the Metro live-tile animations. It owns no data:
+  // it finds the flip/peek tiles in its parent grid and toggles their animation
+  // class on a staggered interval, the way a Windows-Phone Start screen breathes.
+  //
+  // Crucially it only touches `classList` — the tile CONTENT is server-bound in
+  // slots inside the faces/slides and updates over SSE independently, so the
+  // animation and the live data never fight over the same DOM.
+  export class TileMotion extends StatorElement {
+    connectedCallback() {
+      super.connectedCallback()
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+      // Scope to the whole panel so the full-width forecast peek tiles (siblings
+      // of the grid) animate too, not just the grid's flip/peek tiles.
+      const root = this.closest('.panel') ?? this.parentElement ?? document
+      const tiles = Array.from(
+        root.querySelectorAll('.flip-tile, .peek-tile'),
+      ) as HTMLElement[]
+
+      const timers: number[] = []
+      tiles.forEach((el, i) => {
+        const cls = el.classList.contains('flip-tile') ? 'flipped' : 'peeked'
+        // Stagger the first turn, then loop on a per-tile cadence so the tiles
+        // don't flip in lockstep.
+        const start = window.setTimeout(() => {
+          timers.push(
+            window.setInterval(() => el.classList.toggle(cls), 5800 + (i % 4) * 1500),
+          )
+        }, 2800 + i * 850)
+        timers.push(start)
+      })
+
+      this.track(() => {
+        for (const t of timers) {
+          clearTimeout(t)
+          clearInterval(t)
+        }
+      })
+    }
+  }
+</script>

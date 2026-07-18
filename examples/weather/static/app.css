@@ -1,0 +1,795 @@
+/* Metro / Modern-UI tile system — ported from design/prototype.html.
+   Flat, sharp-cornered, vibrant tiles; light-weight Segoe typography; dark
+   default with a light theme. See design/DESIGN.md for the locked direction. */
+
+:root {
+  --bg: #0a0a0a;
+  --fg: #ffffff;
+  --fg-2: #9aa0a6;
+  --line: rgba(255, 255, 255, 0.12);
+  --tile-surface: #1a1a1a;
+  --sans: "Segoe UI", "Segoe UI Variable Text", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  /* Mobile (4-col): size the tile so 4 columns + 3 gaps fit exactly inside the
+     content width (100vw − 2×16px side padding − 3×8px gaps = 100vw − 56px), so
+     the grid never overflows and gets clipped by the panel. Desktop overrides
+     this below. */
+  --u: min(132px, calc((100vw - 56px) / 4));
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #fbfbfb;
+    --fg: #14171a;
+    --fg-2: #5c636b;
+    --line: rgba(20, 30, 40, 0.12);
+    --tile-surface: #ececec;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --fg: #ffffff;
+  --fg-2: #9aa0a6;
+  --line: rgba(255, 255, 255, 0.12);
+  --tile-surface: #1a1a1a;
+}
+:root[data-theme="light"] {
+  --bg: #fbfbfb;
+  --fg: #14171a;
+  --fg-2: #5c636b;
+  --line: rgba(20, 30, 40, 0.12);
+  --tile-surface: #ececec;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  /* Safety net: the panorama owns its own horizontal scroll, so nothing should
+     ever push the page itself sideways on a phone. */
+  overflow-x: hidden;
+}
+main {
+  max-width: 1080px;
+  margin: 0 auto;
+  /* Fixed 16px side padding on mobile so the --u column math is exact; the
+     desktop breakpoint widens it. */
+  padding: clamp(20px, 4vw, 44px) 16px 56px;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Header ---------------------------------------------------------- */
+header {
+  margin-bottom: 24px;
+}
+.eyebrow {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--fg-2);
+  font-weight: 600;
+}
+.wx h1 {
+  margin: 2px 0 0;
+  font-size: clamp(40px, 8vw, 72px);
+  font-weight: 200;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.sub {
+  margin-top: 8px;
+  color: var(--fg-2);
+  font-size: 14px;
+}
+.units {
+  float: right;
+  display: inline-flex;
+  height: 32px;
+  border: 1px solid var(--line);
+}
+.u-btn {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  border: 0;
+  background: transparent;
+  color: var(--fg-2);
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.u-btn.active {
+  background: var(--fg);
+  color: var(--bg);
+}
+.u-clock {
+  border-left: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+.u-btn:focus-visible {
+  outline: 2px solid #1ba1e2;
+  outline-offset: 2px;
+}
+
+/* ---- Location search ------------------------------------------------- */
+.search-wrap {
+  position: relative;
+  max-width: 340px;
+  margin-top: 16px;
+}
+location-search {
+  position: relative;
+  display: block;
+}
+.search-input {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid var(--line);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 15px;
+  padding: 8px 28px 8px 2px;
+  outline: none;
+}
+.search-input::placeholder {
+  color: var(--fg-2);
+}
+.search-input:focus {
+  border-color: #1ba1e2;
+}
+.search-mag {
+  position: absolute;
+  right: 2px;
+  top: 9px;
+  width: 17px;
+  height: 17px;
+  color: var(--fg-2);
+  pointer-events: none;
+}
+.search-results,
+.search-empty {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 2px;
+  z-index: 30;
+  background: var(--tile-surface);
+  border: 1px solid var(--line);
+}
+.search-results {
+  max-height: 280px;
+  overflow-y: auto;
+}
+.search-result {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 11px 13px;
+  cursor: pointer;
+}
+.search-result:hover {
+  background: var(--line);
+}
+.sr-region {
+  color: var(--fg-2);
+  font-size: 12px;
+}
+.search-empty {
+  padding: 11px 13px;
+  color: var(--fg-2);
+  font-size: 13px;
+}
+
+/* ---- Tile grid ------------------------------------------------------- */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, var(--u));
+  grid-auto-rows: var(--u);
+  gap: 8px;
+  justify-content: start;
+}
+@media (min-width: 720px) {
+  :root {
+    --u: clamp(96px, 12vw, 132px);
+  }
+  main {
+    padding: 44px clamp(24px, 4vw, 44px) 60px;
+  }
+  .grid {
+    grid-template-columns: repeat(6, var(--u));
+  }
+}
+tile-motion {
+  display: none;
+}
+.tile {
+  --c: #0050ef;
+  --tc: #fff;
+  position: relative;
+  background: var(--c);
+  color: var(--tc);
+  padding: 0;
+  border: 0;
+  text-align: left;
+  transform-origin: center;
+}
+.tile.press {
+  cursor: pointer;
+}
+.tile.press:active {
+  transform: scale(0.94);
+  transition: transform 0.1s;
+}
+.m2 {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+.w4 {
+  grid-column: span 4;
+  grid-row: span 2;
+}
+.tcontent {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 13px 14px;
+}
+
+.t-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  font-weight: 600;
+  opacity: 0.82;
+}
+.t-big {
+  font-size: 34px;
+  font-weight: 250;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.t-big .u {
+  font-size: 15px;
+  opacity: 0.7;
+  font-weight: 400;
+}
+.t-sub {
+  font-size: 12.5px;
+  opacity: 0.82;
+}
+.t-adv {
+  font-size: 13.5px;
+  opacity: 1;
+  line-height: 1.35;
+}
+.t-moon-name {
+  font-size: 14px;
+  opacity: 1;
+}
+.t-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.t-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Whole-tile flip: two full-tile faces rotate independently on the X axis,
+   each hidden edge-on at ±90°. No preserve-3d / backface — Firefox-safe. */
+.flip-tile {
+  background: transparent;
+}
+.flip-inner {
+  position: absolute;
+  inset: 0;
+  perspective: 640px;
+}
+.flip-face {
+  position: absolute;
+  inset: 0;
+  background: var(--c);
+  color: var(--tc);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 13px 14px;
+}
+.flip-face.front {
+  transform: rotateX(0deg);
+  transition: transform 0.32s ease-out 0.32s;
+}
+.flip-face.back {
+  transform: rotateX(-90deg);
+  transition: transform 0.32s ease-in;
+}
+.flip-tile.flipped .flip-face.front {
+  transform: rotateX(90deg);
+  transition: transform 0.32s ease-in;
+}
+.flip-tile.flipped .flip-face.back {
+  transform: rotateX(0deg);
+  transition: transform 0.32s ease-out 0.32s;
+}
+.flip-face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.14));
+  pointer-events: none;
+}
+
+/* Peek / slide: the panel slides up, the next slides in from below. Pure 2D. */
+.peek-tile {
+  overflow: hidden;
+}
+.peek-tile .slides {
+  position: absolute;
+  inset: 0;
+  transition: transform 0.55s cubic-bezier(0.25, 0.9, 0.25, 1);
+}
+.peek-tile .slide {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--c);
+  color: var(--tc);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 13px 14px;
+}
+.peek-tile.peeked .slides {
+  transform: translateY(-100%);
+}
+
+/* ---- Panorama: one full page per location, whole panel slides -------- */
+.panorama {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  margin: 6px 0 16px;
+  /* Let the horizontal swipe win over vertical scroll inside a panel. */
+  overscroll-behavior-x: contain;
+}
+.panorama::-webkit-scrollbar {
+  display: none;
+}
+.panel {
+  scroll-snap-align: start;
+  flex: 0 0 100%;
+  min-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  /* Clip each panel so a tile's flip/peek 3D overhang can't bleed into the
+     adjacent (offscreen) panel during the carousel. */
+  overflow: hidden;
+}
+/* Match the tile grid's exact width (columns + gaps) so the hero lines up with
+   the tiles below — both left-aligned with the header text (Metro). The desktop
+   override MUST come after this base rule to win at equal specificity. */
+.hero {
+  position: relative;
+  width: calc(4 * var(--u) + 3 * 8px);
+  aspect-ratio: 16 / 9;
+  max-height: 320px;
+  overflow: hidden;
+  background: linear-gradient(168deg, #589fdb, #d6e7f4);
+}
+@media (min-width: 720px) {
+  .hero {
+    width: calc(6 * var(--u) + 5 * 8px);
+  }
+}
+.hero .live-sky,
+.hero .sky-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.hero-body {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 24px 26px;
+  color: #fff;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.28);
+}
+.hero-body::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 45%, rgba(0, 0, 0, 0.28));
+}
+.hero-temp {
+  font-size: clamp(56px, 12vw, 96px);
+  font-weight: 200;
+  line-height: 0.92;
+  letter-spacing: -0.03em;
+}
+.hero-cond {
+  font-size: 18px;
+  font-weight: 500;
+  margin-top: 2px;
+}
+.hero-meta {
+  font-size: 13px;
+  opacity: 0.92;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.hero-meta .num {
+  font-weight: 600;
+}
+/* Touch devices: fingers need a bigger vertical hit area on the pivot pills. */
+@media (pointer: coarse) {
+  .pivot-item {
+    padding: 9px 0;
+  }
+}
+
+/* ---- Forecast tiles (hourly + 10-day) — w4 grid tiles ---------------- */
+/* hourly: a 6×2 grid inside .tcontent; 10-day: a peek tile of day rows. */
+.fc-slide {
+  justify-content: flex-start;
+  gap: 4px;
+}
+.fc-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  font-weight: 600;
+  opacity: 0.85;
+  margin-bottom: 4px;
+}
+.hourly {
+  flex: 1;
+  display: grid;
+  /* Content-width columns spread edge-to-edge: the first hour aligns flush-left
+     with the title, the last flush-right — no per-cell centering offset. */
+  grid-template-columns: repeat(6, auto);
+  grid-auto-rows: 1fr;
+  justify-content: space-between;
+  gap: 4px 8px;
+}
+.hour {
+  /* Group the values tightly and centre them in the row, so the spare vertical
+     space sits above/below the group rather than between the icon and temp. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.h-time {
+  font-size: 11.5px;
+  opacity: 0.85;
+}
+.hour .wx-ico {
+  width: 26px;
+  height: 26px;
+  opacity: 0.95;
+}
+.h-temp {
+  font-size: 16px;
+}
+.h-pop {
+  font-size: 10.5px;
+  min-height: 13px;
+  opacity: 0.9;
+}
+.h-rain {
+  font-size: 9px;
+  opacity: 0.72;
+  min-height: 11px;
+}
+.daily {
+  flex: 1;
+  display: grid;
+  align-content: stretch;
+  grid-auto-rows: 1fr;
+}
+.drow {
+  display: grid;
+  grid-template-columns: 1fr 26px 40px 32px 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.drow-head {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  opacity: 0.6;
+  padding-bottom: 3px;
+}
+.drow .wx-ico {
+  width: 22px;
+  height: 22px;
+  opacity: 0.9;
+  justify-self: center;
+}
+.d-day {
+  font-size: 13.5px;
+}
+.d-date {
+  display: inline-block;
+  width: 1.5em;
+  margin-right: 7px;
+  text-align: right;
+  opacity: 0.6;
+}
+.d-pop {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  line-height: 1.25;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.d-rain {
+  font-size: 9.5px;
+  opacity: 0.7;
+}
+.d-lo {
+  font-size: 13px;
+  text-align: right;
+  opacity: 0.65;
+}
+.d-hi {
+  font-size: 13px;
+  text-align: right;
+  font-weight: 500;
+}
+
+/* ---- Tile glyphs ----------------------------------------------------- */
+/* Small accent on a tile's primary face; large faint version fills the empty
+   space on the secondary face. Both inherit the tile's text colour. */
+.t-glyph {
+  width: 24px;
+  height: 24px;
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+.t-bg-glyph {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 84px;
+  height: 84px;
+  opacity: 0.9;
+  pointer-events: none;
+}
+.compass {
+  width: 30px;
+  height: 30px;
+  color: #fff;
+  opacity: 0.9;
+}
+.mini-moon {
+  width: 42px;
+  height: 42px;
+}
+.mini-arc {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+/* ---- Metro Pivot: horizontal scroll-snap location strip -------------- */
+.pivot {
+  display: flex;
+  gap: 22px;
+  margin: 2px 0 22px;
+  padding-bottom: 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.pivot::-webkit-scrollbar {
+  display: none;
+}
+.pivot-item {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  background: transparent;
+  border: 0;
+  padding: 2px 0;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--fg-2);
+  opacity: 0.45;
+  transition: opacity 0.2s;
+}
+.pivot-item:hover {
+  opacity: 0.8;
+}
+.pivot-item.active {
+  opacity: 1;
+}
+.pivot-name {
+  font-size: clamp(21px, 4vw, 30px);
+  font-weight: 200;
+  letter-spacing: -0.01em;
+}
+.pivot-item.active .pivot-name {
+  color: var(--fg);
+}
+.pivot-temp {
+  font-size: 14px;
+  color: var(--fg-2);
+  font-weight: 400;
+}
+.pivot-item:focus-visible {
+  outline: 2px solid #1ba1e2;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flip-face,
+  .peek-tile .slides {
+    transition: none;
+  }
+}
+
+/* ---- Edit mode: ephemeral client-side view state on .wx[data-editing] --- */
+/* Toggled by the <edit-mode> island (a data-* attribute NAMES the UI state, the
+   way a bare class can't); CSS drives every reveal below. Resting state is clean
+   — no ✕, no search. */
+.edit-mode {
+  float: right;
+  margin-right: 8px;
+}
+.edit-toggle {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg-2);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.edit-toggle:hover {
+  color: var(--fg);
+}
+.edit-toggle:focus-visible {
+  outline: 2px solid #1ba1e2;
+  outline-offset: 2px;
+}
+.et-icon {
+  display: block;
+  width: 19px;
+  height: 19px;
+}
+.et-check {
+  display: none;
+}
+.wx[data-editing] .edit-toggle {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+.wx[data-editing] .et-gear {
+  display: none;
+}
+.wx[data-editing] .et-check {
+  display: block;
+}
+
+/* Eyebrow names the mode: "weather" → "edit locations". */
+.eb-edit {
+  display: none;
+}
+.wx[data-editing] .eb-rest {
+  display: none;
+}
+.wx[data-editing] .eb-edit {
+  display: inline;
+}
+
+/* Search: absent from the resting state, slides in on edit. */
+.search-wrap {
+  display: none;
+}
+.wx[data-editing] .search-wrap {
+  display: block;
+  animation: edit-slide-in 0.24s ease-out;
+}
+@keyframes edit-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Pivot pills gain a chip outline + a ✕ delete chip. The ✕'s ACTION is a real
+   REMOVE_PLACE event; only its VISIBILITY is client-side view state. */
+.pivot-remove {
+  display: none;
+}
+.wx[data-editing] .pivot-item {
+  padding: 4px 6px 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.wx[data-editing] .pivot-remove {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(127, 127, 127, 0.25);
+  color: var(--fg);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  animation: edit-pop-in 0.2s ease-out;
+}
+.wx[data-editing] .pivot-remove:hover {
+  background: #d64545;
+  color: #fff;
+}
+.pivot-remove svg {
+  display: block;
+  width: 11px;
+  height: 11px;
+}
+@keyframes edit-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
