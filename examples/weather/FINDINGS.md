@@ -161,3 +161,37 @@ icon is bespoke inline SVG or a `raw()` string.
   `raw()` (unsafe by default). A first-class primitive removes both papercuts.
 - Not a bug — a DX gap worth a design pass. (Raised while building the weather
   example's hourly/daily forecast glyphs.)
+
+## 7. Dev inspector's flash masks the very change it highlights
+
+Toggling °C/°F felt laggy: the temperatures updated instantly but the pressed
+unit button didn't visibly highlight for ~300ms. Instrumenting the wire path
+ruled out the framework — 56 patches applied in **1.0ms**, full round-trip 25ms.
+The delay was the **dev inspector**, and specifically its element flash.
+
+- **Root cause:** `client/inspector.ts` flashed each patched element by animating
+  `background-color` in a 1.2s `@keyframes`. A CSS animation's `background-color`
+  is a higher cascade origin than any normal author rule — it overrides the
+  element's own `background`, including `.u-btn.active { background: … }`, for the
+  animation's whole duration. So a patch that lights up a button's background was
+  masked by its own flash. `text` patches were unaffected (text sits above the
+  tint), which is exactly why content looked instant but the background-based
+  highlight lagged. Class *order* (`stator-flash--attr` vs `active`) is a red
+  herring — animations beat normal rules regardless of selector specificity or
+  order, so no app-side reorder/`!important` can win.
+- **Fix (prototyped locally, not yet landed):** flash with an **outline** only
+  (painted outside the box, masks nothing); never animate `background-color`. A
+  working prototype is in `packages/stator/src/client/inspector.ts` — to be
+  landed with a regression check during the findings pass, together with (a)–(c).
+- **Longer-term (raised, not yet designed):**
+  - **Style isolation.** The inspector injects global CSS (`.stator-flash`, …)
+    straight into the page, so its dev-only styles can collide with app styles —
+    this bug was that collision. A dev overlay reaching into app elements' own
+    paint is the smell. Options: a shadow-DOM host, a low-priority `@layer` so app
+    styles always win, or a non-intrusive highlight technique (overlay layer)
+    that never touches the target element's box.
+  - **Styles-as-string.** The inspector's CSS lives in one large template-literal
+    `STYLES` constant — no tooling, no isolation, easy to introduce exactly this
+    kind of bleed. Worth revisiting how framework-owned UI ships its styles.
+- Note: `bundleInspector()` builds once at app-creation and caches, so iterating
+  on the inspector needs a dev-server restart (no HMR for the asset).
