@@ -90,6 +90,7 @@ header {
 .units {
   float: right;
   display: inline-flex;
+  height: 32px;
   border: 1px solid var(--line);
 }
 .u-btn {
@@ -452,39 +453,8 @@ tile-motion {
 .hero-meta .num {
   font-weight: 600;
 }
-.panel-remove {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 2;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.28);
-  color: #fff;
-  font-size: 17px;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0.5;
-  transition: opacity 0.15s, background 0.15s;
-}
-.panel-remove:hover,
-.panel-remove:focus-visible {
-  opacity: 1;
-  background: rgba(0, 0, 0, 0.5);
-}
-/* Touch devices: no hover to reveal controls, and fingers need a bigger target.
-   Enlarge the remove button and keep it visible, and give the pivot pills a
-   finger-sized vertical hit area. */
+/* Touch devices: fingers need a bigger vertical hit area on the pivot pills. */
 @media (pointer: coarse) {
-  .panel-remove {
-    width: 34px;
-    height: 34px;
-    font-size: 20px;
-    opacity: 0.72;
-  }
   .pivot-item {
     padding: 9px 0;
   }
@@ -698,5 +668,128 @@ tile-motion {
   .flip-face,
   .peek-tile .slides {
     transition: none;
+  }
+}
+
+/* ---- Edit mode: ephemeral client-side view state on .wx[data-editing] --- */
+/* Toggled by the <edit-mode> island (a data-* attribute NAMES the UI state, the
+   way a bare class can't); CSS drives every reveal below. Resting state is clean
+   — no ✕, no search. */
+.edit-mode {
+  float: right;
+  margin-right: 8px;
+}
+.edit-toggle {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg-2);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.edit-toggle:hover {
+  color: var(--fg);
+}
+.edit-toggle:focus-visible {
+  outline: 2px solid #1ba1e2;
+  outline-offset: 2px;
+}
+.et-icon {
+  display: block;
+  width: 19px;
+  height: 19px;
+}
+.et-check {
+  display: none;
+}
+.wx[data-editing] .edit-toggle {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+.wx[data-editing] .et-gear {
+  display: none;
+}
+.wx[data-editing] .et-check {
+  display: block;
+}
+
+/* Eyebrow names the mode: "weather" → "edit locations". */
+.eb-edit {
+  display: none;
+}
+.wx[data-editing] .eb-rest {
+  display: none;
+}
+.wx[data-editing] .eb-edit {
+  display: inline;
+}
+
+/* Search: absent from the resting state, slides in on edit. */
+.search-wrap {
+  display: none;
+}
+.wx[data-editing] .search-wrap {
+  display: block;
+  animation: edit-slide-in 0.24s ease-out;
+}
+@keyframes edit-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Pivot pills gain a chip outline + a ✕ delete chip. The ✕'s ACTION is a real
+   REMOVE_PLACE event; only its VISIBILITY is client-side view state. */
+.pivot-remove {
+  display: none;
+}
+.wx[data-editing] .pivot-item {
+  padding: 4px 6px 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.wx[data-editing] .pivot-remove {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(127, 127, 127, 0.25);
+  color: var(--fg);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  animation: edit-pop-in 0.2s ease-out;
+}
+.wx[data-editing] .pivot-remove:hover {
+  background: #d64545;
+  color: #fff;
+}
+.pivot-remove svg {
+  display: block;
+  width: 11px;
+  height: 11px;
+}
+@keyframes edit-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }

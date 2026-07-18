@@ -41,6 +41,9 @@
       }
 
       const onPillClick = (e: Event) => {
+        // The ✕ delete chip lives inside the pill but is a remove, not a nav —
+        // let its own handler fire without also scrolling the pill into view.
+        if ((e.target as HTMLElement).closest('.pivot-remove')) return
         const pill = (e.target as HTMLElement).closest('.pivot-item') as HTMLElement | null
         if (!pill) return
         const hero = heroes().find((h) => h.dataset.id === pill.dataset.id)
