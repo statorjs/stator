@@ -159,6 +159,9 @@ function mount(): void {
   window.addEventListener('stator:patch-applied', (e: Event) => {
     const { patch, element } = (e as CustomEvent).detail
     if (!element) return
+    // Only flash while the drawer is open — the flash is an inspection aid, not
+    // ambient page decoration; a closed inspector shouldn't touch the app.
+    if (drawer.hidden) return
     const opClass = `stator-flash--${patch.op}`
     ;(element as HTMLElement).classList.add('stator-flash', opClass)
     window.setTimeout(() => {

@@ -69,12 +69,16 @@ function initLiveChannel(): void {
       return
     }
     if (data.patches) {
+      // SSE is server-pushed — no client round-trip to time — so report the
+      // apply duration (still the useful "how expensive was this update?").
+      const startedAt = performance.now()
+      applyPatches(data.patches)
       emit('stator:patches-received', {
         patches: data.patches,
         source: 'sse',
+        durationMs: Math.round(performance.now() - startedAt),
         timestamp: Date.now(),
       })
-      applyPatches(data.patches)
     }
     if (data.directives && data.directives.length > 0) {
       applyDirectives(data.directives)
