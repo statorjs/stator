@@ -216,13 +216,25 @@ needs the actual error before anyone "fixes" the wrong thing:
 - **NOT the LSP importing a different `read`.** `compiler/virtual-code.ts`
   injects the real `read` from `@statorjs/stator/template` and declares
   `Stator.reads` with the real template `InstanceOf`.
-- **Still open — candidates:** the real `SelectorMap<C, ReadsMap<TReads>>`
-  selector shapes (something the idealized repro doesn't capture), or the
-  volar/virtual-code environment itself (region mapping, or how the frontmatter
-  body scope sees the `Stator.reads` bindings). **To pin it, capture the exact
-  editor error text** — "Property `panelForId` does not exist on type X" vs
-  "Parameter `w` implicitly has an 'any' type" point at very different causes —
-  and diff the generated virtual TSX against a plain `tsc` run.
+- **Tracked down — not a code bug.** Generated the *exact* virtual TSX the
+  language-server type-checks (`toVirtualCode` from `@statorjs/stator/compiler`,
+  the same call at `language-server/src/language-plugin.ts:100`) for both a
+  component (`uv-tile`) and the route (`index`), and ran it under TS **5.6, 5.7,
+  5.8, and 5.9** with the example's real tsconfig: **zero errors every time**. So
+  `read` inference, `InstanceOf`, the real machine `SelectorMap`, and the vtsx
+  generation are all fine. Also confirmed `.stator/types` exist and
+  `@statorjs/stator/*` resolves to source (no dist-build dependency).
+- **Localised to editor state, not the framework.** The red is an editor-side
+  toolchain issue. Most likely a **stale TS/Stator language-server program** —
+  this session churned many files (the whole component refactor), and a running
+  language server can serve pre-refactor diagnostics until restarted. The bundled
+  `language-server/dist/server.cjs` was also one commit stale (missing `defer`);
+  **rebuilt** it to be safe.
+- **To close:** restart the Stator/TS language server and reload the editor
+  window. If red persists on a clean restart, capture the exact hover text on
+  `w` — "cannot find module `@statorjs/stator/template`" (resolution) vs
+  "property `panelForId` does not exist" (type) vs "implicitly `any`" (inference)
+  each point somewhere different — and only then is there a real bug to chase.
 
 ## 9. Components can't own reads → shared state is prop-drilled
 
