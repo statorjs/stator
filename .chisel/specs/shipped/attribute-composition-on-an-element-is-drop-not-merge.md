@@ -1,8 +1,8 @@
 ---
 title: Attribute composition on an element is drop-not-merge
-status: ready
+status: shipped
 created: 2026-07-17
-updated: 2026-07-17
+updated: 2026-07-18
 area: compiler
 ---
 
