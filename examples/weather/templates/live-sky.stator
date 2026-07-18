@@ -64,11 +64,14 @@
 
       const cloud = (c: { x: number; y: number; s: number; a: number }) => {
         const base = scene.night ? '234,241,250' : '255,255,255'
-        const al = (scene.night ? c.a * 0.16 : c.a * 0.42), w = 78 * c.s, h = 28 * c.s
+        // Denser body + a firmer core (solid until ~60% of the radius) so clouds
+        // read as defined masses, not a soft haze — especially on overcast.
+        const al = (scene.night ? c.a * 0.22 : c.a * 0.55), w = 78 * c.s, h = 28 * c.s
         for (const [dx, dy, rr] of [[-w * 0.5, 4, 0.7], [-w * 0.15, -4, 1], [w * 0.2, -2, 0.85], [w * 0.5, 5, 0.6]] as const) {
           const rad = h * rr * 1.35
           const g = ctx.createRadialGradient(c.x + dx, c.y + dy, 0, c.x + dx, c.y + dy, rad)
           g.addColorStop(0, `rgba(${base},${al})`)
+          g.addColorStop(0.6, `rgba(${base},${al * 0.85})`)
           g.addColorStop(1, `rgba(${base},0)`)
           ctx.fillStyle = g
           ctx.beginPath()
@@ -90,8 +93,11 @@
         ctx.fillRect(0, 0, W, H)
         const gx = W * 0.82, gy = H * 0.22, gr = Math.max(W, H) * 0.6 * (1 + Math.sin(T * 0.5) * 0.05)
         const gg = ctx.createRadialGradient(gx, gy, 0, gx, gy, gr)
-        gg.addColorStop(0, `rgba(${scene.glow},${scene.night ? 0.32 : 0.42})`)
-        gg.addColorStop(0.5, `rgba(${scene.glow},${scene.night ? 0.08 : 0.14})`)
+        // The glow is the sun/moon halo — dim it right down for disc-less scenes
+        // (overcast/rain/…) so they don't wash into a soft haze.
+        const glowA = scene.disc ? (scene.night ? 0.32 : 0.42) : scene.night ? 0.08 : 0.12
+        gg.addColorStop(0, `rgba(${scene.glow},${glowA})`)
+        gg.addColorStop(0.5, `rgba(${scene.glow},${glowA * 0.3})`)
         gg.addColorStop(1, `rgba(${scene.glow},0)`)
         ctx.fillStyle = gg
         ctx.fillRect(0, 0, W, H)
