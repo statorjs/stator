@@ -195,3 +195,50 @@ The delay was the **dev inspector**, and specifically its element flash.
     kind of bleed. Worth revisiting how framework-owned UI ships its styles.
 - Note: `bundleInspector()` builds once at app-creation and caches, so iterating
   on the inspector needs a dev-server restart (no HMR for the asset).
+
+## 8. `read()` selector callbacks show red in the editor (unconfirmed cause)
+
+In `.stator` templates, `read(weather, (w) => w.panelForId(id).temp)` shows a lot
+of red in the editor — `w` appears to lose the machine's selectors. **Cause not
+yet pinned** — and importantly, the obvious hypotheses are *disproven*, so this
+needs the actual error before anyone "fixes" the wrong thing:
+
+- **NOT `read`'s generic signature.** The theory was that
+  `read<TDef extends AnyMachineDef>(instance: InstanceOf<TDef>, …)` can't infer
+  `TDef` because `InstanceOf` is a conditional type (non-invertible). A faithful
+  `tsc` repro (TS 5.9.3) says otherwise: it infers `TDef = WeatherMachine` and
+  `w` keeps its selectors — **type-checks clean**. (Repro shape: `MachineDef`
+  with `Sel extends Record<string,(...)=>any>`, selectors as `(ctx)=>value`
+  where a parameterized one returns a function, `Stator.reads` as a mapped
+  tuple.)
+- **NOT `defineMachine` erasing selectors.** It returns
+  `MachineDef<C, E, S, Sel, Name>` — `Sel` is preserved.
+- **NOT the LSP importing a different `read`.** `compiler/virtual-code.ts`
+  injects the real `read` from `@statorjs/stator/template` and declares
+  `Stator.reads` with the real template `InstanceOf`.
+- **Still open — candidates:** the real `SelectorMap<C, ReadsMap<TReads>>`
+  selector shapes (something the idealized repro doesn't capture), or the
+  volar/virtual-code environment itself (region mapping, or how the frontmatter
+  body scope sees the `Stator.reads` bindings). **To pin it, capture the exact
+  editor error text** — "Property `panelForId` does not exist on type X" vs
+  "Parameter `w` implicitly has an 'any' type" point at very different causes —
+  and diff the generated virtual TSX against a plain `tsc` run.
+
+## 9. Components can't own reads → shared state is prop-drilled
+
+Splitting `index.stator` into tile components surfaced that `Stator.reads` is
+route-only (`compile.ts:361`); a component receives the machine *handle* as a
+prop (`<UvTile weather={weather} placeId={p.id} />`) and does its own
+`read(weather, …)`. **Validated** end-to-end — the extracted tile's reads
+produce per-panel scoped slots and patch live (UV filled to `6` the moment the
+route's hero filled to `17°`).
+
+Route-only reads is the *right* default (loading is a setup-phase concern;
+reads are the capability surface; data-down keeps components reusable). But it
+prop-drills **state** through every layer, which is real DX friction at scale,
+and a forgotten prop is a *runtime* error. The fix — read machines by their
+imported def from the ambient request context, with the dependency carried in
+the type and enforced up the tree (inversion of control) — is designed in
+[`ambient-by-def-machine-reads-with-a-typed-requirement-channel`](../../.chisel/specs/active/ambient-by-def-machine-reads-with-a-typed-requirement-channel.md)
+and tracked in [ROADMAP.md](../../ROADMAP.md) under Primitives. Until it lands,
+the refactor uses the `weather={weather} placeId` contract.
