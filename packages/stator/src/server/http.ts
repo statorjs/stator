@@ -421,6 +421,9 @@ async function bundleInspector(): Promise<string> {
     target: 'es2020',
     write: false,
     minify: false,
+    // The inspector imports its CSS as a text string (bundled inline, no
+    // separate stylesheet request).
+    loader: { '.css': 'text' },
     logLevel: 'silent',
   })
   cachedInspectorJs = result.outputFiles[0]!.text

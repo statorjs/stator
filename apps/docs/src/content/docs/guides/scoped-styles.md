@@ -37,3 +37,7 @@ Wrap a selector (or part of one) in `:global(...)` to opt out of scoping — use
 ## With class:list
 
 Scoped rules match classes composed at runtime by [`class:list`](/guides/directives/#classlist--reactive-classes), since the scope attribute is on the element, not the class. A reactively-toggled class picks up its scoped rule exactly like a static one.
+
+## The `stator-inspector` layer (dev only)
+
+The only cascade layer Stator itself declares is `stator-inspector` — where the dev inspector injects its own styles. It's deliberately the **lowest-priority** layer: your app's styles are unlayered, and unlayered author styles beat every `@layer`, so your styles always win and the inspector can never override the page it's inspecting. You'll only ever encounter it if your app also uses `@layer` and you're reasoning about ordering — declare your layers however you like; the inspector never competes with unlayered rules. It's never present in production.
