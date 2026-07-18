@@ -1,0 +1,36 @@
+---
+import WeatherMachine from '../machines/weather.ts'
+import type { InstanceOf } from '@statorjs/stator/template'
+
+const { weather, placeId } = Stator.props<{
+  weather: InstanceOf<typeof WeatherMachine>
+  placeId: string
+}>()
+---
+<div class="tile m2 press flip-tile" style="--c:#00ABA9;--tc:#fff">
+  <div class="flip-inner">
+    <div class="flip-face front">
+      <div class="t-top">
+        <span class="t-label">Wind</span>
+        <svg class="compass" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.4)" stroke-width="1.4" />
+          <g transform={read(weather, (w) => w.panelForId(placeId).windTransform)}>
+            <path d="M12 5 L9.5 12 L12 10.5 L14.5 12 Z" fill="#fff" />
+          </g>
+        </svg>
+      </div>
+      <div>
+        <div class="t-big num">{read(weather, (w) => w.panelForId(placeId).wind)}<span class="u">{read(weather, (w) => w.panelForId(placeId).windUnit)}</span></div>
+        <div class="t-sub">from {read(weather, (w) => w.panelForId(placeId).cardinal)}</div>
+      </div>
+    </div>
+    <div class="flip-face back">
+      <svg class="t-bg-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M3 8h9.5a2.3 2.3 0 1 0-2.3-2.3" /><path d="M3 13h13.5a2.7 2.7 0 1 1-2.7 2.7" /><path d="M3 18h7" /></svg>
+      <div class="t-label">Gusts</div>
+      <div>
+        <div class="t-big num">{read(weather, (w) => w.panelForId(placeId).gust)}<span class="u">{read(weather, (w) => w.panelForId(placeId).windUnit)}</span></div>
+        <div class="t-sub">from {read(weather, (w) => w.panelForId(placeId).cardinal)}</div>
+      </div>
+    </div>
+  </div>
+</div>

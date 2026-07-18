@@ -3,13 +3,18 @@
 import SearchMachine from '../machines/search.ts'
 import SettingsMachine from '../machines/settings.ts'
 import WeatherMachine from '../machines/weather.ts'
+import AqiTile from '../templates/aqi-tile.stator'
+import DailyTile from '../templates/daily-tile.stator'
 import EditMode from '../templates/edit-mode.stator'
+import Hero from '../templates/hero.stator'
+import HourlyTile from '../templates/hourly-tile.stator'
 import Layout from '../templates/layout.stator'
-import LiveSky from '../templates/live-sky.stator'
 import LocationSearch from '../templates/location-search.stator'
 import PivotCtl from '../templates/pivot-ctl.stator'
+import SunMoonTile from '../templates/sun-moon-tile.stator'
 import TileMotion from '../templates/tile-motion.stator'
-import { raw } from '@statorjs/stator/template'
+import UvTile from '../templates/uv-tile.stator'
+import WindTile from '../templates/wind-tile.stator'
 
 const [weather, settings, search] = Stator.reads([WeatherMachine, SettingsMachine, SearchMachine])
 ---
@@ -95,180 +100,28 @@ const [weather, settings, search] = Stator.reads([WeatherMachine, SettingsMachin
         read(weather, (w) => w.places),
         (p) => (
           <section class="panel" data-id={p.id}>
-            <div class="hero">
-              <LiveSky scene={read(weather, (w) => w.panelForId(p.id).scene)} />
-              <div class="hero-body">
-                <div class="hero-temp num">{read(weather, (w) => w.panelForId(p.id).temp)}</div>
-                <div class="hero-cond">{read(weather, (w) => w.panelForId(p.id).cond)}</div>
-                <div class="hero-meta">
-                  <span>Feels <span class="num">{read(weather, (w) => w.panelForId(p.id).feels)}</span></span>
-                  <span>
-                    <span class="num">{read(weather, (w) => w.panelForId(p.id).wind)}</span>
-                    {' '}{read(weather, (w) => w.panelForId(p.id).windUnit)}
-                    {' '}{read(weather, (w) => w.panelForId(p.id).cardinal)}
-                  </span>
-                  <span class="num">{read(weather, (w) => w.panelForId(p.id).humidity)}% RH</span>
-                </div>
-              </div>
-            </div>
+            <Hero weather={weather} placeId={p.id} />
 
             <div class="grid">
               <TileMotion />
 
               {/* UV — peek */}
-              <div class="tile m2 press peek-tile" style="--c:#F0A30A;--tc:#231700">
-                <div class="slides">
-                  <div class="slide">
-                    <div class="t-top">
-                      <span class="t-label">UV index</span>
-                      <svg class="t-glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="currentColor" /><g stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="4.2" /><line x1="12" y1="19.8" x2="12" y2="22" /><line x1="2" y1="12" x2="4.2" y2="12" /><line x1="19.8" y1="12" x2="22" y2="12" /><line x1="4.9" y1="4.9" x2="6.4" y2="6.4" /><line x1="17.6" y1="17.6" x2="19.1" y2="19.1" /><line x1="4.9" y1="19.1" x2="6.4" y2="17.6" /><line x1="17.6" y1="6.4" x2="19.1" y2="4.9" /></g></svg>
-                    </div>
-                    <div>
-                      <div class="t-big">{read(weather, (w) => w.panelForId(p.id).uv)}</div>
-                      <div class="t-sub">{read(weather, (w) => w.panelForId(p.id).uvRating)}</div>
-                    </div>
-                  </div>
-                  <div class="slide">
-                    <svg class="t-bg-glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="currentColor" /><g stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="4.2" /><line x1="12" y1="19.8" x2="12" y2="22" /><line x1="2" y1="12" x2="4.2" y2="12" /><line x1="19.8" y1="12" x2="22" y2="12" /><line x1="4.9" y1="4.9" x2="6.4" y2="6.4" /><line x1="17.6" y1="17.6" x2="19.1" y2="19.1" /><line x1="4.9" y1="19.1" x2="6.4" y2="17.6" /><line x1="17.6" y1="6.4" x2="19.1" y2="4.9" /></g></svg>
-                    <div class="t-label">UV · {read(weather, (w) => w.panelForId(p.id).uvRating)}</div>
-                    <div class="t-sub t-adv">{read(weather, (w) => w.panelForId(p.id).uvAdvice)}</div>
-                  </div>
-                </div>
-              </div>
+              <UvTile weather={weather} placeId={p.id} />
 
               {/* Air quality — peek, colour-keyed by the European AQI band */}
-              <div
-                class="tile m2 press peek-tile"
-                style:list={{
-                  '--c': read(weather, (w) => w.panelForId(p.id).aqiColor),
-                  '--tc': read(weather, (w) => w.panelForId(p.id).aqiTextColor),
-                }}
-              >
-                <div class="slides">
-                  <div class="slide">
-                    <div class="t-top">
-                      <span class="t-label">Air quality</span>
-                      <svg class="t-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M3 8q3-2.4 6 0t6 0" /><path d="M3 13q3-2.4 6 0t6 0" /><path d="M3 18q3-2.4 6 0t6 0" /></svg>
-                    </div>
-                    <div>
-                      <div class="t-big">{read(weather, (w) => w.panelForId(p.id).aqi)}</div>
-                      <div class="t-sub">{read(weather, (w) => w.panelForId(p.id).aqiLabel)}</div>
-                    </div>
-                  </div>
-                  <div class="slide">
-                    <svg class="t-bg-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M3 8q3-2.4 6 0t6 0" /><path d="M3 13q3-2.4 6 0t6 0" /><path d="M3 18q3-2.4 6 0t6 0" /></svg>
-                    <div class="t-label">
-                      {read(weather, (w) => w.panelForId(p.id).aqiLabel)} · {read(weather, (w) => w.panelForId(p.id).aqiPollutant)}
-                    </div>
-                    <div class="t-sub t-adv">{read(weather, (w) => w.panelForId(p.id).aqiAdvice)}</div>
-                  </div>
-                </div>
-              </div>
+              <AqiTile weather={weather} placeId={p.id} />
 
               {/* Wind — flip, compass */}
-              <div class="tile m2 press flip-tile" style="--c:#00ABA9;--tc:#fff">
-                <div class="flip-inner">
-                  <div class="flip-face front">
-                    <div class="t-top">
-                      <span class="t-label">Wind</span>
-                      <svg class="compass" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.4)" stroke-width="1.4" />
-                        <g transform={read(weather, (w) => w.panelForId(p.id).windTransform)}>
-                          <path d="M12 5 L9.5 12 L12 10.5 L14.5 12 Z" fill="#fff" />
-                        </g>
-                      </svg>
-                    </div>
-                    <div>
-                      <div class="t-big num">{read(weather, (w) => w.panelForId(p.id).wind)}<span class="u">{read(weather, (w) => w.panelForId(p.id).windUnit)}</span></div>
-                      <div class="t-sub">from {read(weather, (w) => w.panelForId(p.id).cardinal)}</div>
-                    </div>
-                  </div>
-                  <div class="flip-face back">
-                    <svg class="t-bg-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M3 8h9.5a2.3 2.3 0 1 0-2.3-2.3" /><path d="M3 13h13.5a2.7 2.7 0 1 1-2.7 2.7" /><path d="M3 18h7" /></svg>
-                    <div class="t-label">Gusts</div>
-                    <div>
-                      <div class="t-big num">{read(weather, (w) => w.panelForId(p.id).gust)}<span class="u">{read(weather, (w) => w.panelForId(p.id).windUnit)}</span></div>
-                      <div class="t-sub">from {read(weather, (w) => w.panelForId(p.id).cardinal)}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <WindTile weather={weather} placeId={p.id} />
 
               {/* Sun & Moon — flip (sun arc/times ↔ moon phase), consolidated */}
-              <div class="tile m2 press flip-tile" style="--c:#FA6800;--tc:#fff">
-                <div class="flip-inner">
-                  <div class="flip-face front">
-                    <div class="t-label">Sun</div>
-                    <svg class="mini-arc" viewBox="0 0 128 52" aria-hidden="true">
-                      <path d="M 10 44 A 54 54 0 0 1 118 44" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="2" stroke-dasharray="2 4" />
-                      <path d={read(weather, (w) => w.panelForId(p.id).sunPath)} fill="none" stroke="#fff" stroke-width="2.2" />
-                      <circle cx={read(weather, (w) => w.panelForId(p.id).sunX)} cy={read(weather, (w) => w.panelForId(p.id).sunY)} r="5" fill="#fff" />
-                    </svg>
-                    <div class="t-foot">
-                      <span class="t-sub">↑ <span class="num">{read(weather, (w) => w.panelForId(p.id).sunrise)}</span></span>
-                      <span class="t-sub">↓ <span class="num">{read(weather, (w) => w.panelForId(p.id).sunset)}</span></span>
-                    </div>
-                  </div>
-                  <div class="flip-face back">
-                    <div class="t-top">
-                      <span class="t-label">Moon</span>
-                      <svg class="mini-moon" viewBox="-30 -30 60 60" aria-hidden="true">
-                        <circle r="26" fill="rgba(255,255,255,0.12)" />
-                        <path d={read(weather, (w) => w.panelForId(p.id).moonPath)} fill="#fff" />
-                        <circle r="26" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div class="t-sub t-moon-name">{read(weather, (w) => w.panelForId(p.id).moonName)}</div>
-                      <div class="t-sub"><span class="num">{read(weather, (w) => w.panelForId(p.id).moonIllumPct)}</span>% lit</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <SunMoonTile weather={weather} placeId={p.id} />
               {/* Hourly — w4 peek tile: a 6×2 grid of the next 12 hours, peeks
                   to the following 12. Fills the row next to the sun/moon tile. */}
-              <div class="tile w4 press peek-tile" style="--c:#1BA1E2;--tc:#fff">
-                <div class="slides">
-                  <div class="slide fc-slide">
-                    <div class="fc-title">Next 12 hours</div>
-                    <div class="hourly">
-                      {each(read(weather, (w) => w.hourlyForId(p.id).slice(0, 12)), (h) => (
-                        <div class="hour"><div class="h-time">{h.time}</div>{raw(h.icon)}<div class="h-temp num">{h.temp}</div><div class="h-pop num">{h.precip}</div><div class="h-rain num">{h.rain}</div></div>
-                      ))}
-                    </div>
-                  </div>
-                  <div class="slide fc-slide">
-                    <div class="fc-title">In 12–24 hours</div>
-                    <div class="hourly">
-                      {each(read(weather, (w) => w.hourlyForId(p.id).slice(12, 24)), (h) => (
-                        <div class="hour"><div class="h-time">{h.time}</div>{raw(h.icon)}<div class="h-temp num">{h.temp}</div><div class="h-pop num">{h.precip}</div><div class="h-rain num">{h.rain}</div></div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <HourlyTile weather={weather} placeId={p.id} />
 
               {/* 10-day — w4 peek tile: 5 days per frame, peeks to 6–10. */}
-              <div class="tile w4 press peek-tile" style="--c:#0050EF;--tc:#fff">
-                <div class="slides">
-                  <div class="slide fc-slide">
-                    <div class="daily">
-                      <div class="drow drow-head"><span class="d-day">Next 5 days</span><span></span><span class="d-pop">Rain</span><span class="d-lo">Lo</span><span class="d-hi">Hi</span></div>
-                      {each(read(weather, (w) => w.dailyForId(p.id).slice(0, 5)), (d) => (
-                        <div class="drow"><div class="d-day"><span class="d-date num">{d.date}</span>{d.day}</div>{raw(d.icon)}<div class="d-pop"><span class="num">{d.precip}</span><span class="d-rain num">{d.rain}</span></div><div class="d-lo num">{d.lo}</div><div class="d-hi num">{d.hi}</div></div>
-                      ))}
-                    </div>
-                  </div>
-                  <div class="slide fc-slide">
-                    <div class="daily">
-                      <div class="drow drow-head"><span class="d-day">Days 6–10</span><span></span><span class="d-pop">Rain</span><span class="d-lo">Lo</span><span class="d-hi">Hi</span></div>
-                      {each(read(weather, (w) => w.dailyForId(p.id).slice(5, 10)), (d) => (
-                        <div class="drow"><div class="d-day"><span class="d-date num">{d.date}</span>{d.day}</div>{raw(d.icon)}<div class="d-pop"><span class="num">{d.precip}</span><span class="d-rain num">{d.rain}</span></div><div class="d-lo num">{d.lo}</div><div class="d-hi num">{d.hi}</div></div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <DailyTile weather={weather} placeId={p.id} />
             </div>
           </section>
         ),

@@ -1,0 +1,26 @@
+---
+import WeatherMachine from '../machines/weather.ts'
+import LiveSky from './live-sky.stator'
+import type { InstanceOf } from '@statorjs/stator/template'
+
+const { weather, placeId } = Stator.props<{
+  weather: InstanceOf<typeof WeatherMachine>
+  placeId: string
+}>()
+---
+<div class="hero">
+  <LiveSky scene={read(weather, (w) => w.panelForId(placeId).scene)} />
+  <div class="hero-body">
+    <div class="hero-temp num">{read(weather, (w) => w.panelForId(placeId).temp)}</div>
+    <div class="hero-cond">{read(weather, (w) => w.panelForId(placeId).cond)}</div>
+    <div class="hero-meta">
+      <span>Feels <span class="num">{read(weather, (w) => w.panelForId(placeId).feels)}</span></span>
+      <span>
+        <span class="num">{read(weather, (w) => w.panelForId(placeId).wind)}</span>
+        {' '}{read(weather, (w) => w.panelForId(placeId).windUnit)}
+        {' '}{read(weather, (w) => w.panelForId(placeId).cardinal)}
+      </span>
+      <span class="num">{read(weather, (w) => w.panelForId(placeId).humidity)}% RH</span>
+    </div>
+  </div>
+</div>
