@@ -1,8 +1,8 @@
 ---
 title: Conditional-arm interiors are second-class on the live-update path
-status: ready
+status: shipped
 created: 2026-07-17
-updated: 2026-07-17
+updated: 2026-07-18
 area: runtime
 ---
 
