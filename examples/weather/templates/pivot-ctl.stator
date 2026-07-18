@@ -6,7 +6,7 @@
   // Thin Pivot controller. The carousel itself is pure CSS scroll-snap — this
   // island only wires clicks and scroll, like an image carousel's pill row:
   //   - click a pill  → smooth-scroll its hero into view
-  //   - scroll        → highlight the centred pill (client-side, every frame)
+  //   - scroll        → highlight the centered pill (client-side, every frame)
   //   - scroll settle → sync the active location to the server (SET_ACTIVE), so
   //                     the title + detail tiles follow the hero you landed on
   // It owns no data and holds no `active` binding; scroll position is the truth.
@@ -21,8 +21,8 @@
       const heroes = () => Array.from(carousel.querySelectorAll('.panel')) as HTMLElement[]
       const pills = () => Array.from(pivot.querySelectorAll('.pivot-item')) as HTMLElement[]
 
-      // The location whose hero is nearest the carousel's centre.
-      const centredId = (): string | null => {
+      // The location whose hero is nearest the carousel's center.
+      const centeredId = (): string | null => {
         const mid = carousel.scrollLeft + carousel.clientWidth / 2
         let best: HTMLElement | null = null
         let bestDist = Infinity
@@ -53,13 +53,13 @@
 
       let raf = 0
       let settle = 0
-      let synced: string | null = centredId()
+      let synced: string | null = centeredId()
       const onScroll = () => {
         cancelAnimationFrame(raf)
-        raf = requestAnimationFrame(() => highlight(centredId()))
+        raf = requestAnimationFrame(() => highlight(centeredId()))
         clearTimeout(settle)
         settle = window.setTimeout(() => {
-          const id = centredId()
+          const id = centeredId()
           if (id && id !== synced) {
             synced = id
             dispatch(WeatherMachine, { type: 'SET_ACTIVE', id })
@@ -73,7 +73,7 @@
       // re-renders the keyed pivot list wholesale, which would otherwise wipe
       // the client-set `.active`. (childList only, so our own class toggle in
       // highlight() doesn't re-trigger it.)
-      const applyHighlight = () => highlight(centredId())
+      const applyHighlight = () => highlight(centeredId())
       requestAnimationFrame(applyHighlight)
       const mo = new MutationObserver(applyHighlight)
       mo.observe(pivot, { childList: true, subtree: true })

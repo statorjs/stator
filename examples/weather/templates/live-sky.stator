@@ -36,7 +36,7 @@
     'thunder-day': { sky: ['#5c6b7e', '#9aa8b8'], glow: '240,180,90', clouds: 6, disc: null, part: 'rain', night: false },
     'thunder-night': { sky: ['#12181f', '#0b0f14'], glow: '150,160,180', clouds: 6, disc: null, part: 'rain', night: true },
   }
-  const sceneOf = (name: string): Scene => SCENES[name] ?? SCENES['cloudy-day']
+  const sceneOf = (name: string): Scene => SCENES[name] ?? SCENES['cloudy-day']!
 
   export class LiveSky extends StatorElement {
     static attrs = { scene: String }
