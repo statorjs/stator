@@ -9,7 +9,11 @@
   --line: rgba(255, 255, 255, 0.12);
   --tile-surface: #1a1a1a;
   --sans: "Segoe UI", "Segoe UI Variable Text", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
-  --u: clamp(84px, 15.5vw, 132px);
+  /* Mobile (4-col): size the tile so 4 columns + 3 gaps fit exactly inside the
+     content width (100vw − 2×16px side padding − 3×8px gaps = 100vw − 56px), so
+     the grid never overflows and gets clipped by the panel. Desktop overrides
+     this below. */
+  --u: min(132px, calc((100vw - 56px) / 4));
 }
 @media (prefers-color-scheme: light) {
   :root {
@@ -45,11 +49,16 @@ body {
   font-family: var(--sans);
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
+  /* Safety net: the panorama owns its own horizontal scroll, so nothing should
+     ever push the page itself sideways on a phone. */
+  overflow-x: hidden;
 }
 main {
   max-width: 1080px;
   margin: 0 auto;
-  padding: clamp(20px, 4vw, 44px) clamp(16px, 4vw, 40px) 60px;
+  /* Fixed 16px side padding on mobile so the --u column math is exact; the
+     desktop breakpoint widens it. */
+  padding: clamp(20px, 4vw, 44px) 16px 56px;
 }
 .num {
   font-variant-numeric: tabular-nums;
@@ -193,6 +202,12 @@ location-search {
   justify-content: start;
 }
 @media (min-width: 720px) {
+  :root {
+    --u: clamp(96px, 12vw, 132px);
+  }
+  main {
+    padding: 44px clamp(24px, 4vw, 44px) 60px;
+  }
   .grid {
     grid-template-columns: repeat(6, var(--u));
   }
@@ -459,6 +474,20 @@ tile-motion {
 .panel-remove:focus-visible {
   opacity: 1;
   background: rgba(0, 0, 0, 0.5);
+}
+/* Touch devices: no hover to reveal controls, and fingers need a bigger target.
+   Enlarge the remove button and keep it visible, and give the pivot pills a
+   finger-sized vertical hit area. */
+@media (pointer: coarse) {
+  .panel-remove {
+    width: 34px;
+    height: 34px;
+    font-size: 20px;
+    opacity: 0.72;
+  }
+  .pivot-item {
+    padding: 9px 0;
+  }
 }
 
 /* ---- Forecast tiles (hourly + 10-day) — w4 grid tiles ---------------- */
