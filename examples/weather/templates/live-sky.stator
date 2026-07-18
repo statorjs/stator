@@ -53,7 +53,10 @@
       let clouds: Array<{ x: number; y: number; s: number; v: number; a: number }> = []
       let stars: Array<{ x: number; y: number; r: number; tw: number }> = []
       let parts: Array<{ x: number; y: number; z: number }> = []
-      let scene = sceneOf(this.attrs.scene)
+      // `this.attrs.scene` is typed `unknown` (StatorElement's attrs getter is
+      // Record<string, unknown> — see FINDINGS #10); it's coerced to a string by
+      // the `scene: String` declaration, so the cast is safe.
+      let scene = sceneOf(this.attrs.scene as string)
 
       const seed = () => {
         clouds = Array.from({ length: scene.clouds }, () => ({ x: Math.random() * W, y: 8 + Math.random() * (H * 0.55), s: 0.7 + Math.random(), v: 5 + Math.random() * 9, a: 0.5 + Math.random() * 0.4 }))

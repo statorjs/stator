@@ -254,3 +254,20 @@ the type and enforced up the tree (inversion of control) — is designed in
 [`ambient-by-def-machine-reads-with-a-typed-requirement-channel`](../../.chisel/specs/active/ambient-by-def-machine-reads-with-a-typed-requirement-channel.md)
 and tracked in [ROADMAP.md](../../ROADMAP.md) under Primitives. Until it lands,
 the refactor uses the `weather={weather} placeId` contract.
+
+## 10. `this.attrs.X` on a client island is typed `unknown`
+
+`static attrs = { scene: String }` declares the observed attributes and coerces
+each one (kebab DOM attr → typed value), but `StatorElement`'s instance getter is
+`get attrs(): Record<string, unknown>` (`packages/stator/src/client/element.ts:63`).
+So `this.attrs.scene` is `unknown`, and any use needs a cast
+(`this.attrs.scene as string`) — TS(2345) otherwise. The `${key}Changed(next)`
+callback is fine (the author types `next`); only the direct `this.attrs.X` read
+loses the type the declaration already implies.
+
+- **Why it's hard:** a base class can't infer the instance `attrs` shape from a
+  subclass's `static attrs` field without generics.
+- **Options:** a generic base (`class LiveSky extends StatorElement<{ scene: string }>`),
+  or a declaration helper that maps the `String`/`Number`/`Boolean` constructors
+  in `static attrs` to `string`/`number`/`boolean` on `this.attrs`.
+- Worked around in the example with `as string`. (Surfaced by `live-sky`.)
