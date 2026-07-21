@@ -143,6 +143,29 @@ and bound attrs inside list items churn ids on unrelated events.
   array doesn't re-render just because clone changed its identity — the whole
   point of the clone is that content, not identity, is canonical. Related to the
   "Where data lives" perf story in ROADMAP.
+- **Resolution (per-row item bindings via `read(item, …)`):** an item field is made
+  live by reading it from the row — `read(item, (i) => i.field)` — the same `read()`
+  marker used for machine state. The compiler lowers that to a per-row `itemBind`
+  re-evaluated against the current item on recompute: a content change patches just
+  that field (`text` op, row DOM/ids/islands preserved), and identity churn no longer
+  re-renders (values compared, not references). Covers **both** non-keyed and keyed
+  (per-key, stable across moves) lists — so the keyed static-capture staleness above
+  is fixed too, not only the churn. A plain `{item.field}` still renders once, so the
+  "`read()` is the unit of reactivity" doctrine holds. Full design:
+  [`.chisel/specs/active/per-row-item-value-bindings-in-each.md`](../../.chisel/specs/active/per-row-item-value-bindings-in-each.md).
+  - **DX payoff (validated):** the `read(m, m => m.coll.find(x => x.id === item.id)?.f)`
+    workaround this finding forced collapses to `read(item, i => i.f)` — shown in
+    todomvc and live-poll; the same shape recurs in the desksmith cart and with-auth
+    notices.
+  - **Deferred:** `read(item, …)` in *attribute* position (`class={…}`, `checked={…}`)
+    — text-only for now; `raw(item.icon)` item-html; and the unkeyed all-static churn
+    case (a whole-array value compare would close it).
+  - **Semver:** minor. A live item field renders inside a `<span data-slot>` (as
+    `read()` already does) — new markup, same content.
+  - **Note:** first built as implicit `{item.field}` reactivity, then reworked to
+    explicit `read(item, …)` — the implicit form made a bare `{expr}` live with no
+    marker (off-doctrine) and needed a `raw`/nested-`each` guard against silent
+    staleness; the explicit form drops both.
 
 ## 6. (Enhancement idea) First-class SVG icon handling
 

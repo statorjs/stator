@@ -28,7 +28,7 @@ import {
   type DirectiveInvocation,
   isDirectiveInvocation,
 } from './directives/core.ts'
-import { isEachResult } from './each.ts'
+import { isEachResult, isItemReadResult } from './each.ts'
 import { isReadResult, type ReadResult } from './read.ts'
 
 export function html(strings: TemplateStringsArray, ...values: unknown[]): HtmlFragment {
@@ -111,6 +111,18 @@ function processValue(builder: HtmlBuilder, state: RenderState, value: unknown):
 
   if (isReadResult(value)) {
     handleRead(builder, state, value, pos)
+    return
+  }
+
+  // SPIKE (option C): an itemBind() slot — the binding was already registered on
+  // the row (in itemBind), so here we just emit the addressable span.
+  if (isItemReadResult(value)) {
+    if (pos.kind !== 'text') {
+      throw new Error('stator: itemBind() can only be interpolated in text position (spike)')
+    }
+    builder.pushRaw(
+      `<span data-slot="${value.slotId}">${escapeText(stringifyValue(value.value))}</span>`,
+    )
     return
   }
 

@@ -91,28 +91,58 @@ function recomputeInner(state: RenderState, machineName: string, runtime: Sessio
     } else if (binding.kind === 'list') {
       const newArray = newValue as readonly unknown[]
       const oldArray = binding.lastValue as readonly unknown[]
-      if (!arrayShallowEqual(newArray, oldArray)) {
+      const rows = binding.rows
+      // SPIKE (finding #5 / option C): a same-length list with item bindings
+      // diffs each row's item-value bindings and patches only the changed fields
+      // — the row DOM (islands, focus) is preserved, and identity churn (the VM
+      // re-deriving item objects) no longer forces a re-render, because we
+      // compare *values*, not references. Nested read() bindings inside a row
+      // are separate machine bindings and update through the main pass as usual.
+      if (rows && newArray.length === rows.length) {
+        for (let i = 0; i < newArray.length; i++) {
+          const item = newArray[i]
+          for (const ib of rows[i]!) {
+            const nv = ib.selector(item, i)
+            if (!valuesEqual(nv, ib.lastValue)) {
+              pending.push({
+                patch: {
+                  target: { kind: 'slot', id: ib.slotId },
+                  op: 'text',
+                  value: stringify(nv),
+                },
+                sourceSlot: ib.slotId,
+              })
+              ib.lastValue = nv
+            }
+          }
+        }
+        binding.lastValue = newArray
+      } else if (!arrayShallowEqual(newArray, oldArray)) {
+        // No item bindings, or the length changed → wholesale re-render (and
+        // refresh binding.rows so a later same-length pass is granular again).
         const fn = binding.itemRenderer
-        const newInner = runInRender(state, () => renderListBody(state, slotId, newArray, fn))
+        const rendered = runInRender(state, () => renderListBody(state, slotId, newArray, fn))
         pending.push({
           patch: {
             target: { kind: 'slot', id: slotId },
             op: 'html',
-            value: newInner,
+            value: rendered.html,
           },
           sourceSlot: slotId,
         })
         binding.lastValue = newArray
+        binding.rows = rendered.rows.some((r) => r.length > 0) ? rendered.rows : undefined
       }
     } else if (binding.kind === 'list-keyed') {
       // Keyed diff: shape changes become per-item insert/remove/move ops from
       // a replay simulation (`work` mirrors what the client's DOM will look
-      // like after each emitted op — see the wire contract). Content inside
-      // retained items updates through the items' own nested bindings; the
-      // keyed path never re-renders a retained row.
+      // like after each emitted op — see the wire contract). Retained rows keep
+      // their DOM; their content updates through nested read()s and — option C —
+      // per-row itemBind item-value bindings (diffed after the shape pass).
       const newArray = newValue as readonly unknown[]
       const newKeys = coerceKeys(newArray, binding.keyFn, slotId)
       const oldKeys = binding.lastKeys
+      const rowsByKey = binding.rowsByKey
       if (!stringArraysEqual(newKeys, oldKeys)) {
         const target = { kind: 'slot', id: slotId } as const
         const newKeySet = new Set(newKeys)
@@ -125,6 +155,7 @@ function recomputeInner(state: RenderState, machineName: string, runtime: Sessio
           const scope = keyedScopePrefix(slotId, keyToken(key))
           removedScopes.push(`${scope}:`)
           unregisterBindingsForScope(state, scope)
+          rowsByKey?.delete(key)
           work.splice(i, 1)
         }
         // Settle each position left-to-right: an existing key moves up, a new
@@ -138,17 +169,46 @@ function recomputeInner(state: RenderState, machineName: string, runtime: Sessio
             work.splice(from, 1)
             work.splice(i, 0, key)
           } else {
-            const itemHtml = runInRender(state, () =>
+            const row = runInRender(state, () =>
               renderKeyedItem(state, slotId, newArray[i], i, key, binding.itemRenderer),
             )
+            rowsByKey?.set(key, row.bindings)
             pending.push({
-              patch: { target, op: 'insert', index: i, value: itemHtml },
+              patch: { target, op: 'insert', index: i, value: row.html },
               sourceSlot: slotId,
             })
             work.splice(i, 0, key)
           }
         }
         binding.lastKeys = newKeys
+      }
+      // Option C (keyed): retained rows re-evaluate their item-value bindings, so
+      // a content change patches the changed field in place — no re-render, no
+      // reliance on the row carrying a nested read(). Rows inserted this pass are
+      // already current (rendered above); removed rows are gone.
+      if (rowsByKey) {
+        const oldKeySet = new Set(oldKeys)
+        for (let i = 0; i < newKeys.length; i++) {
+          const key = newKeys[i]!
+          if (!oldKeySet.has(key)) continue
+          const row = rowsByKey.get(key)
+          if (!row) continue
+          const item = newArray[i]
+          for (const ib of row) {
+            const nv = ib.selector(item, i)
+            if (!valuesEqual(nv, ib.lastValue)) {
+              pending.push({
+                patch: {
+                  target: { kind: 'slot', id: ib.slotId },
+                  op: 'text',
+                  value: stringify(nv),
+                },
+                sourceSlot: ib.slotId,
+              })
+              ib.lastValue = nv
+            }
+          }
+        }
       }
       binding.lastValue = newArray
     } else if (binding.kind === 'branch') {
@@ -266,12 +326,19 @@ export function initialSyncPatches(state: RenderState, runtime: SessionRuntime):
     for (const key of keys) {
       unregisterBindingsForScope(state, keyedScopePrefix(slotId, keyToken(key)))
     }
+    // Rebuild rowsByKey alongside the HTML — the re-render replaces every row's
+    // slot registrations, so the old item-bindings are stale.
+    const rebuilt: typeof binding.rowsByKey = binding.rowsByKey ? new Map() : undefined
     let rowsHtml = ''
     for (let i = 0; i < items.length; i++) {
-      rowsHtml += runInRender(state, () =>
-        renderKeyedItem(state, slotId, items[i], i, keys[i]!, binding.itemRenderer),
+      const key = keys[i]!
+      const row = runInRender(state, () =>
+        renderKeyedItem(state, slotId, items[i], i, key, binding.itemRenderer),
       )
+      rowsHtml += row.html
+      rebuilt?.set(key, row.bindings)
     }
+    if (rebuilt) binding.rowsByKey = rebuilt
     patches.push({ target: { kind: 'slot', id: slotId }, op: 'html', value: rowsHtml })
   }
 

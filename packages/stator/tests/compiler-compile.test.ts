@@ -14,7 +14,7 @@ const { cart } = Stator.props<{ cart: InstanceOf<typeof CartMachine> }>()
 
     // Primitives auto-injected.
     expect(serverCode).toContain(
-      "import { html, read, each, when, match, defer, on, classList, styleList } from '@statorjs/stator/template'",
+      "import { html, read, each, itemBind, when, match, defer, on, classList, styleList } from '@statorjs/stator/template'",
     )
     // Author imports hoisted.
     expect(serverCode).toContain("import type CartMachine from '../machines/cart.ts'")
@@ -34,7 +34,7 @@ const { cart } = Stator.props<{ cart: InstanceOf<typeof CartMachine> }>()
     const { serverCode } = compile(src)
     // `defer` is in the auto-injected import…
     expect(serverCode).toContain(
-      "import { html, read, each, when, match, defer, on, classList, styleList } from '@statorjs/stator/template'",
+      "import { html, read, each, itemBind, when, match, defer, on, classList, styleList } from '@statorjs/stator/template'",
     )
     // …and the call is lowered into the template unchanged.
     expect(serverCode).toContain('defer(() => db.getPost(1),')

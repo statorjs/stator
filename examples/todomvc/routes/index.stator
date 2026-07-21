@@ -61,7 +61,7 @@ const visible = (list: Todo[]) =>
                         on:click={() => todos.send({ type: 'TOGGLE', id: todo.id })}
                       />
                       <label on:dblclick={() => todos.send({ type: 'EDIT_START', id: todo.id })}>
-                        {read(todos, (t) => t.all.find((x) => x.id === todo.id)?.title ?? '')}
+                        {read(todo, (t) => t.title)}
                       </label>
                       <button
                         class="destroy"

@@ -48,7 +48,7 @@ export interface CompileResult {
 }
 
 const PRIMITIVES_IMPORT =
-  "import { html, read, each, when, match, defer, on, classList, styleList } from '@statorjs/stator/template'"
+  "import { html, read, each, itemBind, when, match, defer, on, classList, styleList } from '@statorjs/stator/template'"
 
 export interface CompileOptions {
   /** Stable id for the component (file path). Used for the scope hash so the
