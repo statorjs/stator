@@ -130,39 +130,29 @@ Stator. Held to the same evidence bar (a spike proves it before it ships).
 runnable repro. These jump the evidence queue: a correctness bug on a documented
 pattern is a bigger liability than any missing primitive.
 
-- **Conditional-arm interiors on the live path** *(confirmed, fix pending)*: two
-  independent bugs where content inside a `match`/`when`/`each` arm is
-  second-class on SSE fan-out. **Bug A** — element ids are a flat global counter
-  (not arm-scoped like slot ids), so an island / `on:` handler / `read()`-bound
-  attribute inside an arm gets an unstable id and its patch mis-targets (can
-  silently hit a real element). **Bug B** — a `read()` inside an arm renders
-  stale on the *first* data arrival, because the fan-out re-render evaluates the
-  arm body against a frozen render-time closure proxy while leaf bindings use the
-  fresh one. Both are worked around in `weather` (keep element-id'd nodes and
-  data reads outside arms); the real fix (arm-scope element ids; resolve nested
-  reads against the current runtime) is designed in
-  [`.chisel/specs/active/conditional-arm-interiors-are-second-class-on-the-live-update-path.md`](.chisel/specs/active/conditional-arm-interiors-are-second-class-on-the-live-update-path.md),
-  with live SSE evidence in `examples/weather/FINDINGS.md` (#2, #3).
-  *Motivation*: natural templates hit it, it fails silently, and it undercuts the
-  live-update guarantee that is the framework's whole pitch.
-- **Attribute composition is drop-not-merge** *(confirmed, fix pending)*: the
-  compiler-path sibling. Static `class` + `class:list` on one element emits two
-  `class` attributes (browser keeps one, the other silently vanishes); a
-  component/island's *root* static attributes (`class`, `hidden`, ARIA, `data-*`)
-  are dropped entirely, so a component can't style or flag its own root. Both are
-  attribute application treated as last-writer-wins instead of a merge —
-  designed in
-  [`.chisel/specs/active/attribute-composition-on-an-element-is-drop-not-merge.md`](.chisel/specs/active/attribute-composition-on-an-element-is-drop-not-merge.md),
-  evidence in `examples/weather/FINDINGS.md` (#1, #4).
-  *Motivation*: silent attribute loss on ordinary markup; small, mechanical fix.
+- **Composition-boundary bugs** *(shipped, #20)*: four bugs where the
+  compose/identity layer did the wrong thing on ordinary markup — element ids not
+  arm-scoped (patches mis-targeting inside `match`/`when`/`each` arms), a `read()`
+  in an arm resolving against a frozen proxy, and `class`/`class:list` + root
+  attributes dropped instead of merged. Surfaced by `weather`, fixed together;
+  specs in
+  [`shipped/`](.chisel/specs/shipped/conditional-arm-interiors-are-second-class-on-the-live-update-path.md).
+- **The compose/identity seam is the standing complexity risk** *(watch, not a
+  task)*: slot scopes, key scopes, element ids — the addressing layer under the
+  bindings. It generated the four bugs above, and a new binding *kind* re-tests
+  it (item bindings hit a keyed render-time throw in #24, caught before merge).
+  The diff-*kind* surface stays small on purpose (see
+  [`.chisel/docs/recompute-model.md`](.chisel/docs/recompute-model.md)); the
+  guardrail is on this seam — a new binding kind or position earns its place only
+  after it regression-tests the seam and clears the same evidence bar as any
+  primitive. *Motivation*: this is where a fine-grained model quietly acquires
+  VDOM-shaped complexity if unwatched.
 
 ## Sequencing
 
 1. `with-auth` + the authentication recipe (co-developed)
-2. **Conditional-arm live-path fix** (Runtime correctness) — near-term; the
-   `weather` example is already blocked-by-workaround on it
-3. "Where data lives" recipe → **async loaders design note**
-4. Webhooks + file-uploads recipes
+2. "Where data lives" recipe → **async loaders design note**
+3. Webhooks + file-uploads recipes
 5. Snapshot versioning/migrations (implement)
 6. `planning-poker` → presence findings → state timeouts (implement)
 7. **Time-travel debugger spike** → findings note → ship if it holds (dev-tooling

@@ -54,6 +54,16 @@ This note is the contract — a change to any rule is a wire-behavior change.
   inside rule 1's window, which rule 1 closes.
 - Expansion is static and transitive over declared `reads:`; nothing is
   tracked at runtime. (Signals remain rejected.)
+- The binding-kind set is **closed and small** — `text`, `attr`, `list`,
+  `list-keyed`, `branch`, plus the per-row `item` binding — each mapping to one
+  wire op. New reactivity is a new binding *kind*, never a tree diff: this is the
+  line that keeps the diff engine from drifting into a VDOM. And `read()` is the
+  sole reactivity marker — a plain `{expr}` renders once. Item-value bindings
+  (#24) were reworked from an implicit `{item.field}` form to explicit
+  `read(item, …)` to hold exactly this, and the explicit form was *less* code (it
+  deleted an auto-classifier and a staleness guard). The complexity to watch is
+  not the number of kinds — it's the scope/identity layer underneath them (see
+  ROADMAP's *Runtime correctness*).
 - Keyed lists never receive positional ops from a producer that can't know
   the DOM's row set — hence initial sync resets them wholesale.
 - All rules run under the session lock (or against live app instances);

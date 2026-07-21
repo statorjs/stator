@@ -4,6 +4,10 @@ Framework rough edges surfaced while building this app (per CONTRIBUTING's
 "findings over patches"). Each is worked around in the example; the note is for
 the framework.
 
+**Status:** #1–#4 (composition-boundary bugs) shipped in #20; #5 (per-row item
+bindings) shipped in #24. The rest remain open enhancement notes. This file is
+transient scratch — durable records live in `.chisel/specs/` and `ROADMAP.md`.
+
 ## 1. Static `class` + `class:list` on the same element emits two `class` attributes
 
 `<button class="place-tab" class:list={{ active }}>` compiles to a tag with

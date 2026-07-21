@@ -34,6 +34,7 @@ When a piece of state should never touch the server, a `.stator` file can *be* a
 - **vs. Astro** — Astro ships islands of components; Stator's unit is the machine, and the server stays authoritative for state, not just the initial HTML.
 - **vs. Svelte / Solid** — the same goal of fine-grained updates, but reactivity is a machine read you *declare on a node*, computed server-side, not a compiler-tracked signal in the browser.
 - **vs. HTMX** — the same "HTML over the wire" instinct, but you send typed events to typed machines and get back structured patches, not opaque fragments.
+- **vs. Phoenix LiveView / Livewire** — the closest architecture: the server holds the state, diffs it, and patches the DOM over a live connection. Stator brings that model to TypeScript/JSX, with state machines as the state primitive and the machine — not the page — as the unit of composition.
 
 ## What Stator is not (today)
 
