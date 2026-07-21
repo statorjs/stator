@@ -35,24 +35,43 @@ existing DOM nodes; the focused input in an untouched row stays focused.
 ## How content inside a row updates
 
 A retained row is **never re-rendered** by the keyed path — that's the whole
-point. Content that changes over time must flow through its own binding:
+point. A field that changes over time flows through a `read()`, the same marker
+of live data as everywhere else. The source is just the row instead of a machine:
 
 ```
 {each(
   read(list, (l) => l.rows),
   (row) => (
     <li>
-      {/* updates in place, wherever the row moves */}
-      {read(list, (l) => l.rows.find((r) => r.id === row.id)?.label ?? '')}
+      {/* live — patched in place, wherever the row moves */}
+      {read(row, (r) => r.label)}
     </li>
   ),
   { key: (row) => row.id },
 )}
 ```
 
-A plain interpolation like `{row.label}` renders once, at insert. This is the
-same doctrine as everywhere else in Stator — [read selectors are the unit of
-reactivity](/concepts/reactivity-and-reads/) — applied to rows.
+`read(row, …)` is a **per-row binding**: a content change patches just that
+field and leaves the row's DOM — a focused input, an island, its element ids —
+untouched. Identity churn (the fresh array a clone hands back on every
+transition) forces nothing, because it compares *values*, not references.
+
+A plain `{row.label}` still renders **once**, at insert — [`read()` is the unit
+of reactivity](/concepts/reactivity-and-reads/), in a row as everywhere else. Use
+it for a field that never changes after insert; use `read(row, …)` for one that
+does.
+
+### Attributes
+
+`read(row, …)` binds a field in **text** position. An item field in an
+*attribute* — `class={…}`, `checked={…}`, `disabled={…}` — still reads from the
+machine for now:
+
+```
+<input checked={read(todos, (t) => t.all.find((x) => x.id === row.id)?.done)} />
+```
+
+Per-row *attribute* bindings are a planned follow-up.
 
 Inner slot ids are derived from the item's **key**, not its position
 (`s0:kp1:s0`), which is what lets a patch address "the row for p1, wherever
@@ -60,20 +79,20 @@ it is now."
 
 ## Keying is also a performance choice
 
-`each` re-renders its whole body whenever the source array's **identity**
-changes — and a session/app context is `structuredClone`d on every transition,
-so `read(m, (m) => m.rows)` returns a fresh array (with fresh element objects)
-after **every** event to that machine, even one that never touched `rows`. An
-unkeyed list therefore re-renders its entire body on every transition of its
-machine (one `html` patch); a keyed list emits nothing when the keys are
-unchanged, and per-item ops when they aren't.
+A session/app context is `structuredClone`d on every transition, so
+`read(m, (m) => m.rows)` returns a fresh array after **every** event to that
+machine — even one that never touched `rows`. Per-row bindings absorb that: a
+list whose rows carry them compares *values* and stays quiet when nothing
+changed, keyed or not. The whole body only re-renders when the array changes
+**length**, or when a row has no per-field binding to patch (see above).
 
-For a short display list that's negligible. For a long list — or one in a
-machine that fires often (a timer, an unrelated toggle, a units switch) — prefer
-`key`: it turns O(n) work per event into O(1) when nothing moved. Keyed items
-also keep **stable, key-scoped element ids**, so `on:` handlers, bound
+Keying earns its place on **shape and stability**, not churn. When the length
+does change, an unkeyed list re-renders its whole body while a keyed one emits
+just the `insert`/`remove`/`move` ops for what moved — O(n) versus O(1). And
+keyed items keep **stable, key-scoped element ids**, so `on:` handlers, bound
 attributes, and islands inside a row keep addressing the right node across
-updates.
+reorders. For a short display list the difference is negligible; for a long or
+frequently-reordered one, reach for `key`.
 
 ## When to stay unkeyed
 
