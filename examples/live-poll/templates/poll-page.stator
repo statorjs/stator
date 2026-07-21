@@ -97,12 +97,7 @@ const pollOf = (p: InstanceOf<typeof PollsMachine>): Poll | undefined =>
                       <li class="results-row">
                         <div class="results-row-head">
                           <span class="results-row-text">{option.text}</span>
-                          <span class="results-row-count">
-                            {read(polls, (p) => {
-                              const o = pollOf(p)?.options.find((oo) => oo.id === option.id)
-                              return o?.count ?? 0
-                            })}
-                          </span>
+                          <span class="results-row-count">{read(option, (o) => o.count)}</span>
                         </div>
                         <div class="results-bar">
                           <div
