@@ -3,6 +3,7 @@ import {
   type ErasedItemRenderer,
   type ErasedKeyFn,
   type ErasedSelector,
+  type ItemBinding,
   keyedScopePrefix,
   keyToken,
   popListScope,
@@ -37,6 +38,36 @@ export function isEachResult(v: unknown): v is EachResult {
   )
 }
 
+/**
+ * SPIKE (finding #5 / option C): the value of an item-dependent interpolation
+ * inside an `each` row — what the compiler will lower `{item.field}` to. It
+ * evaluates the selector against the *current* row's item now, and registers a
+ * per-row binding so a later content change patches this one slot in place
+ * (rather than re-rendering the row, so islands/focus survive).
+ */
+export interface ItemReadResult {
+  readonly __isItemRead: true
+  readonly slotId: SlotId
+  readonly value: unknown
+}
+
+export function isItemReadResult(v: unknown): v is ItemReadResult {
+  return typeof v === 'object' && v !== null && (v as Record<string, unknown>).__isItemRead === true
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: erased item selector — the item type is the each callback's, recovered at the call site
+export function itemBind(selector: (item: any, index: number) => unknown): ItemReadResult {
+  const state = requireCurrentRenderState()
+  if (!state.currentRowBindings) {
+    throw new Error('stator: itemBind() must be called inside an each() row')
+  }
+  const index = state.currentItemIndex ?? 0
+  const value = selector(state.currentItem, index)
+  const slotId = allocSlotId(state)
+  state.currentRowBindings.push({ slotId, selector, lastValue: value })
+  return { __isItemRead: true, slotId, value }
+}
+
 export function each<T>(
   items: readonly T[] | ReadResult<readonly T[]>,
   fn: (item: T, index: number) => HtmlFragment,
@@ -63,8 +94,10 @@ export function each<T>(
   let innerHtml: string
   if (keyFn) {
     const keys = coerceKeys(array, keyFn as ErasedKeyFn, slotId)
-    innerHtml = renderKeyedListBody(state, slotId, array, keys, fn)
+    const body = renderKeyedListBody(state, slotId, array, keys, fn)
+    innerHtml = body.html
     if (machineName && selector) {
+      const hasItemBindings = [...body.rowsByKey.values()].some((b) => b.length > 0)
       registerBinding(state, {
         slotId,
         machineName,
@@ -74,10 +107,13 @@ export function each<T>(
         itemRenderer: fn as ErasedItemRenderer,
         keyFn: keyFn as ErasedKeyFn,
         lastKeys: keys,
+        // Same opt-in as non-keyed: only track rows when there ARE item bindings.
+        rowsByKey: hasItemBindings ? body.rowsByKey : undefined,
       })
     }
   } else {
-    innerHtml = renderListBody(state, slotId, array, fn)
+    const body = renderListBody(state, slotId, array, fn)
+    innerHtml = body.html
     if (machineName && selector) {
       registerBinding(state, {
         slotId,
@@ -86,6 +122,10 @@ export function each<T>(
         lastValue: array,
         kind: 'list',
         itemRenderer: fn as ErasedItemRenderer,
+        // Only opt into the granular path when there ARE item bindings —
+        // otherwise (static-capture rows) leave it undefined so recompute
+        // wholesale-re-renders as before, keeping content fresh.
+        rows: body.rows.some((r) => r.length > 0) ? body.rows : undefined,
       })
     }
   }
@@ -111,23 +151,39 @@ export function renderListBody<T>(
   listSlotId: SlotId,
   items: readonly T[],
   fn: (item: T, index: number) => HtmlFragment,
-): string {
+): { html: string; rows: ItemBinding[][] } {
   unregisterBindingsForScope(state, listSlotId)
 
+  // Save/restore the ambient row context around the whole body so a nested
+  // each() (a row rendering its own list) doesn't clobber this list's row.
+  const prevItem = state.currentItem
+  const prevIndex = state.currentItemIndex
+  const prevRow = state.currentRowBindings
+
   const chunks: string[] = []
+  const rows: ItemBinding[][] = []
   for (let i = 0; i < items.length; i++) {
     pushListScope(state, listSlotId, i)
+    const rowBindings: ItemBinding[] = []
+    state.currentItem = items[i]
+    state.currentItemIndex = i
+    state.currentRowBindings = rowBindings
     try {
       const fragment = fn(items[i]!, i)
       if (!isHtmlFragment(fragment)) {
         throw new Error('stator: each() callback must return an html`...` result')
       }
       chunks.push(fragment.html)
+      rows.push(rowBindings)
     } finally {
       popListScope(state)
     }
   }
-  return chunks.join('')
+
+  state.currentItem = prevItem
+  state.currentItemIndex = prevIndex
+  state.currentRowBindings = prevRow
+  return { html: chunks.join(''), rows }
 }
 
 /**
@@ -173,13 +229,17 @@ export function renderKeyedListBody<T>(
   items: readonly T[],
   keys: readonly string[],
   fn: (item: T, index: number) => HtmlFragment,
-): string {
+): { html: string; rowsByKey: Map<string, ItemBinding[]> } {
   unregisterBindingsForScope(state, listSlotId)
   const chunks: string[] = []
+  const rowsByKey = new Map<string, ItemBinding[]>()
   for (let i = 0; i < items.length; i++) {
-    chunks.push(renderKeyedItem(state, listSlotId, items[i] as T, i, keys[i]!, fn))
+    const key = keys[i]!
+    const row = renderKeyedItem(state, listSlotId, items[i] as T, i, key, fn)
+    chunks.push(row.html)
+    rowsByKey.set(key, row.bindings)
   }
-  return chunks.join('')
+  return { html: chunks.join(''), rowsByKey }
 }
 
 /**
@@ -195,10 +255,21 @@ export function renderKeyedItem<T>(
   index: number,
   key: string,
   fn: (item: T, index: number) => HtmlFragment,
-): string {
+): { html: string; bindings: ItemBinding[] } {
   const token = keyToken(key)
   unregisterBindingsForScope(state, keyedScopePrefix(listSlotId, token))
   pushKeyedScope(state, listSlotId, token)
+
+  // Item-value binding context for this row (option C, keyed), save/restore
+  // around the body so a nested each() doesn't clobber it.
+  const prevItem = state.currentItem
+  const prevIndex = state.currentItemIndex
+  const prevRow = state.currentRowBindings
+  const bindings: ItemBinding[] = []
+  state.currentItem = item
+  state.currentItemIndex = index
+  state.currentRowBindings = bindings
+
   let html: string
   try {
     const fragment = fn(item, index)
@@ -207,6 +278,9 @@ export function renderKeyedItem<T>(
     }
     html = fragment.html
   } finally {
+    state.currentItem = prevItem
+    state.currentItemIndex = prevIndex
+    state.currentRowBindings = prevRow
     popListScope(state)
   }
   if (!isSingleRootElement(html)) {
@@ -216,7 +290,7 @@ export function renderKeyedItem<T>(
         `items would corrupt sibling indices`,
     )
   }
-  return html
+  return { html, bindings }
 }
 
 const VOID_TAGS = new Set([

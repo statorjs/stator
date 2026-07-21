@@ -222,7 +222,7 @@ describe('html templating', () => {
       if (listBinding.kind !== 'list') throw new Error('expected list binding')
       const newItems = listBinding.selector(cart) as any[]
       expect(newItems.length).toBe(2)
-      const newInner = runInRender(state, () =>
+      const { html: newInner } = runInRender(state, () =>
         renderListBody(state, 's0', newItems, listBinding.itemRenderer),
       )
       expect(newInner).toContain('p1 qty=')

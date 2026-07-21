@@ -11,6 +11,7 @@ import {
   defer,
   each,
   html,
+  itemBind,
   match,
   on,
   read,
@@ -78,7 +79,7 @@ describe('compiler: identical patches vs hand-written template', () => {
       '<div class="cart">' +
       '<span class="count">{read(cart, c => c.count)}</span>' +
       '<ul>{each(read(cart, c => c.items), (i) => ' +
-      '<li class:list={{ line: true }}><button on:click={() => cart.send({ type: "BUMP", id: i.id })}>{i.id}: {i.qty}</button></li>)}</ul>' +
+      '<li class:list={{ line: true }}><button on:click={() => cart.send({ type: "BUMP", id: i.id })}>{i.id}: {read(i, (x) => x.qty)}</button></li>)}</ul>' +
       '</div>'
 
     const handWritten = (cart: any): HtmlFragment =>
@@ -87,11 +88,11 @@ describe('compiler: identical patches vs hand-written template', () => {
         (i: any) =>
           html`<li ${classList({ line: true })}><button ${on('click', () =>
             cart.send({ type: 'BUMP', id: i.id }),
-          )}>${i.id}: ${i.qty}</button></li>`,
+          )}>${i.id}: ${itemBind((x: any) => x.qty)}</button></li>`,
       )}</ul></div>`
 
     const lowered = lowerTemplate(statorTemplate)
-    const scope = { html, read, each, when, match, defer, on, classList, styleList }
+    const scope = { html, read, each, itemBind, when, match, defer, on, classList, styleList }
 
     // Two independent runtimes/render states so bindings don't collide.
     const a = await cartProxy()
