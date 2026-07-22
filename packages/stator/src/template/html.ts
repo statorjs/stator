@@ -207,7 +207,12 @@ function handleItemRead(
   pos: ValuePosition,
 ): void {
   const row = state.currentRowBindings
-  if (!row) throw new Error('stator: read(item, …) must be interpolated inside an each() row')
+  if (!row) {
+    throw new Error(
+      'stator: read(item, …) interpolated outside an each() row render — an item binding ' +
+        'is owned by its row (see the itemBind ownership rule). Use a machine read here.',
+    )
+  }
   if (pos.kind === 'text') {
     const slotId = allocSlotId(state)
     row.push({ kind: 'text', slotId, selector: r.selector, lastValue: r.value })

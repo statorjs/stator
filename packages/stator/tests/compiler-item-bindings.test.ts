@@ -65,4 +65,12 @@ describe('lower: item-value bindings via read(item, …)', () => {
   it('does not rewrite read() outside any each', () => {
     expect(lowerTemplate('<p>{read(m, (s) => s.name)}</p>')).toContain('${read(m, (s) => s.name)}')
   })
+
+  it('lowers read(item, …) in attribute position — checked, class, style', () => {
+    const out = lowerTemplate(
+      '<ul>{each(read(m, s => s.rows), (r) => <li style={read(r, (x) => x.width)}><input type="checkbox" checked={read(r, (x) => x.done)} /></li>, { key: (r) => r.id })}</ul>',
+    )
+    expect(out).toContain('style="${itemBind((x) => x.width)}"')
+    expect(out).toContain('checked="${itemBind((x) => x.done)}"')
+  })
 })

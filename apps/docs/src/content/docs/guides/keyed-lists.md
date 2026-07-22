@@ -63,15 +63,26 @@ does.
 
 ### Attributes
 
-`read(row, …)` binds a field in **text** position. An item field in an
-*attribute* — `class={…}`, `checked={…}`, `disabled={…}` — still reads from the
-machine for now:
+`read(row, …)` works in **attribute** position too — `checked={…}`,
+`class={…}`, `style={…}` — with the same semantics as a machine attr read
+(`false`/`null` removes the attribute, `true` renders it bare):
 
 ```
-<input checked={read(todos, (t) => t.all.find((x) => x.id === row.id)?.done)} />
+<input type="checkbox" checked={read(row, (r) => r.done)} />
+<div class="bar-fill" style={read(row, (r) => `width: ${r.pct}%`)}></div>
 ```
 
-Per-row *attribute* bindings are a planned follow-up.
+An attribute is a **single source**: it's the whole value from one read (item
+or machine), never literal text mixed with a read. And an item read can't
+appear *inside* a `class:list`/`style:list` spec — give the whole attribute
+one item read instead, or use a machine read in the spec.
+
+A useful idiom follows from this: **shape row-complete items in the
+selector**. If a row's display needs a derived value (a percentage, a label),
+compute it onto the item in the `each` source selector — then every live field
+in the row is a plain item read. Fields that depend on state *outside* the
+item (a cross-row editing flag, a selection) stay machine reads. The two
+coexist in one row, each used for what it is.
 
 ### Where `read(row, …)` may appear
 
