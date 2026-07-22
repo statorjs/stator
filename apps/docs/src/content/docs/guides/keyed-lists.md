@@ -73,6 +73,31 @@ machine for now:
 
 Per-row *attribute* bindings are a planned follow-up.
 
+### Where `read(row, …)` may appear
+
+An item read is **owned by its row** — the row render supplies the item, and
+the list's recompute is what re-diffs the binding. It's legal anywhere the row
+itself renders it, and illegal where something else would: the compiler rejects
+the illegal positions at build time.
+
+- **At the row's top level** — legal, the normal case.
+- **Inside a `when()`/`match()` arm** — error. An arm re-renders on its own
+  schedule, without the row around it, so the binding would be orphaned. Inside
+  an arm, read the field from the machine
+  (`read(m, (s) => s.items.find(…))`), or restructure so the arm doesn't split
+  the row — render both states and toggle with a class binding + CSS.
+- **Inside an `each()` that's nested in an arm** — legal, as long as the read
+  binds *that* each's item. The nested each re-establishes row context on every
+  arm render.
+- **Reading an *outer* each's item inside a nested each's row** — error. The
+  inner row would evaluate the selector against the wrong item. Derive the
+  field onto the inner item, or use a machine read.
+- **Inside a `class:list`/`style:list` spec** — error for now. The compound
+  directive recomposes per machine, not per row.
+
+The same ownership rule is why a machine read can't appear inside a `defer()`
+arm — see [Every read has an owner](/concepts/reactivity-and-reads/).
+
 Inner slot ids are derived from the item's **key**, not its position
 (`s0:kp1:s0`), which is what lets a patch address "the row for p1, wherever
 it is now."

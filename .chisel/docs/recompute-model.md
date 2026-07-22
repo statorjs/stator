@@ -64,6 +64,17 @@ This note is the contract — a change to any rule is a wire-behavior change.
   deleted an auto-classifier and a staleness guard). The complexity to watch is
   not the number of kinds — it's the scope/identity layer underneath them (see
   ROADMAP's *Runtime correctness*).
+- **Every binding has exactly one owner, and a read must sit inside its
+  owner's render scope.** Machine bindings are owned by the RenderState's
+  binding table (re-diffed via `byMachine`); item bindings are owned by their
+  each() row (collected by the row render, re-diffed by the list's recompute);
+  a defer slot owns nothing (one-shot). The compiler enforces the two position
+  rules this implies — no machine read inside a `defer` arm, no item read
+  inside a `when`/`match`/`defer` arm (an arm re-renders via the branch
+  binding, without row context) — with runtime backstops for hand-written
+  templates. Cross-owner context restoration (a branch re-render reaching back
+  into its row) is deliberately NOT built: that is the hierarchical machinery
+  the closed-kind line exists to keep out.
 - Keyed lists never receive positional ops from a producer that can't know
   the DOM's row set — hence initial sync resets them wholesale.
 - All rules run under the session lock (or against live app instances);

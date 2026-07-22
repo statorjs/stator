@@ -146,7 +146,13 @@ pattern is a bigger liability than any missing primitive.
   guardrail is on this seam — a new binding kind or position earns its place only
   after it regression-tests the seam and clears the same evidence bar as any
   primitive. *Motivation*: this is where a fine-grained model quietly acquires
-  VDOM-shaped complexity if unwatched.
+  VDOM-shaped complexity if unwatched. The guardrail's first hard call: item
+  reads inside `when`/`match`/`defer` arms are a compile error, not a supported
+  position — supporting them means branch↔row context restoration, cross-owner
+  machinery at exactly this seam (see the scope note in the conditional-arm
+  spec). *Revisit trigger*: two more real templates carrying find-by-id machine
+  reads inside arms for item-local data is the evidence bar for designing
+  row-context restoration as deliberate 1.x work.
 
 ## Sequencing
 

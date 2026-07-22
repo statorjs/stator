@@ -61,6 +61,29 @@ instead of a machine; the rule ("`read()` = live") is unchanged.
 - **Server render path only** — client-island shells keep the plain lowering.
 - **Compiler-local** — a mechanical AST transform, no type info, no cross-file
   resolution.
+- **Placement: an item read is owned by its row** (decided post-#24, after the
+  todomvc arm crash). It's legal at the row's top level and inside a nested
+  `each` that binds it (a nested each re-establishes row context on every arm
+  render — live-poll's shape). It's a **compile-time error** in three positions,
+  with a runtime `itemBind` backstop for hand-written templates:
+  1. inside a `when`/`match`/`defer` — an arm re-renders via the branch
+     binding's recompute, *without* row context (`renderBranchBody` has no row),
+     so the binding would crash or orphan. Shipped bug: todomvc's label inside
+     the view arm crashed recompute on EDIT_SAVE (#24).
+  2. reading an *outer* each's item inside a nested each's row — the inner row
+     would evaluate the selector against the wrong item.
+  3. inside a `class:list`/`style:list` spec — the compound directive
+     recomposes per machine, not per row (deferred surface).
+  **Why forbid, not support:** supporting arm-interior item reads means
+  branch↔row context restoration — cross-owner coupling at the scope/identity
+  seam (the standing complexity watch-item), and the first hierarchical
+  ownership machinery in the diff engine. The error preserves optionality:
+  lifting it later is a non-breaking minor. This *narrows* (does not reverse)
+  the shipped conditional-arm spec's "fix, don't forbid" call — see the scope
+  note added there. **Revisit trigger:** if two more real templates end up
+  carrying find-by-id machine reads inside arms for item-local data, that is
+  the evidence bar for designing row-context restoration as deliberate 1.x
+  work.
 
 ## Approach
 
@@ -145,6 +168,19 @@ hand-written.
 Demos: `examples/todomvc` (`read(todo, t => t.title)`, keyed) and
 `examples/live-poll` (`read(option, o => o.count)`, non-keyed) — both typecheck
 through the real compiler and lower to `itemBind`.
+
+**Placement gate landed** (branch `fix/forbid-item-reads-in-arms`): compile-time
+pre-pass in `lower.ts` (`checkItemReadPlacement`, modeled on the defer gate)
+rejecting the three illegal positions with ownership-framed errors naming the
+escape hatches; runtime backstops in `each.ts` (`itemBind`) and
+`directives/list-attr.ts` (an item read in a `:list` spec previously rendered
+`[object Object]` silently). todomvc restructured to the stock TodoMVC pattern:
+the view renders unconditionally (CSS toggles via `li.editing`, rules already in
+the stylesheets) so the label's `read(todo, …)` sits at the row's top level; the
+edit form **stays** a `when()` arm — machine reads only, and the fresh arm
+render is what makes `autofocus` fire. Tests: `tests/item-read-placement.test.ts`
+(8 compiler + 3 runtime, including the #24 arm-flip regression). Docs: placement
+rules in the keyed-lists guide, ownership model in reactivity-and-reads.
 
 Pending graduation: squash the spike commits, PR. Supersedes the value-compare
 suggestion in FINDINGS #5 (that file is transient; this spec is the durable

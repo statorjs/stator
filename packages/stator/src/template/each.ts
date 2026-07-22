@@ -59,7 +59,13 @@ export function isItemReadResult(v: unknown): v is ItemReadResult {
 export function itemBind(selector: (item: any, index: number) => unknown): ItemReadResult {
   const state = requireCurrentRenderState()
   if (!state.currentRowBindings) {
-    throw new Error('stator: itemBind() must be called inside an each() row')
+    throw new Error(
+      'stator: read(item, …) (itemBind) called outside an each() row render — an item ' +
+        'binding is owned by its row, which supplies the item and re-diffs the binding. ' +
+        'This happens when an item read sits inside a when()/match()/defer() arm (an arm ' +
+        're-renders on its own schedule, without the row) or outside each() entirely. ' +
+        'Use a machine read there instead.',
+    )
   }
   const index = state.currentItemIndex ?? 0
   const value = selector(state.currentItem, index)
