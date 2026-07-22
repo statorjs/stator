@@ -47,7 +47,7 @@ export function isEachResult(v: unknown): v is EachResult {
  */
 export interface ItemReadResult {
   readonly __isItemRead: true
-  readonly slotId: SlotId
+  readonly selector: (item: unknown, index: number) => unknown
   readonly value: unknown
 }
 
@@ -67,11 +67,11 @@ export function itemBind(selector: (item: any, index: number) => unknown): ItemR
         'Use a machine read there instead.',
     )
   }
-  const index = state.currentItemIndex ?? 0
-  const value = selector(state.currentItem, index)
-  const slotId = allocSlotId(state)
-  state.currentRowBindings.push({ slotId, selector, lastValue: value })
-  return { __isItemRead: true, slotId, value }
+  // Compute the value now (for initial render); the per-row binding is registered
+  // by html.ts, which knows the position (text span vs attribute) — same split as
+  // read() → handleRead.
+  const value = selector(state.currentItem, state.currentItemIndex ?? 0)
+  return { __isItemRead: true, selector, value }
 }
 
 export function each<T>(

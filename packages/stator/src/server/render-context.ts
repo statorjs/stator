@@ -47,15 +47,25 @@ export interface ListBinding extends BindingBase {
   rows?: ItemBinding[][]
 }
 
-/** SPIKE (option C): a per-row binding whose source is the each *item value*,
- *  not a machine. Never registered in `state.bindings`/`byMachine` — it's owned
- *  by its ListBinding and re-evaluated during the list's recompute. */
-export interface ItemBinding {
-  slotId: SlotId
+/** A per-row binding whose source is the each *item value*, not a machine
+ *  (`read(item, …)` → itemBind). Never registered in `state.bindings`/`byMachine`
+ *  — owned by its ListBinding and re-evaluated during the list's recompute.
+ *  Discriminated by position, mirroring text vs attr machine bindings. */
+interface ItemBindingBase {
   /** `(item, index) => value` — evaluated against the row's current item. */
   selector: (item: unknown, index: number) => unknown
   lastValue: unknown
 }
+export interface TextItemBinding extends ItemBindingBase {
+  kind: 'text'
+  slotId: SlotId
+}
+export interface AttrItemBinding extends ItemBindingBase {
+  kind: 'attr'
+  attrName: string
+  parentId: ElementId
+}
+export type ItemBinding = TextItemBinding | AttrItemBinding
 
 /** A keyed list's key selector, item type erased (same variance argument as
  *  ErasedSelector). */
