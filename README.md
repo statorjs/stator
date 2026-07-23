@@ -123,7 +123,8 @@ the machine's body never does.
   manifest, and `loadProductionHead` injects the right script tags per route.
 - **Keyed `each`** — `each(items, fn, { key })` emits per-item
   insert/remove/move patches from a server-side diff; rows keep identity
-  (focus, transitions) across reorders. Unkeyed lists re-render whole.
+  (focus, transitions) across reorders. `read(item, …)` makes a row field
+  live — text or attribute — patching in place without re-rendering the row.
 - **Wire protocol** — documented in [`WIRE.md`](./WIRE.md); a single shared
   module both sides typecheck against.
 - **SSE live routes** — `live: true` opens a per-connection stream; every

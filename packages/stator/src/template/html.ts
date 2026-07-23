@@ -1,4 +1,5 @@
 import {
+  allocSlotId,
   type RenderState,
   registerBinding,
   requireCurrentRenderState,
@@ -28,7 +29,7 @@ import {
   type DirectiveInvocation,
   isDirectiveInvocation,
 } from './directives/core.ts'
-import { isEachResult, isItemReadResult } from './each.ts'
+import { type ItemReadResult, isEachResult, isItemReadResult } from './each.ts'
 import { isReadResult, type ReadResult } from './read.ts'
 
 export function html(strings: TemplateStringsArray, ...values: unknown[]): HtmlFragment {
@@ -114,15 +115,10 @@ function processValue(builder: HtmlBuilder, state: RenderState, value: unknown):
     return
   }
 
-  // SPIKE (option C): an itemBind() slot — the binding was already registered on
-  // the row (in itemBind), so here we just emit the addressable span.
+  // read(item, …) → itemBind: register the per-row binding by position (text span
+  // or attribute), the item analog of handleRead.
   if (isItemReadResult(value)) {
-    if (pos.kind !== 'text') {
-      throw new Error('stator: itemBind() can only be interpolated in text position (spike)')
-    }
-    builder.pushRaw(
-      `<span data-slot="${value.slotId}">${escapeText(stringifyValue(value.value))}</span>`,
-    )
+    handleItemRead(builder, state, value, pos)
     return
   }
 
@@ -199,6 +195,53 @@ function handleRead(
     return
   }
   throw new Error(`stator: read() result cannot be interpolated at ${pos.kind} position`)
+}
+
+/** Register a `read(item, …)` per-row binding by position — the item analog of
+ *  handleRead. Pushes onto the row's binding list (owned by the ListBinding), not
+ *  state.bindings; recompute diffs it per row and emits text- or attr-op patches. */
+function handleItemRead(
+  builder: HtmlBuilder,
+  state: RenderState,
+  r: ItemReadResult,
+  pos: ValuePosition,
+): void {
+  const row = state.currentRowBindings
+  if (!row) {
+    throw new Error(
+      'stator: read(item, …) interpolated outside an each() row render — an item binding ' +
+        'is owned by its row (see the itemBind ownership rule). Use a machine read here.',
+    )
+  }
+  if (pos.kind === 'text') {
+    const slotId = allocSlotId(state)
+    row.push({ kind: 'text', slotId, selector: r.selector, lastValue: r.value })
+    builder.pushRaw(`<span data-slot="${slotId}">${escapeText(stringifyValue(r.value))}</span>`)
+    return
+  }
+  if (pos.kind === 'attr-value') {
+    if (pos.hasLiteralText) {
+      throw new Error(
+        `stator: attribute "${pos.attrName}" mixes literal text with a read(item, …). ` +
+          `An attribute value must come from a single source.`,
+      )
+    }
+    row.push({
+      kind: 'attr',
+      attrName: pos.attrName,
+      parentId: pos.elementId,
+      selector: r.selector,
+      lastValue: r.value,
+    })
+    // Same boolean semantics as a machine attr read (see handleRead).
+    if (r.value === false || r.value === null || r.value === undefined) {
+      builder.omitCurrentAttribute()
+    } else if (r.value !== true) {
+      builder.pushRaw(escapeAttribute(sanitizeAttrValue(pos.attrName, stringifyValue(r.value))))
+    }
+    return
+  }
+  throw new Error(`stator: read(item, …) cannot be interpolated at ${pos.kind} position`)
 }
 
 function stringifyValue(v: unknown): string {

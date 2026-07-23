@@ -91,8 +91,20 @@ const pollOf = (p: InstanceOf<typeof PollsMachine>): Poll | undefined =>
                 </p>
 
                 <ul class="results-list">
+                  {/* Row-complete items: pct is derived in the selector, so every
+                      live field in a row — the count, the bar width — is an item
+                      read. A vote for ANY option moves every row's pct; the
+                      per-row value diff patches exactly the bars that changed. */}
                   {each(
-                    read(polls, (p) => pollOf(p)?.options ?? []),
+                    read(polls, (p) => {
+                      const poll = pollOf(p)
+                      if (!poll) return []
+                      const total = poll.options.reduce((s, o) => s + o.count, 0)
+                      return poll.options.map((o) => ({
+                        ...o,
+                        pct: total === 0 ? '0.0' : ((o.count / total) * 100).toFixed(1),
+                      }))
+                    }),
                     (option) => (
                       <li class="results-row">
                         <div class="results-row-head">
@@ -102,17 +114,7 @@ const pollOf = (p: InstanceOf<typeof PollsMachine>): Poll | undefined =>
                         <div class="results-bar">
                           <div
                             class="results-bar-fill"
-                            style:list={{
-                              width: read(polls, (p) => {
-                                const poll = pollOf(p)
-                                if (!poll) return '0%'
-                                const total = poll.options.reduce((s, o) => s + o.count, 0)
-                                if (total === 0) return '0%'
-                                const o = poll.options.find((oo) => oo.id === option.id)
-                                const pct = ((o?.count ?? 0) / total) * 100
-                                return `${pct.toFixed(1)}%`
-                              }),
-                            }}
+                            style={read(option, (o) => `width: ${o.pct}%`)}
                           ></div>
                         </div>
                       </li>

@@ -56,8 +56,10 @@ instead of a machine; the rule ("`read()` = live") is unchanged.
 
 - **`read()` is the one live marker.** No implicit reactivity; a plain `{expr}`
   stays static.
-- **Text position only** for this cut. `read(item, …)` in an attribute is not yet
-  supported (see Open Questions).
+- **Text and attribute positions** (attr landed as the follow-up cut on
+  `feat/attr-position-item-reads`): an attr item read carries the same
+  semantics as a machine attr read (false/null removes, true renders bare) and
+  is single-source — no literal-text mixing, and not inside a `:list` spec.
 - **Server render path only** — client-island shells keep the plain lowering.
 - **Compiler-local** — a mechanical AST transform, no type info, no cross-file
   resolution.
@@ -141,10 +143,19 @@ compiler bug", since a real item read never reaches it).
 
 Deferred surface — each is an additive minor, trackable as its own work:
 
-- **Attribute-position item reads** (headline follow-up). `class={read(row, …)}`,
-  `checked={read(row, …)}` currently throw (itemBind is text-only). Needs
-  attr-position handling in `html.ts` + `attr` patch emission in both list diffs.
-  Until then, an item field in an attribute uses a machine `read(m, m => m.find(…))`.
+- ~~**Attribute-position item reads**~~ **LANDED** (`feat/attr-position-item-reads`):
+  `ItemBinding` discriminated by position (text slot vs attr + element id),
+  `handleItemRead` in `html.ts` mirrors `handleRead`, both list diffs emit
+  `attr` patches through `diffItemBindings`. Seam-tested: a keyed row's attr
+  patch targets its key-scoped element id across a move
+  (`tests/each-attr-item-bindings.test.ts`). Demos: todomvc `checked=`,
+  live-poll's results-bar `style=` width (the ten-line find-by-id collapsed via
+  a row-complete `pct` shaped in the selector).
+- **Item reads inside `class:list`/`style:list` specs** — not supported (the
+  compound directive recomposes per machine, not per row); compile error + a
+  runtime guard (previously rendered `[object Object]` silently). Mixed
+  machine+item sources in one compound attr is the branch↔row seam in
+  miniature — support only with evidence.
 - **`raw(item.…)` reactivity** — item-dependent HTML still renders once.
 - **Unkeyed all-static churn.** A non-keyed list with *no* `read(item, …)` binding
   still re-renders on identity churn (reference compare in the wholesale path).

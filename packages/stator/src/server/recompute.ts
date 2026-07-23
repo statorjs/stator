@@ -3,6 +3,7 @@ import { coerceKeys, renderKeyedItem, renderListBody } from '../template/each.ts
 import type { Patch } from '../wire/index.ts'
 import { isUrlAttribute, safeAttrUrl } from '../wire/safe-url.ts'
 import {
+  type ItemBinding,
   keyedScopePrefix,
   keyToken,
   type RenderState,
@@ -15,6 +16,40 @@ import type { SessionRuntime } from './session-runtime.ts'
  *  this patch came from. Used internally for scope-subsumption. The wire
  *  shape drops this field. */
 type PendingPatch = { patch: Patch; sourceSlot: string }
+
+/** Diff one row's item-value bindings against its current item, pushing a text-
+ *  or attr-op patch for each changed field — the row itself is never re-rendered.
+ *  Text bindings target their slot, attr bindings their element, mirroring the
+ *  machine text/attr binding patches. Only ever called for live (retained/
+ *  current) rows, so no subsumption concern. */
+function diffItemBindings(
+  pending: PendingPatch[],
+  row: ItemBinding[],
+  item: unknown,
+  index: number,
+): void {
+  for (const ib of row) {
+    const nv = ib.selector(item, index)
+    if (valuesEqual(nv, ib.lastValue)) continue
+    ib.lastValue = nv
+    if (ib.kind === 'text') {
+      pending.push({
+        patch: { target: { kind: 'slot', id: ib.slotId }, op: 'text', value: stringify(nv) },
+        sourceSlot: ib.slotId,
+      })
+    } else {
+      pending.push({
+        patch: {
+          target: { kind: 'element', id: ib.parentId },
+          op: 'attr',
+          name: ib.attrName,
+          value: sanitizeAttrWire(ib.attrName, attrWireValue(nv)),
+        },
+        sourceSlot: ib.parentId,
+      })
+    }
+  }
+}
 
 /**
  * Walk every binding tied to `machineName`, re-evaluate its selector against
@@ -100,21 +135,7 @@ function recomputeInner(state: RenderState, machineName: string, runtime: Sessio
       // are separate machine bindings and update through the main pass as usual.
       if (rows && newArray.length === rows.length) {
         for (let i = 0; i < newArray.length; i++) {
-          const item = newArray[i]
-          for (const ib of rows[i]!) {
-            const nv = ib.selector(item, i)
-            if (!valuesEqual(nv, ib.lastValue)) {
-              pending.push({
-                patch: {
-                  target: { kind: 'slot', id: ib.slotId },
-                  op: 'text',
-                  value: stringify(nv),
-                },
-                sourceSlot: ib.slotId,
-              })
-              ib.lastValue = nv
-            }
-          }
+          diffItemBindings(pending, rows[i]!, newArray[i], i)
         }
         binding.lastValue = newArray
       } else if (!arrayShallowEqual(newArray, oldArray)) {
@@ -193,21 +214,7 @@ function recomputeInner(state: RenderState, machineName: string, runtime: Sessio
           if (!oldKeySet.has(key)) continue
           const row = rowsByKey.get(key)
           if (!row) continue
-          const item = newArray[i]
-          for (const ib of row) {
-            const nv = ib.selector(item, i)
-            if (!valuesEqual(nv, ib.lastValue)) {
-              pending.push({
-                patch: {
-                  target: { kind: 'slot', id: ib.slotId },
-                  op: 'text',
-                  value: stringify(nv),
-                },
-                sourceSlot: ib.slotId,
-              })
-              ib.lastValue = nv
-            }
-          }
+          diffItemBindings(pending, row, newArray[i], i)
         }
       }
       binding.lastValue = newArray
