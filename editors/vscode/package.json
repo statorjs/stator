@@ -2,7 +2,7 @@
   "name": "stator-vscode",
   "displayName": "Stator",
   "description": "Language support for .stator files: syntax highlighting plus a Volar-based language server (completions, hover, diagnostics).",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "publisher": "statorjs",
   "license": "MIT",

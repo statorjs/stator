@@ -1,5 +1,11 @@
 # stator-vscode
 
+## 1.0.6
+
+### Patch Changes
+
+- 4364f6e: Recognize the `defer` template construct in the editor: `defer(...)` is no longer reported as an undefined global, and a machine `read()` placed inside a `defer` arm is flagged inline as an error (matching the compiler's build-time check).
+
 ## 1.0.5
 
 ### Patch Changes
