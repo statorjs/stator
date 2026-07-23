@@ -1,0 +1,50 @@
+/* Stator dev inspector — element-flash styles.
+ *
+ * These decorate APP elements (the patched nodes in the page), so they cannot
+ * live in the widget's shadow root — they're injected document-level as a
+ * constructable stylesheet in `@layer stator-inspector`, deliberately the
+ * lowest-priority author layer. An app's own styles are unlayered, and
+ * unlayered author styles beat every layer, so the app ALWAYS wins: the flash
+ * can never override the page it is inspecting.
+ *
+ * Bundled into the inspector asset as text by `bundleInspector()`'s esbuild
+ * `.css: 'text'` loader; there is no separate stylesheet request.
+ */
+@layer stator-inspector {
+  /* Highlight the changed element with an OUTLINE only — never animate its
+     background-color. A CSS animation's background-color overrides the element's
+     own background (even an .active state) for the animation's full duration, so
+     flashing background would MASK the very change it's meant to highlight: a
+     patch that lights up a toggle button's background wouldn't visibly settle
+     until the 1.2s flash cleared. Outline is painted outside the box and masks
+     nothing — and unlike background, no app is likely to animate it. */
+  .stator-flash {
+    outline-style: solid;
+    outline-offset: 3px;
+    animation: stator-flash 1200ms ease-out forwards;
+    border-radius: 2px;
+  }
+  @keyframes stator-flash {
+    0% {
+      outline-width: 3px;
+      outline-color: var(--flash-color, dodgerblue);
+    }
+    30% {
+      outline-width: 3px;
+      outline-color: var(--flash-color, dodgerblue);
+    }
+    100% {
+      outline-width: 0;
+      outline-color: transparent;
+    }
+  }
+  .stator-flash--text {
+    --flash-color: #3b82f6;
+  }
+  .stator-flash--attr {
+    --flash-color: #a855f7;
+  }
+  .stator-flash--html {
+    --flash-color: #14b8a6;
+  }
+}

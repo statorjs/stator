@@ -8,9 +8,17 @@
  *
  * It depends on nothing but that event contract — the same surface any external
  * devtool would use. Self-contained: it injects its own styles.
+ *
+ * The widget is a `<stator-inspector>` custom element with a shadow root
+ * (the Astro-dev-toolbar / vite-error-overlay pattern): the inspected app's
+ * global element selectors can't restyle the toolbar, and the toolbar's styles
+ * provably can't touch the page. Only the element-flash styles live at
+ * document level (they decorate app nodes), in the lowest-priority
+ * `@layer stator-inspector` so the app always wins over them.
  */
 
 import inspectorCss from './inspector.css'
+import flashCss from './inspector-flash.css'
 
 const STORAGE_KEY = 'stator:inspector:open'
 const MAX_ENTRIES = 40
@@ -50,16 +58,24 @@ function formatEventParams(event: Record<string, unknown>): string {
 }
 
 function mount(): void {
-  // Inject as a constructable stylesheet in `@layer stator-inspector` (see
-  // inspector.css) — the lowest-priority author layer, so the inspected app's
-  // own (unlayered) styles always win over the inspector.
-  const sheet = new CSSStyleSheet()
-  sheet.replaceSync(inspectorCss)
-  document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet]
+  // Flash styles decorate APP elements, so they can't live in the widget's
+  // shadow — they're document-level, in `@layer stator-inspector` (see
+  // inspector-flash.css) so the app's own (unlayered) styles always win.
+  const flashSheet = new CSSStyleSheet()
+  flashSheet.replaceSync(flashCss)
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, flashSheet]
 
-  const root = document.createElement('div')
-  root.className = 'stator-inspector'
-  root.innerHTML = `
+  // The widget itself: a custom element whose shadow root carries the markup
+  // and styles — isolated from the page's cascade in both directions.
+  if (!customElements.get('stator-inspector')) {
+    customElements.define('stator-inspector', class extends HTMLElement {})
+  }
+  const root = document.createElement('stator-inspector')
+  const shadow = root.attachShadow({ mode: 'open' })
+  const widgetSheet = new CSSStyleSheet()
+  widgetSheet.replaceSync(inspectorCss)
+  shadow.adoptedStyleSheets = [widgetSheet]
+  shadow.innerHTML = `
     <button class="stator-inspector-toggle" type="button" aria-label="Show stator inspector">
       <span aria-hidden="true">{ }</span> Inspect
     </button>
@@ -79,7 +95,7 @@ function mount(): void {
     </section>`
   document.body.appendChild(root)
 
-  const q = (sel: string) => root.querySelector(sel) as HTMLElement
+  const q = (sel: string) => shadow.querySelector(sel) as HTMLElement
   const drawer = q('.stator-inspector-drawer')
   const body = q('.stator-inspector-body')
   const toggle = q('.stator-inspector-toggle')
