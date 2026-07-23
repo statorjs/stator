@@ -52,24 +52,30 @@ const visible = (list: Todo[]) =>
                     return `${now?.done ? 'completed' : ''}${t.editingId === todo.id ? ' editing' : ''}`
                   })}
                 >
-                  {when(read(todos, (t) => t.editingId !== todo.id), () => (
-                    <div class="view">
-                      <input
-                        class="toggle"
-                        type="checkbox"
-                        checked={read(todos, (t) => t.all.find((x) => x.id === todo.id)?.done ?? false)}
-                        on:click={() => todos.send({ type: 'TOGGLE', id: todo.id })}
-                      />
-                      <label on:dblclick={() => todos.send({ type: 'EDIT_START', id: todo.id })}>
-                        {read(todo, (t) => t.title)}
-                      </label>
-                      <button
-                        class="destroy"
-                        type="button"
-                        on:click={() => todos.send({ type: 'DESTROY', id: todo.id })}
-                      ></button>
-                    </div>
-                  ))}
+                  {/* The view renders unconditionally (the stock TodoMVC CSS hides it via
+                      li.editing) so the row's item-local fields can be item reads — a
+                      read(todo, …) is owned by its each() row and is only legal at the
+                      row's top level, never inside a when()/match() arm. */}
+                  <div class="view">
+                    <input
+                      class="toggle"
+                      type="checkbox"
+                      checked={read(todos, (t) => t.all.find((x) => x.id === todo.id)?.done ?? false)}
+                      on:click={() => todos.send({ type: 'TOGGLE', id: todo.id })}
+                    />
+                    <label on:dblclick={() => todos.send({ type: 'EDIT_START', id: todo.id })}>
+                      {read(todo, (t) => t.title)}
+                    </label>
+                    <button
+                      class="destroy"
+                      type="button"
+                      on:click={() => todos.send({ type: 'DESTROY', id: todo.id })}
+                    ></button>
+                  </div>
+                  {/* The edit form stays a when() arm — a fresh render on EDIT_START is
+                      what makes autofocus fire. Inside an arm only MACHINE reads are
+                      legal (an arm re-renders without its row), so value= reads through
+                      the machine. */}
                   {when(read(todos, (t) => t.editingId === todo.id), () => (
                     <form class="edit-form" method="post" action="/todos/save">
                       <input type="hidden" name="id" value={todo.id} />

@@ -23,6 +23,12 @@ Nothing else is reactive. A bare `{cart.total}` would render once and never upda
 
 Bindings come in a few **kinds** depending on position: `text` (a slot in text content), `attr` (a whole attribute value), and the list/branch bindings produced by `each`/`when`/`match`. Each kind knows how to diff and how to patch itself.
 
+## Every read has an owner
+
+A binding is re-diffed by exactly one owner, and a read must sit inside its owner's render scope. **Machine reads** are owned by the page's binding table and may appear anywhere that re-diffs — which is everywhere except a `defer()` arm, because a defer slot is one-shot and a live value there could never update. **Item reads** — `read(row, …)` inside an [each](/guides/keyed-lists/) — are owned by their row: the row render supplies the item, and the list's recompute re-diffs the binding.
+
+A `when()`/`match()` arm re-renders on its own schedule, without the row around it, so an item read inside an arm is a **compile error** — use a machine read there, or restructure so the arm doesn't split the row. The compiler enforces both rules at build time and explains the escape hatches in the error. The full placement rules are in the [keyed lists guide](/guides/keyed-lists/).
+
 ## Slots and bindings
 
 Every binding is filed two ways:

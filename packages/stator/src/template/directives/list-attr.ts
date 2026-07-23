@@ -4,6 +4,7 @@ import {
   registerBinding,
   requireCurrentRenderState,
 } from '../../server/render-context.ts'
+import { isItemReadResult } from '../each.ts'
 import { isReadResult, type ReadResult } from '../read.ts'
 import { type DirectiveInvocation, defineDirective, invoke } from './core.ts'
 
@@ -44,7 +45,21 @@ function evalRead<T>(value: ConditionalEntry<T>): T {
   return isReadResult(value) ? (value.selector(value.instance) as T) : value
 }
 
+/** Backstop for hand-written templates (the compiler rejects this at build
+ *  time): an item read inside a `:list` spec would stringify as garbage AND
+ *  never re-diff — the compound directive recomposes per machine, not per row. */
+function rejectItemRead(v: unknown): void {
+  if (isItemReadResult(v)) {
+    throw new Error(
+      'stator: read(item, …) is not supported inside a class:list/style:list spec — the ' +
+        'compound directive recomposes per machine, not per row. Give the whole attribute ' +
+        'a single item read, or use a machine read inside the spec.',
+    )
+  }
+}
+
 function collectMachines(spec: unknown, out: Set<string>): void {
+  rejectItemRead(spec)
   if (spec == null || spec === false) return
   if (typeof spec === 'string') return
   if (isReadResult(spec)) {
@@ -57,6 +72,7 @@ function collectMachines(spec: unknown, out: Set<string>): void {
   }
   if (typeof spec === 'object') {
     for (const v of Object.values(spec)) {
+      rejectItemRead(v)
       if (isReadResult(v)) out.add(v.machineName)
     }
   }

@@ -127,6 +127,25 @@ recompute heals it — which is why "reload, or trigger any other event" fixes i
 - **Fix only Bug B (the visible one).** Rejected: Bug A silently miswrites (can
   hit a real element with no warning), which is the more dangerous of the two.
 
+> **Scope note (added post-#24, item reads in arms).** A later decision *does*
+> error on one arm-interior pattern: `read(item, …)` inside a `when`/`match`/
+> `defer` is a compile error. That is not a reversal of the rejection above —
+> the two cases differ in kind. Bugs A and B were *bookkeeping
+> inconsistencies* (ids from the wrong counter, proxies from the wrong
+> runtime) with mechanical fixes and no new coupling: fixing them made two
+> views of the same state agree. An item read inside an arm is an *ownership
+> split*: item bindings are owned by their each() row (collected by the row
+> render, re-diffed by the list's recompute), while an arm re-render is driven
+> by the branch binding, without row context. Supporting it would mean
+> branch↔row context restoration — cross-owner coupling at the scope/identity
+> seam, the first genuinely hierarchical machinery in the diff engine — for an
+> edge a machine read already covers. The compile error also preserves
+> optionality: lifting it later is a non-breaking minor, while shipping
+> context-restoration semantics now and regretting them is breaking. Machine
+> reads inside arms remain fully supported — that is what this spec fixed.
+> Decision record: `active/per-row-item-value-bindings-in-each.md`
+> (placement rules + the revisit trigger).
+
 ## Open Questions
 
 - Does arm-scoping element ids interact with any existing island that relies on
