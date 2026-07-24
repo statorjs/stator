@@ -17,6 +17,18 @@ jobs:
           fetch-depth: 0
       - name: Require a changeset for each changed published package
         run: |
+          # A version PR consumes changesets by definition — it deletes the
+          # notes while bumping package.json/CHANGELOG, so requiring a changeset
+          # there is self-contradictory. Pass through the bot's PR AND any
+          # manual version PR (branch it as changeset-release/<anything> when
+          # running `pnpm version-packages` by hand). Exit in the script, not a
+          # job `if:` — the check must still RUN and report.
+          case "$GITHUB_HEAD_REF" in
+            changeset-release/*)
+              echo "version PR ($GITHUB_HEAD_REF) — changesets are consumed here by design; check not applicable"
+              exit 0
+              ;;
+          esac
           changed="$(git diff --name-only origin/${{ github.base_ref }}...HEAD)"
           notes="$(cat .changeset/*.md 2>/dev/null | grep -v -e '^# ' || true)"
           fail=0
