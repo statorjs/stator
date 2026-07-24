@@ -42,13 +42,18 @@ const TEMPLATES = [
     label: 'With auth',
     hint: 'accounts, guarded login, roles, session rotation (Node 24+)',
   },
+  {
+    value: 'weather',
+    label: 'Weather',
+    hint: 'live forecasts over SSE, entry-effect data loading, a canvas island',
+  },
 ]
 
 /** First-party templates resolve into the monorepo's examples/. */
 const FIRST_PARTY = 'gh:statorjs/stator/examples'
 /** Scaffolded apps get a real semver for the framework (the examples
  *  themselves use workspace linking in-repo). Bumped with releases. */
-const STATOR_RANGE = '^1.1.0'
+const STATOR_RANGE = '^1.4.0'
 
 const { values: flags, positionals } = parseArgs({
   allowPositionals: true,
