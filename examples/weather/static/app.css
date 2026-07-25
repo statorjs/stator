@@ -8,6 +8,8 @@
   --fg-2: #9aa0a6;
   --line: rgba(255, 255, 255, 0.12);
   --tile-surface: #1a1a1a;
+  --bar-bg: #1f1f1f;
+  --bar-fg: #ffffff;
   --sans: "Segoe UI", "Segoe UI Variable Text", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
   /* Mobile (4-col): size the tile so 4 columns + 3 gaps fit exactly inside the
      content width (100vw − 2×16px side padding − 3×8px gaps = 100vw − 56px), so
@@ -22,6 +24,8 @@
     --fg-2: #5c636b;
     --line: rgba(20, 30, 40, 0.12);
     --tile-surface: #ececec;
+    --bar-bg: #d9d9d9;
+    --bar-fg: #14171a;
   }
 }
 :root[data-theme="dark"] {
@@ -30,6 +34,8 @@
   --fg-2: #9aa0a6;
   --line: rgba(255, 255, 255, 0.12);
   --tile-surface: #1a1a1a;
+  --bar-bg: #1f1f1f;
+  --bar-fg: #ffffff;
 }
 :root[data-theme="light"] {
   --bg: #fbfbfb;
@@ -37,6 +43,8 @@
   --fg-2: #5c636b;
   --line: rgba(20, 30, 40, 0.12);
   --tile-surface: #ececec;
+  --bar-bg: #d9d9d9;
+  --bar-fg: #14171a;
 }
 
 * {
@@ -88,7 +96,6 @@ header {
   font-size: 14px;
 }
 .units {
-  float: right;
   display: inline-flex;
   height: 32px;
   border: 1px solid var(--line);
@@ -106,10 +113,6 @@ header {
 .u-btn.active {
   background: var(--fg);
   color: var(--bg);
-}
-.u-clock {
-  border-left: 1px solid var(--line);
-  font-variant-numeric: tabular-nums;
 }
 .u-btn:focus-visible {
   outline: 2px solid #1ba1e2;
@@ -338,14 +341,21 @@ tile-motion {
   pointer-events: none;
 }
 
-/* Peek / slide: the panel slides up, the next slides in from below. Pure 2D. */
+/* Peek / slide: the panel slides up, the next slides in from below. Pure 2D.
+   Frames are full-tile-height slides; tile-motion steps --peek-frame through
+   0..N-1 (N = the tile's visible slide count), so a tile may cycle more than
+   two frames. No JS ⇒ --peek-frame stays 0 and the first frame shows. */
 .peek-tile {
   overflow: hidden;
+  /* Size container: lets the forecast tiles pick a frame layout (and density)
+     from the REAL tile height, which is grid-derived, not content-derived. */
+  container: tile / size;
 }
 .peek-tile .slides {
   position: absolute;
   inset: 0;
   transition: transform 0.55s cubic-bezier(0.25, 0.9, 0.25, 1);
+  transform: translateY(calc(var(--peek-frame, 0) * -100%));
 }
 .peek-tile .slide {
   position: relative;
@@ -358,9 +368,6 @@ tile-motion {
   justify-content: space-between;
   padding: 13px 14px;
 }
-.peek-tile.peeked .slides {
-  transform: translateY(-100%);
-}
 
 /* ---- Panorama: one full page per location, whole panel slides -------- */
 .panorama {
@@ -372,12 +379,18 @@ tile-motion {
   margin: 6px 0 16px;
   /* Let the horizontal swipe win over vertical scroll inside a panel. */
   overscroll-behavior-x: contain;
+  /* Gutter between location pages: panels keep their full width — this space
+     exists only mid-swipe, as a seam of ground between the tile grids. */
+  gap: 28px;
 }
 .panorama::-webkit-scrollbar {
   display: none;
 }
 .panel {
   scroll-snap-align: start;
+  /* A fast fling settles on the NEXT location, never past it (WP moved one
+     page per swipe). */
+  scroll-snap-stop: always;
   flex: 0 0 100%;
   min-width: 100%;
   display: flex;
@@ -388,20 +401,19 @@ tile-motion {
      adjacent (offscreen) panel during the carousel. */
   overflow: hidden;
 }
-/* Match the tile grid's exact width (columns + gaps) so the hero lines up with
-   the tiles below — both left-aligned with the header text (Metro). The desktop
-   override MUST come after this base rule to win at equal specificity. */
+/* The hero is a GRID TILE like everything else — full row width, two rows
+   tall, so its height sits on the same rhythm as the m2 tiles beside it.
+   Tiny screens give it a third row so the meta line never clips. */
 .hero {
   position: relative;
-  width: calc(4 * var(--u) + 3 * 8px);
-  aspect-ratio: 16 / 9;
-  max-height: 320px;
+  grid-column: 1 / -1;
+  grid-row: span 2;
   overflow: hidden;
   background: linear-gradient(168deg, #589fdb, #d6e7f4);
 }
-@media (min-width: 720px) {
+@media (max-width: 374px) {
   .hero {
-    width: calc(6 * var(--u) + 5 * 8px);
+    grid-row: span 3;
   }
 }
 .hero .live-sky,
@@ -461,7 +473,24 @@ tile-motion {
 }
 
 /* ---- Forecast tiles (hourly + 10-day) — w4 grid tiles ---------------- */
-/* hourly: a 6×2 grid inside .tcontent; 10-day: a peek tile of day rows. */
+/* hourly: 6-across rows of hours; 10-day: a peek tile of day rows.
+   The tile is a fixed span-2 grid cell, so its height is width-derived while
+   the row content is font-derived — on short tiles they can't both win. The
+   hourly tile ships BOTH frame layouts and the tile's height picks one:
+   ≥254px fits two full rows (worst-case populated pop+rain lines), below
+   that the peek cycles four single-row frames instead. Same data, shorter
+   frames — never a clipped row. */
+.slides-four {
+  display: none;
+}
+@container tile (height < 254px) {
+  .slides-two {
+    display: none;
+  }
+  .slides-four {
+    display: block;
+  }
+}
 .fc-slide {
   justify-content: flex-start;
   gap: 4px;
@@ -574,6 +603,58 @@ tile-motion {
   text-align: right;
   font-weight: 500;
 }
+/* Daily density: the full rows (with the rain-amount sub-line) need ~215px of
+   tile; below that drop the sub-line and tighten so all five days still show. */
+@container tile (height < 216px) {
+  .drow {
+    /* Narrower icon/lo/hi columns buy a wide rain column — the day's expected
+       amount stays, laid INLINE with the probability; it's the STACKED pair
+       that doesn't fit a short tile's rows. */
+    grid-template-columns: 1fr 22px 76px 30px 30px;
+    padding: 3px 0;
+  }
+  .drow .wx-ico {
+    width: 18px;
+    height: 18px;
+  }
+  .d-pop {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+}
+/* Tiny tiles (≲340px viewports — 2.8" phones): trade fine print and a few px
+   of type for never clipping a row. The rain-probability column stays. */
+@container tile (height < 150px) {
+  .peek-tile .slide {
+    padding: 10px 12px;
+  }
+  .hour .wx-ico {
+    width: 22px;
+    height: 22px;
+  }
+  .h-rain {
+    display: none;
+  }
+  .drow {
+    grid-template-columns: 1fr 18px 68px 28px 28px;
+    padding: 2px 0;
+  }
+  .drow .wx-ico {
+    width: 16px;
+    height: 16px;
+  }
+  .d-day {
+    font-size: 12px;
+  }
+  .d-rain {
+    font-size: 8.5px;
+  }
+  .drow-head {
+    font-size: 8.5px;
+  }
+}
 
 /* ---- Tile glyphs ----------------------------------------------------- */
 /* Small accent on a tile's primary face; large faint version fills the empty
@@ -669,64 +750,213 @@ tile-motion {
   .peek-tile .slides {
     transition: none;
   }
+  .ab-refresh.spinning svg {
+    animation: none;
+  }
+  .ab-drawer-clip,
+  .ab-drawer {
+    transition: none;
+  }
 }
 
-/* ---- Edit mode: ephemeral client-side view state on .wx[data-editing] --- */
-/* Toggled by the <edit-mode> island (a data-* attribute NAMES the UI state, the
-   way a bare class can't); CSS drives every reveal below. Resting state is clean
-   — no ✕, no search. */
-.edit-mode {
-  float: right;
-  margin-right: 8px;
+/* ---- App bar: WP ApplicationBar — flat bar, circled glyph buttons ------ */
+main {
+  padding-bottom: calc(104px + env(safe-area-inset-bottom));
 }
-.edit-toggle {
-  display: inline-flex;
-  align-items: center;
-  height: 32px;
-  padding: 0 11px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--fg-2);
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
+.appbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+/* The bar itself is a tap target (WP: any blank spot expands); the drawer's
+   surface is not. */
+.appbar {
   cursor: pointer;
 }
-.edit-toggle:hover {
-  color: var(--fg);
+/* Full-bleed bar, content-column alignment (the UWP CommandBar treatment):
+   the inner box replicates main's centering + padding, and its children take
+   the tile grid's exact width — so the dots sit on the tiles' right edge and
+   the drawer's rows start on their left edge. */
+.ab-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 16px;
 }
-.edit-toggle:focus-visible {
+.ab-inner > * {
+  width: calc(4 * var(--u) + 3 * 8px);
+}
+@media (min-width: 720px) {
+  .ab-inner {
+    padding: 0 clamp(24px, 4vw, 44px);
+  }
+  .ab-inner > * {
+    width: calc(6 * var(--u) + 5 * 8px);
+  }
+}
+.ab-row {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 30px;
+  padding: 11px 0 12px;
+}
+/* WP's "…" affordance, top-right of the button row — which now spans the
+   tile grid, so the dots ride the tiles' right edge. */
+.ab-dots {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  padding: 7px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.ab-dots svg {
+  display: block;
+  width: 22px;
+  height: 6px;
+}
+.ab-dots:focus-visible {
   outline: 2px solid #1ba1e2;
   outline-offset: 2px;
 }
-.et-icon {
-  display: block;
-  width: 19px;
-  height: 19px;
+.ab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
 }
-.et-check {
+.ab-btn {
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.ab-btn svg {
+  width: 21px;
+  height: 21px;
+  display: block;
+}
+.ab-btn:focus-visible {
+  outline: 2px solid #1ba1e2;
+  outline-offset: 2px;
+}
+/* Labels appear under every button while the bar is expanded — WP showed its
+   labels only on the opened bar. */
+.ab-label {
+  display: none;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+.wx[data-view="settings"] .ab-label {
+  display: block;
+}
+/* Settings drawer: server-canonical toggles inside client-owned chrome.
+   One physical panel, WP-style: the options are printed BELOW the buttons
+   and the whole bar slides up to reveal them — the drawer's grid row grows
+   from the bar's bottom anchor, so the icon row rides upward. */
+.ab-drawer-clip {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s cubic-bezier(0.25, 0.9, 0.25, 1);
+}
+.wx[data-view="settings"] .ab-drawer-clip {
+  grid-template-rows: 1fr;
+}
+.ab-drawer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 11px;
+  min-height: 0;
+  overflow: hidden;
+  /* Padding rides the slide — a border-box's minimum height floors at its
+     padding, so it must be 0 for the 0fr track to fully close. Horizontal
+     padding is 0: the ab-inner column already sets the tile-edge alignment. */
+  padding: 0;
+  cursor: default;
+  /* Collapsed controls stay out of the tab order / a11y tree; the delay
+     holds visibility until the slide finishes on the way shut. */
+  visibility: hidden;
+  transition:
+    visibility 0s 0.28s,
+    padding 0.28s cubic-bezier(0.25, 0.9, 0.25, 1);
+}
+.wx[data-view="settings"] .ab-drawer {
+  padding: 4px 0 16px;
+  visibility: visible;
+  transition:
+    visibility 0s,
+    padding 0.28s cubic-bezier(0.25, 0.9, 0.25, 1);
+}
+.set-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.set-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+}
+.ab-updated {
+  font-size: 11.5px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+/* Edit is a mode: the pencil fills solid and swaps to a check while active.
+   (`.ab-btn` prefix so this outranks the `.ab-btn svg` display:block above.) */
+.ab-btn .ab-glyph-check {
   display: none;
 }
-.wx[data-editing] .edit-toggle {
-  background: var(--fg);
-  color: var(--bg);
-  border-color: var(--fg);
+.wx[data-view="editing"] .ab-edit {
+  background: var(--bar-fg);
+  color: var(--bar-bg);
 }
-.wx[data-editing] .et-gear {
+.wx[data-view="editing"] .ab-edit .ab-glyph-pencil {
   display: none;
 }
-.wx[data-editing] .et-check {
+.wx[data-view="editing"] .ab-edit .ab-glyph-check {
   display: block;
 }
+/* The spinner is SERVER state (weather.refreshing over SSE) — every open tab
+   sees a refresh in flight, whoever started it. */
+.ab-refresh.spinning svg {
+  animation: ab-spin 1s linear infinite;
+}
+@keyframes ab-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- Edit mode: chrome view state, projected as .wx[data-view] --------- */
+/* The mode's OWNER is the app bar's ViewMode client machine (app-bar-ctl);
+   `data-view` is only its projection, and CSS drives every reveal below.
+   Resting state is clean — no ✕, no search. */
 
 /* Eyebrow names the mode: "weather" → "edit locations". */
 .eb-edit {
   display: none;
 }
-.wx[data-editing] .eb-rest {
+.wx[data-view="editing"] .eb-rest {
   display: none;
 }
-.wx[data-editing] .eb-edit {
+.wx[data-view="editing"] .eb-edit {
   display: inline;
 }
 
@@ -734,7 +964,7 @@ tile-motion {
 .search-wrap {
   display: none;
 }
-.wx[data-editing] .search-wrap {
+.wx[data-view="editing"] .search-wrap {
   display: block;
   animation: edit-slide-in 0.24s ease-out;
 }
@@ -754,12 +984,12 @@ tile-motion {
 .pivot-remove {
   display: none;
 }
-.wx[data-editing] .pivot-item {
+.wx[data-view="editing"] .pivot-item {
   padding: 4px 6px 4px 12px;
   border: 1px solid var(--line);
   border-radius: 999px;
 }
-.wx[data-editing] .pivot-remove {
+.wx[data-view="editing"] .pivot-remove {
   display: inline-flex;
   align-self: center;
   align-items: center;
@@ -774,7 +1004,7 @@ tile-motion {
   cursor: pointer;
   animation: edit-pop-in 0.2s ease-out;
 }
-.wx[data-editing] .pivot-remove:hover {
+.wx[data-view="editing"] .pivot-remove:hover {
   background: #d64545;
   color: #fff;
 }

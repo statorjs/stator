@@ -3,21 +3,19 @@
 import SearchMachine from '../machines/search.ts'
 import SettingsMachine from '../machines/settings.ts'
 import WeatherMachine from '../machines/weather.ts'
-import EditMode from '../templates/edit-mode.stator'
+import AppBar from '../templates/app-bar.stator'
+import AppBarCtl from '../templates/app-bar-ctl.stator'
 import Layout from '../templates/layout.stator'
 import Panel from '../templates/panel.stator'
 import Pivot from '../templates/pivot.stator'
 import PivotCtl from '../templates/pivot-ctl.stator'
 import SearchBar from '../templates/search-bar.stator'
-import UnitsToggle from '../templates/units-toggle.stator'
 
 const [weather, settings, search] = Stator.reads([WeatherMachine, SettingsMachine, SearchMachine])
 ---
 <Layout>
   <section class="wx">
     <header>
-      <UnitsToggle settings={settings} />
-      <EditMode />
       <div class="eyebrow"><span class="eb-rest">weather</span><span class="eb-edit">edit locations</span></div>
       <h1>{read(weather, (w) => w.active?.name ?? '—')}</h1>
       <div class="sub">
@@ -45,5 +43,10 @@ const [weather, settings, search] = Stator.reads([WeatherMachine, SettingsMachin
     </div>
 
     <PivotCtl />
+
+    {/* WP ApplicationBar: settings drawer, edit mode, refresh. Its chrome
+        state lives in AppBarCtl's client machine. */}
+    <AppBar weather={weather} settings={settings} />
+    <AppBarCtl />
   </section>
 </Layout>

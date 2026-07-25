@@ -25,10 +25,13 @@ a supplementary line.
   (that combination is unreliable in Firefox). The flip tile's own background is
   transparent so only the rotating faces carry color. Used for two-sided tiles:
   **alert** (warning → detail), **wind** (speed → gusts/bearing).
-- **Peek** (slide-up) — a full-tile-height `translateY` slide between two frames
-  (the real WP "peek" is full height, not a partial nudge). Pure 2D, Firefox-safe.
-  Used where the back is one supplementary line: **UV** (index → advice),
-  **air quality** (value → guidance).
+- **Peek** (slide-up) — a full-tile-height `translateY` slide between full-height
+  frames (the real WP "peek" is full height, not a partial nudge; real live tiles
+  cycled through however many frames the content needed). Pure 2D, Firefox-safe.
+  Used where a frame is one screenful of a longer story: **UV** (index → advice),
+  **air quality** (value → guidance), and the **forecast tiles** — which cycle
+  two 12-hour frames when two rows fit the tile, four 6-hour frames when they
+  don't (short tiles on narrow phones).
 - **Static** — sky, humidity, precip, sun, moon. A mix of live and still tiles,
   like a real Start screen.
 

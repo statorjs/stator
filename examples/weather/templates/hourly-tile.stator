@@ -1,6 +1,6 @@
 ---
 import WeatherMachine from '../machines/weather.ts'
-import { raw } from '@statorjs/stator/template'
+import HourlySlide from './hourly-slide.stator'
 import type { InstanceOf } from '@statorjs/stator/template'
 
 const { weather, placeId } = Stator.props<{
@@ -9,22 +9,17 @@ const { weather, placeId } = Stator.props<{
 }>()
 ---
 <div class="tile w4 press peek-tile" style="--c:#1BA1E2;--tc:#fff">
-  <div class="slides">
-    <div class="slide fc-slide">
-      <div class="fc-title">Next 12 hours</div>
-      <div class="hourly">
-        {each(read(weather, (w) => w.hourlyForId(placeId).slice(0, 12)), (h) => (
-          <div class="hour"><div class="h-time">{h.time}</div>{raw(h.icon)}<div class="h-temp num">{h.temp}</div><div class="h-pop num">{h.precip}</div><div class="h-rain num">{h.rain}</div></div>
-        ))}
-      </div>
-    </div>
-    <div class="slide fc-slide">
-      <div class="fc-title">In 12–24 hours</div>
-      <div class="hourly">
-        {each(read(weather, (w) => w.hourlyForId(placeId).slice(12, 24)), (h) => (
-          <div class="hour"><div class="h-time">{h.time}</div>{raw(h.icon)}<div class="h-temp num">{h.temp}</div><div class="h-pop num">{h.precip}</div><div class="h-rain num">{h.rain}</div></div>
-        ))}
-      </div>
-    </div>
+  {/* The same 24 hours in two frame layouts; the container query in app.css
+      shows whichever fits the tile's real height — two 12-hour frames when two
+      rows of hours fit, four 6-hour frames when they don't (short tiles). */}
+  <div class="slides slides-two">
+    <HourlySlide weather={weather} placeId={placeId} from={0} to={12} title="Next 12 hours" />
+    <HourlySlide weather={weather} placeId={placeId} from={12} to={24} title="In 12–24 hours" />
+  </div>
+  <div class="slides slides-four">
+    <HourlySlide weather={weather} placeId={placeId} from={0} to={6} title="Next 6 hours" />
+    <HourlySlide weather={weather} placeId={placeId} from={6} to={12} title="In 6–12 hours" />
+    <HourlySlide weather={weather} placeId={placeId} from={12} to={18} title="In 12–18 hours" />
+    <HourlySlide weather={weather} placeId={placeId} from={18} to={24} title="In 18–24 hours" />
   </div>
 </div>

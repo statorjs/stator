@@ -1,0 +1,39 @@
+---
+import SettingsMachine from '../machines/settings.ts'
+import type { InstanceOf } from '@statorjs/stator/template'
+
+const { settings } = Stator.props<{ settings: InstanceOf<typeof SettingsMachine> }>()
+---
+{/* Two separate settings, each a labeled two-option segment — in the header's
+    cramped strip they shared one group, but side by side they read as a
+    three-state control. Both are server-canonical and sync across tabs. */}
+<div class="set-row" role="group" aria-label="Temperature units">
+  <div class="set-label">temperature</div>
+  <div class="units">
+    <button
+      class:list={['u-btn', { active: read(settings, (s) => s.units === 'metric') }]}
+      aria-pressed={read(settings, (s) => (s.units === 'metric' ? 'true' : 'false'))}
+      on:click={() => settings.send({ type: 'SET_UNITS', units: 'metric' })}
+    >°C</button>
+    <button
+      class:list={['u-btn', { active: read(settings, (s) => s.units === 'imperial') }]}
+      aria-pressed={read(settings, (s) => (s.units === 'imperial' ? 'true' : 'false'))}
+      on:click={() => settings.send({ type: 'SET_UNITS', units: 'imperial' })}
+    >°F</button>
+  </div>
+</div>
+<div class="set-row" role="group" aria-label="Clock format">
+  <div class="set-label">clock</div>
+  <div class="units">
+    <button
+      class:list={['u-btn', { active: read(settings, (s) => s.clock === '12h') }]}
+      aria-pressed={read(settings, (s) => (s.clock === '12h' ? 'true' : 'false'))}
+      on:click={() => settings.send({ type: 'SET_CLOCK', clock: '12h' })}
+    >12h</button>
+    <button
+      class:list={['u-btn', { active: read(settings, (s) => s.clock === '24h') }]}
+      aria-pressed={read(settings, (s) => (s.clock === '24h' ? 'true' : 'false'))}
+      on:click={() => settings.send({ type: 'SET_CLOCK', clock: '24h' })}
+    >24h</button>
+  </div>
+</div>
