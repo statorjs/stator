@@ -1,7 +1,7 @@
 ---
 import SettingsMachine from '../machines/settings.ts'
 import WeatherMachine from '../machines/weather.ts'
-import UnitsToggle from './units-toggle.stator'
+import SettingsControls from './settings-controls.stator'
 import type { InstanceOf } from '@statorjs/stator/template'
 
 const { weather, settings } = Stator.props<{
@@ -17,10 +17,6 @@ const { weather, settings } = Stator.props<{
     Expansion follows the WP affordances — the "…" dots or any blank spot on
     the bar — with the gear kept as the discoverable route to the same drawer. */}
 <div class="appbar">
-  <div class="ab-drawer" role="group" aria-label="Settings">
-    <UnitsToggle settings={settings} />
-    <div class="ab-updated">{read(weather, (w) => w.panelForId(w.activeId).updated)}</div>
-  </div>
   <div class="ab-row">
     <button class="ab-dots" type="button" aria-label="More" aria-expanded="false">
       <svg viewBox="0 0 24 6" aria-hidden="true">
@@ -64,6 +60,12 @@ const { weather, settings } = Stator.props<{
         </svg>
       </button>
       <span class="ab-label">refresh</span>
+    </div>
+  </div>
+  <div class="ab-drawer-clip">
+    <div class="ab-drawer" role="group" aria-label="Settings">
+      <SettingsControls settings={settings} />
+      <div class="ab-updated">{read(weather, (w) => w.panelForId(w.activeId).updated)}</div>
     </div>
   </div>
 </div>

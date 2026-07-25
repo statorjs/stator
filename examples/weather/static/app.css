@@ -114,10 +114,6 @@ header {
   background: var(--fg);
   color: var(--bg);
 }
-.u-clock {
-  border-left: 1px solid var(--line);
-  font-variant-numeric: tabular-nums;
-}
 .u-btn:focus-visible {
   outline: 2px solid #1ba1e2;
   outline-offset: 2px;
@@ -383,6 +379,9 @@ tile-motion {
   margin: 6px 0 16px;
   /* Let the horizontal swipe win over vertical scroll inside a panel. */
   overscroll-behavior-x: contain;
+  /* Gutter between location pages: panels keep their full width — this space
+     exists only mid-swipe, as a seam of ground between the tile grids. */
+  gap: 28px;
 }
 .panorama::-webkit-scrollbar {
   display: none;
@@ -749,9 +748,12 @@ tile-motion {
   .peek-tile .slides {
     transition: none;
   }
-  .ab-refresh.spinning svg,
-  .wx[data-view="settings"] .ab-drawer {
+  .ab-refresh.spinning svg {
     animation: none;
+  }
+  .ab-drawer-clip,
+  .ab-drawer {
+    transition: none;
   }
 }
 
@@ -773,9 +775,6 @@ main {
    surface is not. */
 .appbar {
   cursor: pointer;
-}
-.ab-drawer {
-  cursor: default;
 }
 .ab-row {
   position: relative;
@@ -843,17 +842,52 @@ main {
 .wx[data-view="settings"] .ab-label {
   display: block;
 }
-/* Settings drawer: server-canonical toggles inside client-owned chrome. */
-.ab-drawer {
-  display: none;
+/* Settings drawer: server-canonical toggles inside client-owned chrome.
+   One physical panel, WP-style: the options are printed BELOW the buttons
+   and the whole bar slides up to reveal them — the drawer's grid row grows
+   from the bar's bottom anchor, so the icon row rides upward. */
+.ab-drawer-clip {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s cubic-bezier(0.25, 0.9, 0.25, 1);
 }
-.wx[data-view="settings"] .ab-drawer {
+.wx[data-view="settings"] .ab-drawer-clip {
+  grid-template-rows: 1fr;
+}
+.ab-drawer {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 11px;
-  padding: 18px 16px 4px;
-  animation: edit-slide-in 0.24s ease-out;
+  min-height: 0;
+  overflow: hidden;
+  /* Padding rides the slide — a border-box's minimum height floors at its
+     padding, so it must be 0 for the 0fr track to fully close. */
+  padding: 0 20px;
+  cursor: default;
+  /* Collapsed controls stay out of the tab order / a11y tree; the delay
+     holds visibility until the slide finishes on the way shut. */
+  visibility: hidden;
+  transition:
+    visibility 0s 0.28s,
+    padding 0.28s cubic-bezier(0.25, 0.9, 0.25, 1);
+}
+.wx[data-view="settings"] .ab-drawer {
+  padding: 4px 20px 16px;
+  visibility: visible;
+  transition:
+    visibility 0s,
+    padding 0.28s cubic-bezier(0.25, 0.9, 0.25, 1);
+}
+.set-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.set-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
 }
 .ab-updated {
   font-size: 11.5px;
