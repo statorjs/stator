@@ -1,0 +1,206 @@
+/* Ink on paper, in both lights. Tokens first — components only read tokens. */
+:root {
+  --paper: #fafaf7;
+  --card: #ffffff;
+  --ink: #26303f;
+  --ink-soft: #5c6675;
+  --ink-faint: #99a1ad;
+  --rule: #e4e6e1;
+  --accent: #3a5bc7;
+  --error: #a83b32;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14181f;
+    --card: #1b212b;
+    --ink: #e9e6dd;
+    --ink-soft: #a7aeb9;
+    --ink-faint: #6b7380;
+    --rule: #2a323e;
+    --accent: #8ba3ec;
+    --error: #e08a82;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  line-height: 1.55;
+}
+.book {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+}
+
+.masthead h1 {
+  font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+  font-size: 2.4rem;
+  font-weight: 600;
+  margin: 0 0 0.4rem;
+  letter-spacing: -0.01em;
+}
+.masthead p {
+  margin: 0;
+  color: var(--ink-soft);
+  max-width: 30rem;
+}
+.count-line {
+  margin-top: 1.1rem;
+  font-size: 0.85rem;
+}
+.count-num {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.sign {
+  margin: 2.25rem 0 2.75rem;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 1.1rem 1.2rem 1.2rem;
+}
+.sign-label {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 0.8rem;
+}
+.sign form {
+  display: grid;
+  gap: 0.7rem;
+}
+.sign input[type="text"],
+.sign textarea {
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.5rem 0.65rem;
+  width: 100%;
+}
+.sign textarea {
+  min-height: 4.2rem;
+  resize: vertical;
+}
+.sign input:focus-visible,
+.sign textarea:focus-visible,
+.sign button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.sign-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.char-hint {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
+.sign button {
+  font: inherit;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--paper);
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1.1rem;
+  cursor: pointer;
+}
+.sign button:hover {
+  filter: brightness(1.08);
+}
+.form-error {
+  color: var(--error);
+  font-size: 0.85rem;
+  margin: 0 0 0.8rem;
+}
+.signed-note {
+  margin: 0.9rem 0 0;
+  font-size: 0.85rem;
+  color: var(--accent);
+}
+
+.entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.entry {
+  padding: 1.05rem 0.2rem 1.15rem;
+  border-bottom: 1px solid var(--rule);
+  animation: settle 0.5s ease-out;
+}
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .entry {
+    animation: none;
+  }
+}
+.entry-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.25rem;
+}
+.entry-name {
+  font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+  font-style: italic;
+  font-size: 1.12rem;
+}
+.entry-when {
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.entry-msg {
+  margin: 0;
+  color: var(--ink-soft);
+}
+.entry-msg::before {
+  content: "\201C";
+  color: var(--ink-faint);
+}
+.entry-msg::after {
+  content: "\201D";
+  color: var(--ink-faint);
+}
+
+.colophon {
+  margin-top: 3rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 1.1rem;
+  font-size: 0.8rem;
+  color: var(--ink-faint);
+}
+.colophon p {
+  margin: 0;
+}
+.colophon a {
+  color: var(--ink-soft);
+}
