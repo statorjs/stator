@@ -2,7 +2,7 @@
 title: The mental model
 description: "The big idea: canonical state lives in machines, events change it, templates read it, and import location decides where code runs."
 sidebar:
-  order: 5
+  order: 6
 ---
 
 Everything in Stator follows from four ideas. Hold these and the rest of the framework reads as consequences rather than rules to memorize.
