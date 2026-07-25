@@ -147,8 +147,18 @@ if (!template) {
 }
 
 // --- fetch ---
-const ref = flags.ref ? `#${flags.ref}` : ''
-const source = isRemoteSource(template) ? template : `${FIRST_PARTY}/${template}${ref}`
+// Source and ref are held separately so provenance can record them apart:
+// community sources may embed a ref (`github:user/repo/path#branch`), while
+// first-party templates take it from --ref.
+const sourceBase = (isRemoteSource(template) ? template : `${FIRST_PARTY}/${template}`).split(
+  '#',
+)[0]
+const refName = isRemoteSource(template)
+  ? template.includes('#')
+    ? template.slice(template.indexOf('#') + 1)
+    : null
+  : (flags.ref ?? null)
+const source = refName ? `${sourceBase}#${refName}` : sourceBase
 const s = p.spinner()
 s.start(`Fetching ${template}`)
 try {
@@ -175,6 +185,18 @@ try {
     pkg.dependencies['@statorjs/stator'] = STATOR_RANGE
   }
   delete pkg.private
+  // Record where this scaffold came from. The commit is the merge base for a
+  // later template update (docs: recipes/updating-from-a-template) — the one
+  // fact that can only be captured now. Best-effort: null when offline.
+  pkg.stator = {
+    template: {
+      v: 1,
+      source: sourceBase,
+      ref: refName,
+      commit: resolveTemplateCommit(sourceBase, refName),
+      scaffoldedAt: new Date().toISOString(),
+    },
+  }
   await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
   s.stop(`Scaffolded ${name} (${template})`)
 } catch {
@@ -235,4 +257,31 @@ function bailIfCancelled(v) {
     p.cancel('Cancelled.')
     process.exit(0)
   }
+}
+
+/** Resolve the template ref to a commit sha for provenance. Best-effort by
+ *  design: no git, no network, or an unknown provider all return null rather
+ *  than slow down or fail the scaffold. Annotated tags resolve to the peeled
+ *  commit (`^{}`) when the host lists one. */
+function resolveTemplateCommit(src, refName) {
+  if (refName && /^[0-9a-f]{40}$/.test(refName)) return refName
+  // giget providers that are also plain git hosts, for `git ls-remote`.
+  const hosts = {
+    gh: 'github.com',
+    github: 'github.com',
+    gitlab: 'gitlab.com',
+    bitbucket: 'bitbucket.org',
+  }
+  const m = src.match(/^([a-z]+):([^/]+\/[^/#]+)/)
+  const host = m && hosts[m[1]]
+  if (!host) return null
+  const out = spawnSync('git', ['ls-remote', `https://${host}/${m[2]}`, refName ?? 'HEAD'], {
+    encoding: 'utf8',
+    timeout: 15_000,
+  })
+  if (out.status !== 0 || !out.stdout) return null
+  const lines = out.stdout.trim().split('\n')
+  const line = lines.find((l) => l.includes('^{}')) ?? lines[0]
+  const sha = line?.split(/\s+/)[0]
+  return sha && /^[0-9a-f]{40}$/.test(sha) ? sha : null
 }
