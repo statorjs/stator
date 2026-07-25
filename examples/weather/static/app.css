@@ -388,6 +388,9 @@ tile-motion {
 }
 .panel {
   scroll-snap-align: start;
+  /* A fast fling settles on the NEXT location, never past it (WP moved one
+     page per swipe). */
+  scroll-snap-stop: always;
   flex: 0 0 100%;
   min-width: 100%;
   display: flex;
