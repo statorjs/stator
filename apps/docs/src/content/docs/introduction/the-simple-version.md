@@ -64,7 +64,7 @@ export default defineMachine({
 
 The page reads from it. `read()` marks the parts that stay live:
 
-```
+```astro
 ---
 import Notes from '../machines/notes.ts'
 
