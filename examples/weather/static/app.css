@@ -8,6 +8,8 @@
   --fg-2: #9aa0a6;
   --line: rgba(255, 255, 255, 0.12);
   --tile-surface: #1a1a1a;
+  --bar-bg: #1f1f1f;
+  --bar-fg: #ffffff;
   --sans: "Segoe UI", "Segoe UI Variable Text", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
   /* Mobile (4-col): size the tile so 4 columns + 3 gaps fit exactly inside the
      content width (100vw − 2×16px side padding − 3×8px gaps = 100vw − 56px), so
@@ -22,6 +24,8 @@
     --fg-2: #5c636b;
     --line: rgba(20, 30, 40, 0.12);
     --tile-surface: #ececec;
+    --bar-bg: #d9d9d9;
+    --bar-fg: #14171a;
   }
 }
 :root[data-theme="dark"] {
@@ -30,6 +34,8 @@
   --fg-2: #9aa0a6;
   --line: rgba(255, 255, 255, 0.12);
   --tile-surface: #1a1a1a;
+  --bar-bg: #1f1f1f;
+  --bar-fg: #ffffff;
 }
 :root[data-theme="light"] {
   --bg: #fbfbfb;
@@ -37,6 +43,8 @@
   --fg-2: #5c636b;
   --line: rgba(20, 30, 40, 0.12);
   --tile-surface: #ececec;
+  --bar-bg: #d9d9d9;
+  --bar-fg: #14171a;
 }
 
 * {
@@ -88,7 +96,6 @@ header {
   font-size: 14px;
 }
 .units {
-  float: right;
   display: inline-flex;
   height: 32px;
   border: 1px solid var(--line);
@@ -731,64 +738,126 @@ tile-motion {
   .peek-tile .slides {
     transition: none;
   }
+  .ab-refresh.spinning svg,
+  .wx[data-view="settings"] .ab-drawer {
+    animation: none;
+  }
 }
 
-/* ---- Edit mode: ephemeral client-side view state on .wx[data-editing] --- */
-/* Toggled by the <edit-mode> island (a data-* attribute NAMES the UI state, the
-   way a bare class can't); CSS drives every reveal below. Resting state is clean
-   — no ✕, no search. */
-.edit-mode {
-  float: right;
-  margin-right: 8px;
+/* ---- App bar: WP ApplicationBar — flat bar, circled glyph buttons ------ */
+main {
+  padding-bottom: calc(104px + env(safe-area-inset-bottom));
 }
-.edit-toggle {
-  display: inline-flex;
+.appbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.ab-row {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 30px;
+  padding: 11px 0 12px;
+}
+.ab-item {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  height: 32px;
-  padding: 0 11px;
-  border: 1px solid var(--line);
+  gap: 5px;
+}
+.ab-btn {
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 2px solid currentColor;
+  border-radius: 50%;
   background: transparent;
-  color: var(--fg-2);
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
+  color: inherit;
+  display: grid;
+  place-items: center;
   cursor: pointer;
 }
-.edit-toggle:hover {
-  color: var(--fg);
+.ab-btn svg {
+  width: 21px;
+  height: 21px;
+  display: block;
 }
-.edit-toggle:focus-visible {
+.ab-btn:focus-visible {
   outline: 2px solid #1ba1e2;
   outline-offset: 2px;
 }
-.et-icon {
-  display: block;
-  width: 19px;
-  height: 19px;
-}
-.et-check {
+/* Labels appear under every button while the bar is expanded — WP showed its
+   labels only on the opened bar. */
+.ab-label {
   display: none;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
 }
-.wx[data-editing] .edit-toggle {
-  background: var(--fg);
-  color: var(--bg);
-  border-color: var(--fg);
-}
-.wx[data-editing] .et-gear {
-  display: none;
-}
-.wx[data-editing] .et-check {
+.wx[data-view="settings"] .ab-label {
   display: block;
 }
+/* Settings drawer: server-canonical toggles inside client-owned chrome. */
+.ab-drawer {
+  display: none;
+}
+.wx[data-view="settings"] .ab-drawer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 11px;
+  padding: 18px 16px 4px;
+  animation: edit-slide-in 0.24s ease-out;
+}
+.ab-updated {
+  font-size: 11.5px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+/* Edit is a mode: the pencil fills solid and swaps to a check while active. */
+.ab-glyph-check {
+  display: none;
+}
+.wx[data-view="editing"] .ab-edit {
+  background: var(--bar-fg);
+  color: var(--bar-bg);
+}
+.wx[data-view="editing"] .ab-edit .ab-glyph-pencil {
+  display: none;
+}
+.wx[data-view="editing"] .ab-edit .ab-glyph-check {
+  display: block;
+}
+/* The spinner is SERVER state (weather.refreshing over SSE) — every open tab
+   sees a refresh in flight, whoever started it. */
+.ab-refresh.spinning svg {
+  animation: ab-spin 1s linear infinite;
+}
+@keyframes ab-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- Edit mode: chrome view state, projected as .wx[data-view] --------- */
+/* The mode's OWNER is the app bar's ViewMode client machine (app-bar-ctl);
+   `data-view` is only its projection, and CSS drives every reveal below.
+   Resting state is clean — no ✕, no search. */
 
 /* Eyebrow names the mode: "weather" → "edit locations". */
 .eb-edit {
   display: none;
 }
-.wx[data-editing] .eb-rest {
+.wx[data-view="editing"] .eb-rest {
   display: none;
 }
-.wx[data-editing] .eb-edit {
+.wx[data-view="editing"] .eb-edit {
   display: inline;
 }
 
@@ -796,7 +865,7 @@ tile-motion {
 .search-wrap {
   display: none;
 }
-.wx[data-editing] .search-wrap {
+.wx[data-view="editing"] .search-wrap {
   display: block;
   animation: edit-slide-in 0.24s ease-out;
 }
@@ -816,12 +885,12 @@ tile-motion {
 .pivot-remove {
   display: none;
 }
-.wx[data-editing] .pivot-item {
+.wx[data-view="editing"] .pivot-item {
   padding: 4px 6px 4px 12px;
   border: 1px solid var(--line);
   border-radius: 999px;
 }
-.wx[data-editing] .pivot-remove {
+.wx[data-view="editing"] .pivot-remove {
   display: inline-flex;
   align-self: center;
   align-items: center;
@@ -836,7 +905,7 @@ tile-motion {
   cursor: pointer;
   animation: edit-pop-in 0.2s ease-out;
 }
-.wx[data-editing] .pivot-remove:hover {
+.wx[data-view="editing"] .pivot-remove:hover {
   background: #d64545;
   color: #fff;
 }

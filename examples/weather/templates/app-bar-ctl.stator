@@ -1,0 +1,78 @@
+<app-bar-ctl hidden></app-bar-ctl>
+
+<script>
+  // Chrome view state has a real model — three mutually exclusive modes with
+  // transition rules — so it lives in a client MACHINE, not in ad-hoc handlers
+  // flipping DOM attributes. The DOM only ever sees the machine's projection
+  // (`data-view` on the .wx root); CSS renders every reveal from it. The rule
+  // of thumb this island demonstrates: the moment view state is more than one
+  // independent boolean, stop toggling it in script and give it a machine.
+  // Handlers below are glue — they dispatch events, they never own state.
+  const ViewMode = machine(
+    { mode: 'idle' }, // 'idle' | 'settings' | 'editing'
+    {
+      on: {
+        TOGGLE_SETTINGS: (s) => {
+          s.mode = s.mode === 'settings' ? 'idle' : 'settings'
+        },
+        TOGGLE_EDIT: (s) => {
+          s.mode = s.mode === 'editing' ? 'idle' : 'editing'
+        },
+        // Outside taps and Escape close the transient settings drawer only —
+        // edit is a deliberate mode, exited by its own button. The `when`
+        // guard makes that rule part of the machine, not the callers.
+        DISMISS: {
+          when: (s) => s.mode === 'settings',
+          do: (s) => {
+            s.mode = 'idle'
+          },
+        },
+      },
+    },
+  )
+
+  export class AppBarCtl extends StatorElement {
+    view = use(ViewMode)
+
+    connectedCallback() {
+      super.connectedCallback()
+      const root = this.closest('.wx') as HTMLElement | null
+      const bar = root?.querySelector('.appbar') as HTMLElement | null
+      const gear = bar?.querySelector('.ab-settings') as HTMLButtonElement | null
+      const edit = bar?.querySelector('.ab-edit') as HTMLButtonElement | null
+      if (!root || !bar || !gear || !edit) return
+
+      const project = () => {
+        const mode = this.view.mode as string
+        root.dataset.view = mode
+        gear.setAttribute('aria-expanded', mode === 'settings' ? 'true' : 'false')
+        edit.setAttribute('aria-pressed', mode === 'editing' ? 'true' : 'false')
+      }
+      const send = (type: string) => {
+        this.view.send(type)
+        project()
+      }
+
+      const onGear = () => send('TOGGLE_SETTINGS')
+      const onEdit = () => send('TOGGLE_EDIT')
+      const onPress = (e: Event) => {
+        if (!bar.contains(e.target as Node)) send('DISMISS')
+      }
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') send('DISMISS')
+      }
+      gear.addEventListener('click', onGear)
+      edit.addEventListener('click', onEdit)
+      document.addEventListener('pointerdown', onPress)
+      document.addEventListener('keydown', onKey)
+
+      project()
+      this.track(() => {
+        gear.removeEventListener('click', onGear)
+        edit.removeEventListener('click', onEdit)
+        document.removeEventListener('pointerdown', onPress)
+        document.removeEventListener('keydown', onKey)
+      })
+    }
+  }
+</script>

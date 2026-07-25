@@ -61,6 +61,9 @@ interface Ctx {
   data: Record<string, PlaceData>
   units: Units
   clock: Clock
+  /** True while a revalidation cycle is in flight — drives the app bar's
+   *  refresh spinner (over SSE, so every open tab sees it). */
+  refreshing: boolean
 }
 
 type LoadResult =
@@ -102,7 +105,12 @@ async function loadAll(places: SavedPlace[]): Promise<Events> {
   return { type: 'LOADED_ALL', results }
 }
 
+const markRefreshing = (ctx: Ctx): void => {
+  ctx.refreshing = true
+}
+
 const applyLoadedAll = (ctx: Ctx, ev: { results: LoadResult[] }): void => {
+  ctx.refreshing = false
   for (const r of ev.results) {
     ctx.data[r.id] =
       'failed' in r
@@ -226,7 +234,7 @@ const panelVM = (ctx: Ctx, id: string): PanelVM => {
     moonPath: moonPath(moon.illum, moon.waxing),
     updated:
       d?.updatedAt != null && place
-        ? `Updated ${fmtClock(hhmmInZone(d.updatedAt, place.timezone), ctx.clock)}`
+        ? `updated ${fmtClock(hhmmInZone(d.updatedAt, place.timezone), ctx.clock)}`
         : '',
   }
 }
@@ -303,6 +311,7 @@ export default defineMachine({
     data: {},
     units: 'metric',
     clock: '24h',
+    refreshing: false,
   } as Ctx,
   initial: 'loading',
   states: {
@@ -316,7 +325,7 @@ export default defineMachine({
     ready: {
       after: [{ delay: REVALIDATE_MS, send: { type: 'REVALIDATE' } }],
       on: {
-        REVALIDATE: { to: 'revalidating' },
+        REVALIDATE: { to: 'revalidating', do: markRefreshing },
         SETTINGS_CHANGED: { do: mirrorSettings },
         SET_ACTIVE: {
           do: (ctx, ev) => {
@@ -385,6 +394,7 @@ export default defineMachine({
     active: (ctx) => ctx.places.find((p) => p.id === ctx.activeId) ?? ctx.places[0] ?? null,
     units: (ctx) => ctx.units,
     clock: (ctx) => ctx.clock,
+    refreshing: (ctx) => ctx.refreshing,
     /** Everything a single city panel renders. The Panorama binds
      *  `panelForId(p.id).<field>` per tile inside a keyed `each`, so each panel
      *  is fully per-location and slides as one page. Element ids inside the arm

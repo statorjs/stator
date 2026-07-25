@@ -21,7 +21,6 @@ const { weather, placeId } = Stator.props<{
         {' '}{read(weather, (w) => w.panelForId(placeId).cardinal)}
       </span>
       <span class="num">{read(weather, (w) => w.panelForId(placeId).humidity)}% RH</span>
-      <span class="num">{read(weather, (w) => w.panelForId(placeId).updated)}</span>
     </div>
   </div>
 </div>
