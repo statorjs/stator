@@ -10,6 +10,7 @@ import {
   fetchForecast,
   type Forecast,
   hhmm,
+  hhmmInZone,
   moonPath,
   moonPhase,
   type Place,
@@ -178,10 +179,12 @@ interface PanelVM {
   moonName: string
   moonIllumPct: number
   moonPath: string
+  updated: string
 }
 
 const panelVM = (ctx: Ctx, id: string): PanelVM => {
   const d = ctx.data[id]
+  const place = ctx.places.find((p) => p.id === id) ?? null
   const c = d?.forecast?.current ?? null
   const day0 = d?.forecast?.daily?.[0] ?? null
   const aq = d?.aqi ?? null
@@ -221,6 +224,10 @@ const panelVM = (ctx: Ctx, id: string): PanelVM => {
     moonName: moon.name,
     moonIllumPct: Math.round(moon.illum * 100),
     moonPath: moonPath(moon.illum, moon.waxing),
+    updated:
+      d?.updatedAt != null && place
+        ? `Updated ${fmtClock(hhmmInZone(d.updatedAt, place.timezone), ctx.clock)}`
+        : '',
   }
 }
 

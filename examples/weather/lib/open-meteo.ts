@@ -524,6 +524,17 @@ export function hhmm(iso: string): string {
   return m ? m[1]! : '—'
 }
 
+/** "HH:MM" for an epoch instant in a place's IANA timezone — panel times are
+ *  city-local (like sunrise/sunset), not server-local. */
+export function hhmmInZone(epochMs: number, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(epochMs)
+}
+
 // ---- Weather glyphs -----------------------------------------------------
 const CLOUD = 'M8 18.5a4.2 4.2 0 0 1-.3-8.4 5.8 5.8 0 0 1 11 1.1A3.6 3.6 0 0 1 18 18.5Z'
 type IconKind =

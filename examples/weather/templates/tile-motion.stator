@@ -22,13 +22,27 @@
 
       const timers: number[] = []
       tiles.forEach((el, i) => {
-        const cls = el.classList.contains('flip-tile') ? 'flipped' : 'peeked'
+        const isFlip = el.classList.contains('flip-tile')
+        // Peek tiles cycle --peek-frame through their VISIBLE slides — counted
+        // per tick because the hourly tile swaps between a 2-frame and a
+        // 4-frame layout with the container query, and a resize can change the
+        // count under a running interval.
+        const step = () => {
+          if (isFlip) {
+            el.classList.toggle('flipped')
+            return
+          }
+          const frames = Array.from(el.querySelectorAll('.slide')).filter(
+            (s) => (s as HTMLElement).offsetHeight > 0,
+          ).length
+          if (frames < 2) return
+          const cur = Number(el.style.getPropertyValue('--peek-frame')) || 0
+          el.style.setProperty('--peek-frame', String((cur + 1) % frames))
+        }
         // Stagger the first turn, then loop on a per-tile cadence so the tiles
         // don't flip in lockstep.
         const start = window.setTimeout(() => {
-          timers.push(
-            window.setInterval(() => el.classList.toggle(cls), 5800 + (i % 4) * 1500),
-          )
+          timers.push(window.setInterval(step, 5800 + (i % 4) * 1500))
         }, 2800 + i * 850)
         timers.push(start)
       })

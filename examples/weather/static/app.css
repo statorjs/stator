@@ -338,14 +338,21 @@ tile-motion {
   pointer-events: none;
 }
 
-/* Peek / slide: the panel slides up, the next slides in from below. Pure 2D. */
+/* Peek / slide: the panel slides up, the next slides in from below. Pure 2D.
+   Frames are full-tile-height slides; tile-motion steps --peek-frame through
+   0..N-1 (N = the tile's visible slide count), so a tile may cycle more than
+   two frames. No JS ⇒ --peek-frame stays 0 and the first frame shows. */
 .peek-tile {
   overflow: hidden;
+  /* Size container: lets the forecast tiles pick a frame layout (and density)
+     from the REAL tile height, which is grid-derived, not content-derived. */
+  container: tile / size;
 }
 .peek-tile .slides {
   position: absolute;
   inset: 0;
   transition: transform 0.55s cubic-bezier(0.25, 0.9, 0.25, 1);
+  transform: translateY(calc(var(--peek-frame, 0) * -100%));
 }
 .peek-tile .slide {
   position: relative;
@@ -357,9 +364,6 @@ tile-motion {
   flex-direction: column;
   justify-content: space-between;
   padding: 13px 14px;
-}
-.peek-tile.peeked .slides {
-  transform: translateY(-100%);
 }
 
 /* ---- Panorama: one full page per location, whole panel slides -------- */
@@ -461,7 +465,24 @@ tile-motion {
 }
 
 /* ---- Forecast tiles (hourly + 10-day) — w4 grid tiles ---------------- */
-/* hourly: a 6×2 grid inside .tcontent; 10-day: a peek tile of day rows. */
+/* hourly: 6-across rows of hours; 10-day: a peek tile of day rows.
+   The tile is a fixed span-2 grid cell, so its height is width-derived while
+   the row content is font-derived — on short tiles they can't both win. The
+   hourly tile ships BOTH frame layouts and the tile's height picks one:
+   ≥254px fits two full rows (worst-case populated pop+rain lines), below
+   that the peek cycles four single-row frames instead. Same data, shorter
+   frames — never a clipped row. */
+.slides-four {
+  display: none;
+}
+@container tile (height < 254px) {
+  .slides-two {
+    display: none;
+  }
+  .slides-four {
+    display: block;
+  }
+}
 .fc-slide {
   justify-content: flex-start;
   gap: 4px;
@@ -573,6 +594,47 @@ tile-motion {
   font-size: 13px;
   text-align: right;
   font-weight: 500;
+}
+/* Daily density: the full rows (with the rain-amount sub-line) need ~215px of
+   tile; below that drop the sub-line and tighten so all five days still show. */
+@container tile (height < 216px) {
+  .d-rain {
+    display: none;
+  }
+  .drow {
+    padding: 3px 0;
+  }
+  .drow .wx-ico {
+    width: 18px;
+    height: 18px;
+  }
+}
+/* Tiny tiles (≲340px viewports — 2.8" phones): trade fine print and a few px
+   of type for never clipping a row. The rain-probability column stays. */
+@container tile (height < 150px) {
+  .peek-tile .slide {
+    padding: 10px 12px;
+  }
+  .hour .wx-ico {
+    width: 22px;
+    height: 22px;
+  }
+  .h-rain {
+    display: none;
+  }
+  .drow {
+    padding: 2px 0;
+  }
+  .drow .wx-ico {
+    width: 16px;
+    height: 16px;
+  }
+  .d-day {
+    font-size: 12px;
+  }
+  .drow-head {
+    font-size: 8.5px;
+  }
 }
 
 /* ---- Tile glyphs ----------------------------------------------------- */
