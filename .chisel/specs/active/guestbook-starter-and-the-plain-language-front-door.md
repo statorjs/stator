@@ -87,4 +87,32 @@ Two artifacts open that door:
 
 ## Implementation Notes
 
-<!-- Updated during/after implementation: what changed from the plan and why -->
+**Docs page + landing lead-in shipped** (#32 + follow-ups). Prototype artifact
+(ink-on-paper look, wire-visibility toggle) drove the design.
+
+**`examples/guestbook` built** (branch example/guestbook). Decisions vs plan:
+
+- **Zero custom JavaScript** — signing is a native form POST to the same-URL
+  API route (`routes/index.ts`, the todomvc/live-poll pattern), not an
+  on:submit island. Chose the stronger compare-and-contrast headline and the
+  period-authentic feel over no-reload submits; the signer's own page reloads
+  via 303, every other open page updates by SSE patch. This also answered the
+  no-JS open question: yes, by construction.
+- **Rules live in `lib/rules.ts`**, applied by BOTH machines (visitor before
+  emit, book before record) — the API handler is "the doorman, not the law"
+  and bounces bad input with `?error=` for friendly banners.
+- **Rows are static captures** (`{entry.name}`) in a keyed each — entries are
+  immutable after signing, so item reads would be dishonest surface. Insert
+  patches carry new signatures; the count is the second live read.
+- **Absolute timestamps** (server TZ) — a static "just now" that never ages
+  would be the staleness lie the item-bindings work exists to prevent.
+- Visitor counter: dropped (one cute thing too many). "Thanks for signing"
+  note via a session-machine read inside a when() arm (machine reads in arms:
+  legal).
+- Port 3002 (3000 minimal/todomvc/desksmith, 3001 live-poll, 3005 weather).
+
+**Verified**: 5 machine tests (trim/newest-first, reject empty + >280, cap
+100, visitor counts only valid); compiles through the real build (1
+component); end-to-end smoke on the prod server — GET count 0 → browser-shaped
+form POST 303 → entry rendered, count 1; invalid POST 303 `/?error=name` →
+banner renders. Cross-window SSE remains for browser verification.
