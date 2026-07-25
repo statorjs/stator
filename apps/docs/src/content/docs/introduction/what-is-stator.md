@@ -5,6 +5,8 @@ sidebar:
   order: 1
 ---
 
+This page makes the case in framework terms — components, reactivity, rendering models. If that vocabulary isn't home turf, [the simple version](/introduction/the-simple-version/) tells the same story without it.
+
 Stator is a **server-canonical** web framework. Your application's state lives in **state machines** on the server; your templates **read** from those machines; and **events** are the only thing that changes state. When state changes, the server computes the minimal set of DOM updates and sends them back as small patches — so the page changes exactly where its underlying state changed, and nowhere else.
 
 ## Stator in one paragraph

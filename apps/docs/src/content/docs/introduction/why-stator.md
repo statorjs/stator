@@ -2,7 +2,7 @@
 title: Why Stator
 description: "The problems Stator solves, the tradeoffs it makes, and when (not) to reach for it."
 sidebar:
-  order: 2
+  order: 3
 ---
 
 Stator exists because the dominant way we build interactive apps — canonical state in the browser, mirrored to the server — creates a class of problems that never fully go away. Stator makes the server's state canonical and gives the client a precise, declared window into it.
