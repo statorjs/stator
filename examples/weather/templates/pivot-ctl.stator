@@ -47,7 +47,15 @@
         const pill = (e.target as HTMLElement).closest('.pivot-item') as HTMLElement | null
         if (!pill) return
         const hero = heroes().find((h) => h.dataset.id === pill.dataset.id)
-        hero?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+        if (!hero) return
+        // Scroll the panorama ONLY — scrollIntoView would also scroll every
+        // vertical ancestor (the panel is taller than the viewport, so even
+        // block:'nearest' yanks the page down to the panel's top edge).
+        const left =
+          carousel.scrollLeft +
+          hero.getBoundingClientRect().left -
+          carousel.getBoundingClientRect().left
+        carousel.scrollTo({ left, behavior: 'smooth' })
       }
       pivot.addEventListener('click', onPillClick)
 
