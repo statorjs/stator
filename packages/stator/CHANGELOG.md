@@ -1,5 +1,11 @@
 # @statorjs/stator
 
+## 1.4.1
+
+### Patch Changes
+
+- 27c3e64: class:list and style:list specs re-resolve their machine reads against the current proxy on fan-out recompute — a long-lived SSE connection previously composed the attribute from the actor frozen at connect time, so the attribute never patched over a live connection.
+
 ## 1.4.0
 
 ### Minor Changes
