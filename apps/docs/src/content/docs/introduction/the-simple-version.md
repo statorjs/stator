@@ -12,7 +12,7 @@ that language. Both pages describe the same thing.
 
 ## The one-sentence version
 
-Your data lives in a database on the server. Stator draws your page where
+Your data lives in a database on the server. Stator renders your page where
 the data lives, and keeps the page matching it.
 
 ## The problem it removes
@@ -25,7 +25,7 @@ copies of data that go stale the moment someone else changes something.
 Most bugs live in the glue. The page shows the old value. The spinner never
 stops. Two parts of the screen disagree about what's true.
 
-Stator is one program. The server owns the data *and* draws the page. When
+Stator is one program. The server owns the data *and* renders the page. When
 data changes, the browser doesn't re-ask the server what's true — the server
 sends a tiny note: "change this bit." Just the number that changed, or the
 one new row. Nothing else moves.
