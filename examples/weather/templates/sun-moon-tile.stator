@@ -1,9 +1,9 @@
 ---
-import WeatherMachine from '../machines/weather.ts'
+import PanelsMachine from '../machines/panels.ts'
 import type { InstanceOf } from '@statorjs/stator/template'
 
-const { weather, placeId } = Stator.props<{
-  weather: InstanceOf<typeof WeatherMachine>
+const { panels, placeId } = Stator.props<{
+  panels: InstanceOf<typeof PanelsMachine>
   placeId: string
 }>()
 ---
@@ -13,12 +13,12 @@ const { weather, placeId } = Stator.props<{
       <div class="t-label">Sun</div>
       <svg class="mini-arc" viewBox="0 0 128 52" aria-hidden="true">
         <path d="M 10 44 A 54 54 0 0 1 118 44" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="2" stroke-dasharray="2 4" />
-        <path d={read(weather, (w) => w.panelForId(placeId).sunPath)} fill="none" stroke="#fff" stroke-width="2.2" />
-        <circle cx={read(weather, (w) => w.panelForId(placeId).sunX)} cy={read(weather, (w) => w.panelForId(placeId).sunY)} r="5" fill="#fff" />
+        <path d={read(panels, (w) => w.panelForId(placeId).sunPath)} fill="none" stroke="#fff" stroke-width="2.2" />
+        <circle cx={read(panels, (w) => w.panelForId(placeId).sunX)} cy={read(panels, (w) => w.panelForId(placeId).sunY)} r="5" fill="#fff" />
       </svg>
       <div class="t-foot">
-        <span class="t-sub">↑ <span class="num">{read(weather, (w) => w.panelForId(placeId).sunrise)}</span></span>
-        <span class="t-sub">↓ <span class="num">{read(weather, (w) => w.panelForId(placeId).sunset)}</span></span>
+        <span class="t-sub">↑ <span class="num">{read(panels, (w) => w.panelForId(placeId).sunrise)}</span></span>
+        <span class="t-sub">↓ <span class="num">{read(panels, (w) => w.panelForId(placeId).sunset)}</span></span>
       </div>
     </div>
     <div class="flip-face back">
@@ -26,13 +26,13 @@ const { weather, placeId } = Stator.props<{
         <span class="t-label">Moon</span>
         <svg class="mini-moon" viewBox="-30 -30 60 60" aria-hidden="true">
           <circle r="26" fill="rgba(255,255,255,0.12)" />
-          <path d={read(weather, (w) => w.panelForId(placeId).moonPath)} fill="#fff" />
+          <path d={read(panels, (w) => w.panelForId(placeId).moonPath)} fill="#fff" />
           <circle r="26" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1" />
         </svg>
       </div>
       <div>
-        <div class="t-sub t-moon-name">{read(weather, (w) => w.panelForId(placeId).moonName)}</div>
-        <div class="t-sub"><span class="num">{read(weather, (w) => w.panelForId(placeId).moonIllumPct)}</span>% lit</div>
+        <div class="t-sub t-moon-name">{read(panels, (w) => w.panelForId(placeId).moonName)}</div>
+        <div class="t-sub"><span class="num">{read(panels, (w) => w.panelForId(placeId).moonIllumPct)}</span>% lit</div>
       </div>
     </div>
   </div>

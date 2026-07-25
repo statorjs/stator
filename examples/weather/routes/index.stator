@@ -2,6 +2,7 @@
 // @stator live
 import SearchMachine from '../machines/search.ts'
 import SettingsMachine from '../machines/settings.ts'
+import PanelsMachine from '../machines/panels.ts'
 import WeatherMachine from '../machines/weather.ts'
 import AppBar from '../templates/app-bar.stator'
 import AppBarCtl from '../templates/app-bar-ctl.stator'
@@ -9,9 +10,10 @@ import Layout from '../templates/layout.stator'
 import Panel from '../templates/panel.stator'
 import Pivot from '../templates/pivot.stator'
 import PivotCtl from '../templates/pivot-ctl.stator'
+import RefreshClock from '../templates/refresh-clock.stator'
 import SearchBar from '../templates/search-bar.stator'
 
-const [weather, settings, search] = Stator.reads([WeatherMachine, SettingsMachine, SearchMachine])
+const [weather, settings, search, panels] = Stator.reads([WeatherMachine, SettingsMachine, SearchMachine, PanelsMachine])
 ---
 <Layout>
   <section class="wx">
@@ -29,14 +31,14 @@ const [weather, settings, search] = Stator.reads([WeatherMachine, SettingsMachin
 
     {/* Pivot headers — native scroll-snap strip; PivotCtl highlights the centred
         panel and scrolls one into view on click. Scroll position is the truth. */}
-    <Pivot weather={weather} />
+    <Pivot weather={weather} panels={panels} />
 
     {/* Panorama: one full panel per location, swiped with native CSS scroll-snap. */}
     <div class="panorama" aria-label="Locations">
       {each(
         read(weather, (w) => w.places),
         (p) => (
-          <Panel weather={weather} placeId={p.id} />
+          <Panel panels={panels} placeId={p.id} />
         ),
         { key: (p) => p.id },
       )}
@@ -46,7 +48,8 @@ const [weather, settings, search] = Stator.reads([WeatherMachine, SettingsMachin
 
     {/* WP ApplicationBar: settings drawer, edit mode, refresh. Its chrome
         state lives in AppBarCtl's client machine. */}
-    <AppBar weather={weather} settings={settings} />
+    <AppBar weather={weather} settings={settings} panels={panels} />
     <AppBarCtl />
+    <RefreshClock />
   </section>
 </Layout>

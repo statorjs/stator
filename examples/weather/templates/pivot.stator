@@ -1,8 +1,12 @@
 ---
+import PanelsMachine from '../machines/panels.ts'
 import WeatherMachine from '../machines/weather.ts'
 import type { InstanceOf } from '@statorjs/stator/template'
 
-const { weather } = Stator.props<{ weather: InstanceOf<typeof WeatherMachine> }>()
+const { weather, panels } = Stator.props<{
+  weather: InstanceOf<typeof WeatherMachine>
+  panels: InstanceOf<typeof PanelsMachine>
+}>()
 ---
 <nav class="pivot" aria-label="Saved locations">
   {each(
@@ -10,7 +14,7 @@ const { weather } = Stator.props<{ weather: InstanceOf<typeof WeatherMachine> }>
     (p) => (
       <button class="pivot-item" data-id={p.id}>
         <span class="pivot-name">{p.name}</span>
-        <span class="pivot-temp num">{read(weather, (w) => w.panelForId(p.id).temp)}</span>
+        <span class="pivot-temp num">{read(panels, (w) => w.panelForId(p.id).temp)}</span>
         <span
           class="pivot-remove"
           role="button"

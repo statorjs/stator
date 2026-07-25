@@ -1,0 +1,41 @@
+<refresh-clock hidden></refresh-clock>
+
+<script>
+  import WeatherMachine from '../machines/weather.ts'
+
+  // The CLIENT owns the refresh clock; the SERVER owns the policy. A tick is
+  // only ever a REQUEST — the ForecastCache's staleness guard decides whether
+  // any upstream work happens, so ten tabs ticking cost one fetch and a spam
+  // of ticks costs nothing. Demand-awareness comes from the platform: hidden
+  // tabs skip their ticks, closed tabs can't tick at all, and returning to a
+  // tab catches up immediately. No server-side loop exists to poll for
+  // sessions nobody is looking at.
+  export class RefreshClock extends StatorElement {
+    connectedCallback() {
+      super.connectedCallback()
+      const TICK_MS = 15 * 60_000
+      const tick = () => dispatch(WeatherMachine, { type: 'REVALIDATE' })
+
+      // First data load: the session machine no longer fetches on entry, so
+      // the mount tick is what fills a fresh page (over SSE, once it lands).
+      tick()
+      // Jitter the cadence per client so a fleet of tabs doesn't tick in sync.
+      const timer = window.setInterval(
+        () => {
+          if (!document.hidden) tick()
+        },
+        TICK_MS + Math.floor(Math.random() * 30_000),
+      )
+      // Coming back to a hidden tab: catch up now instead of waiting a cycle.
+      const onVisible = () => {
+        if (!document.hidden) tick()
+      }
+      document.addEventListener('visibilitychange', onVisible)
+
+      this.track(() => {
+        clearInterval(timer)
+        document.removeEventListener('visibilitychange', onVisible)
+      })
+    }
+  }
+</script>
