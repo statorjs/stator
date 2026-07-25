@@ -398,20 +398,19 @@ tile-motion {
      adjacent (offscreen) panel during the carousel. */
   overflow: hidden;
 }
-/* Match the tile grid's exact width (columns + gaps) so the hero lines up with
-   the tiles below — both left-aligned with the header text (Metro). The desktop
-   override MUST come after this base rule to win at equal specificity. */
+/* The hero is a GRID TILE like everything else — full row width, two rows
+   tall, so its height sits on the same rhythm as the m2 tiles beside it.
+   Tiny screens give it a third row so the meta line never clips. */
 .hero {
   position: relative;
-  width: calc(4 * var(--u) + 3 * 8px);
-  aspect-ratio: 16 / 9;
-  max-height: 320px;
+  grid-column: 1 / -1;
+  grid-row: span 2;
   overflow: hidden;
   background: linear-gradient(168deg, #589fdb, #d6e7f4);
 }
-@media (min-width: 720px) {
+@media (max-width: 374px) {
   .hero {
-    width: calc(6 * var(--u) + 5 * 8px);
+    grid-row: span 3;
   }
 }
 .hero .live-sky,
@@ -776,6 +775,26 @@ main {
 .appbar {
   cursor: pointer;
 }
+/* Full-bleed bar, content-column alignment (the UWP CommandBar treatment):
+   the inner box replicates main's centering + padding, and its children take
+   the tile grid's exact width — so the dots sit on the tiles' right edge and
+   the drawer's rows start on their left edge. */
+.ab-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+.ab-inner > * {
+  width: calc(4 * var(--u) + 3 * 8px);
+}
+@media (min-width: 720px) {
+  .ab-inner {
+    padding: 0 clamp(24px, 4vw, 44px);
+  }
+  .ab-inner > * {
+    width: calc(6 * var(--u) + 5 * 8px);
+  }
+}
 .ab-row {
   position: relative;
   display: flex;
@@ -784,11 +803,12 @@ main {
   gap: 30px;
   padding: 11px 0 12px;
 }
-/* WP's "…" affordance, top-right of the button row. */
+/* WP's "…" affordance, top-right of the button row — which now spans the
+   tile grid, so the dots ride the tiles' right edge. */
 .ab-dots {
   position: absolute;
   top: 2px;
-  right: 6px;
+  right: 0;
   padding: 7px;
   border: 0;
   background: transparent;
@@ -862,8 +882,9 @@ main {
   min-height: 0;
   overflow: hidden;
   /* Padding rides the slide — a border-box's minimum height floors at its
-     padding, so it must be 0 for the 0fr track to fully close. */
-  padding: 0 20px;
+     padding, so it must be 0 for the 0fr track to fully close. Horizontal
+     padding is 0: the ab-inner column already sets the tile-edge alignment. */
+  padding: 0;
   cursor: default;
   /* Collapsed controls stay out of the tab order / a11y tree; the delay
      holds visibility until the slide finishes on the way shut. */
@@ -873,7 +894,7 @@ main {
     padding 0.28s cubic-bezier(0.25, 0.9, 0.25, 1);
 }
 .wx[data-view="settings"] .ab-drawer {
-  padding: 4px 20px 16px;
+  padding: 4px 0 16px;
   visibility: visible;
   transition:
     visibility 0s,

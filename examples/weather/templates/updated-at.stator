@@ -1,0 +1,39 @@
+{/* Chrome time. The bar shows WHEN in the viewer's clock, not the city's —
+    the panel's sunrise/sunset stay city-local, but a timestamp in app chrome
+    sits next to the user's own wall clock. Only the browser knows that zone,
+    so the parent binds the raw epoch and clock pref as LIVE attrs (read()
+    island props) and this island formats — re-running via {attr}Changed on
+    every SSE patch. */}
+<updated-at>
+  <span ref:out class="ab-updated"></span>
+</updated-at>
+
+<script>
+  export class UpdatedAt extends StatorElement {
+    static attrs = { at: Number, clock: String }
+
+    connectedCallback() {
+      super.connectedCallback()
+      this.render()
+    }
+    atChanged() {
+      this.render()
+    }
+    clockChanged() {
+      this.render()
+    }
+
+    render() {
+      const out = this.refs.out as HTMLElement | undefined
+      if (!out) return
+      const at = Number(this.getAttribute('at') ?? 0)
+      if (!at) {
+        out.textContent = ''
+        return
+      }
+      const hour12 = this.getAttribute('clock') === '12h'
+      const time = new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12 })
+      out.textContent = `updated ${time}`
+    }
+  }
+</script>

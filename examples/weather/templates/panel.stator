@@ -18,10 +18,9 @@ const { weather, placeId } = Stator.props<{
 }>()
 ---
 <section class="panel" data-id={placeId}>
-  <Hero weather={weather} placeId={placeId} />
-
   <div class="grid">
     <TileMotion />
+    <Hero weather={weather} placeId={placeId} />
     <UvTile weather={weather} placeId={placeId} />
     <AqiTile weather={weather} placeId={placeId} />
     <WindTile weather={weather} placeId={placeId} />

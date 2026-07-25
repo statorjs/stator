@@ -10,7 +10,6 @@ import {
   fetchForecast,
   type Forecast,
   hhmm,
-  hhmmInZone,
   moonPath,
   moonPhase,
   type Place,
@@ -187,12 +186,10 @@ interface PanelVM {
   moonName: string
   moonIllumPct: number
   moonPath: string
-  updated: string
 }
 
 const panelVM = (ctx: Ctx, id: string): PanelVM => {
   const d = ctx.data[id]
-  const place = ctx.places.find((p) => p.id === id) ?? null
   const c = d?.forecast?.current ?? null
   const day0 = d?.forecast?.daily?.[0] ?? null
   const aq = d?.aqi ?? null
@@ -232,10 +229,6 @@ const panelVM = (ctx: Ctx, id: string): PanelVM => {
     moonName: moon.name,
     moonIllumPct: Math.round(moon.illum * 100),
     moonPath: moonPath(moon.illum, moon.waxing),
-    updated:
-      d?.updatedAt != null && place
-        ? `updated ${fmtClock(hhmmInZone(d.updatedAt, place.timezone), ctx.clock)}`
-        : '',
   }
 }
 
@@ -395,6 +388,10 @@ export default defineMachine({
     units: (ctx) => ctx.units,
     clock: (ctx) => ctx.clock,
     refreshing: (ctx) => ctx.refreshing,
+    /** Raw epoch for the active place's last load — the app bar's island
+     *  formats it VIEWER-local (chrome time, unlike the panel's city-local
+     *  sunrise/sunset), which the server can't know. */
+    updatedAtMs: (ctx) => ctx.data[ctx.activeId]?.updatedAt ?? 0,
     /** Everything a single city panel renders. The Panorama binds
      *  `panelForId(p.id).<field>` per tile inside a keyed `each`, so each panel
      *  is fully per-location and slides as one page. Element ids inside the arm
