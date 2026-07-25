@@ -33,9 +33,17 @@ export function cancelAfterTimers(scope: string, machineName: string, stateKey: 
   timers.delete(k)
 }
 
+/** Floor for a re-armed timer whose deadline already passed while no process
+ *  was watching — fires promptly, but after the arming request's lock work. */
+const OVERDUE_FIRE_MS = 40
+
 /**
  * Arm the `after` timers declared on `stateKey` (a no-op if it declares none).
- * The host calls this when a machine ENTERS the state. Each timer, on elapse,
+ * The host calls this when a machine ENTERS the state — or, with
+ * `opts.enteredAt`, when a hydrating runtime RESTORES it: the delay is then
+ * credited with time already served (deadline = enteredAt + delay, so re-arms
+ * across requests are deadline-idempotent, and a deadline that passed while no
+ * process was alive fires promptly instead of never). Each timer, on elapse,
  * dispatches its `send` event back through the machine's normal event path —
  * a session machine through the session re-entry (fresh lock + hydrate), an app
  * machine through `dispatchToApp` (no lock; the long-lived instance is sent
@@ -49,13 +57,25 @@ export function armAfterTimers(
   def: AnyMachineDef,
   stateKey: string,
   ctx: object,
+  opts?: { restore: true; enteredAt?: number },
 ): void {
   const after = def.states[stateKey]?.after
   if (!after || after.length === 0) return
-  cancelAfterTimers(scope, def.name, stateKey)
   const k = key(scope, def.name, stateKey)
+  // Restore mode: an arm-set already ticking in this process is authoritative
+  // (same deadline by construction) — re-arming here would RESET an overdue
+  // timer's short fuse on every hydration, and a hot session could starve it
+  // forever. Restore only fills the void after a restart or lost timer. This
+  // holds even for pre-upgrade snapshots with no enteredAt (unknown elapsed
+  // time restarts the full delay — once, not per request).
+  if (opts?.restore && timers.has(k)) return
+  cancelAfterTimers(scope, def.name, stateKey)
   const handles = after.map((entry) => {
-    const delay = typeof entry.delay === 'function' ? entry.delay(ctx as never) : entry.delay
+    const declared = typeof entry.delay === 'function' ? entry.delay(ctx as never) : entry.delay
+    const delay =
+      opts?.restore && opts.enteredAt !== undefined
+        ? Math.max(declared - (Date.now() - opts.enteredAt), OVERDUE_FIRE_MS)
+        : declared
     const h = setTimeout(() => {
       timers.delete(k) // a state has one arm-set; drop the whole key on fire
       const fire =

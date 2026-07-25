@@ -53,10 +53,14 @@ export type Guard<C, E extends EventObject, R = Record<string, any>> = (
 ) => boolean
 
 /** Passed to an effect alongside the snapshots. `effectId` is unique per
- *  invocation — thread it to external calls as an idempotency key (1.x
- *  durability implies at-least-once) and use it for log correlation. */
+ *  LOGICAL invocation — a re-invoked entry effect keeps its id, so threading it
+ *  to external calls as an idempotency key holds across retries. `signal`
+ *  aborts when the owning state is exited (entry effects only — command-role
+ *  transition effects are never aborted); wire it into fetch/etc. to stop
+ *  wasted work at the source. */
 export interface EffectMeta {
   effectId: string
+  signal?: AbortSignal
 }
 
 /**
@@ -86,10 +90,14 @@ export type Effect<C, E extends EventObject, EAll extends EventObject = EventObj
 /**
  * A state ENTRY effect: async I/O the host schedules when a state is *entered* —
  * a fresh start at the initial state, or a transition that changes the state
- * value; never on hydration. Same host-scheduled, off-lock, at-most-once
- * pipeline as a transition `Effect`, minus the event argument (a state entry has
- * no triggering event). Returns the completion event to dispatch (annotate the
- * return with your machine's event union, exactly as for `Effect`), or null.
+ * value. Entry effects are the LOAD role: how a state gets its data. The host
+ * may RE-INVOKE one on hydration when its completion never settled (a process
+ * died mid-flight), and aborts its `meta.signal` when the state is exited — so
+ * write them as re-runnable reads and put non-idempotent external writes in
+ * transition effects (the command role) instead. Same host-scheduled, off-lock
+ * pipeline as a transition `Effect`, minus the event argument (a state entry
+ * has no triggering event). Returns the completion event to dispatch (annotate
+ * the return with your machine's event union, exactly as for `Effect`), or null.
  */
 export type EntryEffect<C, EAll extends EventObject = EventObject> = (
   ctx: C,
@@ -109,11 +117,17 @@ export interface AfterEntry<C, EAll extends EventObject = EventObject> {
 }
 
 /** A scheduled effect surfaced to the host: everything needed to run it and
- *  dispatch its completion. `run` closes over the commit-time snapshots. */
+ *  dispatch its completion. `run` closes over the commit-time snapshots; the
+ *  host may pass an AbortSignal, forwarded to the effect's meta. `kind`
+ *  carries the role split — entry = re-runnable load (abortable on state
+ *  exit), transition = at-most-once command (never aborted, never re-run). */
 export interface EffectInvocation {
   machineName: string
   effectId: string
-  run: () => Promise<EventObject | null>
+  kind: 'entry' | 'transition'
+  /** The owning state — set for entry effects, for exit-abort targeting. */
+  stateKey?: string
+  run: (signal?: AbortSignal) => Promise<EventObject | null>
 }
 
 /** Object form of a transition. A bare `Action` is sugar for `{ do: fn }`.
@@ -193,6 +207,15 @@ export interface Snapshot<C> {
   /** State path. Depth-1 today (`['idle']`); extensible to hierarchy. */
   value: string[]
   context: C
+  /** Epoch ms when the current state was entered. Lets a hydrating host re-arm
+   *  `after` timers with elapsed credit (deadline = enteredAt + delay). Absent
+   *  in pre-existing snapshots — hosts treat unknown as "restart full delay". */
+  enteredAt?: number
+  /** Present while the current state's entry effect has fired but its
+   *  completion has not settled. A hydrating host uses it to re-invoke the
+   *  effect (the load role is re-runnable by contract) instead of leaving the
+   *  machine wedged waiting for a completion that died with another process. */
+  pendingEntry?: { effectId: string }
 }
 
 export type Lifecycle = 'app' | 'session'
