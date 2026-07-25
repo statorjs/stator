@@ -13,13 +13,22 @@ const { weather, settings } = Stator.props<{
     lanes: which chrome mode is open is CLIENT machine state (AppBarCtl's
     ViewMode, projected as `data-view` on .wx — CSS renders every reveal);
     the units/clock inside the drawer are SERVER-canonical Settings state,
-    live across tabs; refresh is a plain server event dispatch. */}
+    live across tabs; refresh is a plain server event dispatch.
+    Expansion follows the WP affordances — the "…" dots or any blank spot on
+    the bar — with the gear kept as the discoverable route to the same drawer. */}
 <div class="appbar">
   <div class="ab-drawer" role="group" aria-label="Settings">
     <UnitsToggle settings={settings} />
     <div class="ab-updated">{read(weather, (w) => w.panelForId(w.activeId).updated)}</div>
   </div>
   <div class="ab-row">
+    <button class="ab-dots" type="button" aria-label="More" aria-expanded="false">
+      <svg viewBox="0 0 24 6" aria-hidden="true">
+        <circle cx="3" cy="3" r="2.2" fill="currentColor" />
+        <circle cx="12" cy="3" r="2.2" fill="currentColor" />
+        <circle cx="21" cy="3" r="2.2" fill="currentColor" />
+      </svg>
+    </button>
     <div class="ab-item">
       <button class="ab-btn ab-settings" type="button" aria-label="Settings" aria-expanded="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">

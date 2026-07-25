@@ -40,12 +40,15 @@
       const bar = root?.querySelector('.appbar') as HTMLElement | null
       const gear = bar?.querySelector('.ab-settings') as HTMLButtonElement | null
       const edit = bar?.querySelector('.ab-edit') as HTMLButtonElement | null
-      if (!root || !bar || !gear || !edit) return
+      const dots = bar?.querySelector('.ab-dots') as HTMLButtonElement | null
+      if (!root || !bar || !gear || !edit || !dots) return
 
       const project = () => {
         const mode = this.view.mode as string
         root.dataset.view = mode
-        gear.setAttribute('aria-expanded', mode === 'settings' ? 'true' : 'false')
+        const expanded = mode === 'settings' ? 'true' : 'false'
+        gear.setAttribute('aria-expanded', expanded)
+        dots.setAttribute('aria-expanded', expanded)
         edit.setAttribute('aria-pressed', mode === 'editing' ? 'true' : 'false')
       }
       const send = (type: string) => {
@@ -55,6 +58,12 @@
 
       const onGear = () => send('TOGGLE_SETTINGS')
       const onEdit = () => send('TOGGLE_EDIT')
+      // WP behavior: the dots or any blank spot on the bar toggles the drawer.
+      // The circle buttons and the drawer's own controls keep their clicks.
+      const onBar = (e: Event) => {
+        if ((e.target as HTMLElement).closest('.ab-btn, .ab-dots, .ab-drawer')) return
+        send('TOGGLE_SETTINGS')
+      }
       const onPress = (e: Event) => {
         if (!bar.contains(e.target as Node)) send('DISMISS')
       }
@@ -62,14 +71,18 @@
         if (e.key === 'Escape') send('DISMISS')
       }
       gear.addEventListener('click', onGear)
+      dots.addEventListener('click', onGear)
       edit.addEventListener('click', onEdit)
+      bar.addEventListener('click', onBar)
       document.addEventListener('pointerdown', onPress)
       document.addEventListener('keydown', onKey)
 
       project()
       this.track(() => {
         gear.removeEventListener('click', onGear)
+        dots.removeEventListener('click', onGear)
         edit.removeEventListener('click', onEdit)
+        bar.removeEventListener('click', onBar)
         document.removeEventListener('pointerdown', onPress)
         document.removeEventListener('keydown', onKey)
       })

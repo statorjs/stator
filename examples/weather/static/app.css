@@ -605,15 +605,22 @@ tile-motion {
 /* Daily density: the full rows (with the rain-amount sub-line) need ~215px of
    tile; below that drop the sub-line and tighten so all five days still show. */
 @container tile (height < 216px) {
-  .d-rain {
-    display: none;
-  }
   .drow {
+    /* Narrower icon/lo/hi columns buy a wide rain column — the day's expected
+       amount stays, laid INLINE with the probability; it's the STACKED pair
+       that doesn't fit a short tile's rows. */
+    grid-template-columns: 1fr 22px 76px 30px 30px;
     padding: 3px 0;
   }
   .drow .wx-ico {
     width: 18px;
     height: 18px;
+  }
+  .d-pop {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 4px;
   }
 }
 /* Tiny tiles (≲340px viewports — 2.8" phones): trade fine print and a few px
@@ -630,6 +637,7 @@ tile-motion {
     display: none;
   }
   .drow {
+    grid-template-columns: 1fr 18px 68px 28px 28px;
     padding: 2px 0;
   }
   .drow .wx-ico {
@@ -638,6 +646,9 @@ tile-motion {
   }
   .d-day {
     font-size: 12px;
+  }
+  .d-rain {
+    font-size: 8.5px;
   }
   .drow-head {
     font-size: 8.5px;
@@ -758,12 +769,41 @@ main {
   color: var(--bar-fg);
   padding-bottom: env(safe-area-inset-bottom);
 }
+/* The bar itself is a tap target (WP: any blank spot expands); the drawer's
+   surface is not. */
+.appbar {
+  cursor: pointer;
+}
+.ab-drawer {
+  cursor: default;
+}
 .ab-row {
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: flex-start;
   gap: 30px;
   padding: 11px 0 12px;
+}
+/* WP's "…" affordance, top-right of the button row. */
+.ab-dots {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  padding: 7px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.ab-dots svg {
+  display: block;
+  width: 22px;
+  height: 6px;
+}
+.ab-dots:focus-visible {
+  outline: 2px solid #1ba1e2;
+  outline-offset: 2px;
 }
 .ab-item {
   display: flex;
@@ -820,8 +860,9 @@ main {
   opacity: 0.6;
   font-variant-numeric: tabular-nums;
 }
-/* Edit is a mode: the pencil fills solid and swaps to a check while active. */
-.ab-glyph-check {
+/* Edit is a mode: the pencil fills solid and swaps to a check while active.
+   (`.ab-btn` prefix so this outranks the `.ab-btn svg` display:block above.) */
+.ab-btn .ab-glyph-check {
   display: none;
 }
 .wx[data-view="editing"] .ab-edit {
