@@ -84,15 +84,28 @@ client state.
 
 ### Machine architecture
 
+A read/write split across four machines plus a client clock:
+
 - **`Settings`** (session) — `units` + `clock`. Emits `CHANGED` on any toggle.
-- **`Weather`** (session, multi-location) — `places[]` + `activeId` + a `data` map
-  keyed by place. **`entry`** loads every saved place in parallel; **`after`**
-  revalidates; a transition **`effect`** on `ADD_PLACE` fetches just the new one.
-  It **subscribes** to `Settings.CHANGED` and mirrors `units`/`clock` into its own
-  context — because a live binding's selector sees only its own machine, so the
-  formatting selectors (`tempDisplay`, `windDisplay`, …) must have the unit local
-  to re-render on toggle. One feature exercises entry effects, transition effects,
-  `after`, and a cross-machine subscription.
+- **`Weather`** (session) — the DOMAIN machine: `places[]` + `activeId`, and the
+  mirrored prefs (it **subscribes** to `Settings.CHANGED`). No data, no clock:
+  `REVALIDATE` (from the app bar or the tick island) emits the session's places
+  as `REFRESH_REQUESTED`.
+- **`ForecastCache`** (app) — the shared DATA machine: one cached copy per
+  place for the whole process, fetched by a transition **`effect`** behind a
+  staleness **guard**. Ten sessions watching London cost one fetch; a place
+  nobody asks about is never fetched. It **subscribes** (cross-lifecycle) to
+  `Weather.REFRESH_REQUESTED` — the only road from a client to an app machine.
+- **`Panels`** (session) — the DISPLAY machine: every tile view-model, computed
+  by selectors that **read** both `Weather` and `ForecastCache` and join them
+  per place id. The split keeps the machine module graph acyclic, and fan-out's
+  reverse-reads expansion pushes a cache update to every tab of every
+  interested session.
+- **`refresh-clock`** (client island) — the CLOCK. Visibility-aware ticks
+  dispatch `REVALIDATE`; hidden tabs skip ticks, closed tabs can't tick, and
+  the cache's guard makes every tick safe. The client owns the cadence, the
+  server owns the policy — no server-side loop polls for sessions nobody is
+  looking at.
 
 ## Colors & type
 

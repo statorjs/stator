@@ -1,13 +1,15 @@
 ---
 import SettingsMachine from '../machines/settings.ts'
+import PanelsMachine from '../machines/panels.ts'
 import WeatherMachine from '../machines/weather.ts'
 import SettingsControls from './settings-controls.stator'
 import UpdatedAt from './updated-at.stator'
 import type { InstanceOf } from '@statorjs/stator/template'
 
-const { weather, settings } = Stator.props<{
+const { weather, settings, panels } = Stator.props<{
   weather: InstanceOf<typeof WeatherMachine>
   settings: InstanceOf<typeof SettingsMachine>
+  panels: InstanceOf<typeof PanelsMachine>
 }>()
 ---
 {/* WP-style ApplicationBar. Three kinds of state meet here and stay in their
@@ -52,7 +54,7 @@ const { weather, settings } = Stator.props<{
           machine (REVALIDATE is only handled in `ready`) — idempotent by
           state design, no client debounce needed. */}
       <button
-        class:list={['ab-btn', 'ab-refresh', { spinning: read(weather, (w) => w.refreshing) }]}
+        class:list={['ab-btn', 'ab-refresh', { spinning: read(panels, (p) => p.refreshing) }]}
         type="button"
         aria-label="Refresh weather"
         on:click={() => weather.send({ type: 'REVALIDATE' })}
@@ -67,7 +69,7 @@ const { weather, settings } = Stator.props<{
   <div class="ab-drawer-clip">
     <div class="ab-drawer" role="group" aria-label="Settings">
       <SettingsControls settings={settings} />
-      <UpdatedAt at={read(weather, (w) => w.updatedAtMs)} clock={read(settings, (s) => s.clock)} />
+      <UpdatedAt at={read(panels, (p) => p.updatedAtMs)} clock={read(settings, (s) => s.clock)} />
     </div>
   </div>
   </div>

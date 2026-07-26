@@ -1,10 +1,10 @@
 ---
-import WeatherMachine from '../machines/weather.ts'
+import PanelsMachine from '../machines/panels.ts'
 import HourlySlide from './hourly-slide.stator'
 import type { InstanceOf } from '@statorjs/stator/template'
 
-const { weather, placeId } = Stator.props<{
-  weather: InstanceOf<typeof WeatherMachine>
+const { panels, placeId } = Stator.props<{
+  panels: InstanceOf<typeof PanelsMachine>
   placeId: string
 }>()
 ---
@@ -13,13 +13,13 @@ const { weather, placeId } = Stator.props<{
       shows whichever fits the tile's real height — two 12-hour frames when two
       rows of hours fit, four 6-hour frames when they don't (short tiles). */}
   <div class="slides slides-two">
-    <HourlySlide weather={weather} placeId={placeId} from={0} to={12} title="Next 12 hours" />
-    <HourlySlide weather={weather} placeId={placeId} from={12} to={24} title="In 12–24 hours" />
+    <HourlySlide panels={panels} placeId={placeId} from={0} to={12} title="Next 12 hours" />
+    <HourlySlide panels={panels} placeId={placeId} from={12} to={24} title="In 12–24 hours" />
   </div>
   <div class="slides slides-four">
-    <HourlySlide weather={weather} placeId={placeId} from={0} to={6} title="Next 6 hours" />
-    <HourlySlide weather={weather} placeId={placeId} from={6} to={12} title="In 6–12 hours" />
-    <HourlySlide weather={weather} placeId={placeId} from={12} to={18} title="In 12–18 hours" />
-    <HourlySlide weather={weather} placeId={placeId} from={18} to={24} title="In 18–24 hours" />
+    <HourlySlide panels={panels} placeId={placeId} from={0} to={6} title="Next 6 hours" />
+    <HourlySlide panels={panels} placeId={placeId} from={6} to={12} title="In 6–12 hours" />
+    <HourlySlide panels={panels} placeId={placeId} from={12} to={18} title="In 12–18 hours" />
+    <HourlySlide panels={panels} placeId={placeId} from={18} to={24} title="In 18–24 hours" />
   </div>
 </div>

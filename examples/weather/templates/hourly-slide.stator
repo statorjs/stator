@@ -1,10 +1,10 @@
 ---
-import WeatherMachine from '../machines/weather.ts'
+import PanelsMachine from '../machines/panels.ts'
 import { raw } from '@statorjs/stator/template'
 import type { InstanceOf } from '@statorjs/stator/template'
 
-const { weather, placeId, from, to, title } = Stator.props<{
-  weather: InstanceOf<typeof WeatherMachine>
+const { panels, placeId, from, to, title } = Stator.props<{
+  panels: InstanceOf<typeof PanelsMachine>
   placeId: string
   from: number
   to: number
@@ -14,7 +14,7 @@ const { weather, placeId, from, to, title } = Stator.props<{
 <div class="slide fc-slide">
   <div class="fc-title">{title}</div>
   <div class="hourly">
-    {each(read(weather, (w) => w.hourlyForId(placeId).slice(from, to)), (h) => (
+    {each(read(panels, (w) => w.hourlyForId(placeId).slice(from, to)), (h) => (
       <div class="hour"><div class="h-time">{h.time}</div>{raw(h.icon)}<div class="h-temp num">{h.temp}</div><div class="h-pop num">{h.precip}</div><div class="h-rain num">{h.rain}</div></div>
     ))}
   </div>

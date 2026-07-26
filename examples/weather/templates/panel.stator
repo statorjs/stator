@@ -1,5 +1,5 @@
 ---
-import WeatherMachine from '../machines/weather.ts'
+import PanelsMachine from '../machines/panels.ts'
 import Hero from './hero.stator'
 import TileMotion from './tile-motion.stator'
 import UvTile from './uv-tile.stator'
@@ -12,20 +12,20 @@ import type { InstanceOf } from '@statorjs/stator/template'
 
 // One full location panel: hero + the tile grid. Pure composition — it owns no
 // reads, just threads the machine handle and placeId down to each tile.
-const { weather, placeId } = Stator.props<{
-  weather: InstanceOf<typeof WeatherMachine>
+const { panels, placeId } = Stator.props<{
+  panels: InstanceOf<typeof PanelsMachine>
   placeId: string
 }>()
 ---
 <section class="panel" data-id={placeId}>
   <div class="grid">
     <TileMotion />
-    <Hero weather={weather} placeId={placeId} />
-    <UvTile weather={weather} placeId={placeId} />
-    <AqiTile weather={weather} placeId={placeId} />
-    <WindTile weather={weather} placeId={placeId} />
-    <SunMoonTile weather={weather} placeId={placeId} />
-    <HourlyTile weather={weather} placeId={placeId} />
-    <DailyTile weather={weather} placeId={placeId} />
+    <Hero panels={panels} placeId={placeId} />
+    <UvTile panels={panels} placeId={placeId} />
+    <AqiTile panels={panels} placeId={placeId} />
+    <WindTile panels={panels} placeId={placeId} />
+    <SunMoonTile panels={panels} placeId={placeId} />
+    <HourlyTile panels={panels} placeId={placeId} />
+    <DailyTile panels={panels} placeId={placeId} />
   </div>
 </section>

@@ -1,17 +1,17 @@
 ---
-import WeatherMachine from '../machines/weather.ts'
+import PanelsMachine from '../machines/panels.ts'
 import type { InstanceOf } from '@statorjs/stator/template'
 
-const { weather, placeId } = Stator.props<{
-  weather: InstanceOf<typeof WeatherMachine>
+const { panels, placeId } = Stator.props<{
+  panels: InstanceOf<typeof PanelsMachine>
   placeId: string
 }>()
 ---
 <div
   class="tile m2 press peek-tile"
   style:list={{
-    '--c': read(weather, (w) => w.panelForId(placeId).aqiColor),
-    '--tc': read(weather, (w) => w.panelForId(placeId).aqiTextColor),
+    '--c': read(panels, (w) => w.panelForId(placeId).aqiColor),
+    '--tc': read(panels, (w) => w.panelForId(placeId).aqiTextColor),
   }}
 >
   <div class="slides">
@@ -21,16 +21,16 @@ const { weather, placeId } = Stator.props<{
         <svg class="t-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M3 8q3-2.4 6 0t6 0" /><path d="M3 13q3-2.4 6 0t6 0" /><path d="M3 18q3-2.4 6 0t6 0" /></svg>
       </div>
       <div>
-        <div class="t-big">{read(weather, (w) => w.panelForId(placeId).aqi)}</div>
-        <div class="t-sub">{read(weather, (w) => w.panelForId(placeId).aqiLabel)}</div>
+        <div class="t-big">{read(panels, (w) => w.panelForId(placeId).aqi)}</div>
+        <div class="t-sub">{read(panels, (w) => w.panelForId(placeId).aqiLabel)}</div>
       </div>
     </div>
     <div class="slide">
       <svg class="t-bg-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M3 8q3-2.4 6 0t6 0" /><path d="M3 13q3-2.4 6 0t6 0" /><path d="M3 18q3-2.4 6 0t6 0" /></svg>
       <div class="t-label">
-        {read(weather, (w) => w.panelForId(placeId).aqiLabel)} · {read(weather, (w) => w.panelForId(placeId).aqiPollutant)}
+        {read(panels, (w) => w.panelForId(placeId).aqiLabel)} · {read(panels, (w) => w.panelForId(placeId).aqiPollutant)}
       </div>
-      <div class="t-sub t-adv">{read(weather, (w) => w.panelForId(placeId).aqiAdvice)}</div>
+      <div class="t-sub t-adv">{read(panels, (w) => w.panelForId(placeId).aqiAdvice)}</div>
     </div>
   </div>
 </div>
