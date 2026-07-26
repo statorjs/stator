@@ -20,8 +20,33 @@
 import { applyDirectives, applyPatches } from '../wire/apply.ts'
 import type { WireEnvelope } from '../wire/index.ts'
 import { clientId } from './client-id.ts'
+import { emitDispatchError, fetchWithTimeout, postEvent, TimeoutError } from './transport.ts'
 
 const EVENT_TYPES = ['click', 'submit', 'change', 'input'] as const
+
+/* ------------------------------------------------------------------ */
+/* In-flight affordance                                                */
+/* ------------------------------------------------------------------ */
+
+/** `data-stator-pending` marks the element whose event POST is in flight
+ *  (CSS hook: `[data-stator-pending]`). Counted per element so rapid repeat
+ *  dispatches keep the attribute until the LAST one settles. */
+const pendingCounts = new WeakMap<Element, number>()
+
+function beginPending(el: Element): void {
+  pendingCounts.set(el, (pendingCounts.get(el) ?? 0) + 1)
+  el.setAttribute('data-stator-pending', '')
+}
+
+function endPending(el: Element): void {
+  const count = (pendingCounts.get(el) ?? 1) - 1
+  if (count <= 0) {
+    pendingCounts.delete(el)
+    el.removeAttribute('data-stator-pending')
+  } else {
+    pendingCounts.set(el, count)
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* Observability hooks                                                 */
@@ -50,9 +75,22 @@ function initLiveChannel(): void {
   const url = `/__sse?route=${encodeURIComponent(routeKey)}&client=${encodeURIComponent(clientId)}`
   const sse = new EventSource(url, { withCredentials: true })
 
+  // Connection-state signal: `data-stator-connection` on the root element
+  // (CSS hook for offline banners etc.) plus a `stator:connection-state`
+  // event. Change-guarded — EventSource fires `error` on every failed
+  // auto-reconnect attempt, and only transitions are worth announcing.
+  let connectionState: string | undefined
+  const setConnectionState = (state: 'connected' | 'disconnected' | 'stale'): void => {
+    if (state === connectionState) return
+    connectionState = state
+    document.documentElement.setAttribute('data-stator-connection', state)
+    emit('stator:connection-state', { state, timestamp: Date.now() })
+  }
+
   let everOpened = false
   let lastSeen = Date.now()
   sse.addEventListener('open', () => {
+    setConnectionState('connected')
     if (everOpened) {
       // Reconnect — reload rather than risk stale state.
       location.reload()
@@ -72,6 +110,7 @@ function initLiveChannel(): void {
     if (!everOpened || document.hidden) return
     if (Date.now() - lastSeen > STALE_MS) {
       console.warn('stator: SSE channel stale — reloading to re-sync')
+      setConnectionState('stale')
       sse.close()
       location.reload()
     }
@@ -106,6 +145,7 @@ function initLiveChannel(): void {
   })
 
   sse.addEventListener('error', () => {
+    setConnectionState('disconnected')
     if (sse.readyState === EventSource.CLOSED) {
       console.warn('stator: SSE permanently closed')
     }
@@ -131,7 +171,7 @@ function handleEvent(e: Event): void {
           console.error('stator: malformed event descriptor on form', form, descriptorAttr)
           return
         }
-        void dispatchEvent(descriptor)
+        void dispatchEvent(descriptor, form)
         return
       }
       // Opt-in interception via `data-stator-enhance`. Plain forms without
@@ -168,13 +208,13 @@ function handleEvent(e: Event): void {
     return
   }
 
-  void dispatchEvent(descriptor)
+  void dispatchEvent(descriptor, el)
 }
 
-async function dispatchEvent(descriptor: {
-  machine: string
-  event: { type: string }
-}): Promise<void> {
+async function dispatchEvent(
+  descriptor: { machine: string; event: { type: string } },
+  el?: Element,
+): Promise<void> {
   const routeKey = `GET ${location.pathname}${location.search}`
 
   emit('stator:event-sent', {
@@ -185,28 +225,14 @@ async function dispatchEvent(descriptor: {
   })
 
   const startedAt = performance.now()
-  let res: Response
+  if (el) beginPending(el)
   try {
-    res = await fetch('/__events', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'X-Stator-Route': routeKey,
-        'X-Stator-Client': clientId,
-      },
-      credentials: 'same-origin',
-      body: JSON.stringify(descriptor),
-    })
-  } catch (err) {
-    console.error('stator: network error during dispatch', err)
-    return
+    const result = await postEvent(descriptor, routeKey)
+    if (!result.ok) return
+    await applyEnvelopeFromResponse(result.res, startedAt, 'post')
+  } finally {
+    if (el) endPending(el)
   }
-  if (!res.ok) {
-    console.error('stator: event POST failed', res.status, await res.text())
-    return
-  }
-  await applyEnvelopeFromResponse(res, startedAt, 'post')
 }
 
 /**
@@ -217,23 +243,30 @@ async function dispatchEvent(descriptor: {
 async function submitForm(form: HTMLFormElement): Promise<void> {
   const formData = new FormData(form)
   const startedAt = performance.now()
-  let res: Response
+  beginPending(form)
   try {
-    res = await fetch(form.action, {
-      method: 'POST',
-      headers: { Accept: 'application/json' },
-      credentials: 'same-origin',
-      body: formData,
-    })
-  } catch (err) {
-    console.error('stator: network error during form submit', err)
-    return
+    let res: Response
+    try {
+      res = await fetchWithTimeout(form.action, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+        body: formData,
+      })
+    } catch (err) {
+      console.error('stator: network error during form submit', err)
+      emitDispatchError({ phase: err instanceof TimeoutError ? 'timeout' : 'network' }, {})
+      return
+    }
+    if (!res.ok) {
+      console.error('stator: form submit failed', res.status, await res.text())
+      emitDispatchError({ phase: 'http', status: res.status }, {})
+      return
+    }
+    await applyEnvelopeFromResponse(res, startedAt, 'post')
+  } finally {
+    endPending(form)
   }
-  if (!res.ok) {
-    console.error('stator: form submit failed', res.status, await res.text())
-    return
-  }
-  await applyEnvelopeFromResponse(res, startedAt, 'post')
 }
 
 async function applyEnvelopeFromResponse(
@@ -268,3 +301,8 @@ if (document.readyState === 'loading') {
 } else {
   init()
 }
+
+// Exported for tests only — the runtime self-initializes above, and the
+// client bundle (esbuild IIFE) ignores exports. Re-calling init() is safe:
+// addEventListener dedupes an identical listener reference.
+export { init, initLiveChannel }

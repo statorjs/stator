@@ -62,6 +62,7 @@ describe('client dispatch (island → server wire)', () => {
       expect(await dispatch(Cart, { type: 'ADD' } as never)).toMatchObject({
         ok: false,
         committed: false,
+        error: { phase: 'http', status: 500 },
       })
     } finally {
       errSpy.mockRestore()
@@ -77,6 +78,7 @@ describe('client dispatch (island → server wire)', () => {
       expect(await dispatch(Cart, { type: 'ADD' } as never)).toMatchObject({
         ok: false,
         committed: false,
+        error: { phase: 'network' },
       })
     } finally {
       errSpy.mockRestore()

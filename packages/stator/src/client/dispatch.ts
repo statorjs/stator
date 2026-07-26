@@ -1,7 +1,7 @@
 import type { AnyMachineDef, EventOf } from '../engine/index.ts'
 import { applyDirectives, applyPatches } from '../wire/apply.ts'
 import type { WireEnvelope } from '../wire/index.ts'
-import { clientId } from './client-id.ts'
+import { type DispatchError, postEvent } from './transport.ts'
 
 export interface DispatchResult {
   /** The POST reached the server and returned 200. */
@@ -12,6 +12,8 @@ export interface DispatchResult {
   /** Patches applied to THIS page (a committed event may patch zero slots
    *  here if the touched machines aren't bound on the current route). */
   patchCount: number
+  /** Present only when `ok` is false — how the POST failed. */
+  error?: DispatchError
 }
 
 /**
@@ -30,28 +32,14 @@ export async function dispatch<D extends AnyMachineDef>(
   machine: D,
   event: EventOf<D>,
 ): Promise<DispatchResult> {
-  let res: Response
-  try {
-    res = await fetch('/__events', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'X-Stator-Route': `GET ${location.pathname}${location.search}`,
-        'X-Stator-Client': clientId,
-      },
-      credentials: 'same-origin',
-      body: JSON.stringify({ machine: machine.name, event }),
-    })
-  } catch (err) {
-    console.error('stator: dispatch network error', err)
-    return { ok: false, committed: false, patchCount: 0 }
+  const result = await postEvent(
+    { machine: machine.name, event },
+    `GET ${location.pathname}${location.search}`,
+  )
+  if (!result.ok) {
+    return { ok: false, committed: false, patchCount: 0, error: result.error }
   }
-  if (!res.ok) {
-    console.error('stator: dispatch failed', res.status)
-    return { ok: false, committed: false, patchCount: 0 }
-  }
-  const data = (await res.json()) as WireEnvelope
+  const data = (await result.res.json()) as WireEnvelope
   applyPatches(data.patches ?? [])
   applyDirectives(data.directives ?? [])
   return {
