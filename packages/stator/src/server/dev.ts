@@ -139,6 +139,17 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
     // initial-state entry effect fires during boot and needs a live scheduler.
     runtime.wireAppEffects(store)
     await store.bootAppMachines()
+    // Dev-only lint: a session machine whose `after` timer drives a loop with
+    // a data-loading entry effect is server-side polling that runs for
+    // sessions nobody is watching. Warn with the steer, don't block.
+    for (const f of runtime.findPollLoops(defs)) {
+      console.warn(
+        `stator: session machine "${f.machine}" self-reschedules through \`after\` ` +
+          `(${f.cycle.join(' → ')} via ${f.event}) with a data-loading entry effect on the loop. ` +
+          `This polls upstream for sessions nobody is watching. Prefer a client-owned clock ` +
+          `with a staleness guard — see the effects guide, "Who owns the clock".`,
+      )
+    }
   }
   const rebuildRoutes = async (): Promise<void> => {
     routes = await runtime.discoverRoutes(routesDir, loader)
