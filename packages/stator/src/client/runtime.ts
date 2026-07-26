@@ -67,13 +67,12 @@ function init(): void {
   initLiveChannel()
 }
 
-function initLiveChannel(): void {
+function initLiveChannel(): { close(): void } | undefined {
   const meta = document.querySelector('meta[name="stator-live"][content="true"]')
   if (!meta) return
 
   const routeKey = `GET ${location.pathname}${location.search}`
   const url = `/__sse?route=${encodeURIComponent(routeKey)}&client=${encodeURIComponent(clientId)}`
-  const sse = new EventSource(url, { withCredentials: true })
 
   // Connection-state signal: `data-stator-connection` on the root element
   // (CSS hook for offline banners etc.) plus a `stator:connection-state`
@@ -87,38 +86,10 @@ function initLiveChannel(): void {
     emit('stator:connection-state', { state, timestamp: Date.now() })
   }
 
-  let everOpened = false
+  let sse: EventSource | null = null
   let lastSeen = Date.now()
-  sse.addEventListener('open', () => {
-    setConnectionState('connected')
-    if (everOpened) {
-      // Reconnect — reload rather than risk stale state.
-      location.reload()
-      return
-    }
-    everOpened = true
-  })
 
-  // Zombie watchdog. A half-open connection (device sleep, silent NAT drop)
-  // never fires `error` — EventSource just sits "open" and silent forever,
-  // and the page quietly stops being live. The server sends an observable
-  // ping every 25s; two missed pings while the page is VISIBLE means the
-  // channel is dead, and a reload re-syncs (same strategy as reconnect).
-  // Hidden tabs wait for visibility — no reloading pages nobody is watching.
-  const STALE_MS = 65_000
-  const staleReload = (): void => {
-    if (!everOpened || document.hidden) return
-    if (Date.now() - lastSeen > STALE_MS) {
-      console.warn('stator: SSE channel stale — reloading to re-sync')
-      setConnectionState('stale')
-      sse.close()
-      location.reload()
-    }
-  }
-  setInterval(staleReload, 10_000)
-  document.addEventListener('visibilitychange', staleReload)
-
-  sse.addEventListener('message', (e) => {
+  const onMessage = (e: MessageEvent): void => {
     lastSeen = Date.now()
     let data: WireEnvelope
     try {
@@ -142,14 +113,57 @@ function initLiveChannel(): void {
     if (data.directives && data.directives.length > 0) {
       applyDirectives(data.directives)
     }
-  })
+  }
 
-  sse.addEventListener('error', () => {
-    setConnectionState('disconnected')
-    if (sse.readyState === EventSource.CLOSED) {
-      console.warn('stator: SSE permanently closed')
+  // Reconnect = resync, never reload. Every fresh /__sse connection gets the
+  // server's initial sync (every binding's current value, keyed lists reset
+  // wholesale), so a rebuilt channel converges the DOM in place — and the
+  // browser's own auto-reconnect on the same instance re-runs that server
+  // path too, its sync arriving as an ordinary message. Directives fired
+  // during an outage (e.g. a navigate) are not replayed; resync converges
+  // state only.
+  const connect = (): void => {
+    sse?.close()
+    const es = new EventSource(url, { withCredentials: true })
+    sse = es
+    lastSeen = Date.now() // fresh grace period — no instant re-stale loop
+    es.addEventListener('open', () => setConnectionState('connected'))
+    es.addEventListener('message', onMessage)
+    es.addEventListener('error', () => {
+      setConnectionState('disconnected')
+      if (es.readyState === EventSource.CLOSED) {
+        console.warn('stator: SSE permanently closed')
+      }
+    })
+  }
+
+  // Zombie watchdog. A half-open connection (device sleep, silent NAT drop)
+  // never fires `error` — EventSource just sits "open" and silent forever,
+  // and the page quietly stops being live. The server sends an observable
+  // ping every 25s; two missed pings while the page is VISIBLE means the
+  // channel is dead, and a rebuilt connection re-syncs. Hidden tabs wait for
+  // visibility — no churn for pages nobody is watching.
+  const STALE_MS = 65_000
+  const checkStale = (): void => {
+    if (document.hidden) return
+    if (Date.now() - lastSeen > STALE_MS) {
+      console.warn('stator: SSE channel stale — reconnecting to re-sync')
+      setConnectionState('stale')
+      connect()
     }
-  })
+  }
+  const watchdog = setInterval(checkStale, 10_000)
+  document.addEventListener('visibilitychange', checkStale)
+
+  connect()
+
+  return {
+    close(): void {
+      clearInterval(watchdog)
+      document.removeEventListener('visibilitychange', checkStale)
+      sse?.close()
+    },
+  }
 }
 
 function handleEvent(e: Event): void {

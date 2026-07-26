@@ -44,7 +44,7 @@ Picture an `inventory` app-machine with a `remaining` count, displayed via `read
 Be precise about what you're getting:
 
 - **Opt-in only.** A route is static request/response until you add `// @stator live`.
-- **Reconnect means reload.** If the connection drops, the client re-establishes and re-renders; there's no missed-event replay.
+- **Reconnect means resync.** If the connection drops or goes stale, the client reopens it and the server's initial sync converges the page in place — no reload, no lost island state. Individual missed frames are never replayed; directives fired during the outage (a `navigate`, say) are gone.
 - **Single-replica fan-out.** The fan-out is in-process — every connection lives on the same server instance.
 
 :::caution[1.x]
