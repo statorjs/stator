@@ -1,6 +1,7 @@
 import type { AnyMachineDef, EventOf } from '../engine/index.ts'
 import { applyDirectives, applyPatches } from '../wire/apply.ts'
 import type { WireEnvelope } from '../wire/index.ts'
+import { newEventId } from './client-id.ts'
 import { type DispatchError, postEvent } from './transport.ts'
 
 export interface DispatchResult {
@@ -33,7 +34,7 @@ export async function dispatch<D extends AnyMachineDef>(
   event: EventOf<D>,
 ): Promise<DispatchResult> {
   const result = await postEvent(
-    { machine: machine.name, event },
+    { machine: machine.name, event, eventId: newEventId() },
     `GET ${location.pathname}${location.search}`,
   )
   if (!result.ok) {

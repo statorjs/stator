@@ -15,6 +15,10 @@ import { clientId } from './client-id.ts'
  *  far too long to leave an interaction hanging on a flaky link. */
 export const FETCH_TIMEOUT_MS = 10_000
 
+/** Backoff before each retry of a network/timeout failure. Retries carry the
+ *  same eventId, so a duplicate that actually reached the server replays. */
+export const RETRY_DELAYS_MS = [300, 1000]
+
 export interface DispatchError {
   phase: 'network' | 'timeout' | 'http'
   /** HTTP status — present only for `phase: 'http'`. */
@@ -62,39 +66,45 @@ export type PostEventResult = { ok: true; res: Response } | { ok: false; error: 
 
 /**
  * POST an event descriptor to `/__events`. Resolves — never throws — and
- * emits `stator:dispatch-error` once when a failure is final. Non-2xx
- * responses are terminal immediately: the server saw the event and answered.
+ * emits `stator:dispatch-error` once when a failure is final. Network and
+ * timeout failures retry with backoff, but ONLY when the body carries an
+ * `eventId` (the server's replay cache is what makes a duplicate safe —
+ * keyed-list patches are not idempotent). Non-2xx responses are terminal
+ * immediately: the server saw the event and answered.
  */
 export async function postEvent(
-  body: { machine: string; event: { type: string } },
+  body: { machine: string; event: { type: string }; eventId?: string },
   routeKey: string,
 ): Promise<PostEventResult> {
-  let res: Response
-  try {
-    res = await fetchWithTimeout('/__events', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'X-Stator-Route': routeKey,
-        'X-Stator-Client': clientId,
-      },
-      credentials: 'same-origin',
-      body: JSON.stringify(body),
-    })
-  } catch (err) {
-    const error: DispatchError = {
-      phase: err instanceof TimeoutError ? 'timeout' : 'network',
+  let error: DispatchError
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetchWithTimeout('/__events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-Stator-Route': routeKey,
+          'X-Stator-Client': clientId,
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(body),
+      })
+      if (res.ok) return { ok: true, res }
+      error = { phase: 'http', status: res.status }
+      console.error('stator: event POST failed', res.status, await res.text())
+      break
+    } catch (err) {
+      error = { phase: err instanceof TimeoutError ? 'timeout' : 'network' }
+      const delay = RETRY_DELAYS_MS[attempt]
+      if (delay === undefined || !body.eventId) {
+        console.error('stator: network error during dispatch', err)
+        break
+      }
+      console.warn(`stator: dispatch ${error.phase} — retrying in ${delay}ms`)
+      await new Promise((r) => setTimeout(r, delay))
     }
-    console.error('stator: network error during dispatch', err)
-    emitDispatchError(error, body)
-    return { ok: false, error }
   }
-  if (!res.ok) {
-    const error: DispatchError = { phase: 'http', status: res.status }
-    console.error('stator: event POST failed', res.status, await res.text())
-    emitDispatchError(error, body)
-    return { ok: false, error }
-  }
-  return { ok: true, res }
+  emitDispatchError(error, body)
+  return { ok: false, error }
 }

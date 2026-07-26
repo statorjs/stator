@@ -104,6 +104,8 @@ html[data-stator-connection="disconnected"] .offline-banner { display: block; }
 
 **Window events** — `stator:dispatch-error` fires once per failed dispatch with `{ machine?, event?, phase, status?, timestamp }` (`machine` is absent for enhanced form submits), and `stator:connection-state` fires on every connection transition with `{ state, timestamp }`. Event POSTs are aborted after a 10-second deadline, so a dead-slow connection surfaces as `timeout` instead of hanging on the browser's own limits.
 
+**Retries** — machine-event POSTs carry a per-dispatch idempotency key and retry network and timeout failures twice (300ms then 1s backoff) before giving up. The server replays a duplicate's original response instead of re-applying it, so a retry after a lost response can't double-commit. Non-2xx responses never retry — the server answered. Enhanced form submits go to arbitrary handlers, so they get the timeout but no automatic retry.
+
 ## Lower-level exports
 
 - `defineElement(UserClass, tag)` — registers an island class against its custom-element tag; the compiler emits this call.

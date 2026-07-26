@@ -34,10 +34,12 @@ describe('client dispatch (island → server wire)', () => {
     expect(url).toBe('/__events')
     expect(init.method).toBe('POST')
     expect((init.headers as Record<string, string>)['X-Stator-Route']).toMatch(/^GET /)
-    expect(JSON.parse(init.body as string)).toEqual({
+    const body = JSON.parse(init.body as string)
+    expect(body).toMatchObject({
       machine: 'CartMachine',
       event: { type: 'ADD', productId: 'p1' },
     })
+    expect(typeof body.eventId).toBe('string')
     expect(document.querySelector('[data-slot="s0"]')!.textContent).toBe('new')
   })
 

@@ -8,3 +8,12 @@ export const clientId: string =
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
     : `c${Math.random().toString(36).slice(2)}`
+
+/** Per-dispatch idempotency key: the server replays a duplicate POST's cached
+ *  response instead of re-applying it, which is what makes retrying a lost
+ *  response safe. Stable across retries of the SAME dispatch, never reused. */
+export function newEventId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `e${Math.random().toString(36).slice(2)}`
+}

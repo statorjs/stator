@@ -19,7 +19,7 @@
 
 import { applyDirectives, applyPatches } from '../wire/apply.ts'
 import type { WireEnvelope } from '../wire/index.ts'
-import { clientId } from './client-id.ts'
+import { clientId, newEventId } from './client-id.ts'
 import { emitDispatchError, fetchWithTimeout, postEvent, TimeoutError } from './transport.ts'
 
 const EVENT_TYPES = ['click', 'submit', 'change', 'input'] as const
@@ -227,7 +227,7 @@ async function dispatchEvent(
   const startedAt = performance.now()
   if (el) beginPending(el)
   try {
-    const result = await postEvent(descriptor, routeKey)
+    const result = await postEvent({ ...descriptor, eventId: newEventId() }, routeKey)
     if (!result.ok) return
     await applyEnvelopeFromResponse(result.res, startedAt, 'post')
   } finally {

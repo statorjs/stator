@@ -30,6 +30,7 @@ function flush(): Promise<void> {
 
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
 
 afterEach(() => {
@@ -54,10 +55,9 @@ describe('delegated dispatch (data-event-* → /__events)', () => {
     expect(btn.hasAttribute('data-stator-pending')).toBe(true)
     const [url, reqInit] = spy.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe('/__events')
-    expect(JSON.parse(reqInit.body as string)).toMatchObject({
-      machine: 'CartMachine',
-      event: { type: 'ADD' },
-    })
+    const body = JSON.parse(reqInit.body as string)
+    expect(body).toMatchObject({ machine: 'CartMachine', event: { type: 'ADD' } })
+    expect(typeof body.eventId).toBe('string')
 
     d.resolve(Response.json({ patches: [] }))
     await flush()
@@ -89,23 +89,56 @@ describe('delegated dispatch (data-event-* → /__events)', () => {
     expect(btn.hasAttribute('data-stator-pending')).toBe(false)
   })
 
-  it('clears pending and emits stator:dispatch-error on network failure', async () => {
+  it('exhausts retries on network failure, then clears pending and emits one dispatch-error', async () => {
+    vi.useFakeTimers()
     document.body.innerHTML = `<button data-event-click='${DESCRIPTOR}'>go</button>`
     init()
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => {
-        throw new TypeError('network down')
-      }),
-    )
+    const spy = vi.fn(async () => {
+      throw new TypeError('network down')
+    })
+    vi.stubGlobal('fetch', spy)
     const errors = listen('stator:dispatch-error')
 
     const btn = document.querySelector('button')!
     btn.click()
-    await flush()
+    await vi.advanceTimersByTimeAsync(1_300)
 
+    expect(spy).toHaveBeenCalledTimes(3)
     expect(btn.hasAttribute('data-stator-pending')).toBe(false)
     expect(errors).toMatchObject([{ machine: 'CartMachine', phase: 'network' }])
+  })
+
+  it('retries with backoff reusing the same eventId, and succeeds silently', async () => {
+    vi.useFakeTimers()
+    document.body.innerHTML = `<button data-event-click='${DESCRIPTOR}'>go</button>`
+    init()
+    const d = deferred<Response>()
+    const spy = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('down'))
+      .mockRejectedValueOnce(new TypeError('down'))
+      .mockImplementationOnce(() => d.promise)
+    vi.stubGlobal('fetch', spy)
+    const errors = listen('stator:dispatch-error')
+
+    const btn = document.querySelector('button')!
+    btn.click()
+    await vi.advanceTimersByTimeAsync(300)
+    expect(spy).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(spy).toHaveBeenCalledTimes(3)
+
+    const ids = spy.mock.calls.map(
+      (c) => JSON.parse((c[1] as RequestInit).body as string).eventId as string,
+    )
+    expect(ids[0]).toBeTruthy()
+    expect(ids[1]).toBe(ids[0])
+    expect(ids[2]).toBe(ids[0])
+
+    d.resolve(Response.json({ patches: [] }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(errors).toEqual([])
+    expect(btn.hasAttribute('data-stator-pending')).toBe(false)
   })
 
   it('emits phase http with the status on a non-2xx response, without retrying', async () => {
@@ -145,7 +178,9 @@ describe('delegated dispatch (data-event-* → /__events)', () => {
     btn.click()
     expect(btn.hasAttribute('data-stator-pending')).toBe(true)
 
-    await vi.advanceTimersByTimeAsync(10_000)
+    // Three attempts each hit the 10s deadline, with 300ms/1000ms backoff
+    // between them — 35s of fake time covers the full ladder.
+    await vi.advanceTimersByTimeAsync(35_000)
     expect(errors).toMatchObject([{ machine: 'CartMachine', phase: 'timeout' }])
     expect(btn.hasAttribute('data-stator-pending')).toBe(false)
   })

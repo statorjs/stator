@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { applyRenderedEffects, runApiRoute } from './api-route.ts'
 import { isBlockedCrossSite } from './csrf.ts'
 import { scheduleSessionEffects } from './effects.ts'
+import { record, replayFor } from './event-dedupe.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import { initialSyncPatches, recompute } from './recompute.ts'
@@ -44,6 +45,8 @@ const eventSchema = z.object({
       type: z.string(),
     })
     .passthrough(),
+  /** Client-generated idempotency key — see server/event-dedupe.ts. */
+  eventId: z.string().min(1).max(128).optional(),
 })
 
 /** Compiled matcher: turns `/p/:id` into a regex that captures params. */
@@ -321,6 +324,17 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     }
 
     return withSessionLock(sessionId, async () => {
+      // Idempotent replay: a duplicate POST (client retry after a lost
+      // response) returns the original response body verbatim instead of
+      // re-applying — keyed-list patches are positional, not idempotent.
+      // Checked under the session lock so a retry racing its first attempt
+      // queues behind it and always sees the recorded body.
+      if (body.eventId) {
+        const cached = replayFor(sessionId, body.eventId)
+        if (cached !== undefined) {
+          return c.body(cached, 200, { 'Content-Type': 'application/json' })
+        }
+      }
       const runtime = new SessionRuntime(sessionId, config.store)
       try {
         await runtime.loadGraph([...route.reads, originDef])
@@ -358,7 +372,9 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         // normal event path in server/effects.ts.
         scheduleSessionEffects(runtime, config.store, sessionId)
 
-        return c.json({ patches, directives: [], committed: touched.size > 0 })
+        const envelope = { patches, directives: [], committed: touched.size > 0 }
+        if (body.eventId) record(sessionId, body.eventId, JSON.stringify(envelope))
+        return c.json(envelope)
       } finally {
         runtime.dispose()
       }
