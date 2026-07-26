@@ -1,4 +1,5 @@
 import ts from 'typescript'
+import { analyzeScriptClasses } from './client-script.ts'
 import { splitStator } from './split.ts'
 
 /**
@@ -19,11 +20,36 @@ export function generateDts(
 ): string | null {
   if ((opts.kind ?? 'component') === 'route') return null
 
-  const { frontmatter, template } = splitStator(source)
+  const { frontmatter, template, scripts } = splitStator(source)
   const { hoisted, propsType } = extractFrontmatterTypes(frontmatter)
-  const propsT = componentPropsType(propsType, template)
+  let propsT = componentPropsType(propsType, template)
+  let needsReadResult = false
+
+  // Client islands declare their surface with `static attrs`, not
+  // `Stator.props`. Each attr accepts its coerced kind OR a live `read()`
+  // binding — the compiler lowers read() island props to live attr bindings,
+  // so the type surface must admit both.
+  if (!propsType && scripts.length > 0) {
+    const attrs = new Map<string, string>()
+    for (const cls of analyzeScriptClasses(scripts.join('\n'))) {
+      for (const [key, kind] of cls.staticAttrs) attrs.set(key, kind)
+    }
+    if (attrs.size > 0) {
+      needsReadResult = true
+      const fields = [...attrs]
+        .map(([key, kind]) => `${key}?: ${kind} | __SReadResult<${kind}>`)
+        .join('; ')
+      // Declared attrs are typed strictly; the open tail admits the richer
+      // props an island's SERVER-rendered markup may consume (they never
+      // cross the attr wire, so `static attrs` can't know about them).
+      propsT = `{ ${fields} } & { [prop: string]: unknown }`
+    }
+  }
 
   const lines = ["import type { HtmlFragment } from '@statorjs/stator/template'"]
+  if (needsReadResult) {
+    lines.push("import type { ReadResult as __SReadResult } from '@statorjs/stator/template'")
+  }
   if (hoisted) lines.push(hoisted)
   lines.push('')
   lines.push(`declare const _default: (props: ${propsT}) => HtmlFragment`)

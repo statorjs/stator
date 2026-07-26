@@ -37,6 +37,27 @@ Two things make types flow end to end (a `create-stator` project has both):
   prop types instead of the permissive fallback. Wire it into `typecheck`
   (`tsx sync.ts && tsc --noEmit`) and run it after adding components.
 
+### Template internals in CI
+
+`syncTypes` also emits every template's virtual TSX (the same code your
+editor typechecks) under `.stator/check/`. Opt a project in and plain
+`tsc --noEmit` covers TEMPLATE internals too — a frontmatter prop
+destructured under the wrong name stops being a runtime `ReferenceError`
+and becomes a compile error in CI:
+
+```jsonc
+// tsconfig.json
+{
+  "compilerOptions": {
+    "rootDirs": [".", ".stator/types", ".stator/check"]
+  },
+  "include": ["**/*.ts", "**/*.stator", ".stator/check/**/*.tsx"]
+}
+```
+
+Projects that skip the tsconfig entries are unaffected — the emitted files
+sit ignored.
+
 ## Other editors
 
 The language server is editor-agnostic (`@statorjs/language-server` ships a

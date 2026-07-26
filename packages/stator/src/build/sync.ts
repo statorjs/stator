@@ -2,6 +2,7 @@ import type { Dirent } from 'node:fs'
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, sep } from 'node:path'
 import { generateDts } from '../compiler/dts.ts'
+import { toVirtualCode } from '../compiler/virtual-code.ts'
 
 /**
  * Type sync: generate a `<name>.stator.d.ts` for each component so editors and
@@ -16,35 +17,61 @@ import { generateDts } from '../compiler/dts.ts'
  *
  * Route pages (`routes/*.stator`) are skipped — they export `GET`, not a render
  * function.
+ *
+ * Sync ALSO emits each template's virtual TSX (the same code the language
+ * server typechecks in-editor) under `.stator/check/`, so plain `tsc --noEmit`
+ * covers TEMPLATE INTERNALS in CI — frontmatter/prop mismatches otherwise
+ * surface only as runtime ReferenceErrors. Opt-in per app: add
+ * ".stator/check" to `rootDirs` and its .tsx files to `include` (see the
+ * example tsconfigs); apps that don't are unaffected (the files sit ignored).
  */
 export interface SyncResult {
   /** Number of `.stator.d.ts` files written. */
   written: number
+  /** Number of `.check.tsx` virtual files written. */
+  checks: number
   /** The generated-types directory. */
   outDir: string
 }
 
 const TYPES_DIR = join('.stator', 'types')
+const CHECK_DIR = join('.stator', 'check')
 
 export async function syncTypes(root: string): Promise<SyncResult> {
   const outDir = join(root, TYPES_DIR)
+  const checkDir = join(root, CHECK_DIR)
   await rm(outDir, { recursive: true, force: true })
+  await rm(checkDir, { recursive: true, force: true })
 
   const files = await walk(root)
   let written = 0
+  let checks = 0
   for (const file of files) {
-    const kind = file.split(sep).includes('routes') ? 'route' : 'component'
-    const dts = generateDts(await readFile(file, 'utf8'), { kind })
-    if (dts === null) continue
-    // Mirror the source path under .stator/types: templates/x.stator →
-    // .stator/types/templates/x.stator.d.ts.
+    const source = await readFile(file, 'utf8')
     const rel = relative(root, file)
-    const target = join(outDir, `${rel}.d.ts`)
-    await mkdir(dirname(target), { recursive: true })
-    await writeFile(target, dts)
-    written++
+
+    const kind = file.split(sep).includes('routes') ? 'route' : 'component'
+    const dts = generateDts(source, { kind })
+    if (dts !== null) {
+      // Mirror the source path under .stator/types: templates/x.stator →
+      // .stator/types/templates/x.stator.d.ts.
+      const target = join(outDir, `${rel}.d.ts`)
+      await mkdir(dirname(target), { recursive: true })
+      await writeFile(target, dts)
+      written++
+    }
+
+    // Same mirroring for the virtual TSX — the exact code the editor
+    // typechecks, HTML→TSX compatibility included (see compiler/virtual-code
+    // appendTemplateTsx). Relative imports resolve through the app's
+    // `rootDirs`; ambient Stator/JSX scaffolding is self-contained per file.
+    const virtual = toVirtualCode(source)
+    const checkTarget = join(checkDir, `${rel}.check.tsx`)
+    await mkdir(dirname(checkTarget), { recursive: true })
+    await writeFile(checkTarget, virtual.tsx.code)
+    checks++
   }
-  return { written, outDir }
+  return { written, checks, outDir }
 }
 
 async function walk(dir: string): Promise<string[]> {
