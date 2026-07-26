@@ -1,5 +1,17 @@
 # @statorjs/stator
 
+## 1.5.0
+
+### Minor Changes
+
+- 9912f0c: Template internals are typecheckable in CI. `syncTypes` now also emits each template's virtual TSX under `.stator/check/` — add it to a project's tsconfig `rootDirs`/`include` and plain `tsc --noEmit` catches frontmatter and prop errors that previously surfaced only as runtime ReferenceErrors. Client-island d.ts props now derive from `static attrs` and accept live `read()` bindings, matching what the runtime always supported.
+- 913edf3: Work-lifetime contract for state-anchored effects and timers. Entry effects are the load role — re-invoked on hydration when a process died mid-flight (same effectId), abortable via meta.signal on state exit. Transition effects are the command role — at-most-once, never re-invoked. `after` timers re-arm on hydration with elapsed credit, so restarts no longer silently kill countdowns. Machine-driven re-entries no longer refresh the session TTL, and out-of-band events for expired sessions are dropped instead of resurrecting fresh machines.
+
+### Patch Changes
+
+- bfda194: The dev server warns when a session machine self-reschedules through `after` with a data-loading entry effect on the loop — server-side polling that runs for sessions nobody is watching. After-rescue timeouts and app-machine housekeeping stay quiet.
+- 9912f0c: The editor's virtual code applies the same HTML-to-TSX compatibility as the emitted check files — HTML comments, is:inline scripts, and unclosed void elements no longer produce false syntax errors in-editor, and offset mappings stay exact around every edit. One transform, both surfaces.
+
 ## 1.4.1
 
 ### Patch Changes

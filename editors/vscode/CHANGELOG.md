@@ -1,5 +1,11 @@
 # stator-vscode
 
+## 1.0.7
+
+### Patch Changes
+
+- 9912f0c: Templates no longer show false syntax errors on HTML comments, `is:inline` scripts, and unclosed void elements. The language server applies HTML-to-TSX compatibility before typechecking, with exact source mappings — diagnostics land on the right characters.
+
 ## 1.0.6
 
 ### Patch Changes
