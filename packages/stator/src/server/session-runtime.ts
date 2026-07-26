@@ -1,6 +1,7 @@
 import { createActor, type EffectInvocation, type Snapshot } from '../engine/index.ts'
 import type { AnyMachineDef } from './define-machine.ts'
 import { type DispatchContext, recordTouch, withDispatchContext } from './dispatch-context.ts'
+import { abortEntryEffects, isEffectInFlight } from './effects.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
 import { buildDispatchEvent, MAX_CASCADE_DEPTH, type MachineStore } from './machine-store.ts'
 import { serverReadsResolver } from './reads-helpers.ts'
@@ -72,7 +73,26 @@ export class SessionRuntime {
       // process-wide registry (server/timers.ts), not this transient runtime.
       onStateEnter: (stateKey, ctx) =>
         armAfterTimers(this.store, this.sessionId, def, stateKey, ctx),
-      onStateExit: (stateKey) => cancelAfterTimers(this.sessionId, def.name, stateKey),
+      // Exiting a state also aborts its in-flight entry effect (load role) —
+      // the completion would be guard-dropped anyway; this stops the work.
+      onStateExit: (stateKey) => {
+        cancelAfterTimers(this.sessionId, def.name, stateKey)
+        abortEntryEffects(this.sessionId, def.name, stateKey)
+      },
+      // Restored (hydrated) state: re-arm timers with elapsed credit — the
+      // deadline is enteredAt + delay, so per-request re-arms are idempotent
+      // and a deadline that passed while no process was alive fires promptly.
+      // A pendingEntry marker with no live invocation in this process is a
+      // crashed load: re-invoke it (same effectId; load role is re-runnable).
+      onStateRestore: (stateKey, ctx, info) => {
+        armAfterTimers(this.store, this.sessionId, def, stateKey, ctx, {
+          restore: true,
+          enteredAt: info.enteredAt,
+        })
+        if (info.pendingEntry && !isEffectInFlight(info.pendingEntry.effectId)) {
+          info.refireEntry()
+        }
+      },
     }).start()
     this.actors.set(
       def.name,
@@ -225,8 +245,15 @@ export class SessionRuntime {
 
   /** Write the current persisted snapshot for each touched machine back to
    *  its store: session machines to the session Store, app machines (touched
-   *  via session→app subscriptions) to the AppStore when they opted in. */
-  async persistTouched(touched: ReadonlySet<string>): Promise<void> {
+   *  via session→app subscriptions) to the AppStore when they opted in.
+   *  `refreshTtl: false` (machine-driven re-entries: timers, effect
+   *  completions) persists without extending the session's expiry — only real
+   *  user requests count as user activity. */
+  async persistTouched(
+    touched: ReadonlySet<string>,
+    opts?: { refreshTtl?: boolean },
+  ): Promise<void> {
+    const refreshTtl = opts?.refreshTtl !== false
     const ttlSeconds = this.store.sessionTtlSeconds
     for (const name of touched) {
       const handle = this.actors.get(name)
@@ -237,11 +264,15 @@ export class SessionRuntime {
         continue
       }
       const snapshot = handle.actor.getPersistedSnapshot()
-      // Every set refreshes the session's whole expiry — the user is
-      // active, so all of their machines stay alive together.
-      await this.store.persistence.set(this.sessionId, name, snapshot, {
-        ttlSeconds,
-      })
+      // A ttlSeconds-bearing set refreshes the session's whole expiry — the
+      // user is active, so all of their machines stay alive together. TTL-less
+      // sets (machine-driven work) leave the expiry untouched.
+      await this.store.persistence.set(
+        this.sessionId,
+        name,
+        snapshot,
+        refreshTtl ? { ttlSeconds } : undefined,
+      )
     }
   }
 

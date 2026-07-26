@@ -31,6 +31,12 @@ export interface Actor<C, E extends EventObject> {
   ): () => void
   /** Compact snapshot for the Store / client hydration seed. */
   getPersistedSnapshot(): Snapshot<C>
+  /** Host acknowledgment that the entry effect `effectId` SETTLED (completion
+   *  delivered or null-resolved): clears the snapshot's pendingEntry marker so
+   *  hydration stops re-invoking it. No-op on mismatch (the state moved on and
+   *  the marker already belongs to a different invocation). Returns whether a
+   *  marker was cleared — the host persists when true. */
+  settleEntry(effectId: string): boolean
 }
 
 /** The "top type" for an actor — same variance argument as `AnyMachineDef`:
@@ -68,8 +74,19 @@ export interface CreateActorOptions<C> {
    *  config; `ctx` is the current context (for context-dependent delays). */
   onStateEnter?: (stateKey: string, ctx: C) => void
   /** Host hook: a state was LEFT (a value-changing transition). The server uses
-   *  it to cancel that state's `after` timers. */
+   *  it to cancel that state's `after` timers and abort its entry effect. */
   onStateExit?: (stateKey: string) => void
+  /** Host hook: a HYDRATED actor started — the state was restored, not entered.
+   *  The server uses it to re-arm `after` timers with elapsed credit
+   *  (`enteredAt`) and, when `pendingEntry` reports an unsettled entry effect,
+   *  to re-invoke it via `refireEntry` (same effectId — idempotency keys hold
+   *  across the retry). `pendingEntry` is only reported when the restored state
+   *  still declares an entry effect. */
+  onStateRestore?: (
+    stateKey: string,
+    ctx: C,
+    info: { enteredAt?: number; pendingEntry?: { effectId: string }; refireEntry: () => void },
+  ) => void
 }
 
 /** Unique per-invocation effect id — usable as an idempotency key, so it must
@@ -104,9 +121,12 @@ export function createActor<C extends object, E extends EventObject, S extends s
     ? (structuredClone(opts.snapshot.context) as C)
     : (structuredClone(def.context) as C)
   // Hydrated actors have already lived: their current state's entry effect fired
-  // when it was entered, so `start()` must NOT re-fire it. Fresh actors (no
-  // snapshot) enter their initial state for the first time.
+  // when it was entered, so `start()` must NOT blanket-re-fire it — the host
+  // decides via `onStateRestore` (re-invoke only while `pendingEntry` reports
+  // an unsettled completion). Fresh actors enter their initial state for real.
   const hydrated = opts.snapshot !== undefined
+  let enteredAt: number | undefined = opts.snapshot?.enteredAt
+  let pendingEntry: { effectId: string } | undefined = opts.snapshot?.pendingEntry
 
   const subscribers = new Set<(s: Snapshot<C>) => void>()
   const emitListeners = new Map<string, Set<(e: EmittedEvent) => void>>()
@@ -116,7 +136,12 @@ export function createActor<C extends object, E extends EventObject, S extends s
 
   let commits = 0
 
-  const snapshot = (): Snapshot<C> => ({ value: [...value], context })
+  const snapshot = (): Snapshot<C> => ({
+    value: [...value],
+    context,
+    ...(enteredAt !== undefined ? { enteredAt } : {}),
+    ...(pendingEntry !== undefined ? { pendingEntry } : {}),
+  })
 
   const notify = (): void => {
     const snap = snapshot()
@@ -128,15 +153,20 @@ export function createActor<C extends object, E extends EventObject, S extends s
   // event. Firing does NOT bump `commits` (an entry is not a committed
   // transition); the server persists an entry-firing machine via the host's
   // pending-effects queue instead (see server/session-runtime.ts).
-  const fireEntryEffect = (stateKey: string): void => {
+  const fireEntryEffect = (stateKey: string, reuseEffectId?: string): void => {
     const entry = def.states[stateKey]?.entry
     if (!entry) return
-    const effectId = newEffectId()
+    // A re-invocation keeps its logical id, so idempotency keys threaded to
+    // external calls hold across the retry.
+    const effectId = reuseEffectId ?? newEffectId()
+    pendingEntry = { effectId }
     const ctxSnapshot = structuredClone(context)
     const invocation: EffectInvocation = {
       machineName: def.name,
       effectId,
-      run: () => Promise.resolve(entry(ctxSnapshot, { effectId })),
+      kind: 'entry',
+      stateKey,
+      run: (signal) => Promise.resolve(entry(ctxSnapshot, { effectId, signal })),
     }
     if (opts.onEffect) {
       opts.onEffect(invocation)
@@ -144,6 +174,7 @@ export function createActor<C extends object, E extends EventObject, S extends s
       void invocation
         .run()
         .then((completion) => {
+          actor.settleEntry(effectId)
           if (completion) actor.send(completion as E)
         })
         .catch((err) => {
@@ -164,11 +195,23 @@ export function createActor<C extends object, E extends EventObject, S extends s
       if (!started) {
         started = true
         notify() // let subscribe-before-start consumers sync initial state
-        // Fresh initial-state entry (a hydrated actor already fired its).
+        const current = value[value.length - 1]!
         if (!hydrated) {
-          const initial = value[value.length - 1]!
-          fireEntryEffect(initial)
-          opts.onStateEnter?.(initial, context)
+          // Fresh initial-state entry.
+          enteredAt = Date.now()
+          fireEntryEffect(current)
+          opts.onStateEnter?.(current, context)
+        } else if (opts.onStateRestore) {
+          // Restored, not entered: hand the host what it needs to re-arm
+          // timers (elapsed credit) and recover an unsettled entry effect.
+          const pending = pendingEntry && def.states[current]?.entry ? pendingEntry : undefined
+          opts.onStateRestore(current, context, {
+            enteredAt,
+            pendingEntry: pending,
+            refireEntry: () => {
+              if (pending) fireEntryEffect(current, pending.effectId)
+            },
+          })
         }
       }
       return actor
@@ -258,7 +301,9 @@ export function createActor<C extends object, E extends EventObject, S extends s
         const invocation: EffectInvocation = {
           machineName: def.name,
           effectId,
-          run: () => Promise.resolve(effect(ctxSnapshot, evSnapshot as never, { effectId })),
+          kind: 'transition',
+          run: (signal) =>
+            Promise.resolve(effect(ctxSnapshot, evSnapshot as never, { effectId, signal })),
         }
         if (opts.onEffect) {
           opts.onEffect(invocation)
@@ -283,6 +328,8 @@ export function createActor<C extends object, E extends EventObject, S extends s
       // timers (self-transitions and action-only transitions do neither).
       if (config.to && config.to !== stateKey) {
         opts.onStateExit?.(stateKey)
+        enteredAt = Date.now()
+        pendingEntry = undefined // the old state's marker dies with it
         fireEntryEffect(config.to)
         opts.onStateEnter?.(config.to, context)
       }
@@ -293,6 +340,12 @@ export function createActor<C extends object, E extends EventObject, S extends s
     getSnapshot: snapshot,
     getPersistedSnapshot: snapshot,
     getCommitCount: () => commits,
+
+    settleEntry(effectId: string) {
+      if (pendingEntry?.effectId !== effectId) return false
+      pendingEntry = undefined
+      return true
+    },
 
     subscribe(listener) {
       subscribers.add(listener)

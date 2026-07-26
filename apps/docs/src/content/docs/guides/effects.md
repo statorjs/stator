@@ -67,15 +67,44 @@ The completion re-enters through the normal event path: state persists, and
 Non-live pages show it on their next request — which is why the pending state
 exists: it's what the user sees until then.
 
-`meta.effectId` is a unique id per invocation — thread it to external calls
-as an idempotency key and use it to correlate logs.
+`meta.effectId` is a unique id per LOGICAL invocation — a re-invoked entry
+effect keeps its id — so thread it to external calls as an idempotency key
+and use it to correlate logs.
+
+## Load and command roles
+
+The two effect positions carry different lifetime contracts, by category:
+
+- **Entry effects are the load role** — how a state gets its data. If a
+  process dies while one is in flight, the next hydration of that state
+  re-invokes it (same `effectId`), so the machine recovers instead of waiting
+  forever for a completion that died with another process. Leaving the state
+  aborts `meta.signal` — pass it to `fetch` and the wasted request stops at
+  the source. Write entry effects as re-runnable reads; don't put
+  non-idempotent external writes in them.
+- **Transition effects are the command role** — what a user action causes.
+  At-most-once, never re-invoked, never aborted. External writes (charge a
+  card, send an email) belong here.
+
+## Who owns the clock
+
+`after` timers re-arm on hydration with elapsed credit (the deadline is when
+the state was entered plus the delay), so a restart no longer silently kills a
+countdown. They remain non-durable — a machine nobody touches again after a
+restart never re-arms — which makes them right for process housekeeping and
+wrong as the engine of periodic refresh. For "keep this data fresh while
+someone is looking at it", put the clock on the client: a visibility-aware
+interval dispatching a refresh event is demand-aware by construction (hidden
+tab, no ticks), and the machine keeps the policy — a staleness guard decides
+whether any tick actually causes work. Server-side machine activity does not
+refresh the session's TTL; only real user requests do.
 
 ## What effects are not
 
-At-most-once and non-durable in 1.0: if the process dies mid-effect, the
-machine stays in its pending state and the effect is lost. Design pending
-states so a human (or a webhook) can resolve them. Durable, retried effects
-are 1.x work.
+Non-durable in 1.0: if the process dies mid-effect, a transition effect is
+lost (the machine stays in its pending state — design those states so a human
+or a webhook can resolve them), and an entry effect recovers by re-invoke on
+the next hydration. Durable, retried effects are 1.x work.
 
 Effects work identically on [client islands](/guides/client-components/)
 (the effect runs in the browser, the completion feeds the local actor) and on

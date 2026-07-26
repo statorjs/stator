@@ -2,6 +2,7 @@ import { createActor, type EffectInvocation, type Snapshot } from '../engine/ind
 import { type AppStore, InMemoryAppStore } from './app-store.ts'
 import type { AnyMachineDef, SubscribeEvent } from './define-machine.ts'
 import { recordTouch } from './dispatch-context.ts'
+import { abortEntryEffects, isEffectInFlight } from './effects.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
 import { scopedLogger } from './logger.ts'
 import { serverReadsResolver } from './reads-helpers.ts'
@@ -265,7 +266,24 @@ export class MachineStore {
           // through dispatchToApp — no session, wall-clock only (revalidation,
           // circuit breakers). See armAfterTimers.
           onStateEnter: (stateKey, ctx) => armAfterTimers(this, APP_SCOPE, def, stateKey, ctx),
-          onStateExit: (stateKey) => cancelAfterTimers(APP_SCOPE, def.name, stateKey),
+          onStateExit: (stateKey) => {
+            cancelAfterTimers(APP_SCOPE, def.name, stateKey)
+            abortEntryEffects(APP_SCOPE, def.name, stateKey)
+          },
+          // A persisted app machine restoring at boot gets the same work-
+          // lifetime semantics as a hydrating session machine: timers re-arm
+          // with elapsed credit, and an unsettled entry effect re-invokes
+          // (fresh process ⇒ nothing can be in flight, but the check keeps the
+          // contract uniform).
+          onStateRestore: (stateKey, ctx, info) => {
+            armAfterTimers(this, APP_SCOPE, def, stateKey, ctx, {
+              restore: true,
+              enteredAt: info.enteredAt,
+            })
+            if (info.pendingEntry && !isEffectInFlight(info.pendingEntry.effectId)) {
+              info.refireEntry()
+            }
+          },
         }).start()
         this.appInstances.set(
           def.name,
