@@ -39,7 +39,10 @@ export function generateDts(
       const fields = [...attrs]
         .map(([key, kind]) => `${key}?: ${kind} | __SReadResult<${kind}>`)
         .join('; ')
-      propsT = `{ ${fields} }`
+      // Declared attrs are typed strictly; the open tail admits the richer
+      // props an island's SERVER-rendered markup may consume (they never
+      // cross the attr wire, so `static attrs` can't know about them).
+      propsT = `{ ${fields} } & { [prop: string]: unknown }`
     }
   }
 

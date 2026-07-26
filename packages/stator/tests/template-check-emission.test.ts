@@ -57,4 +57,41 @@ describe('check-file emission', () => {
     expect(emitted).toContain('<br />')
     expect(emitted).not.toMatch(/<br>/)
   })
+
+  it('blanks is:inline script bodies (raw JS cannot parse as TSX)', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stator-check-'))
+    await writeFile(
+      join(root, 'page.stator'),
+      '<div><script is:inline>var x = 1; for (var i = 0; i < 3; i++) x++;</script></div>\n',
+    )
+    await syncTypes(root)
+    const emitted = await readFile(join(root, '.stator/check/page.stator.check.tsx'), 'utf8')
+    expect(emitted).toContain('<script />')
+    expect(emitted).not.toContain('for (var i')
+  })
+
+  it('strips HTML comments (not valid JSX)', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stator-check-'))
+    await writeFile(
+      join(root, 'page.stator'),
+      '<div><!-- injected by the framework --><span>ok</span></div>\n',
+    )
+    await syncTypes(root)
+    const emitted = await readFile(join(root, '.stator/check/page.stator.check.tsx'), 'utf8')
+    expect(emitted).not.toContain('<!--')
+    expect(emitted).toContain('<span>ok</span>')
+  })
+
+  it('never rewrites inside attribute expressions (arrows, nested braces, strings)', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stator-check-'))
+    await writeFile(
+      join(root, 'row.stator'),
+      `<input type="checkbox" checked={read(t, (x) => x.done)} on:click={() => t.send({ type: 'GO' })} title="a > b">\n`,
+    )
+    await syncTypes(root)
+    const emitted = await readFile(join(root, '.stator/check/row.stator.check.tsx'), 'utf8')
+    expect(emitted).toContain('checked={read(t, (x) => x.done)}')
+    expect(emitted).toContain("on:click={() => t.send({ type: 'GO' })}")
+    expect(emitted).toContain('title="a > b" />')
+  })
 })
