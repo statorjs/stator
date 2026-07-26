@@ -772,6 +772,10 @@ main {
   background: var(--bar-bg);
   color: var(--bar-fg);
   padding-bottom: env(safe-area-inset-bottom);
+  /* The whole bar is a tap target — suppress the browser's accent-colored
+     tap flash (inherited by the dots and buttons); the drawer's own motion
+     is the feedback. */
+  -webkit-tap-highlight-color: transparent;
 }
 /* The bar itself is a tap target (WP: any blank spot expands); the drawer's
    surface is not. */
