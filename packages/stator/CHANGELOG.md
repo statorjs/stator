@@ -1,5 +1,11 @@
 # @statorjs/stator
 
+## 1.5.1
+
+### Patch Changes
+
+- 27d2efc: The circular-import subscription error now recommends the read/write split (a third machine reading both sides) and no longer suggests defining both machines in one module, which directory discovery — default exports only — cannot load.
+
 ## 1.5.0
 
 ### Minor Changes
