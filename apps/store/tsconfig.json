@@ -11,9 +11,9 @@
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    "rootDirs": [".", ".stator/types"],
+    "rootDirs": [".", ".stator/types", ".stator/check"],
     "jsx": "preserve"
   },
-  "include": ["**/*.ts", "**/*.stator"],
+  "include": ["**/*.ts", "**/*.stator", ".stator/check/**/*.tsx"],
   "exclude": ["node_modules", "static", "dist"]
 }

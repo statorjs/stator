@@ -17,13 +17,15 @@
     "noEmit": true,
     "rootDirs": [
       ".",
-      ".stator/types"
+      ".stator/types",
+      ".stator/check"
     ],
     "jsx": "preserve"
   },
   "include": [
     "**/*.ts",
-    "**/*.stator"
+    "**/*.stator",
+    ".stator/check/**/*.tsx"
   ],
   "exclude": [
     "node_modules",
