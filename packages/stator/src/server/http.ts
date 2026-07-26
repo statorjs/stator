@@ -33,6 +33,8 @@ export interface HttpConfig {
   /** Serve the dev inspector asset at `/@stator/inspector.js`. The dev server
    *  sets this and injects the script tag; production leaves it off. */
   inspector?: boolean
+  /** SSE heartbeat interval in ms (default 25s). Tests shorten it. */
+  ssePingMs?: number
 }
 
 const eventSchema = z.object({
@@ -249,13 +251,17 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         await conn.send(JSON.stringify({ patches: sync }))
       }
 
-      // Keep-alive every 25s so proxy idle timeouts don't close the
-      // connection between real events.
+      // Heartbeat every 25s. This is a real DATA message, not a comment, on
+      // purpose: SSE comments keep proxies from reaping the connection but
+      // are invisible to the browser's EventSource API — a client can't
+      // detect a half-open zombie (device sleep, silent NAT drop: no FIN
+      // ever arrives, no error fires) unless liveness is OBSERVABLE. The
+      // runtime tracks last-message time and reconnects when pings stop.
       const keepAlive = setInterval(() => {
-        stream.write(': keep-alive\n\n').catch(() => {
-          // Stream closed; will be cleaned up by abort handler.
+        void conn.send('{"ping":true}').catch(() => {
+          // Stream closed; the abort handler cleans up.
         })
-      }, 25_000)
+      }, config.ssePingMs ?? 25_000)
 
       try {
         await new Promise<void>((resolveFn) => {
