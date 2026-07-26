@@ -1,5 +1,12 @@
 # stator-example-weather
 
+## 0.0.5
+
+### Patch Changes
+
+- Updated dependencies [3cb1fc3]
+  - @statorjs/stator@1.5.2
+
 ## 0.0.4
 
 ### Patch Changes
