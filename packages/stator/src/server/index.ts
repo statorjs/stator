@@ -22,6 +22,8 @@ export type {
   SubscribeEvent,
 } from './define-machine.ts'
 export { defineMachine, isStatorMachine } from './define-machine.ts'
+export type { PollLoopFinding } from './dev-lint.ts'
+export { findPollLoops } from './dev-lint.ts'
 export type { DiscoveryResult } from './discovery.ts'
 export { discoverMachines } from './discovery.ts'
 export type { DispatchContext } from './dispatch-context.ts'
