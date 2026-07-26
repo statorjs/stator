@@ -180,11 +180,135 @@ function buildServerTsx(regions: ScannedRegions): VirtualFile {
     code += `${seg.text}\n`
   }
   code += '  return (<>'
-  push(mappings, tplOffset, code.length, tpl.length)
-  code += tpl
+  code = appendTemplateTsx(code, mappings, tpl, tplOffset)
   code += '</>);\n}\n'
 
   return { lang: 'tsx', code, mappings }
+}
+
+/** HTML void elements — legal unclosed in templates, not in TSX. */
+const VOID_TAGS = new Set([
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'link',
+  'meta',
+  'source',
+  'track',
+  'wbr',
+])
+
+/**
+ * Append the template to the virtual TSX with HTML→TSX compatibility applied
+ * AND offset mappings kept exact around every edit:
+ *   - HTML comments: dropped (not JSX),
+ *   - `is:inline` scripts: body blanked to `<script />` (raw JS can't parse
+ *     as JSX children, and typechecking it as TSX would be meaningless),
+ *   - void elements: self-closed (`<input>` → `<input />`).
+ * The walk is brace- and quote-aware so attribute expressions
+ * (`checked={(t) => t.done}`, `title="a > b"`) are never rewritten. Verbatim
+ * runs get 1:1 mappings; inserted text maps to nothing; dropped source simply
+ * has no generated counterpart. Both the editor (Volar) and the emitted
+ * `.stator/check` files share this one surface.
+ */
+function appendTemplateTsx(
+  code: string,
+  mappings: VirtualMapping[],
+  tpl: string,
+  tplOffset: number,
+): string {
+  let out = code
+  let i = 0
+  let runStart = 0
+
+  const flush = (end: number): void => {
+    if (end > runStart) {
+      push(mappings, tplOffset + runStart, out.length, end - runStart)
+      out += tpl.slice(runStart, end)
+    }
+  }
+
+  while (i < tpl.length) {
+    if (tpl.startsWith('<!--', i)) {
+      flush(i)
+      const end = tpl.indexOf('-->', i)
+      i = end === -1 ? tpl.length : end + 3
+      runStart = i
+      continue
+    }
+    if (/^<script\b/i.test(tpl.slice(i, i + 8))) {
+      flush(i)
+      const end = tpl.toLowerCase().indexOf('</script>', i)
+      out += '<script />'
+      i = end === -1 ? tpl.length : end + '</script>'.length
+      runStart = i
+      continue
+    }
+    if (tpl[i] === '{') {
+      i = expressionEnd(tpl, i)
+      continue
+    }
+    if (tpl[i] === '<' && /[a-zA-Z]/.test(tpl[i + 1] ?? '')) {
+      const tag = /^[a-zA-Z][\w-]*/.exec(tpl.slice(i + 1))![0]
+      let j = i + 1 + tag.length
+      while (j < tpl.length) {
+        const ch = tpl[j]!
+        if (ch === '"' || ch === "'") {
+          const q = tpl.indexOf(ch, j + 1)
+          j = q === -1 ? tpl.length : q + 1
+          continue
+        }
+        if (ch === '{') {
+          j = expressionEnd(tpl, j)
+          continue
+        }
+        if (ch === '>') break
+        j++
+      }
+      if (VOID_TAGS.has(tag.toLowerCase()) && j < tpl.length) {
+        // Self-close unless the author already did.
+        let k = j - 1
+        while (k > i && /\s/.test(tpl[k]!)) k--
+        if (tpl[k] !== '/') {
+          flush(j)
+          out += ' /'
+          runStart = j // continue the run at the original `>`
+        }
+      }
+      i = j + 1
+      continue
+    }
+    i++
+  }
+  flush(tpl.length)
+  return out
+}
+
+/** Index just past the `}` closing the expression opened at `start` (which
+ *  must point at `{`), respecting nested braces and string/template literals. */
+function expressionEnd(tpl: string, start: number): number {
+  let depth = 0
+  let quote: string | null = null
+  for (let i = start; i < tpl.length; i++) {
+    const ch = tpl[i]!
+    if (quote !== null) {
+      if (ch === '\\') i++
+      else if (ch === quote) quote = null
+      continue
+    }
+    if (ch === '"' || ch === "'" || ch === '`') quote = ch
+    else if (ch === '{') depth++
+    else if (ch === '}') {
+      depth--
+      if (depth === 0) return i + 1
+    }
+  }
+  return tpl.length
 }
 
 interface FmSegment {

@@ -95,3 +95,20 @@ describe('check-file emission', () => {
     expect(emitted).toContain('title="a > b" />')
   })
 })
+
+describe('virtual-code mappings survive HTML-to-TSX edits', () => {
+  it('an expression after a dropped comment and a self-closed void still maps to its true source offset', async () => {
+    const { toVirtualCode } = await import('../src/compiler/virtual-code.ts')
+    const src =
+      '<div><!-- dropped --><meta charset="utf-8"><span>{read(m, (x) => x.y)}</span></div>\n'
+    const vc = toVirtualCode(src)
+    const genIdx = vc.tsx.code.indexOf('read(m,')
+    expect(genIdx).toBeGreaterThan(-1)
+    const run = vc.tsx.mappings.find(
+      (mm) => genIdx >= mm.generatedOffset && genIdx < mm.generatedOffset + mm.length,
+    )
+    expect(run).toBeDefined()
+    const srcIdx = run!.sourceOffset + (genIdx - run!.generatedOffset)
+    expect(src.slice(srcIdx, srcIdx + 7)).toBe('read(m,')
+  })
+})
