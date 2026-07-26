@@ -200,8 +200,11 @@ export class MachineStore {
               `This is almost always a circular import between machine modules — the module ` +
               `defining "${def.name}" and the module defining its subscription source import ` +
               `each other, and the loader resolved the mid-cycle binding to undefined. ` +
-              `Break the module cycle (e.g. move one machine or the subscription), ` +
-              `or define the mutually-subscribing machines in one module.`,
+              `Break the module cycle: move the DISPLAY selectors into a third machine ` +
+              `that \`reads:\` both sides (the read/write split — see the weather example's ` +
+              `PanelsMachine), or move one machine or the subscription. Note that defining ` +
+              `both machines in one module does NOT work with directory discovery, which ` +
+              `registers default exports only.`,
           )
         }
         if (!this.defs.has(sub.from.name)) {
