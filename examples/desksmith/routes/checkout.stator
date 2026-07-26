@@ -1,4 +1,5 @@
 ---
+// @stator live
 import CartMachine from '../machines/cart.ts'
 import CheckoutMachine from '../machines/checkout.ts'
 import CustomerLayout from '../templates/customer-layout.stator'
