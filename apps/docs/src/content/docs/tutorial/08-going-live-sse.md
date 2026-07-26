@@ -39,6 +39,28 @@ Here's the payoff. When any session triggers a change to a machine this route re
 
 Picture an `inventory` app-machine with a `remaining` count, displayed via `read(inventory, i => i.remaining)`. When one shopper checks out and decrements stock, every other shopper with the catalog open sees the number drop — in the same patch shape you've seen all along, just delivered over SSE instead of in a POST response. The render model doesn't change; only the transport does.
 
+## Showing the connection state
+
+Live routes carry one more runtime-owned signal: `data-stator-connection` on `<html>`, one of `connected`, `disconnected`, or `stale`. A zero-markup banner in `static/app.css` is all it takes to surface a dropped channel:
+
+```css
+html[data-stator-connection='disconnected'] body::before,
+html[data-stator-connection='stale'] body::before {
+  content: 'connection lost — reconnecting…';
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 100;
+  padding: 6px 12px;
+  text-align: center;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+```
+
+Stop the dev server while the catalog is open and the banner appears. Start it again and it clears itself — the reconnected channel converges the page in place, which is the next section's story.
+
 ## What is / isn't realtime in 1.0
 
 Be precise about what you're getting:
