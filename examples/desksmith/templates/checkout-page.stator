@@ -38,12 +38,24 @@ const { checkout } = Stator.props<{
       <div class="step">
         <h2>2. Payment</h2>
         <p>Card last 4: {read(checkout, c => c.paymentLast4)}</p>
+        {when(read(checkout, c => c.error), () => (
+          <p class="error">{read(checkout, c => c.error)}</p>
+        ))}
         <div class="step-actions">
           <button on:click={() => checkout.send({ type: 'SET_FIELD', field: 'paymentLast4', value: '4242' })}>Set card</button>
+          <button on:click={() => checkout.send({ type: 'SET_FIELD', field: 'paymentLast4', value: '0000' })}>Set declined card</button>
+          <button on:click={() => checkout.send({ type: 'SET_FIELD', field: 'paymentLast4', value: '9999' })}>Set silent card</button>
           <button on:click={() => checkout.send({ type: 'BACK' })}>← Back</button>
           <button on:click={() => checkout.send({ type: 'SUBMIT_PAYMENT' })}>Place order</button>
         </div>
-        <p class="hint">Card last 4 must match the four-digit pattern; otherwise the guard blocks.</p>
+        <p class="hint">4242 succeeds, 0000 declines, 9999 never answers — the four-digit guard blocks anything else.</p>
+      </div>,
+
+    placing: () =>
+      <div class="step">
+        <h2>2½. Placing your order…</h2>
+        <p>The charge runs as a transition effect; this pending state is what you see until its completion event lands.</p>
+        <p class="hint">If the processor never answers (card 9999), an `after` timer rescues this state in 8 seconds — no stranded checkout, nothing charged.</p>
       </div>,
 
     complete: () =>
