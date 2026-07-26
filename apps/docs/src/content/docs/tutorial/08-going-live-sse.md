@@ -44,20 +44,21 @@ Picture an `inventory` app-machine with a `remaining` count, displayed via `read
 Live routes carry one more runtime-owned signal: `data-stator-connection` on `<html>`, one of `connected`, `disconnected`, or `stale`. A zero-markup banner in `static/app.css` is all it takes to surface a dropped channel:
 
 ```css
-/* z-index high on purpose: body::before is the first box in <body>, so a
-   sticky header with an equal z-index would paint right over it. */
+/* Bottom edge, so it never fights a sticky header. z-index high on purpose:
+   body::before is the first box in <body>, so any later sibling with an
+   equal z-index would paint right over it. */
 html[data-stator-connection='disconnected'] body::before,
 html[data-stator-connection='stale'] body::before {
   content: 'connection lost — reconnecting…';
   position: fixed;
-  inset: 0 0 auto 0;
+  inset: auto 0 0 0;
   z-index: 1000;
   padding: 6px 12px;
   text-align: center;
   font-size: 13px;
   background: var(--surface);
   color: var(--text);
-  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
 }
 ```
 

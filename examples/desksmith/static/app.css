@@ -847,20 +847,20 @@ button[data-stator-pending] {
 }
 
 /* Live routes (/admin, /checkout) carry the SSE channel state on <html>.
-   A zero-markup banner: appears while the channel is down, disappears when
-   the reconnect's resync lands. z-index must clear the sticky header —
-   body::before is the FIRST box in <body>, so at equal z-index every later
-   sibling (the header is z-index 100) paints over it. */
+   A zero-markup toast: appears while the channel is down, disappears when
+   the reconnect's resync lands. Bottom edge so it never fights the sticky
+   header, and z-index high because body::before is the FIRST box in <body> —
+   at equal z-index every later sibling paints over it. */
 html[data-stator-connection="disconnected"] body::before,
 html[data-stator-connection="stale"] body::before {
   content: "connection lost — reconnecting…";
   position: fixed;
-  inset: 0 0 auto 0;
+  inset: auto 0 0 0;
   z-index: 1000;
   padding: 6px 12px;
   text-align: center;
   font-size: 13px;
   background: var(--warn-bg);
   color: var(--warn-text);
-  border-bottom: 1px solid var(--warn-border);
+  border-top: 1px solid var(--warn-border);
 }
