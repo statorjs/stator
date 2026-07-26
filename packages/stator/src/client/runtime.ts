@@ -51,6 +51,7 @@ function initLiveChannel(): void {
   const sse = new EventSource(url, { withCredentials: true })
 
   let everOpened = false
+  let lastSeen = Date.now()
   sse.addEventListener('open', () => {
     if (everOpened) {
       // Reconnect — reload rather than risk stale state.
@@ -60,7 +61,26 @@ function initLiveChannel(): void {
     everOpened = true
   })
 
+  // Zombie watchdog. A half-open connection (device sleep, silent NAT drop)
+  // never fires `error` — EventSource just sits "open" and silent forever,
+  // and the page quietly stops being live. The server sends an observable
+  // ping every 25s; two missed pings while the page is VISIBLE means the
+  // channel is dead, and a reload re-syncs (same strategy as reconnect).
+  // Hidden tabs wait for visibility — no reloading pages nobody is watching.
+  const STALE_MS = 65_000
+  const staleReload = (): void => {
+    if (!everOpened || document.hidden) return
+    if (Date.now() - lastSeen > STALE_MS) {
+      console.warn('stator: SSE channel stale — reloading to re-sync')
+      sse.close()
+      location.reload()
+    }
+  }
+  setInterval(staleReload, 10_000)
+  document.addEventListener('visibilitychange', staleReload)
+
   sse.addEventListener('message', (e) => {
+    lastSeen = Date.now()
     let data: WireEnvelope
     try {
       data = JSON.parse(e.data)

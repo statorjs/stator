@@ -24,6 +24,8 @@ export interface CreateAppConfig {
   /** Per-session TTL in seconds. Every set to any of the session's
    *  machines refreshes this expiry. Defaults to 24h (86400). */
   sessionTtlSeconds?: number
+  /** SSE heartbeat interval in ms (default 25s). Tests shorten it. */
+  ssePingMs?: number
   /** Extra `<head>` HTML per GET route. A production build uses this to link the
    *  prebuilt `components.css`; ignored if omitted. */
   headExtras?: (filePath: string) => string | Promise<string>
@@ -69,6 +71,7 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
         }
       : config.headExtras,
     inspector: config.inspector,
+    ssePingMs: config.ssePingMs,
   })
 
   return {

@@ -395,3 +395,20 @@ describe('double delivery to the dispatching connection', () => {
     }
   })
 })
+
+describe('SSE heartbeat', () => {
+  it('sends observable ping DATA frames on the configured interval', async () => {
+    // A comment keepalive holds proxies open but is invisible to EventSource —
+    // the ping must be a data frame so clients can detect zombie connections.
+    const app = await createApp({
+      machinesDir: resolve(fixtures, 'machines'),
+      routesDir: resolve(fixtures, 'routes'),
+      ssePingMs: 40,
+    })
+    const cookie = await cookieFor(app, '/board')
+    const sse = await openSse(app, 'GET /board', cookie)
+    const buffer = await sse.readUntil((text) => text.includes('{"ping":true}'), 2000)
+    expect(buffer).toContain('data: {"ping":true}')
+    sse.close()
+  })
+})
