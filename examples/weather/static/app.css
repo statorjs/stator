@@ -750,6 +750,7 @@ tile-motion {
   .peek-tile .slides {
     transition: none;
   }
+  .ab-refresh[data-stator-pending] svg,
   .ab-refresh.spinning svg {
     animation: none;
   }
@@ -937,8 +938,13 @@ main {
 .wx[data-view="editing"] .ab-edit .ab-glyph-check {
   display: block;
 }
-/* The spinner is SERVER state (weather.refreshing over SSE) — every open tab
-   sees a refresh in flight, whoever started it. */
+/* The spinner has two layers. [data-stator-pending] is THIS tab's request in
+   flight — runtime-owned, spinning the instant you tap, covering the round
+   trip (and any retries) before the server has said anything. .spinning is
+   SERVER state (weather.refreshing over SSE) — every open tab sees a refresh
+   in flight, whoever started it. Patches apply before the pending attribute
+   clears, so the handoff between layers never gaps. */
+.ab-refresh[data-stator-pending] svg,
 .ab-refresh.spinning svg {
   animation: ab-spin 1s linear infinite;
 }

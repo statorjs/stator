@@ -392,3 +392,29 @@ input[type="text"]:focus {
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
 }
+
+/* ---- Network signals (runtime-owned data attributes) ------------------- */
+
+/* In-flight dispatches: the runtime marks the element (vote buttons) or the
+   form (the enhanced /new submit) until the request settles. */
+button[data-stator-pending],
+form[data-stator-pending] .btn-primary {
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: progress;
+}
+
+/* Both routes are live — surface a dropped SSE channel without markup. */
+html[data-stator-connection="disconnected"] body::before,
+html[data-stator-connection="stale"] body::before {
+  content: "connection lost — reconnecting…";
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 100;
+  padding: 6px 12px;
+  text-align: center;
+  font-size: 0.85rem;
+  background: var(--surface);
+  color: var(--danger);
+  border-bottom: 1px solid var(--danger);
+}
