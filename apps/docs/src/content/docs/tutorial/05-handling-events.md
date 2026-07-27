@@ -33,6 +33,22 @@ When you click, here's what happens — and what doesn't:
 
 There's no fetch to write, no JSON endpoint to define, no client store to update. The handler *is* the integration.
 
+## When the network isn't instant
+
+On localhost that round trip is invisible. Everywhere else, the runtime is honest about it: while an event POST is in flight, the dispatching element carries `data-stator-pending` — set the instant you click, removed when the response applies. One rule in `static/app.css` turns that into feedback for every server-event button in the app:
+
+```css
+/* A RETRY of the same event is idempotent (the server replays it), but a
+   second click is a second event — block it while one is in flight. */
+button[data-stator-pending] {
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: progress;
+}
+```
+
+You never toggle a loading flag yourself — the attribute is runtime-owned, counted across rapid dispatches, and cleared on every failure path. Failure handling is built in too: a network drop or timeout retries twice with backoff, and every dispatch carries an idempotency key, so a retry whose first attempt actually landed replays the original response instead of adding to the cart twice. If the request still can't get through, a `stator:dispatch-error` event fires on `window` and the dev inspector shows it as a row. Try it — set DevTools Network to "Slow 3G" and click "Add to cart."
+
 ## The wire patch
 
 Open your browser's network panel and click "Add to cart." The response isn't a new page — it's a small list of patches targeting only the slots that changed: the header's cart count, the button's label. Everything else on the page is untouched. This is "the DOM renders where its state lives" in action: one event, a handful of byte-sized updates.

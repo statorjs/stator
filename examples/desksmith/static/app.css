@@ -833,3 +833,34 @@ button:hover {
   text-align: right;
   width: 80px;
 }
+
+/* ---- Network signals (runtime-owned data attributes) ------------------- */
+
+/* The runtime marks the dispatching element while its event POST is in
+   flight. Dim it and block re-taps: a RETRY of the same event is idempotent
+   (the server replays it), but a second tap is a second event — don't
+   collect one by accident on a slow link. */
+button[data-stator-pending] {
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: progress;
+}
+
+/* Live routes (/admin, /checkout) carry the SSE channel state on <html>.
+   A zero-markup toast: appears while the channel is down, disappears when
+   the reconnect's resync lands. Bottom edge so it never fights the sticky
+   header, and z-index high because body::before is the FIRST box in <body> —
+   at equal z-index every later sibling paints over it. */
+html[data-stator-connection="disconnected"] body::before,
+html[data-stator-connection="stale"] body::before {
+  content: "connection lost — reconnecting…";
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 1000;
+  padding: 6px 12px;
+  text-align: center;
+  font-size: 13px;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  border-top: 1px solid var(--warn-border);
+}

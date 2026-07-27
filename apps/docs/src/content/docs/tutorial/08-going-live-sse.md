@@ -39,12 +39,37 @@ Here's the payoff. When any session triggers a change to a machine this route re
 
 Picture an `inventory` app-machine with a `remaining` count, displayed via `read(inventory, i => i.remaining)`. When one shopper checks out and decrements stock, every other shopper with the catalog open sees the number drop — in the same patch shape you've seen all along, just delivered over SSE instead of in a POST response. The render model doesn't change; only the transport does.
 
+## Showing the connection state
+
+Live routes carry one more runtime-owned signal: `data-stator-connection` on `<html>`, one of `connected`, `disconnected`, or `stale`. A zero-markup banner in `static/app.css` is all it takes to surface a dropped channel:
+
+```css
+/* Bottom edge, so it never fights a sticky header. z-index high on purpose:
+   body::before is the first box in <body>, so any later sibling with an
+   equal z-index would paint right over it. */
+html[data-stator-connection='disconnected'] body::before,
+html[data-stator-connection='stale'] body::before {
+  content: 'connection lost — reconnecting…';
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 1000;
+  padding: 6px 12px;
+  text-align: center;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--text);
+  border-top: 1px solid var(--border);
+}
+```
+
+Stop the dev server while the catalog is open and the banner appears. Start it again and it clears itself — the reconnected channel converges the page in place, which is the next section's story.
+
 ## What is / isn't realtime in 1.0
 
 Be precise about what you're getting:
 
 - **Opt-in only.** A route is static request/response until you add `// @stator live`.
-- **Reconnect means reload.** If the connection drops, the client re-establishes and re-renders; there's no missed-event replay.
+- **Reconnect means resync.** If the connection drops or goes stale, the client reopens it and the server's initial sync converges the page in place — no reload, no lost island state. Individual missed frames are never replayed; directives fired during the outage (a `navigate`, say) are gone.
 - **Single-replica fan-out.** The fan-out is in-process — every connection lives on the same server instance.
 
 :::caution[1.x]

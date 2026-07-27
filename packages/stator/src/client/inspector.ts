@@ -155,6 +155,21 @@ function mount(): void {
     )
   })
 
+  window.addEventListener('stator:dispatch-error', (e: Event) => {
+    const { machine, phase, status, timestamp } = (e as CustomEvent).detail
+    addEntry(
+      'up',
+      `<div class="stator-inspector-summary">
+        <span class="stator-inspector-time">${fmtTime(timestamp)}</span>
+        <span class="stator-inspector-arrow">✕</span>
+        <span class="stator-inspector-machine">${escapeHtml(machine ?? 'form')}</span>
+        <span class="stator-inspector-event-type">${escapeHtml(phase)}</span>
+        <span class="stator-inspector-params">${status != null ? escapeHtml(String(status)) : ''}</span>
+      </div>`,
+      (e as CustomEvent).detail,
+    )
+  })
+
   window.addEventListener('stator:patches-received', (e: Event) => {
     const { patches, source, durationMs, timestamp } = (e as CustomEvent).detail
     const timing = durationMs != null ? `${durationMs}ms` : ''

@@ -78,10 +78,33 @@ The one client binding mechanism — the client mirror of the server's recompute
 
 ```ts
 function dispatch<D extends MachineDef>(machine: D, event: EventOf<D>): Promise<DispatchResult>
-// DispatchResult: { ok: boolean; committed: boolean; patchCount: number }
+// DispatchResult: {
+//   ok: boolean; committed: boolean; patchCount: number
+//   error?: { phase: 'network' | 'timeout' | 'http'; status?: number }
+// }
 ```
 
-The one visible boundary crossing from an island: commits an event to a **server** machine by POSTing `{ machine: machine.name, event }` to `/__events`, then applies the returned patches and directives to the DOM. Addressed by the imported machine def, not a magic string — the compiler turns a server-machine import into a `{ name }` stub, and the event type-checks against that machine's event union. The result separates three facts: `ok` (the POST reached the server), `committed` (the event actually transitioned a machine — a guard-dropped event is `ok && !committed`), and `patchCount` (patches applied to *this* page; a committed event may patch zero slots here if the touched machines aren't bound on the current route). Buttons that announce success should look at `committed`. Network/HTTP failures log to the console and resolve `{ ok: false, committed: false, patchCount: 0 }`.
+The one visible boundary crossing from an island: commits an event to a **server** machine by POSTing `{ machine: machine.name, event }` to `/__events`, then applies the returned patches and directives to the DOM. Addressed by the imported machine def, not a magic string — the compiler turns a server-machine import into a `{ name }` stub, and the event type-checks against that machine's event union. The result separates three facts: `ok` (the POST reached the server), `committed` (the event actually transitioned a machine — a guard-dropped event is `ok && !committed`), and `patchCount` (patches applied to *this* page; a committed event may patch zero slots here if the touched machines aren't bound on the current route). Buttons that announce success should look at `committed`. Failures resolve rather than throw: `ok` is false and `error.phase` says what happened — `network` (the request never completed), `timeout` (it exceeded the 10-second deadline), or `http` (the server answered non-2xx, with `status`). Every failure also fires the `stator:dispatch-error` window event described below.
+
+## Runtime signals
+
+The page runtime marks in-flight and connection state on the DOM so plain CSS can react, and mirrors both as `stator:*` window events for code.
+
+**`data-stator-pending`** — set on the element whose event POST is in flight (the `data-event-*` element, or the form for `data-event-submit` and enhanced submits), removed when the response is applied or the request fails. Rapid repeat dispatches keep it until the last one settles.
+
+```css
+button[data-stator-pending] { opacity: 0.6; pointer-events: none; }
+```
+
+**`data-stator-connection`** — set on `<html>` for routes with `live: true`, one of `connected`, `disconnected`, or `stale` (the half-open-channel watchdog fired). Absent on non-live routes.
+
+```css
+html[data-stator-connection="disconnected"] .offline-banner { display: block; }
+```
+
+**Window events** — `stator:dispatch-error` fires once per failed dispatch with `{ machine?, event?, phase, status?, timestamp }` (`machine` is absent for enhanced form submits), and `stator:connection-state` fires on every connection transition with `{ state, timestamp }`. Event POSTs are aborted after a 10-second deadline, so a dead-slow connection surfaces as `timeout` instead of hanging on the browser's own limits.
+
+**Retries** — machine-event POSTs carry a per-dispatch idempotency key and retry network and timeout failures twice (300ms then 1s backoff) before giving up. The server replays a duplicate's original response instead of re-applying it, so a retry after a lost response can't double-commit. Non-2xx responses never retry — the server answered. Enhanced form submits go to arbitrary handlers, so they get the timeout but no automatic retry.
 
 ## Lower-level exports
 

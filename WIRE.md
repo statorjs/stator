@@ -44,13 +44,16 @@ Body:
 ```json
 {
   "machine": "CartMachine",
-  "event": { "type": "ADD_ITEM", "productId": "p1" }
+  "event": { "type": "ADD_ITEM", "productId": "p1" },
+  "eventId": "9f1b…"
 }
 ```
 
-Validation: `machine` must be a string referring to a discovered machine; `event.type` must be a string. Extra fields on `event` are passed through.
+Validation: `machine` must be a string referring to a discovered machine; `event.type` must be a string. Extra fields on `event` are passed through. `eventId` is an optional client-generated idempotency key (string, 1–128 chars) — additive per the "ignore unknown" rule; omitting it restores pre-key behavior.
 
 Success response: `200 OK` with `{ "patches": [...] }` per the patch shape below.
+
+**Idempotent replay.** When an `eventId` is present, the server caches the serialized response body per `(session, eventId)` (last 32 per session, in-process — single-replica is a 1.0 constraint) and answers a duplicate POST with the cached body verbatim: no re-apply, no fan-out, no effects. That's what makes a client retry safe after a *lost response* — the commit happened once, and the retry just recovers its patches. Positional keyed-list ops (`insert`/`remove`/`move`) are why replay-not-reprocess is load-bearing. Clients retry only network failures and timeouts, with backoff, reusing the same `eventId`; a non-2xx response is never retried — the server saw the event and answered.
 
 Error responses:
 
@@ -140,7 +143,13 @@ connection's own binding baseline, so successive pushes are deltas, not
 resets. On connect, the server first pushes an **initial sync** — every
 binding's current value (keyed lists as one wholesale `html` reset) — so a
 page that missed changes between render and connect converges; clients apply
-it like any other frame. Comment frames
+it like any other frame. The initial sync is also the whole reconnect story:
+a dropped or watchdog-stale channel reopens (browser auto-reconnect or a
+client rebuild) and the fresh connection's sync converges the DOM in place —
+frames are unsequenced and individually unreplayable, and directives missed
+during an outage are gone. The server also sends an observable ping frame
+(`{"ping":true}`) every 25s; a visible page that misses two pings closes the
+half-open channel and reconnects. Comment frames
 (`: open`, `: keep-alive`) hold the connection through proxies; clients ignore
 them per the SSE spec.
 
@@ -149,6 +158,8 @@ them per the SSE spec.
 - **Multi-event POSTs** — currently one event per POST. Batching is 1.x if needed.
 - **Versioning** — the shape is unversioned; additive changes (new ops, new target kinds) are forward-compatible per the "ignore unknown" client rule.
 - **Per-machine event schemas** — Zod validates `{ machine: string, event: { type: string, … } }` at the wire edge today. Per-machine event payload validation is 1.x work tied to typed-event plumbing.
+- **Durable / multi-replica idempotency** — the `eventId` replay cache is in-process and non-durable; a restart forgets it. Backplane-backed dedupe rides the 1.x Redis fan-out work.
+- **Missed-push replay** — there are no sequence numbers on SSE frames; a reconnect converges via the initial sync, never by replaying individual missed frames.
 
 ## Implementation references
 

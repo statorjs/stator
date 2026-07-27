@@ -26,7 +26,7 @@ When any session changes a machine the route reads, the server recomputes the af
 ## What is / isn't realtime
 
 - **Opt-in** — a route is static request/response until `// @stator live`.
-- **Reconnect = reload** — a dropped connection re-renders; there's no missed-event replay.
+- **Reconnect = resync** — a dropped or stale connection reopens and the initial sync converges the page in place (`data-stator-connection` on `<html>` tracks the transitions). There's no missed-frame replay; directives fired during the outage (e.g. a `navigate`) are not re-delivered.
 - **Single-replica** — fan-out is in-process.
 
 :::caution[1.x]

@@ -23,3 +23,8 @@ cf-chain.pem
 
 # Private working notes (backed up outside source control)
 .private/
+
+# Claude Code local session state (agent worktrees, per-machine settings).
+# A shared .claude/settings.json, if one ever exists, stays committable.
+.claude/worktrees/
+.claude/settings.local.json

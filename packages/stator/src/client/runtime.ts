@@ -19,9 +19,34 @@
 
 import { applyDirectives, applyPatches } from '../wire/apply.ts'
 import type { WireEnvelope } from '../wire/index.ts'
-import { clientId } from './client-id.ts'
+import { clientId, newEventId } from './client-id.ts'
+import { emitDispatchError, fetchWithTimeout, postEvent, TimeoutError } from './transport.ts'
 
 const EVENT_TYPES = ['click', 'submit', 'change', 'input'] as const
+
+/* ------------------------------------------------------------------ */
+/* In-flight affordance                                                */
+/* ------------------------------------------------------------------ */
+
+/** `data-stator-pending` marks the element whose event POST is in flight
+ *  (CSS hook: `[data-stator-pending]`). Counted per element so rapid repeat
+ *  dispatches keep the attribute until the LAST one settles. */
+const pendingCounts = new WeakMap<Element, number>()
+
+function beginPending(el: Element): void {
+  pendingCounts.set(el, (pendingCounts.get(el) ?? 0) + 1)
+  el.setAttribute('data-stator-pending', '')
+}
+
+function endPending(el: Element): void {
+  const count = (pendingCounts.get(el) ?? 1) - 1
+  if (count <= 0) {
+    pendingCounts.delete(el)
+    el.removeAttribute('data-stator-pending')
+  } else {
+    pendingCounts.set(el, count)
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* Observability hooks                                                 */
@@ -42,44 +67,29 @@ function init(): void {
   initLiveChannel()
 }
 
-function initLiveChannel(): void {
+function initLiveChannel(): { close(): void } | undefined {
   const meta = document.querySelector('meta[name="stator-live"][content="true"]')
   if (!meta) return
 
   const routeKey = `GET ${location.pathname}${location.search}`
   const url = `/__sse?route=${encodeURIComponent(routeKey)}&client=${encodeURIComponent(clientId)}`
-  const sse = new EventSource(url, { withCredentials: true })
 
-  let everOpened = false
-  let lastSeen = Date.now()
-  sse.addEventListener('open', () => {
-    if (everOpened) {
-      // Reconnect — reload rather than risk stale state.
-      location.reload()
-      return
-    }
-    everOpened = true
-  })
-
-  // Zombie watchdog. A half-open connection (device sleep, silent NAT drop)
-  // never fires `error` — EventSource just sits "open" and silent forever,
-  // and the page quietly stops being live. The server sends an observable
-  // ping every 25s; two missed pings while the page is VISIBLE means the
-  // channel is dead, and a reload re-syncs (same strategy as reconnect).
-  // Hidden tabs wait for visibility — no reloading pages nobody is watching.
-  const STALE_MS = 65_000
-  const staleReload = (): void => {
-    if (!everOpened || document.hidden) return
-    if (Date.now() - lastSeen > STALE_MS) {
-      console.warn('stator: SSE channel stale — reloading to re-sync')
-      sse.close()
-      location.reload()
-    }
+  // Connection-state signal: `data-stator-connection` on the root element
+  // (CSS hook for offline banners etc.) plus a `stator:connection-state`
+  // event. Change-guarded — EventSource fires `error` on every failed
+  // auto-reconnect attempt, and only transitions are worth announcing.
+  let connectionState: string | undefined
+  const setConnectionState = (state: 'connected' | 'disconnected' | 'stale'): void => {
+    if (state === connectionState) return
+    connectionState = state
+    document.documentElement.setAttribute('data-stator-connection', state)
+    emit('stator:connection-state', { state, timestamp: Date.now() })
   }
-  setInterval(staleReload, 10_000)
-  document.addEventListener('visibilitychange', staleReload)
 
-  sse.addEventListener('message', (e) => {
+  let sse: EventSource | null = null
+  let lastSeen = Date.now()
+
+  const onMessage = (e: MessageEvent): void => {
     lastSeen = Date.now()
     let data: WireEnvelope
     try {
@@ -103,13 +113,57 @@ function initLiveChannel(): void {
     if (data.directives && data.directives.length > 0) {
       applyDirectives(data.directives)
     }
-  })
+  }
 
-  sse.addEventListener('error', () => {
-    if (sse.readyState === EventSource.CLOSED) {
-      console.warn('stator: SSE permanently closed')
+  // Reconnect = resync, never reload. Every fresh /__sse connection gets the
+  // server's initial sync (every binding's current value, keyed lists reset
+  // wholesale), so a rebuilt channel converges the DOM in place — and the
+  // browser's own auto-reconnect on the same instance re-runs that server
+  // path too, its sync arriving as an ordinary message. Directives fired
+  // during an outage (e.g. a navigate) are not replayed; resync converges
+  // state only.
+  const connect = (): void => {
+    sse?.close()
+    const es = new EventSource(url, { withCredentials: true })
+    sse = es
+    lastSeen = Date.now() // fresh grace period — no instant re-stale loop
+    es.addEventListener('open', () => setConnectionState('connected'))
+    es.addEventListener('message', onMessage)
+    es.addEventListener('error', () => {
+      setConnectionState('disconnected')
+      if (es.readyState === EventSource.CLOSED) {
+        console.warn('stator: SSE permanently closed')
+      }
+    })
+  }
+
+  // Zombie watchdog. A half-open connection (device sleep, silent NAT drop)
+  // never fires `error` — EventSource just sits "open" and silent forever,
+  // and the page quietly stops being live. The server sends an observable
+  // ping every 25s; two missed pings while the page is VISIBLE means the
+  // channel is dead, and a rebuilt connection re-syncs. Hidden tabs wait for
+  // visibility — no churn for pages nobody is watching.
+  const STALE_MS = 65_000
+  const checkStale = (): void => {
+    if (document.hidden) return
+    if (Date.now() - lastSeen > STALE_MS) {
+      console.warn('stator: SSE channel stale — reconnecting to re-sync')
+      setConnectionState('stale')
+      connect()
     }
-  })
+  }
+  const watchdog = setInterval(checkStale, 10_000)
+  document.addEventListener('visibilitychange', checkStale)
+
+  connect()
+
+  return {
+    close(): void {
+      clearInterval(watchdog)
+      document.removeEventListener('visibilitychange', checkStale)
+      sse?.close()
+    },
+  }
 }
 
 function handleEvent(e: Event): void {
@@ -131,7 +185,7 @@ function handleEvent(e: Event): void {
           console.error('stator: malformed event descriptor on form', form, descriptorAttr)
           return
         }
-        void dispatchEvent(descriptor)
+        void dispatchEvent(descriptor, form)
         return
       }
       // Opt-in interception via `data-stator-enhance`. Plain forms without
@@ -168,13 +222,13 @@ function handleEvent(e: Event): void {
     return
   }
 
-  void dispatchEvent(descriptor)
+  void dispatchEvent(descriptor, el)
 }
 
-async function dispatchEvent(descriptor: {
-  machine: string
-  event: { type: string }
-}): Promise<void> {
+async function dispatchEvent(
+  descriptor: { machine: string; event: { type: string } },
+  el?: Element,
+): Promise<void> {
   const routeKey = `GET ${location.pathname}${location.search}`
 
   emit('stator:event-sent', {
@@ -185,28 +239,14 @@ async function dispatchEvent(descriptor: {
   })
 
   const startedAt = performance.now()
-  let res: Response
+  if (el) beginPending(el)
   try {
-    res = await fetch('/__events', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'X-Stator-Route': routeKey,
-        'X-Stator-Client': clientId,
-      },
-      credentials: 'same-origin',
-      body: JSON.stringify(descriptor),
-    })
-  } catch (err) {
-    console.error('stator: network error during dispatch', err)
-    return
+    const result = await postEvent({ ...descriptor, eventId: newEventId() }, routeKey)
+    if (!result.ok) return
+    await applyEnvelopeFromResponse(result.res, startedAt, 'post')
+  } finally {
+    if (el) endPending(el)
   }
-  if (!res.ok) {
-    console.error('stator: event POST failed', res.status, await res.text())
-    return
-  }
-  await applyEnvelopeFromResponse(res, startedAt, 'post')
 }
 
 /**
@@ -217,23 +257,30 @@ async function dispatchEvent(descriptor: {
 async function submitForm(form: HTMLFormElement): Promise<void> {
   const formData = new FormData(form)
   const startedAt = performance.now()
-  let res: Response
+  beginPending(form)
   try {
-    res = await fetch(form.action, {
-      method: 'POST',
-      headers: { Accept: 'application/json' },
-      credentials: 'same-origin',
-      body: formData,
-    })
-  } catch (err) {
-    console.error('stator: network error during form submit', err)
-    return
+    let res: Response
+    try {
+      res = await fetchWithTimeout(form.action, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+        body: formData,
+      })
+    } catch (err) {
+      console.error('stator: network error during form submit', err)
+      emitDispatchError({ phase: err instanceof TimeoutError ? 'timeout' : 'network' }, {})
+      return
+    }
+    if (!res.ok) {
+      console.error('stator: form submit failed', res.status, await res.text())
+      emitDispatchError({ phase: 'http', status: res.status }, {})
+      return
+    }
+    await applyEnvelopeFromResponse(res, startedAt, 'post')
+  } finally {
+    endPending(form)
   }
-  if (!res.ok) {
-    console.error('stator: form submit failed', res.status, await res.text())
-    return
-  }
-  await applyEnvelopeFromResponse(res, startedAt, 'post')
 }
 
 async function applyEnvelopeFromResponse(
@@ -268,3 +315,8 @@ if (document.readyState === 'loading') {
 } else {
   init()
 }
+
+// Exported for tests only — the runtime self-initializes above, and the
+// client bundle (esbuild IIFE) ignores exports. Re-calling init() is safe:
+// addEventListener dedupes an identical listener reference.
+export { init, initLiveChannel }
