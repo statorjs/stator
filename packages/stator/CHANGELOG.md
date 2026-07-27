@@ -1,5 +1,16 @@
 # @statorjs/stator
 
+## 1.6.0
+
+### Minor Changes
+
+- e8a60dd: Event dispatch now signals its state instead of failing silently. The dispatching element carries `data-stator-pending` while its POST is in flight, live routes carry `data-stator-connection` on `<html>` (`connected` / `disconnected` / `stale`), every request gets a 10-second deadline instead of hanging on browser defaults, and failures fire a `stator:dispatch-error` window event (also shown as a row in the dev inspector). Island `dispatch()` results gain an `error` field saying whether the failure was `network`, `timeout`, or `http`.
+- e8a60dd: Event POSTs are now idempotent and retried. Every machine-event dispatch carries a client-generated `eventId`; the server caches the response per session and replays a duplicate verbatim instead of re-applying it (keyed-list patches are positional, so a double-apply was never safe). On top of that, the client retries network failures and timeouts twice with backoff, reusing the same id — a tap on flaky wifi now recovers instead of silently dropping. Non-2xx responses and enhanced form submits are never retried.
+
+### Patch Changes
+
+- e8a60dd: Live pages resync instead of reloading after a dropped or stale SSE connection. The server already pushes a full initial sync on every fresh connection, so the client now just reopens the channel and lets that sync converge the page in place — scroll, focus, and island state survive where a reconnect previously forced a full page reload. The half-open-channel watchdog rebuilds the connection the same way.
+
 ## 1.5.2
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # stator-example-guestbook
 
+## 0.0.5
+
+### Patch Changes
+
+- Updated dependencies [e8a60dd]
+- Updated dependencies [e8a60dd]
+- Updated dependencies [e8a60dd]
+  - @statorjs/stator@1.6.0
+
 ## 0.0.4
 
 ### Patch Changes
