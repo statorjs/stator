@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
 import { relative, resolve } from 'node:path'
@@ -12,6 +13,7 @@ import { findFreePort, installGracefulShutdown, printDevBanner } from './banner.
 import { logger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
+import { isStatorQueryRoute } from './routing.ts'
 import type { Store } from './store.ts'
 
 /**
@@ -164,6 +166,19 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   }
   const rebuildRoutes = async (): Promise<void> => {
     routes = await runtime.discoverRoutes(routesDir, loader)
+    // Vite serves `public/` at the root ahead of Hono in dev, so a static
+    // file at a data route's URL silently wins. Warn at discovery time.
+    // (The brand is a plain property, so this native-import check works on
+    // defs the Vite-loaded runtime created.)
+    for (const r of routes) {
+      if (!r.GET || !isStatorQueryRoute(r.GET) || r.paramNames.length > 0) continue
+      if (existsSync(resolve(root, 'public', r.urlPath.slice(1)))) {
+        console.warn(
+          `stator: public/${r.urlPath.slice(1)} shadows the data route ${r.urlPath} in dev — ` +
+            `the static file wins. Rename one of them.`,
+        )
+      }
+    }
   }
   const rebuildServer = async (): Promise<void> => {
     app = await runtime.buildHonoApp({

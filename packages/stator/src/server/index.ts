@@ -39,6 +39,7 @@ export type { InstanceHandle } from './instance-proxy.ts'
 export { createInstanceProxy, defForProxy } from './instance-proxy.ts'
 export { logger, scopedLogger } from './logger.ts'
 export { MachineStore } from './machine-store.ts'
+export { runQueryRoute } from './query-route.ts'
 export { recompute } from './recompute.ts'
 export { RedisAppStore, RedisStore } from './redis-store.ts'
 export type { RenderResult } from './render.ts'
@@ -75,8 +76,12 @@ export type {
   ApiRouteHelpers,
   ApiRouteResult,
   DefineApiRouteConfig,
+  DefineQueryRouteConfig,
   DefineRouteConfig,
   Directive,
+  QueryRouteDefinition,
+  QueryRouteHelpers,
+  QueryRouteResult,
   RouteContext,
   RouteCookieOptions,
   RouteDefinition,
@@ -88,6 +93,7 @@ export {
   defineApiRoute,
   defineRoute,
   isStatorApiRoute,
+  isStatorQueryRoute,
   isStatorRoute,
 } from './routing.ts'
 export { getOrCreateSessionId, SESSION_COOKIE } from './session.ts'

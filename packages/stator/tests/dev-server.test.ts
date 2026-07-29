@@ -220,6 +220,24 @@ describe('dev server: .stator end to end', () => {
     }
   })
 
+  it('serves a data GET route as JSON through the Vite loader', async () => {
+    app ??= await createDevApp({
+      root,
+      machinesDir: resolve(root, 'machines'),
+      routesDir: resolve(root, 'routes'),
+    })
+
+    const before = await app.fetch(new Request('http://localhost/api-tally'))
+    expect(before.status).toBe(200)
+    expect(before.headers.get('content-type')).toContain('application/json')
+    const { total: t0 } = (await before.json()) as { total: number }
+
+    await app.dispatchToApp(Tally, { type: 'BUMP', by: 2 })
+
+    const after = await app.fetch(new Request('http://localhost/api-tally'))
+    expect(((await after.json()) as { total: number }).total).toBe(t0 + 2)
+  })
+
   it('live-reloads a template edit without a restart', async () => {
     app ??= await createDevApp({
       root,
