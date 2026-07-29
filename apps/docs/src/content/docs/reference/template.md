@@ -104,6 +104,8 @@ Defines a custom template directive. `apply` runs at render time with `{ element
 
 ## Lower-level exports
 
+What the compiler's output and the recompute pass run on — **Toolchain** tier per the [stability policy](/reference/overview/#stability-policy): these may change in a minor. (`HtmlFragment`, `ReadResult`, and `InstanceOf` are the exceptions your own render functions legitimately type against; they're Stable.)
+
 - `HtmlFragment` / `createHtmlFragment` / `isHtmlFragment` — the branded fragment type and its constructors.
 - `ReadResult` / `isReadResult` — the reactive-value carrier `read()` returns.
 - `EachResult` / `isEachResult` / `renderListBody` — list result shape and the body renderer recompute reuses.

@@ -130,7 +130,7 @@ The framework's pino logger, exported for application use. Pretty colored output
 
 ## Lower-level exports
 
-Plumbing the framework itself runs on. Exported because the dev server and tests load the runtime through Vite, not because your app should need them:
+Plumbing the framework itself runs on. Exported because the dev server and tests load the runtime through Vite, not because your app should need them — and held to the **Toolchain** tier of the [stability policy](/reference/overview/#stability-policy): these may change in a minor.
 
 - `MachineStore` — the machine registry + actor manager behind `StatorApp.store`.
 - `discoverMachines` / `discoverRoutes` (+ `DiscoveryResult`, `DiscoveredRoute`) — filesystem discovery `createApp` runs.
