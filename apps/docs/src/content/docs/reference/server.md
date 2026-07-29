@@ -28,6 +28,7 @@ interface StatorApp {
   listen(port: number): Promise<void>
   fetch(request: Request): Response | Promise<Response>
   store: MachineStore
+  dispatchToApp(machine: MachineDef, event: EventOf<typeof machine>): Promise<{ committed: boolean }>
 }
 ```
 
@@ -71,10 +72,12 @@ Defines a non-page endpoint. The handler returns either a raw `Response` or an `
 ## dispatchToApp
 
 ```ts
-function dispatchToApp(store: MachineStore, machine: MachineDef, event: EventOf<typeof machine>): Promise<void>
+function dispatchToApp(store: MachineStore, machine: MachineDef, event: EventOf<typeof machine>): Promise<{ committed: boolean }>
 ```
 
-Server-originated dispatch to an **app-lifecycle** machine — the entry point for webhooks, cron jobs, and out-of-band work. No HTTP request, no session: it sends the event, persists any touched `persist: true` app machines, and fans the change out to every live SSE connection whose route reads a touched machine. Typed like client dispatch (imported def, checked event union). Throws if the machine is session-lifecycle or unknown.
+Server-originated dispatch to an **app-lifecycle** machine — the entry point for webhooks, cron jobs, and out-of-band work. No HTTP request, no session: it sends the event, persists any touched `persist: true` app machines, and fans the change out to every live SSE connection whose route reads a touched machine. Typed like client dispatch (imported def, checked event union). Returns `{ committed }` — a guard-dropped event commits nothing, which is how a webhook receiver tells a processed event from a dropped duplicate. Throws if the machine is session-lifecycle or unknown.
+
+Prefer the bound method `app.dispatchToApp(machine, event)` — on both `StatorApp` and [`DevApp`](/reference/dev-and-build/) — over the standalone form: the standalone form needs the `store`, which the dev server doesn't expose (and in dev the method also runs in the right module instance, so SSE fan-out reaches live connections).
 
 ## Session stores
 

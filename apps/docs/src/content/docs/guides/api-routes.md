@@ -23,7 +23,10 @@ export const POST = defineApiRoute({
 })
 ```
 
-Export by method (`GET`, `POST`, …).
+Export by method (`POST`, `PUT`, `PATCH`, `DELETE`). `GET` is not an API
+method in 1.6 — a `GET` export must be a `defineRoute` (a page render), so a
+JSON `GET` endpoint can't be expressed yet. Data-shaped GET routes are
+designed 1.x work; see the roadmap.
 
 ## The request
 
@@ -31,7 +34,13 @@ Export by method (`GET`, `POST`, …).
 
 ## Mutate with dispatch
 
-`dispatch(Machine, event)` is typed against the machine's event union. The target must be in the route's loaded `reads` graph.
+`dispatch(Machine, event)` is typed against the machine's event union. The
+target must be in the route's loaded `reads` graph, and it must be a
+**session**-lifecycle machine — dispatching to an app machine throws at
+request time. To change app state from a handler, go through a session
+gateway machine's emit (see [app machines](/guides/app-machines/)); for
+server-originated events with no session at all (webhooks, cron), use
+`app.dispatchToApp(Machine, event)`.
 
 ## API routes are command endpoints
 

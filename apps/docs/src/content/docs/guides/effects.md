@@ -67,6 +67,13 @@ The completion re-enters through the normal event path: state persists, and
 Non-live pages show it on their next request — which is why the pending state
 exists: it's what the user sees until then.
 
+A completion event is a *declared* event like any other — which also means
+it is dispatchable from the browser via `/__events`, exactly like a template
+event. Don't treat "this only arrives from my effect" as a trust boundary: a
+completion must not carry authority the machine wouldn't accept from a
+client. The [authentication recipe](/recipes/authentication/)'s rule applies
+unchanged — an event proves itself or grants nothing.
+
 `meta.effectId` is a unique id per LOGICAL invocation — a re-invoked entry
 effect keeps its id — so thread it to external calls as an idempotency key
 and use it to correlate logs.
