@@ -111,20 +111,20 @@ promotes it.
   authority-event the auth recipe bans unless every such event proves itself
   with HMAC ceremony. "Prove itself or grant nothing" stays the app-side
   rule; this gives the framework side of it a home.
-- **Data routes (non-HTML GET)** *(design note first)*: a GET route serving
-  JSON/XML/text from the machines it reads — dispatch-free by construction
-  (the settled reads-never-interleave-with-dispatch position), with
-  Astro-style extension URLs (`rss.xml.ts` → `/rss.xml`) as content-type
-  sugar and free conditional GETs (`ETag` stamped from read-machine
-  revisions, `If-None-Match` answered without invoking the handler).
-  Designed in
+- **Data routes (non-HTML GET)** *(shipped 2026-07-29)*: `defineApiRoute`
+  with `method: 'GET'` is a read-only data route — `{ machines }` read
+  proxies and structurally no `dispatch`, plain values served as JSON,
+  strings typed by the URL extension (`rss.xml.ts` → `/rss.xml`), raw
+  `Response` passthrough, and free conditional GETs (body-hash `ETag` +
+  bodyless 304; the revision-ledger 304-without-invoking-the-handler is the
+  designed upgrade). Designed in
   [`.chisel/specs/active/route-capability-output-model-and-data-get-routes.md`](.chisel/specs/active/route-capability-output-model-and-data-get-routes.md),
-  which also frames the long-term capability×output route model this is the
-  first cell of.
-  *Motivation*: a JSON consumer API is inexpressible in 1.6 — dogfooding
+  which also frames the long-term capability×output route model this fills
+  the first cell of.
+  *Motivation*: a JSON consumer API was inexpressible in 1.6 — dogfooding
   proved it with an HTTP-sidecar workaround wrapping `app.fetch`, the
-  clearest stepped-outside-the-framework tell yet. The same wall blocks RSS,
-  sitemaps, and calendar feeds.
+  clearest stepped-outside-the-framework tell yet. The same wall blocked
+  RSS, sitemaps, and calendar feeds.
 - **Ambient by-def reads + a typed requirement channel** *(design note first)*:
   components can't own `Stator.reads` (route-only, correctly), so the weather
   refactor threads `weather={weather}` through every tile — prop-drilling

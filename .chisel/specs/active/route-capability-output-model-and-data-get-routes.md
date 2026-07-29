@@ -2,9 +2,19 @@
 title: The route capability×output model, and data GET routes as its first cell
 status: draft
 created: 2026-07-28
-updated: 2026-07-28
+updated: 2026-07-29
 area: server
 ---
+
+## Status
+
+Part 2 (data GET routes) **shipped 2026-07-29** as designed, with one
+deliberate v1 narrowing: the ETag is a body hash (handler still runs on a
+304; bandwidth saved, compute not) — the revision-ledger
+304-without-invoking-the-handler remains the designed upgrade and rides the
+same header contract. Part 1 stays the standing model for the unfilled cells
+(GET commands, command-plus-atomic-read, origin-based trust) — each is its
+own spec when an app forces it.
 
 ## What and Why
 
