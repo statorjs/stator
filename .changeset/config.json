@@ -12,10 +12,14 @@
     "docs",
     "landing",
     "store",
+    "build-spike",
+    "spike-client-model",
     "stator-example-minimal",
     "stator-example-todomvc",
     "stator-example-desksmith",
     "stator-example-live-poll",
-    "stator-example-with-auth"
+    "stator-example-with-auth",
+    "stator-example-guestbook",
+    "stator-example-weather"
   ]
 }
