@@ -76,7 +76,7 @@ and use it to correlate logs.
 The two effect positions carry different lifetime contracts, by category:
 
 - **Entry effects are the load role** — how a state gets its data. If a
-  process dies while one is in flight, the next hydration of that state
+  process dies while one is in flight, the next restore of that state
   re-invokes it (same `effectId`), so the machine recovers instead of waiting
   forever for a completion that died with another process. Leaving the state
   aborts `meta.signal` — pass it to `fetch` and the wasted request stops at
@@ -88,7 +88,7 @@ The two effect positions carry different lifetime contracts, by category:
 
 ## Who owns the clock
 
-`after` timers re-arm on hydration with elapsed credit (the deadline is when
+`after` timers re-arm on restore with elapsed credit (the deadline is when
 the state was entered plus the delay), so a restart no longer silently kills a
 countdown. They remain non-durable — a machine nobody touches again after a
 restart never re-arms — which makes them right for process housekeeping and
@@ -104,7 +104,7 @@ refresh the session's TTL; only real user requests do.
 Non-durable in 1.0: if the process dies mid-effect, a transition effect is
 lost (the machine stays in its pending state — design those states so a human
 or a webhook can resolve them), and an entry effect recovers by re-invoke on
-the next hydration. Durable, retried effects are 1.x work.
+the next restore. Durable, retried effects are 1.x work.
 
 Effects work identically on [client islands](/guides/client-components/)
 (the effect runs in the browser, the completion feeds the local actor) and on

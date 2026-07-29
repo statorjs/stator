@@ -74,7 +74,7 @@ theme = use(Theme, () => ({ mode: readStoredTheme() }))
 
 `this.theme` is now a live instance: `this.theme.send('TOGGLE')` dispatches, and `this.theme.label` reads a selector — the same surface as a server machine, running locally.
 
-### the hydration seed
+### the seed
 
 The second argument to `use()` is the **seed** — the machine's initial context. It's a thunk (`() => ({ ... })`) here, not a plain object, for a specific reason: it reads from `localStorage` (and could read `this.attrs`), neither of which is available when the class field is first constructed. A thunk seed is deferred until the element connects to the DOM, by which point attributes and the browser environment are ready. **Use a thunk whenever the seed depends on `this.attrs` or the browser.**
 

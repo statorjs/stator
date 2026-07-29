@@ -50,7 +50,7 @@ A bare function is sugar for `{ do: fn }`.
 function createActor(def: MachineDef, opts?: CreateActorOptions): Actor
 
 interface CreateActorOptions {
-  snapshot?: Snapshot           // hydrate from persisted state or a client seed
+  snapshot?: Snapshot           // restore from persisted state or a client seed
   resolveHelpers?: () => ActionHelpers  // host-provided `reads` resolver
   onEffect?: (invocation: EffectInvocation) => void  // host effect scheduler
 }
@@ -111,7 +111,7 @@ states: {
 }
 ```
 
-A state's `entry` is async I/O the host schedules when the state is **entered** — a fresh start at the initial state, or a value-changing transition (never on hydration alone). Same host-scheduled, off-lock pipeline as a transition effect, minus the event argument (a state entry has no triggering event).
+A state's `entry` is async I/O the host schedules when the state is **entered** — a fresh start at the initial state, or a value-changing transition (never on a bare snapshot restore). Same host-scheduled, off-lock pipeline as a transition effect, minus the event argument (a state entry has no triggering event).
 
 The role split matters: entry effects are the **load** role and transition effects are the **command** role. The host may *re-invoke* an entry effect whose completion never settled (a process died mid-flight) and aborts `meta.signal` when the state is exited — so write entry effects as re-runnable reads, and keep non-idempotent external writes (charges, sends) in transition effects, which are at-most-once and never aborted. See the [effects guide](/guides/effects/).
 
@@ -128,7 +128,7 @@ states: {
 }
 ```
 
-Each `after` entry dispatches `send` after `delay` ms in the state — armed on entry, cancelled on exit. Host-scheduled and in-memory: a restart drops armed timers (hydrating hosts re-arm with elapsed credit via the snapshot's `enteredAt`). Durable schedules are deferred work.
+Each `after` entry dispatches `send` after `delay` ms in the state — armed on entry, cancelled on exit. Host-scheduled and in-memory: a restart drops armed timers (a host restoring a snapshot re-arms with elapsed credit via `enteredAt`). Durable schedules are deferred work.
 
 ## Lower-level exports
 
@@ -138,7 +138,7 @@ Type-level plumbing, exported for tooling and advanced typing:
 - `EventOf<Def>` — a machine's event union; what `dispatch(Machine, event)` checks against.
 - `InstanceOf<Def>` — a machine's instance shape (each selector as a typed property).
 - `ReadsMap<Reads>` — the typed `helpers.reads` map built from a `reads` tuple.
-- `Snapshot<C>` — `{ value: string[]; context: C; enteredAt?: number; pendingEntry?: { effectId: string } }`; serializes to the Store and seeds client hydration. `enteredAt` lets a hydrating host re-arm `after` timers with elapsed credit; `pendingEntry` marks an entry effect whose completion never settled, so the host re-invokes it.
+- `Snapshot<C>` — `{ value: string[]; context: C; enteredAt?: number; pendingEntry?: { effectId: string } }`; serializes to the Store and seeds a client island on upgrade. `enteredAt` lets a restoring host re-arm `after` timers with elapsed credit; `pendingEntry` marks an entry effect whose completion never settled, so the host re-invokes it.
 - `Action`, `Guard`, `ActionHelpers` — the function shapes transitions are built from.
 - `EntryEffect`, `AfterEntry` — the state-entry effect and timeout-entry shapes.
 - `Transition`, `TransitionConfig`, `StateNode` — the transition-graph node types.

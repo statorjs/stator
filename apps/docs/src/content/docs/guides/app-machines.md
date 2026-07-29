@@ -117,7 +117,7 @@ const app = await createApp({
 })
 ```
 
-On boot, a persisted snapshot hydrates the actor before it starts. An
+On boot, a persisted snapshot restores the actor before it starts. An
 unusable snapshot logs loudly and boots fresh — restart-fresh is the safe
 default. Writes are event-driven: whenever a transition touches the machine,
 the new snapshot is saved.

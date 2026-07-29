@@ -27,7 +27,7 @@ The whole path, for a template handler like `on:click={() => cart.send({ type: '
 
 1. **At render**, the handler is serialized into `data-event-*` attributes on the element. It is not browser code — the payload closes over render-scope values (this row's `product.id`), and the browser never runs your frontmatter.
 2. **On click**, the page runtime reads those attributes and POSTs the event descriptor to `/__events`, carrying the session cookie and the current route.
-3. **On the server**, the session's machines [hydrate](/concepts/sessions-and-state/), the transition runs — guard first, then the action against a draft — and commits.
+3. **On the server**, the session's machines are [restored from the store](/concepts/sessions-and-state/), the transition runs — guard first, then the action against a draft — and commits.
 4. **Recompute** diffs the route's registered bindings and the response returns a [patch list](/concepts/rendering-and-patches/) for exactly the slots whose values changed.
 5. **The runtime applies the patches.** There is no client-side re-render step — the DOM positions were already known.
 

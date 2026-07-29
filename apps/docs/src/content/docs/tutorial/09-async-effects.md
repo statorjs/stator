@@ -358,7 +358,7 @@ world, firing once, into a state you chose. Two properties come free:
   `CHARGE_OK` lands first, the machine has left `placing`, the timer is
   cancelled on exit, and a late `CHARGE_TIMEOUT` would find no handler and
   drop. State machines make "only one future wins" structural.
-- The countdown survives restarts: timers re-arm on hydration with elapsed
+- The countdown survives restarts: timers re-arm on restore with elapsed
   credit, so even a server that dies and returns mid-wait keeps the promise.
   Charges themselves are **command-role** transition effects — run at most
   once, never re-invoked — which is exactly what you want for money. The

@@ -91,10 +91,10 @@ composition with the server:
    `MutationObserver`) are legitimate — islands are custom elements.
    Prefer channel 1 when the data can arrive as an attr.
 
-4. **Server-rendered sections (the hydrate pattern).** Island templates may
+4. **Server-rendered sections (the adopt pattern).** Island templates may
    contain server-evaluated expressions — props-driven maps with nested JSX,
    even a full component render passed as a prop. The shell renders them per
-   use; the class hydrates by querying:
+   use; the class adopts them by querying:
 
    ```astro
    <div class="opts" ref:opts>
