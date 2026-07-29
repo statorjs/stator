@@ -52,3 +52,16 @@ A binding produced by `when`/`match` reduces to a **key**: the branch re-renders
 ## The bind: mirror on the client
 
 Inside a [client island](/guides/client-components/), the same idea runs without a server. `bind:text={theme.label}` subscribes to a local actor and writes the DOM when the selector's value changes — a local subscribe-and-write with no recompute pass and no wire. `read()` and `bind:` are the two faces of one primitive: *declare on a node what state it shows.* The server diffs and patches; the client subscribes and writes. The mental model is identical on both sides of the [boundary](/concepts/server-client-boundary/).
+
+## One word, four altitudes: the reads family
+
+Four different constructs share the word *read*. That's by design — each one means "reading machine state," at a different altitude — but they are distinct mechanisms, and it helps to see them side by side:
+
+| You write | Where | What it does |
+| --- | --- | --- |
+| `read(instance, selector)` | a template node | Renders the current value **and** registers a live binding at that DOM position — this page's subject. |
+| `Stator.reads([Defs])` | route frontmatter | Binds the route to machine definitions and hands back live instances. Also the route's declared dependency set: [SSE fan-out](/guides/realtime-sse/) watches exactly these machines. |
+| `reads: [Defs]` | `defineMachine` | Declares that this machine may synchronously read those machines' state — and [server-pins](/concepts/server-client-boundary/) it, since cross-machine reads can't resolve in a browser. |
+| `helpers.reads` | actions, guards, selectors | The resolved, typed access a `reads:` declaration grants at runtime — how the cart prices an item against the catalog. |
+
+When the docs say "a read" unqualified, they mean the first row — the template primitive.
