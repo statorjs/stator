@@ -2,7 +2,7 @@
 title: Sessions and state
 description: "Where state lives between requests, and the per-session lifecycle."
 sidebar:
-  order: 7
+  order: 8
 ---
 
 Machines are the canonical state — but a machine instance doesn't sit in memory waiting for the next request. This page explains where state actually lives between requests, and the short lifecycle each request runs.

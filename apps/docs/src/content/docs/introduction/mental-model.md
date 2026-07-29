@@ -46,7 +46,7 @@ on: {
 }
 ```
 
-Dispatch is **machine-mediated**: you address a machine by its imported definition and send an event from its declared union, so the event is type-checked at the call site. There are no magic strings. See [Dispatching events](/guides/dispatching-events/).
+Dispatch is **machine-mediated**: you address a machine by its imported definition and send an event from its declared union, so the event is type-checked at the call site. There are no magic strings. See [Events and dispatch](/concepts/events-and-dispatch/) for the full path from click to commit, and [Dispatching events](/guides/dispatching-events/) for each dispatch surface.
 
 ## Templates read; they never own state
 

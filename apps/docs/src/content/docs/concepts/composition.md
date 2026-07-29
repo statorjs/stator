@@ -2,7 +2,7 @@
 title: Composition
 description: "Machines compose via reads and subscribes/emits; components compose via children."
 sidebar:
-  order: 6
+  order: 7
 ---
 
 Stator composes at two levels: **machines** compose into a state graph, and **components** compose into a UI tree. They're separate mechanisms with separate jobs.
