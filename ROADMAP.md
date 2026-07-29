@@ -127,6 +127,30 @@ Stator. Held to the same evidence bar (a spike proves it before it ships).
   [`.chisel/specs/active/client-time-travel-devtool.md`](.chisel/specs/active/client-time-travel-devtool.md).
   Spike first because those DOM edge cases are where the surprises hide.
 
+## Surface hygiene
+
+**Why this category**: not features — debts against the small-and-legible
+surface the vision promises, recorded here so they're paid deliberately
+instead of discovered by a user.
+
+- **`/server` runtime-tier split (structural)**: the docs now draw a
+  Stable-vs-Toolchain line through `/server` and `/template` (the ~45
+  plumbing symbols the Vite module graph needs importable), but the split
+  is policy, not structure. The structural fix is a dedicated subpath
+  (e.g. `@statorjs/stator/server/runtime`) so the import path itself
+  carries the tier. *Timing matters more than usual*: external usage of
+  the plumbing is provably zero today, so the move is free now and becomes
+  a real breaking change the day someone builds on `SessionRuntime`. Own
+  PR with a dev-server smoke test — it touches the Vite module-graph seam.
+- **The `reads` family naming** *(standing note, not scheduled)*: four
+  surfaces share one word — template `read()`, route `Stator.reads([...])`,
+  the machine option `reads:`, and `helpers.reads` in actions/guards/
+  selectors. The docs disambiguate (see the reads-family table in the
+  reactivity concepts page); renaming is not worth a breaking change on
+  its own. IF a major break happens for other reasons, revisit the naming
+  then — likely deprecating the machine option's name in 2.0 and removing
+  it in 3.0.
+
 ## Runtime correctness
 
 **Why this category**: not new surface — places the framework silently does the
