@@ -167,13 +167,29 @@ export interface DefineApiRouteConfig<TReads extends ReadonlyArray<AnyMachineDef
   ) => Promise<ApiRouteResult> | ApiRouteResult
 }
 
+/** `method: 'GET'` discriminates: with it, the handler is a read-only data
+ *  route typed with `{ machines }`; without it, a command route typed with
+ *  `{ dispatch, rotateSession }` — exactly as before. */
+export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef>>(
+  config: DefineQueryRouteConfig<TReads>,
+): QueryRouteDefinition
 export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef>>(
   config: DefineApiRouteConfig<TReads>,
-): ApiRouteDefinition {
+): ApiRouteDefinition
+export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef>>(
+  config: DefineQueryRouteConfig<TReads> | DefineApiRouteConfig<TReads>,
+): QueryRouteDefinition | ApiRouteDefinition {
+  if ('method' in config && config.method === 'GET') {
+    return {
+      __isStatorQueryRoute: true,
+      reads: config.reads ? [...config.reads] : [],
+      handler: config.handler,
+    }
+  }
   return {
     __isStatorApiRoute: true,
     reads: config.reads ? [...config.reads] : [],
-    handler: config.handler,
+    handler: (config as DefineApiRouteConfig<TReads>).handler,
   }
 }
 
@@ -182,5 +198,54 @@ export function isStatorApiRoute(v: unknown): v is ApiRouteDefinition {
     typeof v === 'object' &&
     v !== null &&
     (v as Record<string, unknown>).__isStatorApiRoute === true
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Data GET routes (defineApiRoute with method: 'GET')                 */
+/* ------------------------------------------------------------------ */
+
+/** Helpers available inside a data GET handler. Read-only by construction:
+ *  there is no `dispatch` here, and that structural absence is what makes
+ *  handler reads safe — a handler that cannot dispatch has nothing to
+ *  interleave with effect completions or other sessions' commits. */
+export interface QueryRouteHelpers {
+  /** Read proxies keyed by machine name — the same shape a page's render
+   *  context uses (selector + context reads; no send). */
+  machines: RouteContext
+}
+
+/** What a data GET handler may return: a raw `Response` (passed through
+ *  verbatim, `Content-Type` filled from the URL extension only when the
+ *  handler set none), a string (`Content-Type` from the URL extension,
+ *  `text/plain` fallback), or any JSON-serializable value (always
+ *  `application/json`). */
+export type QueryRouteResult = Response | string | object
+
+export interface QueryRouteDefinition {
+  readonly __isStatorQueryRoute: true
+  reads: AnyMachineDef[]
+  handler: (
+    request: RouteRequest,
+    helpers: QueryRouteHelpers,
+  ) => Promise<QueryRouteResult> | QueryRouteResult
+}
+
+export interface DefineQueryRouteConfig<TReads extends ReadonlyArray<AnyMachineDef>> {
+  /** The capability discriminant: `'GET'` declares a read-only data route.
+   *  Discovery cross-checks it against the export name. */
+  method: 'GET'
+  reads?: TReads
+  handler: (
+    request: RouteRequest,
+    helpers: QueryRouteHelpers,
+  ) => Promise<QueryRouteResult> | QueryRouteResult
+}
+
+export function isStatorQueryRoute(v: unknown): v is QueryRouteDefinition {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    (v as Record<string, unknown>).__isStatorQueryRoute === true
   )
 }

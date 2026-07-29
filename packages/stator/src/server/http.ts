@@ -11,11 +11,12 @@ import { scheduleSessionEffects } from './effects.ts'
 import { record, replayFor } from './event-dedupe.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
+import { runQueryRoute } from './query-route.ts'
 import { initialSyncPatches, recompute } from './recompute.ts'
 import { renderRoute } from './render.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
 import { buildRouteRequest } from './route-request.ts'
-import type { RouteDefinition } from './routing.ts'
+import { isStatorQueryRoute, type RouteDefinition } from './routing.ts'
 import { getOrCreateSessionId } from './session.ts'
 import { withSessionLock } from './session-lock.ts'
 import { SessionRuntime } from './session-runtime.ts'
@@ -204,6 +205,9 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       return c.text(`unknown route "${routeKey}"`, 404)
     }
     const route = matched.route.GET
+    if (isStatorQueryRoute(route)) {
+      return c.text(`route "${routeKey}" is a data route — data routes are not live`, 400)
+    }
     if (!route.live) {
       return c.text(`route "${routeKey}" is not declared live: true`, 400)
     }
@@ -295,6 +299,11 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       return c.json({ error: `unknown route "${routeKey}"` }, 404)
     }
     const route = matched.route.GET
+    // A data route serves no HTML, so no page runtime ever posts under its
+    // key — a request that does is malformed or hand-crafted.
+    if (isStatorQueryRoute(route)) {
+      return c.json({ error: `route key "${routeKey}" targets a data route` }, 404)
+    }
     const request = {
       ...buildRouteRequest(c, matched.route.paramNames),
       params: matched.params,
@@ -398,14 +407,13 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   app.get('*', async (c, next) => {
     const matched = matchPath(matchers, c.req.path)
     if (!matched?.route.GET) return next()
-    return handleGet(
-      c,
-      matched.route,
-      matched.route.GET,
-      matched.params,
-      config.store,
-      config.headExtras,
-    )
+    const getRoute = matched.route.GET
+    // Brand decides the GET plane: data routes never touch the HTML path
+    // (no client-runtime injection, no live meta — a raw Response out).
+    if (isStatorQueryRoute(getRoute)) {
+      return runQueryRoute(c, matched.route, getRoute, config.store, matched.params)
+    }
+    return handleGet(c, matched.route, getRoute, matched.params, config.store, config.headExtras)
   })
 
   return app

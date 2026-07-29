@@ -23,10 +23,11 @@ export const POST = defineApiRoute({
 })
 ```
 
-Export by method (`POST`, `PUT`, `PATCH`, `DELETE`). `GET` is not an API
-method in 1.6 — a `GET` export must be a `defineRoute` (a page render), so a
-JSON `GET` endpoint can't be expressed yet. Data-shaped GET routes are
-designed 1.x work; see the roadmap.
+Export by method (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`). The mutation
+methods are **command** routes, as above. A `GET` export is either a page
+(`defineRoute`) or a **[data route](#data-get-routes)** — `defineApiRoute`
+declaring `method: 'GET'` — serving JSON, XML, or text instead of a rendered
+page.
 
 ## The request
 
@@ -42,16 +43,54 @@ gateway machine's emit (see [app machines](/guides/app-machines/)); for
 server-originated events with no session at all (webhooks, cron), use
 `app.dispatchToApp(Machine, event)`.
 
-## API routes are command endpoints
+## Commands don't read, queries don't dispatch
 
-In 1.0, an API handler can **dispatch** but not read machine state — there is
-deliberately no `snapshot()` helper. Handlers that need state-dependent
-*responses* (JSON views, redirect-to-created-id) are a 1.x design; the safe
-shape is settled (a read atomic with the dispatch), but a general "read
-anywhere in an async handler" can deadlock against effect completions and
-race shared state, so it will not exist in any version. Today's idioms:
+A command handler (`POST`/`PUT`/`PATCH`/`DELETE`) can **dispatch** but not
+read machine state; a data GET handler can **read** but not dispatch. The
+split is structural, not policy: a handler that cannot dispatch has nothing
+to interleave with effect completions or other sessions' commits, which is
+exactly what makes its reads safe. Command handlers that need
+state-dependent *responses* (redirect-to-created-id) remain a 1.x design;
+the safe shape is settled (a read atomic with the dispatch), but a general
+"read anywhere in an async handler" can deadlock against effect completions
+and race shared state, so it will not exist in any version. Today's idioms:
 dispatch + navigate (the machine's guards decide; the page renders whichever
-state is true), or put the data on a page and let `read()` do its job.
+state is true), put the data on a page and let `read()` do its job, or serve
+it from a data GET route.
+
+## Data GET routes
+
+`method: 'GET'` declares a read-only **data route**: the handler receives
+`machines` — read proxies keyed by machine name, the same shape a page's
+render context uses — and no `dispatch`.
+
+```ts
+// routes/api/collections/[name].ts  →  GET /api/collections/:name
+export const GET = defineApiRoute({
+  method: 'GET',
+  reads: [Collections],
+  handler: (request, { machines }) =>
+    machines.CollectionsMachine.forConsumers(request.params.name),
+})
+```
+
+Machines hydrate under the session lock — a snapshot coherent *across*
+machines — and the lock is released before the handler runs. Session
+machines answer with the requesting cookie's own state; app machines answer
+with the shared instance.
+
+**The response.** A plain value is JSON, always. A string takes its
+`Content-Type` from the URL's extension — `routes/feed.xml.ts` serves
+`/feed.xml` as `application/xml` (also `.txt`, `.ics`, `.csv`), with
+`text/plain` as the fallback. A raw `Response` passes through verbatim,
+`Content-Type` filled from the extension only when you set none.
+
+**Conditional GETs are free.** Synthesized responses carry a strong `ETag`
+and answer `If-None-Match` with a bodyless 304, so polling consumers stop
+paying for unchanged data.
+
+Data routes serve no HTML: no client runtime is injected, `live:` does not
+exist for them, and `/__events` refuses route keys that target them.
 
 ## Return value
 

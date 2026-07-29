@@ -143,7 +143,7 @@ export async function runApiRoute(
  *  a wrapping library (Vite SSR loaders, @hono/node-server's lightweight
  *  class) — and a miss here silently reinterprets the handler's Response as
  *  an envelope. Duck-type the shape the passthrough actually needs. */
-function isResponseLike(v: unknown): v is Response {
+export function isResponseLike(v: unknown): v is Response {
   if (v instanceof Response) return true
   const r = v as Response | null
   return (

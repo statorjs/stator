@@ -31,7 +31,28 @@ describe('discovery: method/constructor mismatch', () => {
     // The mismatch check must run before the not-a-route skip: with GET as the
     // file's sole export, a skip-first order treats it as a utility file.
     await expect(discoverRoutes(mismatch)).rejects.toThrow(
-      /exports GET but it is not a defineRoute/,
+      /exports GET from defineApiRoute\(\) without method: 'GET'/,
     )
+  })
+
+  it("errors on a method: 'GET' definition exported under a mutation method", async () => {
+    await expect(discoverRoutes(resolve(here, 'fixtures', 'route-query-as-post'))).rejects.toThrow(
+      /exports POST created with method: 'GET'/,
+    )
+  })
+
+  it('errors on an extension-named route file that exports no route', async () => {
+    await expect(discoverRoutes(resolve(here, 'fixtures', 'route-ext-no-exports'))).rejects.toThrow(
+      /named like a data route/,
+    )
+  })
+})
+
+describe('discovery: data GET routes', () => {
+  it('accepts a data GET and maps the extension-named file to its extension URL', async () => {
+    const routes = await discoverRoutes(resolve(here, 'fixtures', 'route-data-get'))
+    expect(routes).toHaveLength(1)
+    expect(routes[0]!.urlPath).toBe('/report.json')
+    expect(routes[0]!.GET).toMatchObject({ __isStatorQueryRoute: true })
   })
 })
