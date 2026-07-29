@@ -191,6 +191,14 @@ describe('SSE: cross-session fan-out', () => {
   })
 })
 
+describe('app.dispatchToApp method', () => {
+  it('is the store-bound equivalent of dispatchToApp(store, …)', async () => {
+    const app = await boot()
+    const result = await app.dispatchToApp(Board, { type: 'BUMP', by: 1 })
+    expect(result.committed).toBe(true)
+  })
+})
+
 describe('SSE: fan-out unit behavior', () => {
   async function syntheticConnection(sendImpl: (data: string) => Promise<void>) {
     const Machine = defineMachine({
