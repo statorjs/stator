@@ -13,6 +13,7 @@ export { defineMachine } from './define-machine.ts'
 export type {
   Action,
   ActionHelpers,
+  AfterEntry,
   AnyMachineDef,
   Capabilities,
   Effect,
@@ -20,6 +21,7 @@ export type {
   EffectMeta,
   EmitDeclaration,
   EmitsConfig,
+  EntryEffect,
   EventObject,
   EventOf,
   Guard,

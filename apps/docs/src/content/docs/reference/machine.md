@@ -18,7 +18,7 @@ function defineMachine(config: DefineMachineConfig): MachineDef
   lifecycle: 'app' | 'session'
   context: C                    // initial context
   initial: S                    // initial state name
-  states: Record<S, { on?: OnMap }>
+  states: Record<S, { on?: OnMap; entry?: EntryEffect; after?: AfterEntry[] }>
   events?: E                    // typed event surface — pass `{} as MyEvents`
   selectors?: Record<string, (ctx: C, helpers?) => unknown>  // helpers.reads for cross-machine views
   reads?: MachineDef[]          // machines this one reads (typed helpers.reads)
@@ -74,21 +74,61 @@ Instantiates a running machine. The two injection points are what keep the engin
 ```ts
 type Effect = (ctx: C, ev: E, meta: EffectMeta) => Promise<Events | null>
 
-interface EffectMeta { effectId: string }
+interface EffectMeta {
+  effectId: string
+  signal?: AbortSignal          // aborts on state exit — entry effects only
+}
 
 interface EffectInvocation {
   machineName: string
   effectId: string
-  run: () => Promise<EventObject | null>
+  kind: 'entry' | 'transition'
+  stateKey?: string             // owning state — set for entry effects
+  run: (signal?: AbortSignal) => Promise<EventObject | null>
 }
 ```
 
-An effect is async I/O declared on a transition and run by the **host** after the transition commits — the engine itself never performs I/O. It receives `structuredClone` snapshots of context and event taken at commit time (never live state), plus `{ effectId }`, unique per invocation — thread it to external calls as an idempotency key and use it for log correlation. Return the completion event to dispatch, or `null` for fire-and-forget.
+An effect is async I/O declared on a transition and run by the **host** after the transition commits — the engine itself never performs I/O. It receives `structuredClone` snapshots of context and event taken at commit time (never live state), plus `meta.effectId`, unique per invocation — thread it to external calls as an idempotency key and use it for log correlation. Return the completion event to dispatch, or `null` for fire-and-forget.
 
 Two rules to know:
 
 - **Annotate the return type**: `effect: async (ctx, ev, meta): Promise<Events | null> => …`. TypeScript defers context-sensitive arrows during `defineMachine`'s inference, so an unannotated effect fails to typecheck; the annotation restores full checking of the completion event against your event union.
 - **Effects are infallible by construction**: catch inside and return your declared failure event. A throw is the runtime backstop — logged and dropped, never a crash.
+
+## Entry effects
+
+```ts
+type EntryEffect = (ctx: C, meta: EffectMeta) => Promise<Events | null>
+
+states: {
+  loading: {
+    entry: async (ctx, meta): Promise<Events | null> => {
+      const data = await fetchForecast(ctx.location, { signal: meta.signal })
+      return { type: 'LOADED', data }
+    },
+    on: { LOADED: { to: 'ready', do: (ctx, ev) => { ctx.data = ev.data } } },
+  },
+}
+```
+
+A state's `entry` is async I/O the host schedules when the state is **entered** — a fresh start at the initial state, or a value-changing transition (never on hydration alone). Same host-scheduled, off-lock pipeline as a transition effect, minus the event argument (a state entry has no triggering event).
+
+The role split matters: entry effects are the **load** role and transition effects are the **command** role. The host may *re-invoke* an entry effect whose completion never settled (a process died mid-flight) and aborts `meta.signal` when the state is exited — so write entry effects as re-runnable reads, and keep non-idempotent external writes (charges, sends) in transition effects, which are at-most-once and never aborted. See the [effects guide](/guides/effects/).
+
+## State timeouts: after
+
+```ts
+interface AfterEntry {
+  delay: number | ((ctx: C) => number)
+  send: Events
+}
+
+states: {
+  shown: { after: [{ delay: 5_000, send: { type: 'DISMISS' } }] },
+}
+```
+
+Each `after` entry dispatches `send` after `delay` ms in the state — armed on entry, cancelled on exit. Host-scheduled and in-memory: a restart drops armed timers (hydrating hosts re-arm with elapsed credit via the snapshot's `enteredAt`). Durable schedules are deferred work.
 
 ## Lower-level exports
 
@@ -98,8 +138,9 @@ Type-level plumbing, exported for tooling and advanced typing:
 - `EventOf<Def>` — a machine's event union; what `dispatch(Machine, event)` checks against.
 - `InstanceOf<Def>` — a machine's instance shape (each selector as a typed property).
 - `ReadsMap<Reads>` — the typed `helpers.reads` map built from a `reads` tuple.
-- `Snapshot<C>` — `{ value: string[]; context: C }`; serializes to the Store and seeds client hydration.
+- `Snapshot<C>` — `{ value: string[]; context: C; enteredAt?: number; pendingEntry?: { effectId: string } }`; serializes to the Store and seeds client hydration. `enteredAt` lets a hydrating host re-arm `after` timers with elapsed credit; `pendingEntry` marks an entry effect whose completion never settled, so the host re-invokes it.
 - `Action`, `Guard`, `ActionHelpers` — the function shapes transitions are built from.
+- `EntryEffect`, `AfterEntry` — the state-entry effect and timeout-entry shapes.
 - `Transition`, `TransitionConfig`, `StateNode` — the transition-graph node types.
 - `EmitDeclaration`, `EmitsConfig` — normalized emit declarations.
 - `SubscribeEntry` — a cross-machine subscription entry.

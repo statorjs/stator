@@ -109,5 +109,6 @@ html[data-stator-connection="disconnected"] .offline-banner { display: block; }
 ## Lower-level exports
 
 - `defineElement(UserClass, tag)` — registers an island class against its custom-element tag; the compiler emits this call.
-- `ClientInstance` — the reactive handle `use()` returns.
+- `ClientInstance` — the reactive handle `use()` returns; `ClientInstanceBase` — the untyped base `bind`/`effect` accept as deps.
 - `ClientBehavior<C>` — the `machine()` behavior shape (`name` / `on` / `select`); `LegacyMachineConfig` — the deprecated one-bag form.
+- `DispatchResult` / `DispatchError` — the result and error shapes `dispatch` resolves with.
