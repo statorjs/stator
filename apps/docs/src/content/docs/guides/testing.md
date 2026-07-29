@@ -15,8 +15,10 @@ runner-specific.
 
 ## Machines: test the logic without rendering anything
 
-`createActor` (from `@statorjs/stator/machine`) runs a machine anywhere —
-including a plain test file. Send events, assert snapshots:
+`createActor` (from `@statorjs/stator/machine`) spins up an
+[actor](/concepts/state-machines/#definition-actor-instance) — a running
+machine — anywhere, including a plain test file. Send events, assert
+snapshots:
 
 ```ts
 import { createActor } from '@statorjs/stator/machine'

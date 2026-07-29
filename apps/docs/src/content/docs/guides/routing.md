@@ -46,7 +46,7 @@ const [cart] = Stator.reads([CartMachine])
 
 ## Layouts via composition
 
-Wrap pages in a layout component that exposes slots with `<children>`:
+Wrap pages in a layout component that exposes insertion points with `<children>`:
 
 ```astro
 <!-- customer-layout.stator -->

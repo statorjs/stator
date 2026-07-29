@@ -11,9 +11,9 @@ Everything you import from `@statorjs/stator` comes through an explicit subpath 
 
 | Subpath | What it is | Stability |
 | --- | --- | --- |
-| [`/server`](/reference/server/) | App assembly, routing, dispatch, stores | Stable |
+| [`/server`](/reference/server/) | App assembly, routing, dispatch, stores | Stable + Toolchain |
 | [`/machine`](/reference/machine/) | The isomorphic state-machine engine (browser-safe) | Stable |
-| [`/template`](/reference/template/) | `html`, `read`, control flow, directives | Stable |
+| [`/template`](/reference/template/) | `html`, `read`, control flow, directives | Stable + Toolchain |
 | [`/client`](/reference/client/) | Island authoring: `StatorElement`, `use`, `bind`, `dispatch` | Stable |
 | [`/dev`](/reference/dev-and-build/#createdevapp) | The Vite-embedded dev server | Stable |
 | [`/build`](/reference/dev-and-build/#buildapp) | Production build + type sync | Stable |
@@ -23,7 +23,13 @@ Everything you import from `@statorjs/stator` comes through an explicit subpath 
 
 ## Stability policy
 
-The seven stable subpaths are semver-stable: their exports only break in a major. `compiler` and `vite` are internal seams — they exist as subpaths because the framework's own tooling imports them, but their shapes may change in a minor. Don't build on them.
+There are three tiers:
+
+- **Stable** — the documented authoring surface: every symbol with its own section on a reference page. Semver-stable; these break only in a major.
+- **Toolchain** — the symbols listed under a reference page's **"Lower-level exports"** heading on [`/server`](/reference/server/#lower-level-exports) and [`/template`](/reference/template/#lower-level-exports). They're public for one structural reason: the dev server loads the runtime through Vite, and modules shared between the Vite graph and the Node graph must be importable via a package specifier. Compiled `.stator` output also imports a few of them — always against the same package version that compiled it. These may change in a **minor**. Don't build application code on them; if one turns out to be genuinely useful, tell us and we'll promote it.
+- **Internal** — `compiler` and `vite`. They exist as subpaths because the framework's own tooling imports them; their shapes may change in a minor. Don't build on them.
+
+The lower-level lists on [`/machine`](/reference/machine/#lower-level-exports) and [`/client`](/reference/client/#lower-level-exports) are **Stable** — they're type-level surface your app legitimately types against (`InstanceOf`, `EventOf`, `DispatchResult`, …), not runtime plumbing.
 
 ## TypeScript source, by design
 

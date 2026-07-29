@@ -28,6 +28,8 @@ const [products, cart] = Stator.reads([ProductsMachine, CartMachine])
 
 `Stator.reads([ProductsMachine, CartMachine])` is how a **route** gets live machine instances — it returns them in the order you asked. (Reusable components in `templates/` receive machines as props via `Stator.props<...>()` instead; we'll see that below.)
 
+You've now met two of the constructs that share the word *read* — the route's `Stator.reads` and the template's `read()` below (chapter 2's machine option `reads:` was a third). They're distinct mechanisms with a family resemblance; the [reads family table](/concepts/reactivity-and-reads/#one-word-four-altitudes-the-reads-family) puts them side by side.
+
 ## read(machine, selector)
 
 `read(machine, selector)` is the heart of rendering. It runs the selector and registers a **binding** on the surrounding node:

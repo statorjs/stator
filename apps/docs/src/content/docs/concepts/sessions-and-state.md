@@ -2,14 +2,14 @@
 title: Sessions and state
 description: "Where state lives between requests, and the per-session lifecycle."
 sidebar:
-  order: 7
+  order: 8
 ---
 
 Machines are the canonical state — but a machine instance doesn't sit in memory waiting for the next request. This page explains where state actually lives between requests, and the short lifecycle each request runs.
 
 ## Stateless between requests
 
-Stator does **not** keep a long-lived actor per session in process memory. That would scale with sessions × routes-visited and foreclose multi-replica deployments. Instead, canonical state lives as snapshots in the [store](/guides/persistence/), and each request spins up only the actors it needs, then throws them away.
+Stator does **not** keep a long-lived [actor](/concepts/state-machines/#definition-actor-instance) per session in process memory. That would scale with sessions × routes-visited and foreclose multi-replica deployments. Instead, canonical state lives as snapshots in the [store](/guides/persistence/), and each request spins up only the actors it needs, then throws them away.
 
 This was an early, load-bearing decision: going stateless-between-requests turned out cheaper architecturally than persisting live actors, and every later feature (store adapters, SSE, the future inbox) composes cleanly on top of it.
 
@@ -17,7 +17,7 @@ This was an early, load-bearing decision: going stateless-between-requests turne
 
 Each request creates a `SessionRuntime` that runs a short, predictable cycle:
 
-1. **Load** — `loadGraph` pulls *only* the machines this request reads from the store and hydrates transient actors from their snapshots. Machines the request doesn't touch are never loaded.
+1. **Load** — `loadGraph` pulls *only* the machines this request reads from the store and **restores** transient actors from their snapshots (what other stacks might call hydrating — Stator reserves *hydration* for the client-side tree re-render it doesn't do). Machines the request doesn't touch are never loaded.
 2. **Wire** — cross-machine `subscribes` listeners are rebuilt for this request's actor graph.
 3. **Process** — the event runs through the relevant machine's transition; the runtime records which machines were **touched**.
 4. **Persist** — `persistTouched` writes the touched session machines back to the store with a refreshed TTL.

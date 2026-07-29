@@ -1,6 +1,6 @@
 ---
 title: "template"
-description: "The server rendering primitives: html, read, each/when/match, raw, and directives."
+description: "The server rendering primitives: html, read, each/when/match, defer, raw, and directives."
 sidebar:
   order: 4
 ---
@@ -56,6 +56,19 @@ function match<TKey extends string>(
 
 Renders the case matching `key`, or nothing when no case matches. Re-renders only when the key changes. When `key` is a `ReadResult` over a string-literal union, the cases are checked against that union.
 
+## defer
+
+```ts
+function defer<T>(
+  thunk: () => T | Promise<T>,
+  arms: { ready: (value: Awaited<T>) => HtmlFragment; error?: (reason: unknown) => HtmlFragment },
+): DeferResult
+```
+
+An async region inside a synchronous render. The thunk is kicked during the render pass (closing over frontmatter locals), awaited in parallel with every other `defer` on the page, and the `ready`/`error` arm renders inline — a synchronous or already-resolved value fills with no added latency. Without an `error` arm, a rejection bubbles to route-level error handling.
+
+Unlike `each`/`when`/`match` results, a `DeferResult` registers **no binding**: the region is static, never re-diffed, and the thunk is never re-run by `/__events` recomputes (that would run I/O under the session lock). Use it for request-scoped data; state that changes after first render belongs in a machine — see [Defer vs. machine](/recipes/defer-vs-machine/). Arm/result types: `DeferArms`, `DeferResult`.
+
 ## raw
 
 ```ts
@@ -91,10 +104,14 @@ Defines a custom template directive. `apply` runs at render time with `{ element
 
 ## Lower-level exports
 
+What the compiler's output and the recompute pass run on — **Toolchain** tier per the [stability policy](/reference/overview/#stability-policy): these may change in a minor. (`HtmlFragment`, `ReadResult`, and `InstanceOf` are the exceptions your own render functions legitimately type against; they're Stable.)
+
 - `HtmlFragment` / `createHtmlFragment` / `isHtmlFragment` — the branded fragment type and its constructors.
 - `ReadResult` / `isReadResult` — the reactive-value carrier `read()` returns.
 - `EachResult` / `isEachResult` / `renderListBody` — list result shape and the body renderer recompute reuses.
 - `BranchResult` / `isBranchResult` / `renderBranchBody` — the `when`/`match` equivalents.
+- `DeferResult` / `isDeferResult` — the `defer` result shape (no body renderer — defer regions never re-render).
+- `itemBind` — per-row item-binding plumbing the compiler lowers `read(item, …)` to inside keyed lists.
 - `invoke` / `isDirectiveInvocation` — directive invocation plumbing.
 - `clientShellAttrs` — attributes the compiler puts on a client island's server-rendered shell.
 - `InstanceOf` — re-exported machine instance type (what `read`'s first parameter is).

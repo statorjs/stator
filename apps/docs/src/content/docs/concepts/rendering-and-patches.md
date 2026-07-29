@@ -2,7 +2,7 @@
 title: Rendering and patches
 description: "The render pass, binding registration, and the target/op patch model."
 sidebar:
-  order: 5
+  order: 6
 ---
 
 This page traces what happens between "a machine changed" and "the DOM updated" — the render pass that registers bindings and the wire format that carries the changes.

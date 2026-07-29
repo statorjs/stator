@@ -2,7 +2,7 @@
 title: The .stator file
 description: "The four regions of an SFC: frontmatter, template body, styles, and the client script."
 sidebar:
-  order: 4
+  order: 5
 ---
 
 A `.stator` file is Stator's single-file component. It has up to four regions, each with a clear job. The compiler splits them at the string level before any of them is parsed in detail.

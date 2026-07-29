@@ -46,7 +46,7 @@ on: {
 }
 ```
 
-Dispatch is **machine-mediated**: you address a machine by its imported definition and send an event from its declared union, so the event is type-checked at the call site. There are no magic strings. See [Dispatching events](/guides/dispatching-events/).
+Dispatch is **machine-mediated**: you address a machine by its imported definition and send an event from its declared union, so the event is type-checked at the call site. There are no magic strings. See [Events and dispatch](/concepts/events-and-dispatch/) for the full path from click to commit, and [Dispatching events](/guides/dispatching-events/) for each dispatch surface.
 
 ## Templates read; they never own state
 
@@ -85,7 +85,7 @@ When an event arrives, the server runs a short, stateless cycle:
 4. **Patch** — send back the minimal target/op patch list for the bindings that changed.
 5. **Persist & dispose** — write touched session machines back to the store and tear down the per-request actors.
 
-Actors are created per request and thrown away; canonical state lives in the store between requests. This is what keeps the runtime cheap and the scaling story clean. See [Sessions and state](/concepts/sessions-and-state/).
+[Actors](/concepts/state-machines/#definition-actor-instance) — the engine's running machines — are created per request and thrown away; canonical state lives in the store between requests. This is what keeps the runtime cheap and the scaling story clean. See [Sessions and state](/concepts/sessions-and-state/).
 
 ## Cross-machine composition
 

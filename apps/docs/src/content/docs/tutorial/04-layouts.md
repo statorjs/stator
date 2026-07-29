@@ -5,7 +5,7 @@ sidebar:
   order: 4
 ---
 
-So far each route renders a bare `<main>` fragment. To be a real page it needs a full HTML document — `<!doctype html>`, `<head>`, `<body>` — and you don't want to repeat that (or a shared header) in every route. That's what a **layout** is: a component that provides the document shell and slots your page into it. We'll build the layout, then style the whole app.
+So far each route renders a bare `<main>` fragment. To be a real page it needs a full HTML document — `<!doctype html>`, `<head>`, `<body>` — and you don't want to repeat that (or a shared header) in every route. That's what a **layout** is: a component that provides the document shell and places your page inside it. We'll build the layout, then style the whole app.
 
 ## Why a document shell
 
@@ -120,8 +120,8 @@ const { cart } = Stator.props<{ cart: InstanceOf<typeof CartMachine> }>()
 
 Two composition details:
 
-- The `<div child="header">` fills `BaseLayout`'s `<children name="header" />` slot. `child="x"` targets the slot named `x`.
-- `<children />` inside `<BaseLayout>` forwards *this* layout's page content into BaseLayout's default slot.
+- The `<div child="header">` fills `BaseLayout`'s `<children name="header" />`. `child="x"` targets the `<children>` named `x`.
+- `<children />` inside `<BaseLayout>` forwards *this* layout's page content into BaseLayout's default `<children>`.
 
 And the `<style>` block is the key styling idea: **it's scoped to this component.** Stator hashes the block and rewrites its selectors so `.brand-bar` only matches elements *this* file renders — it can't leak into other components, and other components' `.brand-bar` (if any) wouldn't be affected. App-wide rules (the reset, theme tokens) stay in the linked `app.css`; component-specific rules live in a scoped `<style>`. Note the scoped CSS still reads the global tokens (`var(--border)`). See [Scoped styles](/guides/scoped-styles/) for the details.
 

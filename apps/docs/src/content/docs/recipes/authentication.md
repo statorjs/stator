@@ -11,7 +11,9 @@ the client's `userId`. Stator's architecture removes most of that list. This
 recipe is the distilled version of the [`with-auth`
 example](https://github.com/statorjs/stator/tree/main/examples/with-auth)
 (`pnpm create stator my-app --template with-auth`) — read the example to see
-it run; read this to graft it into your app.
+it run; read this to graft it into your app. Protecting pages once people
+*are* signed in is its own recipe:
+[Gated routes and redirects](/recipes/gated-routes-and-redirects/).
 
 ## The one idea: identity is addressing
 

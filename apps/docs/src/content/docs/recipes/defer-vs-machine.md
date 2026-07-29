@@ -2,7 +2,7 @@
 title: "Fetching data: defer vs a machine"
 description: "Two doors for async data. `defer` is the ephemeral, one-shot, per-view door; a machine is the stateful, reactive, shared door. This is how to tell which one you need."
 sidebar:
-  order: 2
+  order: 3
 ---
 
 Stator gives you two ways to get async data onto a page, and picking the wrong

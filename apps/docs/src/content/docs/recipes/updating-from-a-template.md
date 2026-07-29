@@ -2,7 +2,7 @@
 title: 'Updating from a template'
 description: 'How to pull template improvements into an app you scaffolded with create-stator, using plain git.'
 sidebar:
-  order: 3
+  order: 4
 ---
 
 An app scaffolded with `create-stator` is a snapshot, not a fork. You own the code, and there is no automatic upgrade channel for it — that is deliberate. The framework itself updates the normal way, through `@statorjs/stator` releases, and your app diverges from its template the moment you start building. Treat template updates as an occasional convenience for early-stage apps, not something to track.

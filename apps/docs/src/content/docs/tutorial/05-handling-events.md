@@ -28,7 +28,7 @@ Events carry data. `{ type: 'ADD_ITEM', productId: product.id }` is a **payload 
 When you click, here's what happens — and what doesn't:
 
 1. The click POSTs the event to the server.
-2. The server hydrates the cart, runs the `ADD_ITEM` transition, and persists the result.
+2. The server restores the cart from the store, runs the `ADD_ITEM` transition, and persists the result.
 3. It recomputes the bindings that read the cart and sends back a patch list.
 
 There's no fetch to write, no JSON endpoint to define, no client store to update. The handler *is* the integration.

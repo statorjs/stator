@@ -19,7 +19,9 @@ interface CreateAppConfig {
   store?: Store            // session persistence; default InMemoryStore
   appStore?: AppStore      // persistence for `persist: true` app machines; default in-memory
   sessionTtlSeconds?: number // per-session TTL; default 86400 (24h)
+  ssePingMs?: number         // SSE heartbeat interval; default 25s
   headExtras?: (filePath: string) => string | Promise<string>
+  inspector?: boolean        // serve + inject the wire inspector toolbar
 }
 
 interface StatorApp {
@@ -29,7 +31,7 @@ interface StatorApp {
 }
 ```
 
-The production entry point. Discovers machines and routes from the given directories, boots app-lifecycle machines, wires cross-machine effects, and serves over Hono. `fetch` is the raw handler for tests; `store` is what you hand to [`dispatchToApp`](#dispatchtoapp) for server-originated events. In production, pass [`loadProductionHead`](/reference/dev-and-build/#loadproductionhead)'s result as `headExtras`.
+The production entry point. Discovers machines and routes from the given directories, boots app-lifecycle machines, wires cross-machine effects, and serves over Hono. `fetch` is the raw handler for tests; `store` is what you hand to [`dispatchToApp`](#dispatchtoapp) for server-originated events. In production, pass [`loadProductionHead`](/reference/dev-and-build/#loadproductionhead)'s result as `headExtras`. The dev server serves the wire inspector toolbar by default; `inspector: true` opts a production app in (demo sites want the wire visible).
 
 ## defineMachine
 
@@ -128,7 +130,7 @@ The framework's pino logger, exported for application use. Pretty colored output
 
 ## Lower-level exports
 
-Plumbing the framework itself runs on. Exported because the dev server and tests load the runtime through Vite, not because your app should need them:
+Plumbing the framework itself runs on. Exported because the dev server and tests load the runtime through Vite, not because your app should need them — and held to the **Toolchain** tier of the [stability policy](/reference/overview/#stability-policy): these may change in a minor.
 
 - `MachineStore` — the machine registry + actor manager behind `StatorApp.store`.
 - `discoverMachines` / `discoverRoutes` (+ `DiscoveryResult`, `DiscoveredRoute`) — filesystem discovery `createApp` runs.

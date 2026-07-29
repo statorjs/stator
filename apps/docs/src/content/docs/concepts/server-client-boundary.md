@@ -49,7 +49,7 @@ Placement is your decision; **legality** is the compiler's. A [portable](/concep
 
 If you import a server-pinned machine into a client `<script>`, compilation fails with an error that **names the offending capability** — e.g. "reads machine `ProductsMachine` (cross-machine reads resolve server-side only)." You learn the *why*, not just the *what*, at build time.
 
-There's a runtime backstop too: a client actor that somehow dereferences a `reads` helper hits throwing helpers rather than silently returning wrong data. The compile error is the front line; the runtime guard is the seatbelt.
+There's a runtime backstop too: a machine running client-side that somehow dereferences a `reads` helper hits throwing helpers rather than silently returning wrong data. The compile error is the front line; the runtime guard is the seatbelt.
 
 ## One reactivity model across the line
 
