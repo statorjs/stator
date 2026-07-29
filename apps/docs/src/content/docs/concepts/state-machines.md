@@ -11,6 +11,16 @@ A machine is the unit of state in Stator. This page explains what's inside one a
 
 Most frameworks treat "state machines" as a library you reach into from inside a component tree. Stator inverts that: the machine *is* the canonical state, and everything else — templates, the DOM, the wire — derives from it. There is no second copy of a fact to keep in sync. This inversion is what makes the rest of the framework's guarantees possible: if the machine is the only source of truth, the server can always compute exactly what a change affects.
 
+## Definition, actor, instance
+
+Three words recur throughout these docs, one per level of a machine's life:
+
+- **Definition** — what `defineMachine` returns and what you import: the inert blueprint (`MachineDef`). Definitions are how machines are *addressed* — `dispatch(CartMachine, …)`, `Stator.reads([CartMachine])` — and how their types travel (`EventOf`, `InstanceOf`).
+- **Actor** — a *running* machine: the engine object that holds a live snapshot and applies transitions. On the server, actors are per-request and transient — created, run, persisted, disposed (see [Sessions and state](/concepts/sessions-and-state/)). In a client island, one actor lives as long as its element. The only place you handle an actor directly is a [unit test](/guides/testing/), via `createActor`.
+- **Instance** — the typed handle your code actually holds: every selector as a live property, plus `send()`. `Stator.reads` hands a route instances; `use()` hands an island a client instance; `InstanceOf<typeof CartMachine>` is its type. An instance wraps an actor; you never reach the actor through it.
+
+When these docs say *instance*, they mean the thing your code holds. *Actor* appears only when the engine's runtime is the subject.
+
 ## defineMachine anatomy
 
 `defineMachine` takes a single config object and returns a definition. The definition is a value you import where you use it — its presence in a `.stator` frontmatter or `<script>` is what decides where it runs.

@@ -61,7 +61,7 @@ Elements marked [`ref:name`](/guides/directives/#ref--element-handles) are reach
 
 ## Lifecycle
 
-Actors start on `connectedCallback` and stop on disconnect. `bind:` directives and `effect()` subscribe to state and write the DOM natively — no client re-render.
+Machine [actors](/concepts/state-machines/#definition-actor-instance) start on `connectedCallback` and stop on disconnect. `bind:` directives and `effect()` subscribe to state and write the DOM natively — no client re-render.
 
 ## Islands are leaves
 

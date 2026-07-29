@@ -9,7 +9,7 @@ Machines are the canonical state — but a machine instance doesn't sit in memor
 
 ## Stateless between requests
 
-Stator does **not** keep a long-lived actor per session in process memory. That would scale with sessions × routes-visited and foreclose multi-replica deployments. Instead, canonical state lives as snapshots in the [store](/guides/persistence/), and each request spins up only the actors it needs, then throws them away.
+Stator does **not** keep a long-lived [actor](/concepts/state-machines/#definition-actor-instance) per session in process memory. That would scale with sessions × routes-visited and foreclose multi-replica deployments. Instead, canonical state lives as snapshots in the [store](/guides/persistence/), and each request spins up only the actors it needs, then throws them away.
 
 This was an early, load-bearing decision: going stateless-between-requests turned out cheaper architecturally than persisting live actors, and every later feature (store adapters, SSE, the future inbox) composes cleanly on top of it.
 

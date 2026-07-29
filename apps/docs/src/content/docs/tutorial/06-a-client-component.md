@@ -66,7 +66,7 @@ A client component can carry a scoped `<style>` just like a server one — same 
 
 ## extends StatorElement + use()
 
-`StatorElement` is the base class for a client component — it owns the actor lifecycle (start on connect, stop on disconnect), plus `this.attrs` and `this.refs`. You declare a machine instance as a class field with `use()`:
+`StatorElement` is the base class for a client component — it owns the machine lifecycle (started on connect, stopped on disconnect), plus `this.attrs` and `this.refs`. You declare a machine instance as a class field with `use()`:
 
 ```js
 theme = use(Theme, () => ({ mode: readStoredTheme() }))

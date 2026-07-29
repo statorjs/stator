@@ -51,7 +51,7 @@ A binding produced by `when`/`match` reduces to a **key**: the branch re-renders
 
 ## The bind: mirror on the client
 
-Inside a [client island](/guides/client-components/), the same idea runs without a server. `bind:text={theme.label}` subscribes to a local actor and writes the DOM when the selector's value changes — a local subscribe-and-write with no recompute pass and no wire. `read()` and `bind:` are the two faces of one primitive: *declare on a node what state it shows.* The server diffs and patches; the client subscribes and writes. The mental model is identical on both sides of the [boundary](/concepts/server-client-boundary/).
+Inside a [client island](/guides/client-components/), the same idea runs without a server. `bind:text={theme.label}` subscribes to the island's local [actor](/concepts/state-machines/#definition-actor-instance) and writes the DOM when the selector's value changes — a local subscribe-and-write with no recompute pass and no wire. `read()` and `bind:` are the two faces of one primitive: *declare on a node what state it shows.* The server diffs and patches; the client subscribes and writes. The mental model is identical on both sides of the [boundary](/concepts/server-client-boundary/).
 
 ## One word, four altitudes: the reads family
 

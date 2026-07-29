@@ -11,7 +11,7 @@ The cart already survives navigation — click around and it stays full. That's 
 
 A `lifecycle: 'session'` machine belongs to one visitor, identified by a session cookie Stator sets automatically. Between requests, the cart isn't a live object sitting in memory — it's a snapshot in the **store**, keyed by session. Each request restores the machines it needs, runs the event, and writes the touched ones back. (App-lifecycle machines like the catalog are the exception — they live in the process and aren't per-session.)
 
-This is why the runtime stays cheap: there's no long-lived actor per visitor, just snapshots that load and save around each request.
+This is why the runtime stays cheap: there's no long-lived machine object per visitor, just snapshots that load and save around each request.
 
 ## The Store interface
 
