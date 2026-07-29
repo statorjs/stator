@@ -30,16 +30,16 @@ event so the app machine knows who triggered it. This is the path for
 "every order updates the shared board."
 
 **From server code, via `dispatchToApp`.** Webhooks, cron jobs, and anything
-else with no HTTP session use the typed server-originated entry point:
+else with no HTTP session use the typed server-originated entry point — a
+method on the app object (`createApp` and `createDevApp` both return it):
 
 ```ts
-import { dispatchToApp } from '@statorjs/stator/server'
 import Board from './machines/board.ts'
 
 const app = await createApp({ /* … */ })
 
 // e.g. inside a webhook handler or a setInterval:
-await dispatchToApp(app.store, Board, { type: 'BUMP', by: 5 })
+await app.dispatchToApp(Board, { type: 'BUMP', by: 5 })
 ```
 
 `dispatchToApp` sends the event, persists the machine if it opted in, and
@@ -93,6 +93,18 @@ guard authorizes, the emit crosses lifecycles with `sourceSessionId`
 attached, and persistence, effects, and SSE fan-out all behave normally from
 there. A more convenient route-gated form is a 1.x candidate; this pattern is
 the supported path today and will keep working.
+
+:::caution[Gateways don't launder authority]
+A gateway's `REQUEST_*` events are ordinary session events — dispatchable
+from browser devtools via `/__events` like any other. Authority in the emit
+payload must come from the session's **context** (put there by a verified
+handler or guard, as `isAdmin` is above), never from fields on the incoming
+event — otherwise any visitor can forge the request the gateway was supposed
+to gate. If a handler has no choice but to thread authority through the
+event itself, make the event prove itself: sign the claims server-side (an
+HMAC with a server secret) and verify in the guard — guards are synchronous,
+and so is `node:crypto`.
+:::
 
 ## Surviving restarts: `persist: true`
 

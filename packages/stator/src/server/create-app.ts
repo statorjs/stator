@@ -1,5 +1,7 @@
 import { resolve } from 'node:path'
 import { serve } from '@hono/node-server'
+import type { AnyMachineDef, EventOf } from '../engine/index.ts'
+import { dispatchToApp } from './app-dispatch.ts'
 import type { AppStore } from './app-store.ts'
 import { installGracefulShutdown } from './banner.ts'
 import { discoverMachines } from './discovery.ts'
@@ -38,9 +40,16 @@ export interface StatorApp {
   listen(port: number): Promise<void>
   /** For tests — get the underlying Hono fetch handler. */
   fetch: (request: Request) => Response | Promise<Response>
-  /** The machine registry + app actors — pass to `dispatchToApp` for
-   *  server-originated events (webhooks, cron). */
+  /** The machine registry + app actors. Kept exposed for advanced use;
+   *  prefer the `dispatchToApp` method for server-originated events. */
   store: MachineStore
+  /** Server-originated dispatch to an APP-lifecycle machine — the entry
+   *  point for webhooks and cron. Same contract as the standalone
+   *  `dispatchToApp(store, …)`, bound to this app's store. */
+  dispatchToApp<D extends AnyMachineDef>(
+    machine: D,
+    event: EventOf<D>,
+  ): Promise<{ committed: boolean }>
 }
 
 export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
@@ -100,5 +109,6 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     },
     fetch: (request: Request) => app.fetch(request),
     store,
+    dispatchToApp: (machine, event) => dispatchToApp(store, machine, event),
   }
 }

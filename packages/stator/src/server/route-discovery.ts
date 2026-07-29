@@ -45,10 +45,12 @@ export interface DiscoveredRoute {
  * Files may export any combination of `GET`/`POST`/`PUT`/`PATCH`/`DELETE`.
  * GET is a `defineRoute` (page renderer); the others are `defineApiRoute`.
  *
- * Files that don't export anything route-shaped are silently skipped. With
- * recursive walking, the routes tree often contains utility files
- * (templates, helpers) that aren't routes, and throwing on them would
- * force separate trees.
+ * Files that don't export anything under an HTTP-method name are silently
+ * skipped. With recursive walking, the routes tree often contains utility
+ * files (templates, helpers) that aren't routes, and throwing on them would
+ * force separate trees. A file that DOES export an HTTP-method name but with
+ * the wrong constructor is a hard error, never a skip — a skip here surfaces
+ * as an unexplained 404 and a dev banner counting one route short.
  */
 export async function discoverRoutes(
   dir: string,
@@ -68,10 +70,10 @@ export async function discoverRoutes(
     const patch = isStatorApiRoute(mod.PATCH) ? (mod.PATCH as ApiRouteDefinition) : undefined
     const del = isStatorApiRoute(mod.DELETE) ? (mod.DELETE as ApiRouteDefinition) : undefined
 
-    if (!get && !post && !put && !patch && !del) continue
-
     // Catch the easy mistake: GET defined with `defineApiRoute`, or a
     // mutation method defined with `defineRoute`. Throw with a clear hint.
+    // These run BEFORE the not-a-route skip below: a file whose only export
+    // is a mis-constructed method name must error, not vanish as a utility.
     if (mod.GET && !get) {
       throw new Error(
         `stator: ${filePath} exports GET but it is not a defineRoute. ` +
@@ -86,6 +88,8 @@ export async function discoverRoutes(
         )
       }
     }
+
+    if (!get && !post && !put && !patch && !del) continue
 
     const { urlPath, paramNames } = filePathToRoute(absDir, filePath)
     routes.push({

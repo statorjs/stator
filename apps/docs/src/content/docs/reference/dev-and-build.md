@@ -26,6 +26,7 @@ interface DevAppConfig {
 interface DevApp {
   fetch(request: Request): Response | Promise<Response>
   vite: ViteDevServer
+  dispatchToApp(machine: MachineDef, event: EventOf<typeof machine>): Promise<{ committed: boolean }>
   listen(port: number): Promise<void>
   close(): Promise<void>
 }
@@ -34,6 +35,8 @@ interface DevApp {
 The dev server. Embeds Vite in middleware mode so `.stator` and TS modules compile on the way in, loads machines, routes, and the framework runtime itself through `vite.ssrLoadModule` (one shared module instance — the same pattern Astro and SvelteKit use), and injects each route's scoped component CSS and island scripts into `<head>` at render time.
 
 On a relevant source change it re-discovers, rebuilds, and tells the browser to reload. A template or route edit keeps the store — and your session state, cart contents and all — intact; only a machine edit resets it, since route `reads` bind to machine defs by identity. The inspector toolbar is injected by default; set `inspector: false` to disable.
+
+`dispatchToApp` is the dev counterpart of [`StatorApp.dispatchToApp`](/reference/server/#dispatchtoapp): it follows the current store across rebuilds and runs through the Vite-loaded runtime, so SSE fan-out reaches live connections. Don't import the standalone `dispatchToApp` in dev server code — that's a second module instance whose connection registry is empty, so the dispatch commits but the fan-out reaches nobody.
 
 ## buildApp
 

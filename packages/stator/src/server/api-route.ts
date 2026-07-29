@@ -121,14 +121,38 @@ export async function runApiRoute(
       scheduleSessionEffects(runtime, store, effectsSessionId)
 
       // Escape hatch: handler returned a real Response. Pass through.
-      if (result instanceof Response) return result
+      if (isResponseLike(result)) return result
 
       const envelope = result as ApiRouteEnvelope
+      if (envelope.patches === undefined && envelope.directives === undefined) {
+        // Neither Response-shaped nor envelope-shaped: synthesizing an empty
+        // envelope would silently discard whatever the handler meant to send.
+        apiLog.warn(
+          { path: c.req.path },
+          'api route returned a value that is neither a Response nor a {patches, directives} envelope — treating it as an empty envelope',
+        )
+      }
       return synthesizeResponse(c, request, envelope)
     } finally {
       runtime.dispose()
     }
   })
+}
+
+/** `instanceof Response` alone misses Response objects from another realm or
+ *  a wrapping library (Vite SSR loaders, @hono/node-server's lightweight
+ *  class) — and a miss here silently reinterprets the handler's Response as
+ *  an envelope. Duck-type the shape the passthrough actually needs. */
+function isResponseLike(v: unknown): v is Response {
+  if (v instanceof Response) return true
+  const r = v as Response | null
+  return (
+    typeof r === 'object' &&
+    r !== null &&
+    typeof r.status === 'number' &&
+    typeof r.headers?.get === 'function' &&
+    typeof r.arrayBuffer === 'function'
+  )
 }
 
 /** The Referer header is attacker-controllable, so redirecting back to it is an

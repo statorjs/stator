@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 import { createDevApp, type DevApp } from '../src/server/dev.ts'
+import Tally from './fixtures/dev-app/machines/tally.ts'
 
 /**
  * Phase 3a exit proof: a `.stator` template, compiled by Vite, rendered through
@@ -62,6 +63,20 @@ describe('dev server: .stator end to end', () => {
       patches: Array<{ op: string; value?: string }>
     }
     expect(json.patches.some((p) => p.value === 'count is 1')).toBe(true)
+  })
+
+  it('passes a raw Response from an api route through verbatim', async () => {
+    app ??= await createDevApp({
+      root,
+      machinesDir: resolve(root, 'machines'),
+      routesDir: resolve(root, 'routes'),
+    })
+    // The Response is constructed inside a Vite-SSR-loaded route module and
+    // checked by the Vite-SSR-loaded framework — the exact pairing where an
+    // identity-only instanceof check has been reported to miss.
+    const res = await app.fetch(new Request('http://localhost/raw-response', { method: 'POST' }))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true, marker: 'raw-passthrough' })
   })
 
   it('renders a client component shell and injects its module script (3b 6c)', async () => {
@@ -139,6 +154,69 @@ describe('dev server: .stator end to end', () => {
       expect(asset.status).toBe(404)
     } finally {
       await noInspector.close()
+    }
+  })
+
+  it('dispatchToApp commits and fans out to a live SSE connection', async () => {
+    app ??= await createDevApp({
+      root,
+      machinesDir: resolve(root, 'machines'),
+      routesDir: resolve(root, 'routes'),
+    })
+
+    // Render the live page for a session cookie, then open its stream.
+    const page = await app.fetch(new Request('http://localhost/tally'))
+    expect(page.status).toBe(200)
+    const cookie = page.headers.get('set-cookie')!.split(';')[0]!
+
+    const abort = new AbortController()
+    const res = await app.fetch(
+      new Request(`http://localhost/__sse?route=${encodeURIComponent('GET /tally')}`, {
+        headers: { Cookie: cookie },
+        signal: abort.signal,
+      }),
+    )
+    expect(res.status).toBe(200)
+    const reader = res.body!.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    const pump = (async () => {
+      try {
+        while (true) {
+          const r = await reader.read()
+          if (r.done) break
+          buffer += decoder.decode(r.value, { stream: true })
+        }
+      } catch {
+        // stream aborted — fine
+      }
+    })()
+    const readUntil = async (predicate: (t: string) => boolean) => {
+      const deadline = Date.now() + 3000
+      while (!predicate(buffer) && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 15))
+      }
+      return buffer
+    }
+
+    try {
+      await readUntil((t) => t.includes(': open'))
+
+      // The def is natively imported (as a user's server.ts would) while the
+      // dev app loaded its own copy through Vite — dispatchToApp resolves by
+      // name, so the identities never need to match.
+      const result = await app.dispatchToApp(Tally, { type: 'BUMP', by: 4 })
+      expect(result.committed).toBe(true)
+
+      // The push must arrive on THIS stream: the dispatch ran in the
+      // Vite-loaded runtime whose SSE registry holds the connection. A
+      // natively-imported dispatchToApp would commit but reach nobody.
+      const buf = await readUntil((t) => /"value":"4"/.test(t))
+      expect(buf).toContain('"value":"4"')
+    } finally {
+      abort.abort()
+      reader.cancel().catch(() => {})
+      void pump
     }
   })
 

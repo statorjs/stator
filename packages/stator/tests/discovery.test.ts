@@ -6,6 +6,7 @@ import { discoverRoutes } from '../src/server/route-discovery.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const missing = resolve(here, 'fixtures', '__does_not_exist__')
+const mismatch = resolve(here, 'fixtures', 'route-mismatch')
 
 describe('discovery: missing conventional dir', () => {
   it('discoverMachines treats a missing dir as no machines (no ENOENT crash)', async () => {
@@ -22,5 +23,15 @@ describe('discovery: missing conventional dir', () => {
     // A file path (not a dir) yields ENOTDIR — must not be swallowed.
     const aFile = resolve(here, 'discovery.test.ts')
     await expect(discoverMachines(aFile)).rejects.toThrow()
+  })
+})
+
+describe('discovery: method/constructor mismatch', () => {
+  it('errors on a file whose ONLY export is a mis-constructed GET (never a silent skip)', async () => {
+    // The mismatch check must run before the not-a-route skip: with GET as the
+    // file's sole export, a skip-first order treats it as a utility file.
+    await expect(discoverRoutes(mismatch)).rejects.toThrow(
+      /exports GET but it is not a defineRoute/,
+    )
   })
 })

@@ -5,6 +5,7 @@ import { getRequestListener } from '@hono/node-server'
 import type { Hono } from 'hono'
 import { createServer as createViteServer, type ViteDevServer } from 'vite'
 import { compile } from '../compiler/index.ts'
+import type { AnyMachineDef, EventOf } from '../engine/index.ts'
 import { machineStub, stator } from '../vite/index.ts'
 import type { AppStore } from './app-store.ts'
 import { findFreePort, installGracefulShutdown, printDevBanner } from './banner.ts'
@@ -47,6 +48,16 @@ export interface DevAppConfig {
 export interface DevApp {
   fetch: (request: Request) => Response | Promise<Response>
   vite: ViteDevServer
+  /** Server-originated dispatch to an APP-lifecycle machine (webhooks, cron)
+   *  — the dev counterpart of `StatorApp.dispatchToApp`. Closes over the
+   *  current store (surviving machine-edit rebuilds) and runs through the
+   *  Vite-loaded runtime, so SSE fan-out reaches live connections; a
+   *  natively-imported `dispatchToApp` would be a second module instance
+   *  whose connection registry is empty. */
+  dispatchToApp<D extends AnyMachineDef>(
+    machine: D,
+    event: EventOf<D>,
+  ): Promise<{ committed: boolean }>
   listen: (port: number) => Promise<void>
   close: () => Promise<void>
 }
@@ -204,6 +215,9 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   return {
     fetch: (request) => app.fetch(request),
     vite,
+    // `store` is read at call time, not captured — a machine-edit rebuild
+    // swaps it and the method follows.
+    dispatchToApp: (machine, event) => runtime.dispatchToApp(store, machine, event),
     listen(port: number): Promise<void> {
       // Vite's middlewares serve client modules + HMR to the browser; anything
       // it doesn't handle (routes, /__events, /__sse) falls through to Hono.

@@ -33,5 +33,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec biome ci .
+      - run: node scripts/check-ignore-list.mjs
+      - run: node scripts/check-scaffold-range.mjs
       - run: pnpm typecheck
       - run: pnpm test

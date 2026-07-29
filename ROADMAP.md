@@ -99,6 +99,32 @@ promotes it.
   effects (the load role), on session and app machines both. Still open:
   durable schedules (pairs with durable effects) — in-memory timers drop on
   restart by design.
+- **Server-only events / origin-based trust** *(design first)*: an event (or
+  machine) declares itself server-only — dispatchable from API routes,
+  effects, and `dispatchToApp`, rejected at `/__events`. The underlying rule
+  keys trust on *origin* (server code vs the wire), not on lifecycle plus
+  transport path — which also covers route-gated app dispatch and the
+  gateway-forgeability hazard in one stroke.
+  *Motivation*: two independent apps hit the same wall. `with-auth` had to
+  reject the natural handler-verifies-then-dispatches shape entirely, and
+  dogfooding a real app showed the gateway pattern recreates the forgeable
+  authority-event the auth recipe bans unless every such event proves itself
+  with HMAC ceremony. "Prove itself or grant nothing" stays the app-side
+  rule; this gives the framework side of it a home.
+- **Data routes (non-HTML GET)** *(design note first)*: a GET route serving
+  JSON/XML/text from the machines it reads — dispatch-free by construction
+  (the settled reads-never-interleave-with-dispatch position), with
+  Astro-style extension URLs (`rss.xml.ts` → `/rss.xml`) as content-type
+  sugar and free conditional GETs (`ETag` stamped from read-machine
+  revisions, `If-None-Match` answered without invoking the handler).
+  Designed in
+  [`.chisel/specs/active/route-capability-output-model-and-data-get-routes.md`](.chisel/specs/active/route-capability-output-model-and-data-get-routes.md),
+  which also frames the long-term capability×output route model this is the
+  first cell of.
+  *Motivation*: a JSON consumer API is inexpressible in 1.6 — dogfooding
+  proved it with an HTTP-sidecar workaround wrapping `app.fetch`, the
+  clearest stepped-outside-the-framework tell yet. The same wall blocks RSS,
+  sitemaps, and calendar feeds.
 - **Ambient by-def reads + a typed requirement channel** *(design note first)*:
   components can't own `Stator.reads` (route-only, correctly), so the weather
   refactor threads `weather={weather}` through every tile — prop-drilling
