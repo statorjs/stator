@@ -29,6 +29,16 @@ Stator is opinionated, and the opinions cost something:
 - **Explicit `read()` over auto-tracking.** You declare dependencies rather than having them inferred. More to type, far less to debug.
 - **No client-side JSX re-render.** The browser does not re-run your template. DOM creation in the browser happens through native APIs inside a client component, never a render loop.
 
+## The latency question
+
+The round-trip tradeoff deserves a straight answer, because it's the first question anyone with a SPA background asks.
+
+An event POST carries a small JSON body and returns a patch list, not a page — on an ordinary connection the update lands in tens of milliseconds, comparable to what a SPA spends reconciling and re-rendering after its own state change. For forms, lists, dashboards, and flows — the apps Stator is for — that is beneath notice. The framework owns the seams you'd otherwise hand-roll: the dispatching element carries [`data-stator-pending`](/reference/client/#runtime-signals) while its POST is in flight (a CSS hook, no loading flag to manage), failed POSTs retry under an idempotency key so a flaky link can't double-commit, and a 10-second deadline turns a dead connection into an explicit error instead of a hang.
+
+What Stator deliberately does **not** do is optimistic updates. An optimistic layer is a second copy of the truth — a client-side guess at what the machine will decide — and reconciling guesses against outcomes is precisely the class of bug this architecture exists to remove. Guards decide on the server; a button that pretends a guarded event committed is lying to the user. When an interaction genuinely can't wait for the network, that's the signal it isn't server state — put it in a [client island](/guides/client-components/), where it updates synchronously because it truly lives in the browser.
+
+Client-side *prediction* (a preview the server's answer always overwrites, never a commit) is a design direction we've explored and parked — it stays out until it can ship without reintroducing a second source of truth.
+
 ## When to use Stator
 
 Stator is a strong fit when:
