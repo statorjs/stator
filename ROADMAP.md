@@ -77,24 +77,28 @@ missing primitive from a missing recipe. Only high-confidence items appear
 here; the speculative tail stays in the gap analysis until an example
 promotes it.
 
-- **Async route loaders** *(design note first — the hard one)*: pages have
-  no home for `await db.query()` / `await fetch()` because frontmatter
-  renders synchronously (a permanent contract, for good reasons — it's what
-  makes diffing coherent). A pre-render loader preserves that contract, but
-  live-page semantics (does fan-out re-run it? cache per connection?) need
-  real design before code. *Motivation*: the only gap where a first-hour
-  evaluator hits a wall instead of a workaround.
+- **Async data on pages** *(shipped as `defer`)*: `defer(thunk, { ready,
+  error })` marks an async region the framework resolves *outside* the
+  synchronous render — kicked during render, awaited in parallel with every
+  other defer on the page, rendered inline as complete HTML. Frontmatter
+  stays synchronous (the permanent contract), and the live-page question
+  got a firm answer: a defer slot is static, never re-diffed, and a machine
+  read inside an arm is a build-time error. The *reactive* door is a
+  machine with a `loading → ready | error` entry effect. What remains is
+  the designed-in, non-breaking upgrade: placeholder-and-stream. Docs: the
+  "Defer vs. machine" recipe.
 - **Snapshot versioning/migrations**: hydrating old persisted snapshots
   into changed machine shapes is undefined behavior — we flushed Redis at
   our own demo cutover to dodge it. Shape: `version` on the def +
   `migrate(old)`, log-loud-start-fresh fallback. *Motivation*: silent until
   production, then data loss; small to build.
-- **State timeouts (`after`)**: machines can't express "after 30s in this
-  state, fire TIMEOUT"; our own nightly reset is a bare `setInterval`
-  outside every abstraction. Host-scheduled per-state timers first; durable
-  schedules later (pairs with durable effects). *Motivation*: small,
-  teaches well, unlocks a whole class of flows (expiring carts, debounced
-  saves, turn timers — planning-poker will want it).
+- **State timeouts (`after`)** *(shipped)*: a state declares
+  `after: [{ delay, send }]` — armed on entry, cancelled on exit, `delay`
+  may depend on context, and a hydrating host re-arms with elapsed credit
+  so a restart doesn't silently kill a countdown. Shipped alongside entry
+  effects (the load role), on session and app machines both. Still open:
+  durable schedules (pairs with durable effects) — in-memory timers drop on
+  restart by design.
 - **Ambient by-def reads + a typed requirement channel** *(design note first)*:
   components can't own `Stator.reads` (route-only, correctly), so the weather
   refactor threads `weather={weather}` through every tile — prop-drilling
@@ -156,12 +160,13 @@ pattern is a bigger liability than any missing primitive.
 
 ## Sequencing
 
-1. `with-auth` + the authentication recipe (co-developed)
-2. "Where data lives" recipe → **async loaders design note**
-3. Webhooks + file-uploads recipes
-5. Snapshot versioning/migrations (implement)
-6. `planning-poker` → presence findings → state timeouts (implement)
-7. **Time-travel debugger spike** → findings note → ship if it holds (dev-tooling
+1. "Where data lives" recipe (the async-data primitive shipped as `defer`;
+   the recipe still owes the where-datasets-live story)
+2. Webhooks + file-uploads recipes
+3. Snapshot versioning/migrations (implement)
+4. `planning-poker` → presence findings (state timeouts already shipped;
+   presence is the remaining scout)
+5. **Time-travel debugger spike** → findings note → ship if it holds (dev-tooling
    track; can run in parallel — it depends on nothing new server-side)
 
 Known 1.x infrastructure (unchanged, tracked in the gap analysis): Redis
