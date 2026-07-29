@@ -73,5 +73,6 @@ gate) does.
   (1.0.0-style narratives); per-package changelogs are generated.
 - `create-stator`'s `STATOR_RANGE` const pins what scaffolded apps get —
   bump it when a new framework minor ships.
+  `scripts/check-scaffold-range.mjs` enforces this in CI.
 - Branch protection on `main` requires the gate checks to pass before merge
   (repo Settings → Branches).
