@@ -59,15 +59,26 @@ Set `live: true` and the rendered page opens an SSE channel that receives patche
 ## defineApiRoute
 
 ```ts
-function defineApiRoute(config: DefineApiRouteConfig): ApiRouteDefinition
+function defineApiRoute(config: DefineQueryRouteConfig): QueryRouteDefinition  // method: 'GET'
+function defineApiRoute(config: DefineApiRouteConfig): ApiRouteDefinition     // commands
 
 interface DefineApiRouteConfig {
   reads?: MachineDef[]
   handler: (request: RouteRequest, helpers: ApiRouteHelpers) => ApiRouteResult | Promise<ApiRouteResult>
 }
+
+interface DefineQueryRouteConfig {
+  method: 'GET'
+  reads?: MachineDef[]
+  handler: (request: RouteRequest, helpers: QueryRouteHelpers) => QueryRouteResult | Promise<QueryRouteResult>
+}
 ```
 
-Defines a non-page endpoint. The handler returns either a raw `Response` or an `ApiRouteEnvelope` (the same `{ patches?, directives? }` wire envelope the client already knows how to apply). `helpers.dispatch(machine, event)` sends an event to a machine addressed by its imported def — the event is type-checked against that machine's event union, and the machine must be in the route's `reads` graph. Related exports: `ApiRouteDefinition`, `ApiRouteHelpers`, `ApiRouteResult`, `ApiRouteEnvelope`, `Directive`.
+Defines a non-page endpoint. Without `method`, it is a **command** route (`POST`/`PUT`/`PATCH`/`DELETE`): the handler returns either a raw `Response` or an `ApiRouteEnvelope` (the same `{ patches?, directives? }` wire envelope the client already knows how to apply), and `helpers.dispatch(machine, event)` sends an event to a machine addressed by its imported def — type-checked against that machine's event union, session-lifecycle only, and the machine must be in the route's `reads` graph.
+
+With `method: 'GET'`, it is a **data route**: the handler receives `helpers.machines` (read proxies keyed by machine name, the same shape a page render context uses) and no `dispatch`. A plain return value is served as JSON; a string takes its `Content-Type` from the URL's extension; a raw `Response` passes through verbatim. Synthesized responses carry a strong `ETag` and answer `If-None-Match` with 304. See the [API routes guide](/guides/api-routes/#data-get-routes).
+
+Related exports: `ApiRouteDefinition`, `ApiRouteHelpers`, `ApiRouteResult`, `ApiRouteEnvelope`, `QueryRouteDefinition`, `QueryRouteHelpers`, `QueryRouteResult`, `Directive`.
 
 ## dispatchToApp
 
