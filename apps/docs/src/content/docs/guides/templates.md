@@ -60,6 +60,19 @@ insert/remove/move patches instead, so rows keep focus and transitions across
 reorders. See [Keyed lists](/guides/keyed-lists/).
 :::
 
+## Async data: defer
+
+Frontmatter renders synchronously — an `await db.query()` has no home there. `defer()` is where request-scoped async data goes: pass a thunk and arms, and the framework runs the thunk in parallel with every other `defer` on the page, then renders the matching arm inline in the complete HTML response:
+
+```astro
+{defer(() => db.getProduct(id), {
+  ready: (product) => <ProductView product={product} />,
+  error: () => <NotFound />,
+})}
+```
+
+A `defer` region is **one-shot**: it renders once per page load and never re-diffs, and the thunk is never re-run by later events on the page. Data that must change after first render belongs in a machine instead — [Defer vs. machine](/recipes/defer-vs-machine/) is the decision guide. The `error` arm is optional; without it, a rejection bubbles to route-level error handling.
+
 ## Trusted HTML with raw()
 
 `raw()` emits a string verbatim, bypassing escaping. Pass only markup you constructed or trust:
