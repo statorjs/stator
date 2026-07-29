@@ -10,6 +10,24 @@ confidence, with the in-repo evidence that exposed each. The tell for a
 missing PRIMITIVE (vs a missing recipe): we "solved" it by stepping outside
 the framework entirely.
 
+## Discovered by dogfooding a real app (2026-07-28)
+
+- **Data routes / non-HTML GET.** discoverRoutes maps GET exclusively to
+  defineRoute and handleGet unconditionally ships text/html plus the client
+  runtime — a JSON consumer API (`GET /api/...`) is inexpressible, and so
+  are RSS, sitemaps, ics, csv. The dogfood workaround: an HTTP sidecar
+  wrapping app.fetch plus a module-level projection the machine writes on
+  its touch path — textbook stepped-outside-the-framework. Design drafted
+  in the route-model spec (capability × output; the constructor brand
+  discriminates page-vs-data GET, the filename extension is URL/content-type
+  sugar). PROMOTED to ROADMAP.
+- **Route-gated app dispatch** (the app-machines guide's 1.x candidate; now
+  has evidence). API routes can't dispatch to app machines (loadGraph skips
+  non-session defs), so every handler-originated command to shared state
+  transits a session gateway. The gateway pattern works end-to-end — but it
+  composes into the forgeability hazard below. Covered by the origin-based
+  trust reframe.
+
 ## Discovered by with-auth (2026-07-14)
 
 - **Server-only events / event provenance.** A session machine cannot
@@ -19,6 +37,17 @@ the framework entirely.
   guard) — sound, but the ceremony suggests a primitive (an origin marker
   or a `serverOnly` event flag). Evidence: the with-auth design had to
   reject the natural handler-verifies-then-dispatches shape entirely.
+  SECOND evidence point (2026-07-28 dogfooding): because handlers can't
+  dispatch to app machines, authority-carrying commands must transit a
+  session gateway — whose REQUEST_* events are dispatchable from devtools,
+  recreating the exact forgeable shape the recipe bans; the app-side
+  mitigation (HMAC over claims, verified in the sync guard) works but is
+  pure ceremony. The reframe both apps point at: key trust on ORIGIN
+  (server code vs the wire), not lifecycle + transport path — server-origin
+  code (handlers, effects, dispatchToApp) may send server-only events and
+  reach app machines; /__events reaches session machines only, declared
+  events only. That one rule dissolves this entry, route-gated app
+  dispatch, and the gateway hazard together. PROMOTED to ROADMAP.
 - **rotateSession SHIPPED** (was the Q3 experiment): renameSession on all
   stores + API-route orchestration. Promoted off this list.
 - **API-route dispatch now returns `{committed}`** (login flows need to
