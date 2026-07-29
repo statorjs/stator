@@ -99,4 +99,4 @@ A capitalized tag invokes a component; lowercase is HTML. Pass machines and data
 <ProductList products={products} cart={cart} />
 ```
 
-Layouts and named slots (`<children>`) are covered in [Routing](/guides/routing/#layouts-via-composition).
+Layouts and named children (`<children>`) are covered in [Routing](/guides/routing/#layouts-via-composition).

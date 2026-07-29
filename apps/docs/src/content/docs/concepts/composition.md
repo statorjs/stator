@@ -66,7 +66,7 @@ Components receive machines and data as props via `Stator.props<...>()`, and the
 
 ## Named children
 
-A component declares slots for content with `<children>`, and callers target them with `child="..."`:
+A component declares insertion points for content with `<children>`, and callers target them with `child="..."`:
 
 ```astro
 <!-- in BaseLayout.stator -->
@@ -77,12 +77,12 @@ A component declares slots for content with `<children>`, and callers target the
 ```astro
 <!-- a caller -->
 <BaseLayout>
-  <nav child="header"> … </nav>   <!-- fills the "header" slot -->
-  <p>Goes to the default slot.</p>
+  <nav child="header"> … </nav>   <!-- fills <children name="header"> -->
+  <p>Goes to the default children.</p>
 </BaseLayout>
 ```
 
-Note this is `<children>` + `child="..."`, **not** the Web Components `<slot>` element — it's a compile-time composition feature, resolved in a single eager render pass, with no shadow DOM involved. The compiler validates that a `child="x"` marker matches a declared `<children name="x" />`.
+Note this is `<children>` + `child="..."`, **not** the Web Components `<slot>` element — it's a compile-time composition feature, resolved in a single eager render pass, with no shadow DOM involved. We deliberately don't call these *slots*: in Stator docs a **slot** is always a patch target on the [wire](/concepts/rendering-and-patches/), and `<slot>` already belongs to Web Components. The compiler validates that a `child="x"` marker matches a declared `<children name="x" />`.
 
 ## .stator route pages
 
