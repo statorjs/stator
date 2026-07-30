@@ -93,6 +93,24 @@ Shipped: `minimal`, `todomvc`, `desksmith` (the tutorial's finished app), `live-
 - **Region wrappers break tables; we mutate the user's DOM** *(shipped 1.8.0)*: every reactive region (`each`/`when`/`match`/`defer`) wraps its body in a `<span style="display:contents">`. Inside `<table>`/`<tbody>`/`<tr>`/`<select>` the parser hoists the span out, so a reactive `each` of `<tr>` (a filterable table — the canonical admin/dashboard shape) does not render; and even where a span is legal, `display:contents` hides it from layout but not from the CSS selector graph (`.a + .b`, `:nth-child`), so we silently change which selectors match the user's authored elements. Fix: region boundaries become HTML comment markers (no box, legal anywhere), and DOM patches always materialize via `<template>` (the `insert` op already does; the `html` op does not — a latent copy of the same table bug). *This is the compose/identity seam the complexity review flagged*, so it is spike-first, and its acceptance test **must** run in a real browser: happy-dom does not implement the parser's table insertion modes, so the entire current suite is blind to this class (which is why it shipped) — the work adds the first real-browser (Playwright) test infra, itself a standalone win. Minor release (no API/wire change), but high regression risk. Designed in [`.chisel/specs/shipped/region-markers-and-template-parsed-dom-patches.md`](.chisel/specs/shipped/region-markers-and-template-parsed-dom-patches.md).
 - **The compose/identity seam is the standing complexity risk** *(watch, not a task)*: slot scopes, key scopes, element ids — the addressing layer under the bindings. It generated the four bugs above, and a new binding *kind* re-tests it (item bindings hit a keyed render-time throw in #24, caught before merge). The diff-*kind* surface stays small on purpose (see [`.chisel/docs/recompute-model.md`](.chisel/docs/recompute-model.md)); the guardrail is on this seam — a new binding kind or position earns its place only after it regression-tests the seam and clears the same evidence bar as any primitive. *Motivation*: this is where a fine-grained model quietly acquires VDOM-shaped complexity if unwatched. The guardrail's first hard call: item reads inside `when`/`match`/`defer` arms are a compile error, not a supported position — supporting them means branch↔row context restoration, cross-owner machinery at exactly this seam (see the scope note in the conditional-arm spec). *Revisit trigger*: two more real templates carrying find-by-id machine reads inside arms for item-local data is the evidence bar for designing row-context restoration as deliberate 1.x work.
 
+## Investigations
+
+**Why this category**: questions with no evidence on either side yet — too
+broad to be a primitive, too structural to wait for a paper cut. Each earns
+a design note before any code.
+
+- **Internationalization** *(nothing designed)*: Stator has no i18n story —
+  no message catalogs, no locale negotiation, no localized formatting. The
+  server-canonical model is unusually well placed for one: locale is
+  session state, every render is server-side (no per-locale client
+  bundles), and patches are per-session by construction — a locale change
+  is "just" a state change that re-renders. Open questions: where catalogs
+  live, template ergonomics for messages, date/number formatting at the
+  selector level, and whether locale is a session machine or ambient
+  request context. *Motivation*: surfaced while designing the
+  command-palette example (localized command titles and keywords); no user
+  demand yet, so this is a scout-before-asked item.
+
 ## Sequencing
 
 1. "Where data lives" recipe (the async-data primitive shipped as `defer`; the recipe still owes the where-datasets-live story)
