@@ -129,8 +129,13 @@ the machine's body never does.
   module both sides typecheck against.
 - **SSE live routes** — `live: true` opens a per-connection stream; every
   state change fans out patches to connections whose route reads a touched
-  machine, across sessions. `dispatchToApp` pushes server-originated updates
-  (webhooks, cron) through the same path.
+  machine, across sessions. `app.dispatchToApp` pushes server-originated
+  updates (webhooks, cron) through the same path.
+- **Data GET routes** — `defineApiRoute({ method: 'GET' })` serves JSON/XML/
+  text computed from the machines a route reads: dispatch-free by
+  construction, content type from the URL's extension (`rss.xml.ts` →
+  `/rss.xml`, `[id].json.ts` → `/:id.json`), strong ETags with bodyless
+  304s for polling consumers.
 - **Persistence** — session machines through a `Store` adapter (`InMemoryStore`
   default, `RedisStore` + write-through `CachedStore` in-box); app machines
   opt in with `persist: true` through an `AppStore` (`RedisAppStore` in-box).
