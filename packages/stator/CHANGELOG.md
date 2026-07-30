@@ -1,5 +1,13 @@
 # @statorjs/stator
 
+## 1.7.0
+
+### Minor Changes
+
+- 3a8e5f5: Data GET routes: `defineApiRoute({ method: 'GET', reads, handler })` declares a read-only data route — the handler receives `machines` (read proxies keyed by machine name, the same shape a page render context uses) and structurally no `dispatch`, which is what makes handler reads safe. Machines hydrate under the session lock and the lock is released before the handler runs. A plain return value is served as JSON; a string takes its `Content-Type` from the URL's extension (`routes/feed.xml.ts` serves `/feed.xml` as `application/xml`; also `.txt`, `.ics`, `.csv`); a raw `Response` passes through verbatim. Synthesized responses carry a strong `ETag` and answer `If-None-Match` with a bodyless 304. Extension-named route files that export nothing route-shaped now error at discovery instead of being skipped, `/__sse` and `/__events` refuse route keys that target data routes, and the dev server warns when a `public/` file shadows a data route's URL.
+- 9f3c287: `dispatchToApp(machine, event)` is now a method on both `StatorApp` and `DevApp` — the server-originated dispatch plane (webhooks, cron) no longer requires a `store` the dev server never exposed. The dev method follows the current store across rebuilds and runs through the Vite-loaded runtime, so SSE fan-out reaches live connections instead of a second module instance's empty registry. Also in this release: a route file exporting an HTTP-method name with the wrong constructor now errors at discovery instead of being silently skipped as a utility file, and a raw `Response` returned from an API route handler is recognized by shape (not only `instanceof`), with a warning when a return value is neither a `Response` nor a `{patches, directives}` envelope.
+- 9f05605: Param segments compose with the data-route extension convention: `routes/p/[id].json.ts` serves `/p/:id.json` — the captured param excludes the literal `.json` (lazily, so dotted ids resolve), and the suffixed route ranks above a bare `/p/:id` page at match time, so a page and its data twin coexist at one URL depth. A rest segment carrying a suffix is an error at discovery.
+
 ## 1.6.1
 
 ### Patch Changes
