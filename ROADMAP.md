@@ -46,6 +46,23 @@ Shipped: `minimal`, `todomvc`, `desksmith` (the tutorial's finished app),
   *Motivation*: the densest single exercise of the effect model + islands we
   have — and it earned its keep immediately, surfacing two live-path
   correctness bugs (see **Runtime correctness** below).
+- **`drydock`** *(design note first)* — a palette-first issue tracker: ⌘K as
+  the primary UI (SST-console lineage), issues in real storage with FTS
+  search, workflows as guarded machines, a live board. Providers are a
+  discovered directory, execution is serializable data (navigate / dispatch /
+  flow — never a closure, so the palette adds no attack surface), and
+  command availability is *derived* from the charts — mutation commands
+  never declare `when`, the machine already knows. Async search runs as an
+  abortable entry effect with stale-guarded completions streaming in over
+  SSE. Designed in
+  [`.chisel/specs/active/command-palette-starter-providers-and-derived-availability.md`](.chisel/specs/active/command-palette-starter-providers-and-derived-availability.md).
+  *Motivation*: the palette decomposes into server problems (global
+  registry, search over storage, viewer-gated results, execution as
+  dispatch) — and it scouts seams nothing else reaches: datasets under
+  machines (the **where-data-lives** proving ground), hot-path async loads
+  (loader-primitive evidence), **session-scoped live channels** (second
+  forcing function after presence), the instance-machine gap, and ranked
+  keyed moves on the identity seam.
 
 ## Docs recipes
 
