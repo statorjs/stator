@@ -2,7 +2,12 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { discoverMachines } from '../src/server/discovery.ts'
-import { discoverRoutes } from '../src/server/route-discovery.ts'
+import {
+  type DiscoveredRoute,
+  discoverRoutes,
+  filePathToRoute,
+  sortRoutes,
+} from '../src/server/route-discovery.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const missing = resolve(here, 'fixtures', '__does_not_exist__')
@@ -54,5 +59,24 @@ describe('discovery: data GET routes', () => {
     expect(routes).toHaveLength(1)
     expect(routes[0]!.urlPath).toBe('/report.json')
     expect(routes[0]!.GET).toMatchObject({ __isStatorQueryRoute: true })
+  })
+})
+
+describe('discovery: param segments with extension suffix', () => {
+  it('[id].json.ts maps to :id.json with param id', () => {
+    expect(filePathToRoute('/r', '/r/p/[id].json.ts')).toEqual({
+      urlPath: '/p/:id.json',
+      paramNames: ['id'],
+    })
+  })
+
+  it('a rest segment cannot carry a suffix', () => {
+    expect(() => filePathToRoute('/r', '/r/[...path].json.ts')).toThrow(/rest segment/)
+  })
+
+  it('the suffixed param outranks the bare param at one URL depth', () => {
+    const stub = (urlPath: string) => ({ urlPath, paramNames: [], filePath: '' }) as DiscoveredRoute
+    const sorted = sortRoutes([stub('/p/:id'), stub('/p/:id.json')])
+    expect(sorted.map((r) => r.urlPath)).toEqual(['/p/:id.json', '/p/:id'])
   })
 })
