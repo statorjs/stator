@@ -65,6 +65,11 @@ What is deferred to 1.x:
 - **Horizontal scaling** — a Redis pub/sub backplane over the existing fan-out choke point.
 - **Statechart richness** — nested/parallel/history/invoke; 1.0 ships flat machines with extension points.
 
+Delivered by 1.x so far: session rotation (1.2), async effects and `after`
+timeouts (1.3–1.5), `defer` (1.4), template typechecking (1.5), connectivity
+resilience (1.6), and [data GET routes](/guides/api-routes/#data-get-routes)
+(1.7).
+
 ## Where to go next
 
 - [The mental model](/introduction/mental-model/) — the whole model in one read.

@@ -10,6 +10,68 @@ validates the API without breaking changes**. Subpaths `server`, `machine`,
 `template`, `client`, `dev`, `build`, and `components` are treated as stable
 from 0.9.0; `compiler` and `vite` are internal and may change in minors.
 
+## @statorjs/stator 1.7.0 — 2026-07-29
+
+The dogfooding release: a real app was rebuilt on Stator, every point of
+friction was logged, and this release is the framework's answer to that
+log. The headline is that GET grew up.
+
+### New
+
+- **Data GET routes**: `defineApiRoute({ method: 'GET', reads, handler })`
+  declares a read-only data route — the handler receives `machines` (read
+  proxies keyed by machine name, the same shape a page render context
+  uses) and structurally no `dispatch`, which is exactly what makes
+  handler reads safe. Machines hydrate under the session lock; the lock
+  releases before the handler runs. A plain return value is JSON; a string
+  takes its `Content-Type` from the URL's extension (`routes/feed.xml.ts`
+  serves `/feed.xml` as `application/xml`, plus `.txt`, `.ics`, `.csv`); a
+  raw `Response` passes through verbatim. Synthesized responses carry a
+  strong `ETag` and answer `If-None-Match` with a bodyless 304, so polling
+  consumers stop paying for unchanged data.
+- **Param segments compose with extensions**: `routes/p/[id].json.ts`
+  serves `/p/:id.json` — the captured param excludes the literal suffix,
+  and the suffixed route outranks a bare `/p/:id` page, so a poll page and
+  its JSON twin coexist at one URL. Found the same day the live-poll
+  example dogfooded data routes; that is the method working.
+- **`dispatchToApp` as a method** on both `StatorApp` and `DevApp` — the
+  server-originated dispatch plane (webhooks, cron) no longer needs a
+  `store` the dev server never exposed. The dev method follows the current
+  store across rebuilds and runs through the Vite-loaded runtime, so SSE
+  fan-out reaches live connections instead of a second module instance's
+  empty registry.
+- Four documented types are now importable: `EntryEffect` and `AfterEntry`
+  from `@statorjs/stator/machine`, `DispatchResult` and `DispatchError`
+  from `@statorjs/stator/client`.
+
+### Fixed
+
+- A route file exporting an HTTP-method name with the wrong constructor
+  now errors at discovery with the existing hint, instead of being
+  silently skipped as a utility file (the skip surfaced as an unexplained
+  404 and a dev banner counting one route short).
+- A raw `Response` returned from an API route handler is recognized by
+  shape, not only `instanceof` — cross-realm and wrapped Responses pass
+  through — and a return value that is neither a `Response` nor a
+  `{patches, directives}` envelope logs a warning instead of silently
+  becoming an empty envelope.
+
+### Examples
+
+Three examples dogfood the new surface: the guestbook serves its book as
+an RSS feed at `/feed.xml` (visitor text XML-escaped), with-auth serves
+its notice board as viewer-gated JSON at `/api/notices` (members-only
+notices absent from a visitor's body, not hidden in it), and live-poll
+serves per-poll results at `/p/:id.json` beside the live page — the same
+machine, pushed to browsers over SSE and polled by programs with 304s
+between votes.
+
+## create-stator 1.5.1 — 2026-07-29
+
+- Scaffolded apps now declare `@statorjs/stator ^1.6.0` (the range had
+  trailed at `^1.4.0` since 1.5); a CI check keeps the scaffold range in
+  step with the framework from now on.
+
 ## @statorjs/stator 1.1.0 — 2026-07-12
 
 Post-launch polish, driven by real editor use and public-demo feedback.
