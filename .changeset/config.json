@@ -12,8 +12,6 @@
     "docs",
     "landing",
     "store",
-    "build-spike",
-    "spike-client-model",
     "stator-example-minimal",
     "stator-example-todomvc",
     "stator-example-desksmith",
