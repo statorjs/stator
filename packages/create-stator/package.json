@@ -1,6 +1,6 @@
 {
   "name": "create-stator",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Scaffold a new Stator app: pnpm create stator my-app",
   "license": "MIT",
   "type": "module",
