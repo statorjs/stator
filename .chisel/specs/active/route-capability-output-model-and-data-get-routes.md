@@ -16,6 +16,13 @@ same header contract. Part 1 stays the standing model for the unfilled cells
 (GET commands, command-plus-atomic-read, origin-based trust) — each is its
 own spec when an app forces it.
 
+Addendum (same day, found by dogfooding the examples): dynamic segments now
+compose with the extension convention — `p/[id].json.ts` → `/p/:id.json`,
+captured param excluding the suffix, suffixed routes outranking bare params
+at sort time. The live-poll example's per-poll JSON was the forcing
+function; the original spec had only considered extensions on static
+segments.
+
 ## What and Why
 
 Stator at the HTTP boundary is CQRS: pages project machine state, commands

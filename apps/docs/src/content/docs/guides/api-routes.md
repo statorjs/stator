@@ -85,6 +85,11 @@ with the shared instance.
 `text/plain` as the fallback. A raw `Response` passes through verbatim,
 `Content-Type` filled from the extension only when you set none.
 
+Dynamic segments compose with the extension: `routes/p/[id].json.ts` serves
+`/p/:id.json` — the captured param excludes the literal suffix, and the
+suffixed route outranks a bare `/p/:id` page at match time, so a poll page
+and its JSON twin coexist.
+
 **Conditional GETs are free.** Synthesized responses carry a strong `ETag`
 and answer `If-None-Match` with a bodyless 304, so polling consumers stop
 paying for unchanged data.
