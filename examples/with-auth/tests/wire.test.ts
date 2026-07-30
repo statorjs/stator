@@ -207,3 +207,52 @@ describe('@set cannot forge identity or escalate privilege', () => {
     expect(after.committed).toBe(false)
   })
 })
+
+describe('the JSON board — /api/notices', () => {
+  it('one URL, viewer-decided body: members see all, visitors only public', async () => {
+    const anon = sidOf(await app.fetch(new Request('http://test/')))!
+    const member = sidOf(
+      await postForm('/auth/register', anon, {
+        email: 'api@quay.test',
+        name: 'Apia',
+        password: 'password-123',
+      }),
+    )!
+    await postForm('/notices/create', member, {
+      title: 'API public notice',
+      body: 'For every reader.',
+    })
+    await postForm('/notices/create', member, {
+      title: 'API members notice',
+      body: 'Slip 3.',
+      membersOnly: 'on',
+    })
+
+    const asMember = (await (
+      await app.fetch(
+        new Request('http://test/api/notices', { headers: { Cookie: `stator_sid=${member}` } }),
+      )
+    ).json()) as { viewer: string; notices: Array<{ title: string; author: string }> }
+    expect(asMember.viewer).toBe('member')
+    const memberTitles = asMember.notices.map((n) => n.title)
+    expect(memberTitles).toContain('API public notice')
+    expect(memberTitles).toContain('API members notice')
+    expect(asMember.notices.find((n) => n.title === 'API public notice')!.author).toBe('Apia')
+
+    // A fresh visitor at the SAME URL: the members-only notice is absent
+    // from the body, not flagged in it — the page's server-side filtering
+    // rule, holding on the API plane.
+    const visitorRes = await app.fetch(new Request('http://test/api/notices'))
+    expect(visitorRes.headers.get('content-type')).toContain('application/json')
+    expect(visitorRes.headers.get('etag')).toBeTruthy()
+    const asVisitor = (await visitorRes.json()) as {
+      viewer: string
+      notices: Array<{ title: string }>
+    }
+    expect(asVisitor.viewer).toBe('visitor')
+    const visitorTitles = asVisitor.notices.map((n) => n.title)
+    expect(visitorTitles).toContain('API public notice')
+    expect(visitorTitles).not.toContain('API members notice')
+    expect(JSON.stringify(asVisitor)).not.toContain('Slip 3')
+  })
+})
