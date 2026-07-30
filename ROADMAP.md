@@ -208,6 +208,24 @@ pattern is a bigger liability than any missing primitive.
   reads inside arms for item-local data is the evidence bar for designing
   row-context restoration as deliberate 1.x work.
 
+## Investigations
+
+**Why this category**: questions with no evidence on either side yet — too
+broad to be a primitive, too structural to wait for a paper cut. Each earns
+a design note before any code.
+
+- **Internationalization** *(nothing designed)*: Stator has no i18n story —
+  no message catalogs, no locale negotiation, no localized formatting. The
+  server-canonical model is unusually well placed for one: locale is
+  session state, every render is server-side (no per-locale client
+  bundles), and patches are per-session by construction — a locale change
+  is "just" a state change that re-renders. Open questions: where catalogs
+  live, template ergonomics for messages, date/number formatting at the
+  selector level, and whether locale is a session machine or ambient
+  request context. *Motivation*: surfaced while designing the
+  command-palette example (localized command titles and keywords); no user
+  demand yet, so this is a scout-before-asked item.
+
 ## Sequencing
 
 1. "Where data lives" recipe (the async-data primitive shipped as `defer`;
