@@ -238,6 +238,29 @@ describe('dev server: .stator end to end', () => {
     expect(((await after.json()) as { total: number }).total).toBe(t0 + 2)
   })
 
+  it('a param segment with an extension suffix routes beside its bare-param page', async () => {
+    app ??= await createDevApp({
+      root,
+      machinesDir: resolve(root, 'machines'),
+      routesDir: resolve(root, 'routes'),
+    })
+
+    const data = await app.fetch(new Request('http://localhost/pp/abc.json'))
+    expect(data.status).toBe(200)
+    expect(data.headers.get('content-type')).toContain('application/json')
+    expect(await data.json()).toEqual({ id: 'abc' })
+
+    // A dotted id still resolves: capture is lazy up to the literal suffix.
+    const dotted = await app.fetch(new Request('http://localhost/pp/a.b.json'))
+    expect(await dotted.json()).toEqual({ id: 'a.b' })
+
+    // The bare-param PAGE still owns the suffix-less URL — the data route
+    // outranks it only for .json requests.
+    const page = await app.fetch(new Request('http://localhost/pp/abc'))
+    expect(page.headers.get('content-type')).toContain('text/html')
+    expect(await page.text()).toContain('page abc')
+  })
+
   it('live-reloads a template edit without a restart', async () => {
     app ??= await createDevApp({
       root,

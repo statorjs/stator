@@ -168,7 +168,9 @@ function mergeByUrlPath(routes: DiscoveredRoute[]): DiscoveredRoute[] {
  * Sort routes most-specific-first (Astro's model). At match time the first
  * matcher that matches wins, so order encodes priority:
  *   - routes without a rest/catch-all segment rank before those with one
- *   - per segment, left to right: static (0) > named param (1) > rest (2)
+ *   - per segment, left to right: static (0) > suffixed param `:id.json` (1)
+ *     > bare param (2) > rest (3) — a suffixed param outranks a bare one so
+ *     `/p/:id.json` wins `/p/abc.json` before `/p/:id` can swallow it
  *   - more segments before fewer
  *   - ties alphabetically by urlPath
  */
@@ -177,13 +179,15 @@ export function sortRoutes(routes: DiscoveredRoute[]): DiscoveredRoute[] {
     urlPath
       .split('/')
       .filter(Boolean)
-      .map((seg) => (seg.startsWith('*') ? 2 : seg.startsWith(':') ? 1 : 0))
+      .map((seg) =>
+        seg.startsWith('*') ? 3 : seg.startsWith(':') ? (seg.includes('.') ? 1 : 2) : 0,
+      )
 
   return [...routes].sort((a, b) => {
     const ka = kinds(a.urlPath)
     const kb = kinds(b.urlPath)
-    const aRest = ka.includes(2)
-    const bRest = kb.includes(2)
+    const aRest = ka.includes(3)
+    const bRest = kb.includes(3)
     if (aRest !== bRest) return aRest ? 1 : -1 // no-rest first
     const len = Math.min(ka.length, kb.length)
     for (let i = 0; i < len; i++) {
@@ -247,11 +251,21 @@ export function filePathToRoute(
       paramNames.push(name)
       return `*${name}`
     }
-    const m = seg.match(/^\[(.+)\]$/)
+    // Param, optionally with a literal extension suffix: `[id].json` →
+    // `:id.json` (param `id`; the URL literally ends in `.json`). This is the
+    // data-route extension convention composing with dynamic segments — the
+    // suffix stays out of the captured value at match time.
+    const m = seg.match(/^\[([^\]]+)\](\.[\w.]+)?$/)
     if (m) {
       const name = m[1]!
+      if (name.startsWith('...')) {
+        throw new Error(
+          `stator: rest segment [${name}]${m[2] ?? ''} cannot carry an extension suffix — ` +
+            `a rest param spans whole segments.`,
+        )
+      }
       paramNames.push(name)
-      return `:${name}`
+      return `:${name}${m[2] ?? ''}`
     }
     return seg
   })

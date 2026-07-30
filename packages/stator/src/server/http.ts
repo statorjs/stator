@@ -69,7 +69,14 @@ function compileMatcher(route: DiscoveredRoute): RouteMatcher {
       // Absorb the preceding `/` and match the (possibly empty) remainder.
       pattern = `${pattern.replace(/\/$/, '')}(?:/(.*))?`
     } else if (seg.startsWith(':')) {
-      pattern += '([^/]+)'
+      // A param may carry a literal suffix (`:id.json`): the capture stops
+      // before the suffix, lazily, so `/p/a.b.json` yields id `a.b`.
+      const dot = seg.indexOf('.')
+      if (dot === -1) {
+        pattern += '([^/]+)'
+      } else {
+        pattern += `([^/]+?)${seg.slice(dot).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`
+      }
       if (i < parts.length - 1) pattern += '/'
     } else {
       pattern += seg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
