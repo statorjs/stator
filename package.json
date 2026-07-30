@@ -14,7 +14,7 @@
     "build": "pnpm --filter stator build",
     "prepare": "git config core.hooksPath .githooks || true",
     "changeset": "changeset",
-    "version-packages": "changeset version && pnpm install --lockfile-only",
+    "version-packages": "changeset version && node scripts/sync-scaffold-range.mjs && pnpm install --lockfile-only",
     "release": "changeset publish"
   },
   "devDependencies": {
