@@ -1,6 +1,6 @@
 import type { HtmlFragment } from '../template/types.ts'
 import type { WireEnvelope } from '../wire/index.ts'
-import type { AnyMachineDef, EventOf } from './define-machine.ts'
+import type { AnyMachineDef, EventOf, ReadsMap } from './define-machine.ts'
 
 /** Machine context passed to a route's render function. Keyed by machine name. */
 export type RouteContext = Record<string, unknown>
@@ -170,7 +170,7 @@ export interface DefineApiRouteConfig<TReads extends ReadonlyArray<AnyMachineDef
 /** `method: 'GET'` discriminates: with it, the handler is a read-only data
  *  route typed with `{ machines }`; without it, a command route typed with
  *  `{ dispatch, rotateSession }` — exactly as before. */
-export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef>>(
+export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef> = readonly []>(
   config: DefineQueryRouteConfig<TReads>,
 ): QueryRouteDefinition
 export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef>>(
@@ -209,10 +209,15 @@ export function isStatorApiRoute(v: unknown): v is ApiRouteDefinition {
  *  there is no `dispatch` here, and that structural absence is what makes
  *  handler reads safe — a handler that cannot dispatch has nothing to
  *  interleave with effect completions or other sessions' commits. */
-export interface QueryRouteHelpers {
+export interface QueryRouteHelpers<
+  TReads extends ReadonlyArray<AnyMachineDef> = ReadonlyArray<AnyMachineDef>,
+> {
   /** Read proxies keyed by machine name — the same shape a page's render
-   *  context uses (selector + context reads; no send). */
-  machines: RouteContext
+   *  context uses (selector + context reads; no send). Typed off the route's
+   *  `reads:` tuple (`ReadsMap`), so `machines.SitesMachine` is a real proxy
+   *  and a mistyped name is a compile error rather than `unknown`. The default
+   *  keeps the erased runtime definition loose. */
+  machines: ReadsMap<TReads>
 }
 
 /** What a data GET handler may return: a raw `Response` (passed through
@@ -231,14 +236,14 @@ export interface QueryRouteDefinition {
   ) => Promise<QueryRouteResult> | QueryRouteResult
 }
 
-export interface DefineQueryRouteConfig<TReads extends ReadonlyArray<AnyMachineDef>> {
+export interface DefineQueryRouteConfig<TReads extends ReadonlyArray<AnyMachineDef> = readonly []> {
   /** The capability discriminant: `'GET'` declares a read-only data route.
    *  Discovery cross-checks it against the export name. */
   method: 'GET'
   reads?: TReads
   handler: (
     request: RouteRequest,
-    helpers: QueryRouteHelpers,
+    helpers: QueryRouteHelpers<TReads>,
   ) => Promise<QueryRouteResult> | QueryRouteResult
 }
 
