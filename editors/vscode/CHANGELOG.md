@@ -1,5 +1,11 @@
 # stator-vscode
 
+## 1.0.8
+
+### Patch Changes
+
+- 3fe4620: Bundled compiler update: `.stator` language support picks up the inline-whitespace fix, so an interpolation like `{count} unsaved` keeps its space. The extension bundles the Stator compiler at build time, so its shipped output tracks this fix — no editor-facing feature change.
+
 ## 1.0.7
 
 ### Patch Changes

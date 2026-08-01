@@ -1,5 +1,16 @@
 # @statorjs/stator
 
+## 1.8.0
+
+### Minor Changes
+
+- 2bac20f: Machines can declare a top-level `on:` — handlers that apply in any state, consulted only when the current state does not declare the event (a state-scoped handler always wins). This is the home for a completion event whose handling must not depend on an unrelated machine-wide state — e.g. a per-record save completing while the machine is busy reloading a collection. Without it, such a completion was silently dropped wherever the current state had no handler for it.
+- 425f79d: Reactive regions (`each`/`when`/`match`/`defer`) are now delimited by HTML comment markers (`<!--s:id-->…<!--/s:id-->`) instead of a wrapper `<span style="display:contents">`. This fixes reactive lists and branches inside `<table>`/`<tbody>`/`<tr>`/`<select>`/`<ul>`, where the parser foster-parented the wrapper span out of its container and broke rendering — a reactive `each` of `<tr>` now works. It also stops the framework from injecting a node into your authored DOM, so CSS sibling/child selectors (`.a + .b`, `:nth-child`) match the elements you wrote. No API change; live-update patches address the same slot ids. Region-materializing patches parse through a `<template>`, so table-context fragments survive.
+
+### Patch Changes
+
+- 3fe4620: Fix JSX text whitespace: an inline space next to an interpolation is now preserved, so `{count} unsaved` renders with its space instead of `{count}unsaved`. Text after an expression was losing its leading space (the compiler skipped the text node's leading trivia); whitespace now follows JSX's own rules — inline spaces are significant, newlines and indentation between tags collapse.
+
 ## 1.7.1
 
 ### Patch Changes
