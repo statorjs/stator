@@ -288,6 +288,13 @@ export type ReadsMap<TReads extends readonly AnyMachineDef[]> = {
 export type EventOf<D extends AnyMachineDef> =
   D extends MachineDef<any, infer E, any, any, any> ? E : never
 
+/** The state-name union a machine declares (the keys of its `states`). Threads
+ *  the literal names into `instance.state` so a template comparison
+ *  (`read(m, s => s.state === 'ready')`) autocompletes and a typo is a compile
+ *  error, instead of `state: string` swallowing it. */
+export type StateNameOf<D extends AnyMachineDef> =
+  D extends MachineDef<any, any, infer S, any, any> ? S : string
+
 export function isStatorMachine(v: unknown): v is AnyMachineDef {
   return (
     typeof v === 'object' && v !== null && (v as Record<string, unknown>).__isStatorMachine === true

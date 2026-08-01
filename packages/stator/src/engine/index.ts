@@ -31,6 +31,7 @@ export type {
   ReadsMap,
   SelectorMap,
   Snapshot,
+  StateNameOf,
   StateNode,
   SubscribeEntry,
   Transition,
