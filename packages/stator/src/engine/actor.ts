@@ -244,10 +244,16 @@ export function createActor<C extends object, E extends EventObject, S extends s
       // transition uniformly against the full event union (the runtime event
       // IS the narrowed type for this key, so the coercion is sound).
       type RawTransition = ((ctx: C, ev: E, h: ActionHelpers) => void) | TransitionConfig<C, E, S>
-      const entry = node?.on?.[event.type as E['type']] as
-        | RawTransition
-        | RawTransition[]
-        | undefined
+      let entry = node?.on?.[event.type as E['type']] as RawTransition | RawTransition[] | undefined
+      // Machine-level fallback: consulted ONLY when the current state does not
+      // declare this event (state-scoped handlers win — most specific). This is
+      // how a completion is handled regardless of the machine-wide state (a save
+      // completing while the machine reloads) without duplicating the handler
+      // into every state. A state that declares the event owns it, even if its
+      // guard drops — no fall-through to machine level in that case.
+      if (entry === undefined) {
+        entry = def.on?.[event.type as E['type']] as RawTransition | RawTransition[] | undefined
+      }
       if (!entry) return
 
       const h = helpers()
