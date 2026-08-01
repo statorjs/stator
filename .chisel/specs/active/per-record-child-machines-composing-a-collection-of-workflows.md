@@ -102,21 +102,56 @@ Open — the two candidate shapes are in the parallel-regions RFC:
   Evidence 3 (the child reads its own machine); extends the reads model
   (`read(family(id), …)`) and per-key persistence.
 
-The maintainer response leans toward the family/child-machine framing, possibly
-seeded by a reusable generic `AsyncUpdate<T>` machine. Decision deferred to a
-second collection example + a design pass; two constraints are fixed: full generic
-inference end-to-end, and placement portability preserved via injection-traced
-capabilities.
+The maintainer response leans toward the family/child-machine framing, seeded by a
+reusable generic `AsyncUpdate<T>` machine. Of the two fixed constraints, **the
+generic-inference one is now retired — GREEN** (see below). The decision between
+regions and families still wants a second collection example + a design pass.
+
+### Generic-machine typing — GATE GREEN (spike, `spike/generic-async-update-machine`)
+
+The load-bearing risk under this whole track — *can a reusable generic machine
+carry full end-to-end inference?* — is answered **yes, with no new primitive**. A
+reusable machine is a **factory that closes over an injected `op` and returns
+`defineMachine(...)`**, with the payload/result types woven through
+events/context/selectors:
+
+```ts
+function defineAsyncUpdate<TPayload, TResult>(name, op: (p: TPayload) => Promise<TResult>) {
+  return defineMachine({ /* SUBMIT{payload:TPayload} | OK{result:TResult} | … */ })
+}
+const save = defineAsyncUpdate('save', (p: {id;qty}) => Promise<{version}>)  // T's inferred from op
+```
+
+Proved (`tests/spike-async-update.test-d.ts`, tsc-clean): `TPayload`/`TResult`
+infer from the injected op; `InstanceOf<typeof save>.result` is `{version}|null`
+(the op's return flows to a template read); `.state` is the workflow's state union
+(typo errors); `.send()` checks the parameterized payload and rejects unknown
+events. The existing `defineMachine` inference carries type parameters through
+cleanly — the hardest engineering risk in the track needed nothing new.
 
 ## Open Questions
 
-Carried from the RFC: regions vs. families; per-key context vs. shared; keyed
-lifecycle/virtualization; a reusable-machine standard library; event routing
-(explicit vs. auto by key); inspector presentation of a keyed family at scale.
+The generic-inference gate is retired. What remains is the **runtime composition**
+(and it is where "regions vs. families" is actually decided):
+
+1. **Ownership / family lifecycle** — a host machine *owning* an instance, or a
+   keyed family, of a child machine; per-record instantiation and disposal.
+2. **Addressing / naming** — each instance needs a unique identity; a per-record
+   family needs dynamic `key → instance` (the factory takes a `name` today).
+3. **Placement tracing** — the injected `op` determines server-only placement, but
+   `computeCapabilities` scans only `reads`, so it would currently miss that a
+   server-I/O op pins the child. Bounded gap (the second fixed constraint).
+4. **Reads extension** — `read(family(id), …)` / reading a child through its host.
+
+Also carried from the RFC: per-key context vs. shared; keyed virtualization; a
+reusable-machine standard library; event routing (explicit vs. auto by key);
+inspector presentation of a family at scale.
 
 ## Implementation Notes
 
-Not started — motivation/direction record. Evidence: `examples/stockroom` (the
-inventory admin) and its machine test. Related: machine-level `on:` (shipped,
-Evidence 1's drop fix), per-row item-value bindings (Evidence 3's inline stopgap),
-the parallel-regions RFC (design exploration).
+Direction record + one green gate. Evidence: `examples/stockroom` (the inventory
+admin) and its machine test; `tests/spike-async-update.test-d.ts` (the typing
+gate). Related: machine-level `on:` (shipped, Evidence 1's drop fix), per-row
+item-value bindings (Evidence 3's inline stopgap), the parallel-regions RFC (design
+exploration). Next spike: runtime ownership — the smallest slice that a child
+machine with an injected effect runs end-to-end and its state is readable.
