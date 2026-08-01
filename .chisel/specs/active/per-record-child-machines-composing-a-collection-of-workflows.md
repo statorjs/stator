@@ -192,6 +192,28 @@ into the [introspection substrate](../../docs/introspection-manifest-and-checks.
 A community helper is then just a package exporting generic functions that return
 `MachineDef` — no plugin protocol, no registration.
 
+**Two families of reusable machine — a split that's already structural.** The stdlib
+divides along Stator's own action/effect line. **Effectful** machines trigger
+externalities via an injected `op` — `AsyncUpdate`, `OptimisticSave`, `Load`, `Poll`.
+**Pure interaction** machines are component behavior with no I/O —
+`Toggle`/`Disclosure`, `Tabs`, `Accordion`, `Menu`, `Combobox`, `Listbox`, `Dialog`,
+`Stepper`. The split is not cosmetic: a machine *is* effectful iff it declares effects
+(`effect`/`entry`), which the engine already tracks — a pure interaction machine pins
+nothing (`serverPinned:false`, client-plane natural), an effectful machine's server
+`op` pins it server-side (Open Question 3). So the categories map onto
+interaction-vs-workflow *and* client-vs-server at once. They parameterize differently
+too — effectful over an injected **op** (`keyed(keyFn, factory(op))`), interaction over
+**config** (`Tabs({ orientation, loop })`, no op) — which is why "a generic fn
+returning `defineMachine`" is the right common substrate under both. The interaction
+shelf is a **distinct thread**: it's the WAI-ARIA APG catalog (each pattern a
+keyboard-driven state machine) rendered server-canonical + isomorphic —
+a11y-by-construction, the Zag.js/React-Aria space from Stator's angle — and it couples
+1:1 to a `.stator` component rather than mounting into a domain host. Crucially the
+categories **layer**: a pure interaction shell can own effectful children (a `Stepper`
+whose steps are `AsyncUpdate`s, `Tabs` that `Load` per tab) — this very composition
+track. The `kind` provenance tag should carry the category, so tooling groups by it
+and a check can flag an "interaction" machine that smuggles in a server effect.
+
 ## Open Questions
 
 The generic-inference gate is retired, and the **ownership mechanic is now GREEN**
