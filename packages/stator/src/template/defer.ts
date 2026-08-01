@@ -32,9 +32,9 @@ export function deferSentinel(slotId: SlotId): string {
 }
 
 function deferPlaceholder(slotId: SlotId, inner: string): DeferResult {
-  // `display: contents` so the wrapper span doesn't disturb the surrounding
-  // element's layout — same rationale as each()/when().
-  const html = `<span data-slot="${slotId}" data-defer="true" style="display:contents">${inner}</span>`
+  // Comment markers delimit the region (no injected node, valid in restricted
+  // parents) — same rationale as each()/when().
+  const html = `<!--s:${slotId}-->${inner}<!--/s:${slotId}-->`
   return { __isDeferResult: true, html, slotId }
 }
 

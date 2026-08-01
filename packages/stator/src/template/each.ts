@@ -136,12 +136,11 @@ export function each<T>(
     }
   }
 
-  // `display: contents` so the wrapper span is invisible to layout — its
-  // children become layout-children of the surrounding element. Without
-  // this, putting `each()` inside a CSS grid or flex container would
-  // collapse all items into a single grid/flex cell. The span itself stays
-  // in the DOM as the patch addressing target.
-  const html = `<span data-slot="${slotId}" data-list="true" style="display:contents">${innerHtml}</span>`
+  // Comment markers delimit the region instead of a wrapper element: they inject
+  // no node into the user's DOM (no layout box, no CSS sibling/child selector
+  // pollution) and are valid in restricted parents like <table>/<tbody> where a
+  // <span> is foster-parented out. The client addresses the list by its markers.
+  const html = `<!--s:${slotId}-->${innerHtml}<!--/s:${slotId}-->`
   return { __isEachResult: true, html, slotId }
 }
 
