@@ -39,6 +39,71 @@ Nothing has stepped outside the framework for it yet, so it stays evidence-gated
 *Promotion trigger*: a user or example that hand-builds a state diagram, a
 component gallery, or repetitive per-state test stubs.
 
+## Visualizing the state tree (surfaces on the manifest)
+
+Three visualization ideas (riffed 2026-08-01). None is "the tool" — they are
+different *renderers* of the one manifest, forming a progression from cheap-and-
+broad to rich-and-deep. So the real first work is the manifest; these are surfaces.
+
+**The Stator-unique angle: LIVE.** XState's visualizer shows a *static* chart (or
+a client-side interpreter). But Stator's machine state lives on the **server**, and
+the dev server already holds it — so any of these can attach to the running app and
+show the machine *transitioning in real time*, current state highlighted, event log
+scrolling. That is not a diagram of your machine; it is a live view of your running
+app's state. It's what makes this worth building — a static chart is table stakes;
+live server-held state in the dev loop is the differentiator.
+
+1. **Text output — Mermaid (not PlantUML).** Cheapest, broadest reach: `stator viz
+   MyMachine` emits a `stateDiagram-v2` block. Mermaid over PlantUML for one
+   decisive reason — it renders *natively* in GitHub/GitLab markdown, VS Code
+   preview, and most docs tooling, no Java/render-server. For a framework whose
+   docs and PRs are markdown, "paste the diagram anywhere" is the killer feature
+   (auto-generated docs diagrams, a chart in a PR, a diagram in a README). Mermaid
+   statecharts get awkward with guards/parallel, but a flat Stator machine maps
+   cleanly. **The seed** — proves manifest→graph, near-zero rendering infra.
+2. **TUI explorer — the flagship, most on-brand.** Stator devs live in the terminal
+   (`pnpm dev` runs there). A TUI that shows the graph *and attaches to the dev
+   server for live state* fits the workflow — you don't leave the terminal to watch
+   your machine work. Static mode (navigate states/transitions/guards/effects) +
+   **live** mode (running app's machines transitioning, current state highlighted).
+   The live mode is the compelling, genuinely novel part; effort is real (ink/
+   blessed) but the live half reuses the dev server's existing state access.
+3. **Interactive playground / REPL — Storybook-for-machines, reframed.** Storybook's
+   *model* doesn't transfer: a Story is "render a component with prop knobs," but a
+   machine isn't a render — it's "instantiate, send events, inspect state." So the
+   honest shape is a bench: pick a machine, send events (a button per accepted
+   event), watch it transition, snapshot interesting states. Crucially it
+   **converges with testing** — "send events, assert state" *is* the machine-test
+   pattern, so the bench can scaffold/export test stubs. The distinctive version is
+   "an interactive bench where exploring a machine and writing its test are the same
+   activity," not "Storybook."
+
+### Client vs server machines — the two-plane problem
+
+A dev-server-attached tool only sees **server-plane** state (session/app machines).
+Stator also has **client-plane** machines (client islands, `machine(context,
+behavior)` running in the browser). A live view must account for both — but the
+answer is *not* necessarily a browser DevTools plugin:
+
+- The browser **`<stator-inspector>`** is already an in-page element in the same JS
+  context as client machines, so it can read them **directly** — no plugin needed
+  for access. And the server can **push its machine state over the existing SSE
+  channel**. So the browser inspector is the natural place to *unify both planes* —
+  client machines in-page, server machines streamed — in one view.
+- The **TUI** is terminal-native and **server-plane only**.
+- A real **DevTools panel** is a *UX upgrade* over the in-page overlay (dockable,
+  survives navigation), deferred — it's per-browser extension packaging for a nicer
+  skin on access the in-page inspector already has.
+- **Isomorphic machines** (same def, runs server *or* client per use-site) mean the
+  *same* machine visualizes on different planes depending on where it is
+  instantiated — the tool keys on the running instance's plane, not the def. The
+  static graph (the manifest) is plane-agnostic; only the *live state* is
+  plane-specific.
+
+*Scope guardrail*: all of this stays well short of XState's full explorer — Tony
+was explicit. Read-only-ish views + a REPL bench on a manifest, not a visual
+authoring environment.
+
 ## `stator check`
 
 Static checks types can't give. A spectrum from sound to heuristic; **the sound
