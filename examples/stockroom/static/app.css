@@ -95,6 +95,7 @@ table.stock {
   text-align: left;
   padding: 0.6rem 0.8rem;
   border-bottom: 1px solid var(--line);
+  vertical-align: middle;
 }
 
 .stock thead th {
@@ -149,4 +150,18 @@ table.stock {
 .save-msg {
   text-transform: none;
   color: var(--warn);
+}
+
+.actions {
+  text-align: right;
+}
+
+.remove {
+  color: var(--err);
+  border-color: transparent;
+  padding: 0.35rem 0.55rem;
+}
+
+.remove:hover {
+  border-color: var(--err);
 }

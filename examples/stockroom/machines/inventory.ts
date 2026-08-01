@@ -1,5 +1,5 @@
 import { defineMachine } from '@statorjs/stator/server'
-import { commitStock, loadStock, type StockRecord } from '../lib/inventory-source.ts'
+import { commitStock, loadStock, removeStock, type StockRecord } from '../lib/inventory-source.ts'
 
 /**
  * Editable inventory collection. It has TWO independent state axes:
@@ -48,6 +48,7 @@ type InventoryEvents =
   | { type: 'LOAD_FAILED'; message: string }
   | { type: 'REFRESH' }
   | { type: 'ADJUST'; id: string; delta: number }
+  | { type: 'REMOVE'; id: string }
   | { type: 'SAVE'; id: string }
   | { type: 'SAVE_OK'; id: string; quantity: number; version: number }
   | { type: 'SAVE_CONFLICT'; id: string; quantity: number; version: number }
@@ -103,6 +104,17 @@ export default defineMachine({
           do: (ctx, ev) => {
             const row = ctx.rows.find((r) => r.id === ev.id)
             if (row) row.draft = Math.max(0, row.draft + ev.delta)
+          },
+        },
+
+        // Delete a row. Dropping it from `ctx.rows` makes the keyed `each` emit a
+        // single `remove` op for that <tr> — the reactive table removal that the
+        // region-marker fix makes work inside <tbody>.
+        REMOVE: {
+          do: (ctx, ev) => {
+            ctx.rows = ctx.rows.filter((r) => r.id !== ev.id)
+            delete ctx.saves[ev.id]
+            removeStock(ev.id)
           },
         },
 

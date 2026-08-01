@@ -28,6 +28,7 @@ const [inventory] = Stator.reads([Inventory])
               <th>Set quantity</th>
               <th>Save</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -39,10 +40,12 @@ const [inventory] = Stator.reads([Inventory])
                   <td>{row.name}</td>
                   {/* live cell — an item read, updates in place when SAVE_OK commits */}
                   <td class="num">{read(row, (r) => r.onHand)}</td>
-                  <td class="qty">
-                    <button class="step" on:click={() => inventory.send({ type: 'ADJUST', id: row.id, delta: -1 })}>−</button>
-                    <span class="draft">{read(row, (r) => r.draft)}</span>
-                    <button class="step" on:click={() => inventory.send({ type: 'ADJUST', id: row.id, delta: 1 })}>+</button>
+                  <td>
+                    <div class="qty">
+                      <button class="step" on:click={() => inventory.send({ type: 'ADJUST', id: row.id, delta: -1 })}>−</button>
+                      <span class="draft">{read(row, (r) => r.draft)}</span>
+                      <button class="step" on:click={() => inventory.send({ type: 'ADJUST', id: row.id, delta: 1 })}>+</button>
+                    </div>
                   </td>
                   <td>
                     <button class="save" on:click={() => inventory.send({ type: 'SAVE', id: row.id })}>Save</button>
@@ -59,6 +62,9 @@ const [inventory] = Stator.reads([Inventory])
                     {when(read(inventory, (i) => i.saveOf(row.id).message), () => (
                       <span class="save-msg"> — {read(inventory, (i) => i.saveOf(row.id).message)}</span>
                     ))}
+                  </td>
+                  <td class="actions">
+                    <button class="remove" on:click={() => inventory.send({ type: 'REMOVE', id: row.id })}>Remove</button>
                   </td>
                 </tr>
               ),

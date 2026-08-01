@@ -51,3 +51,16 @@ describe('inventory — a completion is NOT stranded when the machine moved on (
     expect(actor.getSnapshot().context.saves.r1!.phase).toBe('clean')
   })
 })
+
+describe('inventory — delete a row', () => {
+  it('REMOVE drops the row from the collection (drives a keyed each remove)', () => {
+    const actor = loaded()
+    expect(actor.getSnapshot().context.rows.map((r) => r.id)).toEqual(['r1', 'r2'])
+
+    actor.send({ type: 'REMOVE', id: 'r1' })
+
+    const { rows, saves } = actor.getSnapshot().context
+    expect(rows.map((r) => r.id)).toEqual(['r2'])
+    expect(saves.r1).toBeUndefined()
+  })
+})

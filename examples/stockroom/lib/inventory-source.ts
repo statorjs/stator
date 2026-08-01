@@ -60,3 +60,9 @@ export async function commitStock(
   table.set(id, next)
   return { ok: true, quantity: next.quantity, version: next.version }
 }
+
+/** Delete a record. Synchronous — a demo delete has nothing to await, and doing
+ *  it here (not just in the machine's view) keeps a later refresh consistent. */
+export function removeStock(id: string): void {
+  table.delete(id)
+}
