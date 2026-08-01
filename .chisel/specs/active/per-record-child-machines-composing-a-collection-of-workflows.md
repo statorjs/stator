@@ -107,6 +107,32 @@ reusable generic `AsyncUpdate<T>` machine. Of the two fixed constraints, **the
 generic-inference one is now retired — GREEN** (see below). The decision between
 regions and families still wants a second collection example + a design pass.
 
+### Granularity — how much moves into the child
+
+The regions-vs-families question has a second axis that sharpens it: **how much of
+the record moves into the child.** Two granularities of the same move:
+
+- **Save-workflow-as-child** (minimal) — the host keeps `ctx.rows`; only the async
+  save workflow becomes a child (a keyed `AsyncUpdate` family). Host↔child
+  coupling: a subscription applies the child's success back to the row. Kills
+  find-by-id partly.
+- **Whole-row-as-child** (fuller) — the record *is* a machine (`RowMachine` owns
+  `onHand`/`draft`/`version` + its workflow); `ctx.rows` disappears, the family
+  *is* the collection. No host↔child subscription (the child owns its data). Fully
+  kills find-by-id (Evidence 3) — the child reads its own machine.
+
+Crucially these are **the same primitive** (a host owning a keyed family of child
+machines), not stacked features — the only difference is whether the child is a
+reusable generic `AsyncUpdate` or a hand-written domain `RowMachine`, and a concrete
+`RowMachine` is *typing-lighter* (no generic inference — the harder case is already
+green). Row-as-child exercises *more* of the runtime surface, though: data
+ownership moving into the children leans on **per-key context** and **family
+reads/iteration** (`each` over a family, `read(family(id), …)`), two still-open
+items. Natural sequence: build ownership on the minimal slice first (host keeps
+`ctx.rows`), then let data migrate into the children as per-key context lands —
+which also de-risks it (the concrete `RowMachine` rides rails the green generic
+gate already laid).
+
 ### Generic-machine typing — GATE GREEN (spike, `spike/generic-async-update-machine`)
 
 The load-bearing risk under this whole track — *can a reusable generic machine
@@ -129,19 +155,67 @@ infer from the injected op; `InstanceOf<typeof save>.result` is `{version}|null`
 events. The existing `defineMachine` inference carries type parameters through
 cleanly — the hardest engineering risk in the track needed nothing new.
 
+### Authoring reusable machines — it's `defineMachine`, not a new `define`
+
+The typing gate settled the *authoring* API too: a reusable machine is **a generic
+function that returns `defineMachine(...)`**, with what-varies lifted to type params
++ args. No second `define`. Three reasons: it's what's proven (full inference, no new
+primitive); a generic function is the natural TS expression of "generic over
+payload/result" (an options-object DSL to declare `<P,R>` fights inference); and a
+reusable machine stays a *real, inspectable* machine — a family of `AsyncUpdate`s is
+N ordinary defs, nothing new for the inspector/manifest/`stator check` to special-case.
+
+Authoring spectrum, one mount API:
+- **Concrete reusable** (`const RowMachine = defineMachine(...)`, reused across
+  tables) — works today.
+- **Parameterized reusable** (generic fn → `defineMachine`, op injected) — the
+  `AsyncUpdate` form, works today.
+- The **mount API takes a def either way** — the only genuinely new surface, on the
+  *consumer/host* side, not authoring.
+
+Injection and identity are orthogonal, not one fluent chain: **op injected at
+definition time** (factory arg, as proven), **key supplied at mount time** (the
+identity/collection dimension). So `.keyed().inject()` resolves to `keyed(keyFn,
+factory(op))` — two flat concerns. This forces a signature refinement the ownership
+spike should honor: **the factory should not require a fixed `name`** (the spike had
+`defineAsyncUpdate('save-qty', op)`); a keyed family's identity is `mountName + key`,
+so `family: { save: … }` owns the name and the factory's `name` becomes an optional
+label/default. **Op-first, name-optional.**
+
+Ship the recurring shapes first-party (`AsyncUpdate`, `OptimisticSave` — stockroom's
+conflict variant, `Load`, `Poll`) so authoring-your-own stays an escape hatch, not
+the common path. Two light conventions make the build-your-own / npm path
+frictionless (neither a new API): a `MachineFactory<P,R>` **type export** (preserves
+inference across a package boundary) and a **provenance tag** (`meta: { kind:
+'AsyncUpdate' }`) so tooling groups a family and recognizes the pattern (the hook
+into the [introspection substrate](../../docs/introspection-manifest-and-checks.md)).
+A community helper is then just a package exporting generic functions that return
+`MachineDef` — no plugin protocol, no registration.
+
 ## Open Questions
 
-The generic-inference gate is retired. What remains is the **runtime composition**
-(and it is where "regions vs. families" is actually decided):
+The generic-inference gate is retired, and the **ownership mechanic is now GREEN**
+(spike, `spike-family-ownership-runtime.test.ts`): `createFamily` over `createActor`
+spawns one child actor per key on first touch, routes an event to the right child,
+reads a child's state back (`stateOf`/`snapshotOf` — the `read(family(id), …)`
+analog), and disposes/respawns — each child an independent actor, all under one
+op-first/name-optional label, keyed via `keyed(keyFn, def)`. No new engine surface,
+same as the reusable-machine spikes. What remains is the **server-plane wiring** and
+the **compiler surface** (and it is still where "regions vs. families" is decided):
 
-1. **Ownership / family lifecycle** — a host machine *owning* an instance, or a
-   keyed family, of a child machine; per-record instantiation and disposal.
-2. **Addressing / naming** — each instance needs a unique identity; a per-record
-   family needs dynamic `key → instance` (the factory takes a `name` today).
+1. **Ownership / family lifecycle** — *mechanic proven* (keyed spawn/route/dispose).
+   Remaining: routing child effects through a server session's off-lock effect queue
+   (children ran effects LOCALLY in the spike), and **per-key persistence** across
+   restarts (each child's snapshot keyed under the host's session).
+2. **Addressing / naming** — *largely resolved*: identity is the family key, not
+   `def.name` (op-first/name-optional confirmed at runtime; `key → instance` proven).
+   Remaining: stable key identity across restart/hydration (the persistence tie-in).
 3. **Placement tracing** — the injected `op` determines server-only placement, but
    `computeCapabilities` scans only `reads`, so it would currently miss that a
-   server-I/O op pins the child. Bounded gap (the second fixed constraint).
-4. **Reads extension** — `read(family(id), …)` / reading a child through its host.
+   server-I/O op pins the child. Bounded gap (the second fixed constraint), untouched.
+4. **Reads extension** — the read-BACK mechanic is proven at the actor level; what
+   remains is the **template/compiler** lowering of `read(family(id), …)` (reading a
+   child through its host in a `.stator` template, not just via the actor API).
 
 Also carried from the RFC: per-key context vs. shared; keyed virtualization; a
 reusable-machine standard library; event routing (explicit vs. auto by key);
@@ -149,9 +223,14 @@ inspector presentation of a family at scale.
 
 ## Implementation Notes
 
-Direction record + one green gate. Evidence: `examples/stockroom` (the inventory
-admin) and its machine test; `tests/spike-async-update.test-d.ts` (the typing
-gate). Related: machine-level `on:` (shipped, Evidence 1's drop fix), per-row
-item-value bindings (Evidence 3's inline stopgap), the parallel-regions RFC (design
-exploration). Next spike: runtime ownership — the smallest slice that a child
-machine with an injected effect runs end-to-end and its state is readable.
+Direction record + three green gates. Evidence: `examples/stockroom` (the inventory
+admin) and its machine test; `tests/spike-async-update.test-d.ts` (typing gate);
+`tests/spike-async-update-runtime.test.ts` (single-actor runtime gate);
+`tests/spike-family-ownership-runtime.test.ts` (family ownership gate — keyed
+spawn/route/read/dispose). Related: machine-level `on:` (shipped, Evidence 1's drop
+fix), per-row item-value bindings (Evidence 3's inline stopgap), the parallel-regions
+RFC (design exploration). Next: the "regions vs. families" decision + implementation
+spec, now that all three de-risking gates are green — or the server-plane wiring
+(per-key persistence + effect-queue routing) if we build ownership before deciding
+granularity. The compiler surface (`family:` on `defineMachine`, `read(family(id),
+…)` lowering) is the remaining unproven layer.
