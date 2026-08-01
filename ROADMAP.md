@@ -152,6 +152,55 @@ Stator. Held to the same evidence bar (a spike proves it before it ships).
   islands, focus/scroll, keyed-list ordering) live in
   [`.chisel/specs/active/client-time-travel-devtool.md`](.chisel/specs/active/client-time-travel-devtool.md).
   Spike first because those DOM edge cases are where the surprises hide.
+- **Introspection manifest (machines + components)** *(unscheduled; evidence-gated)*:
+  a build-time JSON manifest of the declarative surfaces — machines (states,
+  events, guards, selectors, effects, timers) and components (props, island
+  `static attrs` with kinds, refs, regions). Most of it is assembling what the
+  compiler already computes (`dts.ts`, `LowerMeta`, `analyzeScriptClasses`). The
+  reframe: this is *not* "add Custom Elements Manifest to Stator" — Stator's
+  declarative surfaces, machines especially, are unusually manifest-able, and the
+  highest-value first output is **statechart visualization in the inspector** (a
+  machine → rendered diagram, XState-visualizer-class, which no server-canonical
+  framework offers). The manifest is a *substrate* with later consumers: auto-
+  generated reference docs (kills doc drift), per-state/event test scaffolding,
+  a component gallery / "stories" (server-rendered against mock machine snapshots,
+  not client prop-knobs — a real design seam), and LSP enrichment. Shares its
+  substrate with `stator check` below. *Motivation*: it is the vision serialized —
+  "read the chart to audit" made machine-readable — but nothing has stepped
+  outside the framework for it yet. *Promotion trigger*: a user or example that
+  hand-builds a state diagram, a component gallery, or repetitive per-state test
+  stubs. Fuller framing in
+  [`.chisel/docs/introspection-manifest-and-checks.md`](.chisel/docs/introspection-manifest-and-checks.md).
+- **`stator check` (flow verification beyond types)** *(unscheduled; evidence-gated)*:
+  static checks that types alone don't give, over the same chart-as-data substrate
+  as the manifest. Stator is uniquely positioned because it holds *both* halves in
+  one compile pass — the event-emission sites (`on:click={() => m.send({type})}`)
+  *and* the accepting chart (states/events/guards). A spectrum, cheap-and-sound to
+  hard-and-heuristic:
+  - **Sound tier (no false positives, ship first):** an event in the union handled
+    in *no* state (dead everywhere → any UI that sends it is a guaranteed no-op);
+    a state with no incoming transition (unreachable chart node); an event handled
+    only in states unreachable from `initial`. Pure graph analysis on the chart —
+    trivial once it is data. This is statechart linting the declarative chart makes
+    nearly free, and most frameworks *cannot* do it (their reducer is opaque JS).
+  - **Heuristic tier (opt-in warnings, research-y):** the hard one — "this button,
+    in the render context where it appears, sends an event the state it renders
+    under does not handle." Requires correlating render conditionals
+    (`when(read(m, s => s.state === 'editing'))`) with chart states. Tractable only
+    for the *idiomatic* conditional pattern, delivered as warnings (false positives
+    on complex conditionals), never a hard error.
+  - **Honest limits:** guards make "will this commit" undecidable — checks reason
+    about the *structural presence* of a handler, not whether a guard passes (a
+    guard-dropped event is legitimately a runtime concern). And events arrive from
+    non-UI sources too (effect returns, `after:`, `dispatch:`, subscriptions), so
+    "dead" means handled-nowhere, not merely UI-unsent.
+  *Motivation*: catching whole-class UI→state mistakes at CI is the tooling
+  embodiment of the audit-surface thesis; the sound tier is a small, high-signal
+  seed. Listed in the 1.x set in the gap analysis. *Promotion trigger*: the
+  manifest substrate landing, or an example whose UI ships a dead event a check
+  would have caught. Worked examples (a dead-event catch and a false-negative
+  boundary) in
+  [`.chisel/docs/introspection-manifest-and-checks.md`](.chisel/docs/introspection-manifest-and-checks.md).
 
 ## Surface hygiene
 
@@ -191,6 +240,23 @@ pattern is a bigger liability than any missing primitive.
   attributes dropped instead of merged. Surfaced by `weather`, fixed together;
   specs in
   [`shipped/`](.chisel/specs/shipped/conditional-arm-interiors-are-second-class-on-the-live-update-path.md).
+- **Region wrappers break tables; we mutate the user's DOM** *(spike first)*:
+  every reactive region (`each`/`when`/`match`/`defer`) wraps its body in a
+  `<span style="display:contents">`. Inside `<table>`/`<tbody>`/`<tr>`/`<select>`
+  the parser hoists the span out, so a reactive `each` of `<tr>` (a filterable
+  table — the canonical admin/dashboard shape) does not render; and even where a
+  span is legal, `display:contents` hides it from layout but not from the CSS
+  selector graph (`.a + .b`, `:nth-child`), so we silently change which selectors
+  match the user's authored elements. Fix: region boundaries become HTML comment
+  markers (no box, legal anywhere), and DOM patches always materialize via
+  `<template>` (the `insert` op already does; the `html` op does not — a latent
+  copy of the same table bug). *This is the compose/identity seam the complexity
+  review flagged*, so it is spike-first, and its acceptance test **must** run in a
+  real browser: happy-dom does not implement the parser's table insertion modes,
+  so the entire current suite is blind to this class (which is why it shipped) —
+  the work adds the first real-browser (Playwright) test infra, itself a standalone
+  win. Minor release (no API/wire change), but high regression risk. Designed in
+  [`.chisel/specs/active/region-markers-and-template-parsed-dom-patches.md`](.chisel/specs/active/region-markers-and-template-parsed-dom-patches.md).
 - **The compose/identity seam is the standing complexity risk** *(watch, not a
   task)*: slot scopes, key scopes, element ids — the addressing layer under the
   bindings. It generated the four bugs above, and a new binding *kind* re-tests
