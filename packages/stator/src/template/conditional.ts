@@ -104,9 +104,9 @@ export function when<T>(cond: T | ReadResult<T>, fn: () => HtmlFragment): Branch
     })
   }
 
-  // `display: contents` so the wrapper span doesn't break the surrounding
-  // element's layout (grid/flex) — see each.ts for the same rationale.
-  const html = `<span data-slot="${slotId}" data-branch="true" style="display:contents">${innerHtml}</span>`
+  // Comment markers delimit the region (no injected node, valid in restricted
+  // parents) — see each.ts for the rationale.
+  const html = `<!--s:${slotId}-->${innerHtml}<!--/s:${slotId}-->`
   return { __isBranchResult: true, html, slotId }
 }
 
@@ -160,8 +160,8 @@ export function match<TKey extends string>(
     })
   }
 
-  // `display: contents` so the wrapper span doesn't break the surrounding
-  // element's layout (grid/flex) — see each.ts for the same rationale.
-  const html = `<span data-slot="${slotId}" data-branch="true" style="display:contents">${innerHtml}</span>`
+  // Comment markers delimit the region (no injected node, valid in restricted
+  // parents) — see each.ts for the rationale.
+  const html = `<!--s:${slotId}-->${innerHtml}<!--/s:${slotId}-->`
   return { __isBranchResult: true, html, slotId }
 }

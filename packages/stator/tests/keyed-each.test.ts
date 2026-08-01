@@ -107,7 +107,7 @@ describe('keyed each: render', () => {
         () =>
           html`<ul>${each([{ n: 1 }, { n: 2 }], (r) => html`<li>${r.n}</li>`, { key: (r) => r.n })}</ul>`,
       )
-      expect(numbered.html).toContain('data-list="true"')
+      expect(numbered.html).toContain('<!--s:s0-->')
 
       expect(() =>
         runInRender(
@@ -294,7 +294,9 @@ describe('keyed each: DOM application (happy-dom)', () => {
     try {
       const out = renderKeyedList(state, list)
       document.body.innerHTML = out.html
-      const container = document.querySelector('[data-slot="s0"]')!
+      // The region is delimited by comment markers now, not a wrapper element —
+      // the rows are direct children of the <ul>, between the markers.
+      const container = document.querySelector('ul')!
       const texts = () => Array.from(container.children).map((el) => el.textContent)
       expect(texts()).toEqual(['label-a', 'label-b', 'label-c'])
 

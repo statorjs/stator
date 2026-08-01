@@ -145,9 +145,7 @@ describe('html templating', () => {
             (item) => html`<li>${item.productId} x${item.quantity}</li>`,
           )}</ul>`,
       )
-      expect(out.html).toMatch(
-        /<ul><span data-slot="s0" data-list="true" style="display:contents">.*<\/span><\/ul>/,
-      )
+      expect(out.html).toMatch(/<ul><!--s:s0-->.*<!--\/s:s0--><\/ul>/)
       expect(out.html).toContain('<li>p1 x1</li>')
       expect(out.html).toContain('<li>p2 x1</li>')
       const listBinding = state.bindings.get('s0')!
