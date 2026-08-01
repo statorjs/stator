@@ -6,7 +6,12 @@ import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
 import { buildRouteRequest } from './route-request.ts'
-import type { QueryRouteDefinition, QueryRouteResult, RouteContext } from './routing.ts'
+import type {
+  QueryRouteDefinition,
+  QueryRouteHelpers,
+  QueryRouteResult,
+  RouteContext,
+} from './routing.ts'
 import { getOrCreateSessionId } from './session.ts'
 import { withSessionLock } from './session-lock.ts'
 import { SessionRuntime } from './session-runtime.ts'
@@ -74,7 +79,11 @@ export async function runQueryRoute(
 
     let result: QueryRouteResult
     try {
-      result = await route.handler(request, { machines })
+      // The map is built dynamically by machine name; the typed ReadsMap
+      // guarantee is for the user's handler, recovered at their call site.
+      result = await route.handler(request, {
+        machines: machines as QueryRouteHelpers['machines'],
+      })
     } catch (err) {
       queryLog.error({ err: String(err), path: c.req.path }, 'data route handler threw')
       return c.text('Internal Server Error', 500)
