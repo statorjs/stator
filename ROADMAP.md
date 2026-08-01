@@ -225,6 +225,23 @@ instead of discovered by a user.
   its own. IF a major break happens for other reasons, revisit the naming
   then — likely deprecating the machine option's name in 2.0 and removing
   it in 3.0.
+- **Example / scaffold toolchain devDeps drift** *(found dogfooding 1.8.0)*:
+  `@statorjs/stator` in scaffolded apps is version-managed (the `STATOR_RANGE`
+  sync + changesets), but the *other* devDeps in the example templates —
+  `typescript`, `vite`, `tsx`, `@types/node` — are hand-pinned and silently
+  drift. As of 1.8.0 the examples pin `typescript ^5.6` and `vite ^6.0` while
+  latest is TS 7 / Vite 8, so every scaffolded app inherits ~2-majors-stale
+  tooling. Two distinct causes: TS is **pure staleness** (Stator imposes no TS
+  constraint — the compiler bundles its own), safe to bump; Vite is staleness
+  **plus a real ceiling** — Stator's `peerDependencies` is
+  `vite: "^6.0.0 || ^7.0.0"`, so Vite 8 isn't supported until the framework adds
+  it to the peer range (a change with a real test surface). Follow-ups: (a) bump
+  example devDeps (TS → 7, Vite → 7) and add Vite 8 to the peer range once
+  tested; (b) a freshness guard so example devDeps don't silently re-drift —
+  pairs with the deferred create-stator scaffold-freshness work (real ranges,
+  `latest`-ref scaffolds, scaffold-smoke CI). *Motivation*: the scaffold is the
+  first-run experience; stale tooling is a silent, compounding papercut on every
+  new app.
 
 ## Runtime correctness
 
