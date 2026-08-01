@@ -26,26 +26,22 @@ runs an async command effect, and the row's status updates live over the wire.
 - `routes/index.stator` — the table, a keyed `each` of `<tr>` with per-row
   steppers and save buttons.
 
-## A working example that is also a set of findings
+## A teaching example that also pressure-tested the framework
 
-This example is built the natural, flat way a user reaches for first, and doing so
-surfaces real framework gaps — which is the point. See [`FINDINGS.md`](./FINDINGS.md):
+Built the natural, flat way a user reaches for first — which exercises several
+distinctive parts of Stator:
 
-1. **A reactive `each` of `<tr>` mis-renders in the browser** — the region wrapper
-   span is not valid table content and gets foster-parented out of the table. The
-   app typechecks and serves, but a browser mis-parses the rows. A fix is designed
-   (comment-marker regions); this example is its acceptance repro. **The table does
-   not render correctly in a browser yet.**
-2. **A save completion is stranded** when a refresh moves the machine mid-save —
-   a flat machine cannot handle a completion regardless of state. Proven in
-   `pnpm test`.
-3. **The per-record workflow is invisible in the chart** — its state has to live
-   in a context map, so the save status cannot use the clean per-row read the
-   quantity does.
+- **A reactive `each` of `<tr>` inside `<tbody>`** — regions are delimited by
+  comment markers, so a live table renders (and filtering/deleting rows works)
+  where an injected wrapper element would be foster-parented out.
+- **Machine-level `on:`** — the per-record save completions are handled in any
+  state, so a `Refresh` mid-save doesn't strand a row (see `pnpm test`).
+- **Per-row item reads** — the live cells use `read(row, …)`; the save status
+  still reads the machine by id, because the per-record workflow lives in a
+  context map rather than its own chart.
 
-Findings 2 and 3 motivate the composition direction — a per-record workflow as its
-own machine. So this is a teaching example and a pressure test at once, and it will
-graduate to a scaffoldable `--template` once the rendering fix lands.
+That last asymmetry is deliberate: it motivates the per-record **child-machine**
+composition direction. So this is a teaching example and a pressure test at once.
 
 ## Learn more
 

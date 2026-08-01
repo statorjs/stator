@@ -16,10 +16,10 @@ wire; the *same* content rendered inside a conditional/list arm does not — it
 either mis-targets its patch or renders stale.
 
 Two independent bugs pointing at the same seam is the signal to do a focused
-runtime pass rather than paper over each instance in app code. Both are
-currently worked around in the weather example (see
-`examples/weather/FINDINGS.md` #2 and #3), which is why that app is correct
-today — but any user writing the obvious, natural template will hit these.
+runtime pass rather than paper over each instance in app code. Both were
+originally worked around in the weather example (keep element-id'd nodes and data
+reads outside arms), which is why that app was correct pre-fix — but any user
+writing the obvious, natural template will hit these.
 
 Neither is user misuse. Placing a client island, an `on:` handler, a
 `read()`-bound attribute, or a `read()` text binding inside a `match`/`when`/
@@ -163,9 +163,10 @@ recompute heals it — which is why "reload, or trigger any other event" fixes i
   end-to-end against `examples/weather`: a keyed pivot's initial-sync re-render
   now reproduces the same key-scoped ids the class:list bindings target, so the
   active-tab highlight patches land (was desyncing to fresh flat ids).
-- Source evidence and live SSE captures are in `examples/weather/FINDINGS.md`
-  (#2 = Bug A, #3 = Bug B). Both worked around there by keeping element-id'd
-  nodes and data `read()`s outside conditional arms.
+- Both were surfaced by live SSE captures while building `examples/weather`
+  (Bug A = unstable element ids in arms, Bug B = stale first-arrival `read()` in
+  arms), and worked around there by keeping element-id'd nodes and data `read()`s
+  outside conditional arms.
 - Aside: `chisel spec list`/`index` currently panics on an em-dash byte-boundary
   (`packages/chisel-specs/src/lib.rs:313`) — unrelated to this spec, but worth a
   separate fix; `chisel spec new`/`view <slug>` still work.

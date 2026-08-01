@@ -15,7 +15,7 @@ the framework has only blunt tools:
 - **Non-keyed** lists diff by reference. A `session` context is `structuredClone`d
   per transition, so the array selector returns fresh references after *every*
   event — the list re-renders its whole body even on an event that never touched
-  it (see `examples/weather/FINDINGS.md` #5).
+  it (surfaced building the weather example).
 - **Keyed** lists never re-render a retained row (correct for DOM stability), so a
   `{item.field}` static capture inside a keyed row goes **stale**.
 
@@ -162,6 +162,22 @@ Deferred surface — each is an additive minor, trackable as its own work:
   Keyed lists and rows with any per-row binding are already churn-free; a
   whole-array value compare would close the remaining case (finding #5's original
   suggestion (a)).
+- **Inline-only — item reads don't cross a component boundary** *(known limitation,
+  not planned)*: `read(item, …)` binds only when it is lexically inside its `each`
+  in the same file, because that is how the compiler recognizes the item param. So
+  decomposing a list into per-row child components (`each(read(m, …), (row) =>
+  <Row row={row} … />)`) can't carry item reads into `<Row>` — there `row` is a
+  prop, `read(row, …)` lowers as a machine read and throws. The row's live cells
+  fall back to find-by-id machine reads (O(n) per cell). Composition itself works
+  (keyed each → component rows render + update under the key scope); only the item
+  read doesn't cross. **This is a feature of the design, not a bug to fix inline:**
+  the clean answer is a per-record **child machine** so the row component reads its
+  own state (`read(rowMachine, …)`) — the composition/DX motivation for the
+  child-machine direction, recorded in
+  [`per-record-child-machines-composing-a-collection-of-workflows.md`](per-record-child-machines-composing-a-collection-of-workflows.md)
+  (Evidence 3). Not something to paper
+  over by making item reads cross boundaries (that would recreate the find-by-id
+  cost or a hidden prop-reactivity channel).
 
 ## Implementation Notes
 

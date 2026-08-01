@@ -88,8 +88,9 @@ over definition-root, explicit wins over directive) without dropping the loser.
   (`compile.ts` `staticRootAttrs` + `client-shell.ts`;
   `tests/component-root-attrs.test.ts`). Note the two halves diverged by design:
   #1 errors, #4 merges.
-- Evidence + workarounds in `examples/weather/FINDINGS.md` (#1 = Bug A, #4 = Bug
-  B). Weather currently: everything-in-`class:list`, islands styled by tag
+- Both surfaced building `examples/weather` (Bug A = static `class` + `class:list`
+  emit two attributes, Bug B = a component/island root's static attributes dropped);
+  worked around there with everything-in-`class:list` and islands styled by tag
   selector.
 - Sibling of the live-path correctness spec
   (`conditional-arm-interiors-are-second-class-on-the-live-update-path`) — that
