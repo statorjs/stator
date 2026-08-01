@@ -182,4 +182,30 @@ real-browser verification gating.
 
 ## Implementation Notes
 
-<!-- Updated during/after implementation. -->
+**Spike verdict: GO** (2026-08, branch `spike/tables-region-markers`). The
+load-bearing question — "can comment-delimited ranges support insert/remove/move/
+replace as robustly as indexed `element.children`?" — is answered yes, both
+halves proven:
+
+- **Range-apply logic** — prototyped in `src/wire/region-apply.ts` (`findRegion`,
+  `elementAt`, `insertAt`/`removeAt`/`moveWithin`/`replaceRegion`, ~90 lines) and
+  validated 7/7 in `tests/region-apply.test.ts` (happy-dom is faithful for node
+  manipulation): insert/remove/move/replace between markers, element-index that
+  skips comment nodes, the wire-contract move semantics, a filter-driven remove
+  sequence (the acceptance shape), and a **nested region** (outer ops don't
+  disturb the inner range; each resolves independently). The model came in
+  *bounded*, not sprawling — the nested case, the feared one, works precisely
+  because `elementAt` counts only element children.
+- **Real-browser parsing** — system Chrome `--dump-dom` confirms the contrast: a
+  `<span style="display:contents">` wrapper in `<tbody>` is **foster-parented out**
+  of the table (ejected before `<table>`, left empty, rows orphaned), while
+  `<!--s:list-->…<!--/s:list-->` is **preserved verbatim** inside `<tbody>`. And
+  `--dump-dom` gives real-browser parse verification with **zero install** (the
+  interactive acceptance test still wants a driver).
+
+**Remaining = the implementation phase** (the feature build, not more spiking):
+server marker emission at the 4 wrapper sites; client `apply.ts` rewrite (range
+resolution + range ops + `<template>` for the `html` op) with a hydration-time
+marker index; migrate existing region tests off the span structure; the
+Playwright acceptance test; regression. High-touch on the compose/identity seam,
+so it earns a deliberate greenlight.
