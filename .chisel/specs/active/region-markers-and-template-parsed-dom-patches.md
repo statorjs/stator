@@ -209,3 +209,39 @@ resolution + range ops + `<template>` for the `html` op) with a hydration-time
 marker index; migrate existing region tests off the span structure; the
 Playwright acceptance test; regression. High-touch on the compose/identity seam,
 so it earns a deliberate greenlight.
+
+### Implementation — DONE (branch `feat/tables-region-markers`)
+
+Built and validated, 441 tests green + real-browser acceptance passing.
+
+- **Server** — the 4 wrapper sites (`each.ts`, `conditional.ts` ×2, `defer.ts`)
+  now emit `<!--s:id-->…<!--/s:id-->`. A dependency map confirmed these are the
+  only place `data-list`/`data-branch`/`data-defer`/`display:contents` appear — no
+  CSS or other reader. `recompute.ts` is unchanged (it only emits `{kind:'slot',
+  id}`; the client is the sole side that materialized the wrapper).
+- **Client** (`wire/apply.ts` + `wire/region-apply.ts`) — `applyPatches` routes by
+  op: `text`/`attr` resolve a single element (text-binding `data-slot` span /
+  `data-stator-id`) unchanged; `html`/`insert`/`remove`/`move` resolve the region's
+  marker pair and apply range ops. Region lookup is a per-batch `findRegion` cache
+  (markers are stable anchors, so a pair stays valid across a batch) — a **linear
+  scan, no persistent index needed**: the markers are the single source of truth in
+  the DOM, so nested/re-rendered regions self-describe with zero index lifecycle.
+  A persistent index is a pure perf optimization deferred until a profile demands
+  it. Text-binding `data-slot` spans and `data-stator-id` elements are untouched.
+- **`<template>` materialization** — `region-apply.parseFragment` (used by
+  `insertAt`/`replaceRegion`) parses every fragment through a `<template>`, so
+  `<tr>`/`<option>` survive.
+- **Group-C edges** — inspector flash already guards a null `element` (region ops
+  report the marker's parent / the inserted node); `focus`/`scroll` have no
+  producer and degrade gracefully to a null-target no-op if one ever targeted a
+  region.
+- **Real-browser acceptance** — `browser-tests/tables.mjs` (`pnpm test:browser`)
+  drives the actual bundled `applyPatches` against a real `<table>` in system
+  Chrome via `--dump-dom` (zero install): a filter→insert→move sequence yields
+  `[NEW,c,e,a]` with every row inside `<tbody>` and markers intact. This is the
+  gate happy-dom cannot provide. CI integration (Chrome-in-image / Playwright) is
+  a follow-up; today it is a local gate.
+
+Follow-ups (non-blocking): persistent marker index if profiling shows the linear
+scan matters; extend `browser-tests` to `<select>`/`<ul>` (same parent-agnostic
+mechanism); adopt the reference-docs `SlotTarget` wording note.
