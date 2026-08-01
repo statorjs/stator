@@ -1,0 +1,60 @@
+---
+import type { InstanceOf } from '@statorjs/stator/template'
+import InventoryMachine from '../machines/inventory.ts'
+
+const { inventory } = Stator.props<{ inventory: InstanceOf<typeof InventoryMachine> }>()
+---
+<table class="stock">
+  <thead>
+    <tr>
+      <th>SKU</th>
+      <th>Item</th>
+      <th class="num">On hand</th>
+      <th>Set quantity</th>
+      <th>Save</th>
+      <th>Status</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {each(
+      read(inventory, (i) => i.rows),
+      (row) => (
+        <tr>
+          <td class="sku">{row.sku}</td>
+          <td>{row.name}</td>
+          {/* live cell — an item read, updates in place when SAVE_OK commits.
+              This is why the whole table (each + rows) is ONE component: an item
+              read only works inline in its each, not across a component boundary. */}
+          <td class="num">{read(row, (r) => r.onHand)}</td>
+          <td>
+            <div class="qty">
+              <button class="step" on:click={() => inventory.send({ type: 'ADJUST', id: row.id, delta: -1 })}>−</button>
+              <span class="draft">{read(row, (r) => r.draft)}</span>
+              <button class="step" on:click={() => inventory.send({ type: 'ADJUST', id: row.id, delta: 1 })}>+</button>
+            </div>
+          </td>
+          <td>
+            <button class="save" on:click={() => inventory.send({ type: 'SAVE', id: row.id })}>Save</button>
+          </td>
+          {/*
+            The save phase is NOT a field of `row` — it lives in a separate
+            `ctx.saves` map (a flat machine can't put the per-record workflow in
+            the chart), so this must be a machine read keyed by id, not the clean
+            `read(row, …)` above. That asymmetry is the point the example makes.
+          */}
+          <td class="save-status">
+            {read(inventory, (i) => i.saveOf(row.id).phase)}
+            {when(read(inventory, (i) => i.saveOf(row.id).message), () => (
+              <span class="save-msg"> — {read(inventory, (i) => i.saveOf(row.id).message)}</span>
+            ))}
+          </td>
+          <td class="actions">
+            <button class="remove" on:click={() => inventory.send({ type: 'REMOVE', id: row.id })}>Remove</button>
+          </td>
+        </tr>
+      ),
+      { key: (row) => row.id },
+    )}
+  </tbody>
+</table>

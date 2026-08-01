@@ -18,6 +18,7 @@
     "stator-example-live-poll",
     "stator-example-with-auth",
     "stator-example-guestbook",
-    "stator-example-weather"
+    "stator-example-weather",
+    "stator-example-stockroom"
   ]
 }

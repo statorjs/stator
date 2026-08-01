@@ -1,0 +1,26 @@
+---
+// @stator live
+import Inventory from '../machines/inventory.ts'
+import InventoryTable from '../templates/inventory-table.stator'
+import Layout from '../templates/layout.stator'
+import StockToolbar from '../templates/stock-toolbar.stator'
+
+const [inventory] = Stator.reads([Inventory])
+---
+<Layout>
+  <section class="stockroom">
+    <header class="bar">
+      <h1>Stockroom</h1>
+      <StockToolbar inventory={inventory} />
+    </header>
+
+    {match(read(inventory, (i) => i.state), {
+      loading: () => <p class="status">Loading inventory…</p>,
+      ready: () => <InventoryTable inventory={inventory} />,
+    })}
+
+    {when(read(inventory, (i) => i.loadError), () => (
+      <p class="error">Load failed: {read(inventory, (i) => i.loadError)}</p>
+    ))}
+  </section>
+</Layout>

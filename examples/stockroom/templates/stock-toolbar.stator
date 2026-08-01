@@ -1,0 +1,10 @@
+---
+import type { InstanceOf } from '@statorjs/stator/template'
+import InventoryMachine from '../machines/inventory.ts'
+
+const { inventory } = Stator.props<{ inventory: InstanceOf<typeof InventoryMachine> }>()
+---
+<div class="toolbar">
+  <span class="dirty">{read(inventory, (i) => `${i.dirtyCount} unsaved`)}</span>
+  <button class="refresh" on:click={() => inventory.send({ type: 'REFRESH' })}>Refresh</button>
+</div>
