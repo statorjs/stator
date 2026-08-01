@@ -67,6 +67,23 @@ Item-value bindings are the inline-only stopgap that works until the list is
 decomposed into components; see the "inline-only" note in
 [`per-row-item-value-bindings-in-each.md`](per-row-item-value-bindings-in-each.md).
 
+### Evidence 4 — authoring DX: reusable machines are how you shrink a large `defineMachine`
+
+Separately, a machine-authoring-DX pass (riffed 2026-08-01) asked "what higher-level
+abstraction — e.g. JSX for state machines — would cut `defineMachine` boilerplate?"
+and landed back here. The bulk of a large machine (188 lines for stockroom) is not
+domain logic; it is **recurring workflow shapes written inline** — an async op is
+always idle→committing→ok/conflict/error, a load is always loading→ready+completion.
+A *syntax* layer (structural JSX) makes all of it terser-but-still-inline (a modest
+win, mostly covered by extracting inline callbacks to named functions). The real
+leverage is **raising the abstraction**: a small library of **reusable generic
+machines** (`AsyncUpdate`, `Load`, `Poll`) composed as children, so the host
+collapses to its own domain state + the composition, and the recurring clusters move
+out into named, reusable units. That reusable primitive is the same one this spec
+needs — the authoring-DX thread resolves *into* this one. (Left open there: "magic
+strings" — typed name accessors like `M.states.ready` / `M.events.SAVE` derived from
+the def, a separate small ergonomic item that doesn't need child machines.)
+
 ## Success Criteria
 
 A machine can own a keyed, dynamic collection of per-record child machines such
