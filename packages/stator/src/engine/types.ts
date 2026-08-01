@@ -252,6 +252,9 @@ export interface MachineDef<
    *  reads typing that matters is enforced at the authoring callsite) and the
    *  initial context. */
   states: Record<string, StateNode<C, E, S>>
+  /** Machine-level transitions — handlers consulted when the current state does
+   *  not declare the event (state-scoped handlers take precedence). */
+  on?: OnMap<C, E, S>
   context: C
   /** Type-level carriers — never read at runtime. */
   readonly __context: C

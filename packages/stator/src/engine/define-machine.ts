@@ -6,6 +6,7 @@ import type {
   EventObject,
   Lifecycle,
   MachineDef,
+  OnMap,
   ReadsMap,
   SelectorMap,
   StateNode,
@@ -34,6 +35,13 @@ export interface DefineMachineConfig<
   initial: NoInfer<S>
   /** Transitions see `helpers.reads` typed as `ReadsMap<TReads>`. */
   states: Record<S, StateNode<C, E, S, ReadsMap<TReads>>>
+  /** Machine-level transitions: handlers that apply in ANY state, consulted only
+   *  when the current state does not declare the event (a state-scoped handler
+   *  always wins). The home for a completion event whose handling must not depend
+   *  on an unrelated machine-wide state — e.g. a per-record save completing while
+   *  the machine is busy reloading the collection. Without this, such a
+   *  completion is dropped wherever the current state has no handler for it. */
+  on?: OnMap<C, E, S, ReadsMap<TReads>>
   selectors?: Sel
   /** APP machines only: persist this machine's snapshot through the AppStore
    *  so its state survives restarts. Opt-in — caches and other
@@ -106,6 +114,7 @@ export function defineMachine<
     capabilities: computeCapabilities(reads),
     initial: config.initial,
     states: config.states as Record<string, StateNode<C, E, S>>,
+    on: config.on as OnMap<C, E, S> | undefined,
     context: config.context,
     __context: undefined as unknown as C,
     __event: undefined as unknown as E,
