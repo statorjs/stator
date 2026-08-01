@@ -1,7 +1,9 @@
 ---
 // @stator live
 import Inventory from '../machines/inventory.ts'
+import InventoryTable from '../templates/inventory-table.stator'
 import Layout from '../templates/layout.stator'
+import StockToolbar from '../templates/stock-toolbar.stator'
 
 const [inventory] = Stator.reads([Inventory])
 ---
@@ -9,70 +11,12 @@ const [inventory] = Stator.reads([Inventory])
   <section class="stockroom">
     <header class="bar">
       <h1>Stockroom</h1>
-      <div class="toolbar">
-        <span class="dirty">{read(inventory, (i) => `${i.dirtyCount} unsaved`)}</span>
-        <button class="refresh" on:click={() => inventory.send({ type: 'REFRESH' })}>Refresh</button>
-      </div>
+      <StockToolbar inventory={inventory} />
     </header>
 
     {match(read(inventory, (i) => i.state), {
       loading: () => <p class="status">Loading inventory…</p>,
-
-      ready: () => (
-        <table class="stock">
-          <thead>
-            <tr>
-              <th>SKU</th>
-              <th>Item</th>
-              <th class="num">On hand</th>
-              <th>Set quantity</th>
-              <th>Save</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {each(
-              read(inventory, (i) => i.rows),
-              (row) => (
-                <tr>
-                  <td class="sku">{row.sku}</td>
-                  <td>{row.name}</td>
-                  {/* live cell — an item read, updates in place when SAVE_OK commits */}
-                  <td class="num">{read(row, (r) => r.onHand)}</td>
-                  <td>
-                    <div class="qty">
-                      <button class="step" on:click={() => inventory.send({ type: 'ADJUST', id: row.id, delta: -1 })}>−</button>
-                      <span class="draft">{read(row, (r) => r.draft)}</span>
-                      <button class="step" on:click={() => inventory.send({ type: 'ADJUST', id: row.id, delta: 1 })}>+</button>
-                    </div>
-                  </td>
-                  <td>
-                    <button class="save" on:click={() => inventory.send({ type: 'SAVE', id: row.id })}>Save</button>
-                  </td>
-                  {/*
-                    The save phase is NOT a field of `row` — it lives in a
-                    separate `ctx.saves` map (a flat machine can't put the
-                    per-record workflow in the chart), so this must be a
-                    machine read keyed by id, not the clean `read(row, …)`
-                    above. That asymmetry is the point the example makes.
-                  */}
-                  <td class="save-status">
-                    {read(inventory, (i) => i.saveOf(row.id).phase)}
-                    {when(read(inventory, (i) => i.saveOf(row.id).message), () => (
-                      <span class="save-msg"> — {read(inventory, (i) => i.saveOf(row.id).message)}</span>
-                    ))}
-                  </td>
-                  <td class="actions">
-                    <button class="remove" on:click={() => inventory.send({ type: 'REMOVE', id: row.id })}>Remove</button>
-                  </td>
-                </tr>
-              ),
-              { key: (row) => row.id },
-            )}
-          </tbody>
-        </table>
-      ),
+      ready: () => <InventoryTable inventory={inventory} />,
     })}
 
     {when(read(inventory, (i) => i.loadError), () => (
