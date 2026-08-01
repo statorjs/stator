@@ -1,6 +1,6 @@
 {
   "name": "@statorjs/language-server",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Volar-based language server for .stator files.",
   "license": "MIT",
   "type": "module",
