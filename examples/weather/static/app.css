@@ -1023,6 +1023,28 @@ main {
   width: 11px;
   height: 11px;
 }
+/* REMOVE_PLACE round-trip in flight → the ✕ chip becomes a spinner. Same
+   runtime-owned affordance as the refresh control above: [data-stator-pending]
+   appears the instant you tap and clears when the server's authoritative frame
+   lands — the pill removed, or the ✕ restored if the remove was dropped. Honest
+   "working" feedback that asserts nothing about the outcome (the server owns the
+   coherent result); it just covers the round trip, which is felt most on a slow
+   connection. */
+.pivot-remove[data-stator-pending] {
+  pointer-events: none;
+}
+.pivot-remove[data-stator-pending] svg {
+  display: none;
+}
+.pivot-remove[data-stator-pending]::after {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: ab-spin 0.7s linear infinite;
+}
 @keyframes edit-pop-in {
   from {
     opacity: 0;
