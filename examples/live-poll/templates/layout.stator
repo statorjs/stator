@@ -7,9 +7,27 @@
     <link rel="stylesheet" href="/static/app.css" />
   </head>
   <body>
-    <header class="site-header">
-      <a href="/" class="brand">polls</a>
+    <header>
+      <a href="/">polls</a>
     </header>
     <main><children /></main>
   </body>
 </html>
+
+<style>
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.9rem 1.5rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  header a {
+    font-weight: 700;
+    font-size: 1.05rem;
+    text-decoration: none;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+</style>

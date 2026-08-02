@@ -23,7 +23,7 @@ const { polls, voter, pollId } = Stator.props<{
 const pollOf = (p: InstanceOf<typeof PollsMachine>): Poll | undefined =>
   (p.byId as (id: string) => Poll | undefined)(pollId)
 ---
-<section class="page page--poll">
+<section>
   {when(
     read(polls, (p) => !pollOf(p)),
     () => (
@@ -61,14 +61,13 @@ const pollOf = (p: InstanceOf<typeof PollsMachine>): Poll | undefined =>
                 {each(
                   read(polls, (p) => pollOf(p)?.options ?? []),
                   (option) => (
-                    <li class="vote-option">
+                    <li>
                       <button
-                        class="vote-btn"
                         on:click={() =>
                           voter.send({ type: 'VOTE', pollId: pollId, optionId: option.id })
                         }
                       >
-                        <span class="vote-btn-text">{option.text}</span>
+                        {option.text}
                       </button>
                     </li>
                   ),
@@ -112,10 +111,7 @@ const pollOf = (p: InstanceOf<typeof PollsMachine>): Poll | undefined =>
                           <span class="results-row-count">{read(option, (o) => o.count)}</span>
                         </div>
                         <div class="results-bar">
-                          <div
-                            class="results-bar-fill"
-                            style={read(option, (o) => `width: ${o.pct}%`)}
-                          ></div>
+                          <div class="results-bar-fill" style={read(option, (o) => `width: ${o.pct}%`)}></div>
                         </div>
                       </li>
                     ),
@@ -128,9 +124,112 @@ const pollOf = (p: InstanceOf<typeof PollsMachine>): Poll | undefined =>
 
         <div class="share-row">
           <p class="share-label">Share this poll:</p>
-          <code class="share-url">{pollId}</code>
+          <code>{pollId}</code>
         </div>
       </div>
     ),
   )}
 </section>
+
+<style>
+  .vote-options {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .vote-options button {
+    width: 100%;
+    text-align: left;
+    padding: 0.85rem 1.1rem;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    font-family: inherit;
+    font-size: 1rem;
+    color: var(--text);
+    cursor: pointer;
+    transition:
+      background 0.12s ease,
+      border-color 0.12s ease;
+  }
+  .vote-options button:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+  .results {
+    margin-top: 1.5rem;
+  }
+  .results-banner {
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-sm);
+    margin: 0 0 1.25rem;
+    color: var(--text);
+  }
+  .results-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .results-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+  }
+  .results-row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.5rem;
+  }
+  .results-row-text {
+    font-weight: 500;
+  }
+  .results-row-count {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+  .results-bar {
+    height: 8px;
+    background: var(--bg);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .results-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s ease;
+  }
+  .share-row {
+    margin-top: 2rem;
+    padding: 0.9rem 1rem;
+    background: var(--surface);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .share-label {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.9rem;
+    background: var(--bg);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+  }
+</style>

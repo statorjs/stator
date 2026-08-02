@@ -1,0 +1,45 @@
+---
+type Poll = {
+  id: string
+  question: string
+  options: Array<{ id: string; text: string; count: number }>
+}
+
+const { poll } = Stator.props<{ poll: Poll }>()
+---
+<li>
+  <a href={`/p/${poll.id}`}>
+    <strong>{poll.question}</strong>
+    <small>{poll.options.length} options · {poll.options.reduce((s, o) => s + o.count, 0)} votes</small>
+  </a>
+</li>
+
+<style>
+  a {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 1rem 1.1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: var(--text);
+    box-shadow: var(--shadow-sm);
+    transition:
+      transform 0.1s ease,
+      box-shadow 0.1s ease;
+  }
+  a:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  }
+  strong {
+    font-weight: 500;
+    font-size: 1.05rem;
+  }
+  small {
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+</style>
