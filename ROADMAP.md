@@ -257,7 +257,7 @@ pattern is a bigger liability than any missing primitive.
   attributes dropped instead of merged. Surfaced by `weather`, fixed together;
   specs in
   [`shipped/`](.chisel/specs/shipped/conditional-arm-interiors-are-second-class-on-the-live-update-path.md).
-- **Region wrappers break tables; we mutate the user's DOM** *(spike first)*:
+- **Region wrappers break tables; we mutate the user's DOM** *(shipped 1.8.0)*:
   every reactive region (`each`/`when`/`match`/`defer`) wraps its body in a
   `<span style="display:contents">`. Inside `<table>`/`<tbody>`/`<tr>`/`<select>`
   the parser hoists the span out, so a reactive `each` of `<tr>` (a filterable
@@ -273,7 +273,7 @@ pattern is a bigger liability than any missing primitive.
   so the entire current suite is blind to this class (which is why it shipped) —
   the work adds the first real-browser (Playwright) test infra, itself a standalone
   win. Minor release (no API/wire change), but high regression risk. Designed in
-  [`.chisel/specs/active/region-markers-and-template-parsed-dom-patches.md`](.chisel/specs/active/region-markers-and-template-parsed-dom-patches.md).
+  [`.chisel/specs/shipped/region-markers-and-template-parsed-dom-patches.md`](.chisel/specs/shipped/region-markers-and-template-parsed-dom-patches.md).
 - **The compose/identity seam is the standing complexity risk** *(watch, not a
   task)*: slot scopes, key scopes, element ids — the addressing layer under the
   bindings. It generated the four bugs above, and a new binding *kind* re-tests

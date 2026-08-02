@@ -1,8 +1,8 @@
 ---
 title: Region markers and template-parsed DOM patches
-status: draft
+status: shipped
 created: 2026-08-01
-updated: 2026-08-01
+updated: 2026-08-02
 area: runtime
 ---
 

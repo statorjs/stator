@@ -1,8 +1,8 @@
 ---
 title: 'Async data in synchronous routes: the defer boundary'
-status: draft
+status: shipped
 created: 2026-07-14
-updated: 2026-07-14
+updated: 2026-08-02
 area: runtime
 ---
 
