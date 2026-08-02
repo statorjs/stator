@@ -4,7 +4,7 @@ import InventoryMachine from '../machines/inventory.ts'
 
 const { inventory } = Stator.props<{ inventory: InstanceOf<typeof InventoryMachine> }>()
 ---
-<table class="stock">
+<table>
   <thead>
     <tr>
       <th>SKU</th>
@@ -28,14 +28,14 @@ const { inventory } = Stator.props<{ inventory: InstanceOf<typeof InventoryMachi
               read only works inline in its each, not across a component boundary. */}
           <td class="num">{read(row, (r) => r.onHand)}</td>
           <td>
-            <div class="qty">
-              <button class="step" on:click={() => inventory.send({ type: 'ADJUST', id: row.id, delta: -1 })}>−</button>
-              <span class="draft">{read(row, (r) => r.draft)}</span>
-              <button class="step" on:click={() => inventory.send({ type: 'ADJUST', id: row.id, delta: 1 })}>+</button>
+            <div role="group" aria-label="Set quantity">
+              <button on:click={() => inventory.send({ type: 'ADJUST', id: row.id, delta: -1 })}>−</button>
+              <span>{read(row, (r) => r.draft)}</span>
+              <button on:click={() => inventory.send({ type: 'ADJUST', id: row.id, delta: 1 })}>+</button>
             </div>
           </td>
           <td>
-            <button class="save" on:click={() => inventory.send({ type: 'SAVE', id: row.id })}>Save</button>
+            <button on:click={() => inventory.send({ type: 'SAVE', id: row.id })}>Save</button>
           </td>
           {/*
             The save phase is NOT a field of `row` — it lives in a separate
@@ -46,11 +46,11 @@ const { inventory } = Stator.props<{ inventory: InstanceOf<typeof InventoryMachi
           <td class="save-status">
             {read(inventory, (i) => i.saveOf(row.id).phase)}
             {when(read(inventory, (i) => i.saveOf(row.id).message), () => (
-              <span class="save-msg"> — {read(inventory, (i) => i.saveOf(row.id).message)}</span>
+              <span class="msg"> — {read(inventory, (i) => i.saveOf(row.id).message)}</span>
             ))}
           </td>
-          <td class="actions">
-            <button class="remove" on:click={() => inventory.send({ type: 'REMOVE', id: row.id })}>Remove</button>
+          <td>
+            <button on:click={() => inventory.send({ type: 'REMOVE', id: row.id })}>Remove</button>
           </td>
         </tr>
       ),
@@ -58,3 +58,86 @@ const { inventory } = Stator.props<{ inventory: InstanceOf<typeof InventoryMachi
     )}
   </tbody>
 </table>
+
+<style>
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  th,
+  td {
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+  thead th {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    background: #fafbfc;
+  }
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* Content-role classes that earn their place: element/attribute selectors can't
+     name "the numeric column" or "the SKU column" without fragile :nth-child, and
+     the row can't be split into its own component (item reads are inline-only). */
+  .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .sku {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  /* The quantity stepper is a real ARIA group, so it styles by role — no class. */
+  [role="group"] {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  [role="group"] button {
+    width: 1.9rem;
+    padding: 0.2rem 0;
+    text-align: center;
+    line-height: 1;
+  }
+  [role="group"] span {
+    min-width: 2.5ch;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-weight: 550;
+  }
+
+  .save-status {
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-transform: capitalize;
+  }
+  .save-status .msg {
+    text-transform: none;
+    color: var(--warn);
+  }
+
+  /* Actions column: the last cell, so it needs no class of its own. */
+  td:last-child {
+    text-align: right;
+  }
+  td:last-child button {
+    color: var(--err);
+    border-color: transparent;
+    padding: 0.35rem 0.55rem;
+  }
+  td:last-child button:hover {
+    border-color: var(--err);
+  }
+</style>
