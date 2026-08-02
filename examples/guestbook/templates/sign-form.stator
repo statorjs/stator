@@ -1,0 +1,106 @@
+---
+import type { InstanceOf } from '@statorjs/stator/template'
+import VisitorMachine from '../machines/visitor.ts'
+
+const { error, visitor } = Stator.props<{
+  error: string | null
+  visitor: InstanceOf<typeof VisitorMachine>
+}>()
+---
+<section aria-label="Sign the guestbook">
+  <h2>Sign here</h2>
+  {error ? <p role="alert">{error}</p> : null}
+  <form method="post" action="/">
+    <input type="text" name="name" placeholder="Your name" autocomplete="name" aria-label="Your name" />
+    <textarea
+      name="message"
+      maxlength="280"
+      placeholder="Leave a note for whoever comes next"
+      aria-label="Your message"
+    ></textarea>
+    <div>
+      <small>280 characters, tops</small>
+      <button type="submit">Sign the book</button>
+    </div>
+  </form>
+  {when(read(visitor, (v) => v.hasSigned), () => (
+    <p role="status">Thanks for signing — your note is in the book below.</p>
+  ))}
+</section>
+
+<style>
+  section {
+    margin: 2.25rem 0 2.75rem;
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 1.1rem 1.2rem 1.2rem;
+  }
+  h2 {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.68rem;
+    font-weight: normal;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 0.8rem;
+  }
+  form {
+    display: grid;
+    gap: 0.7rem;
+  }
+  input,
+  textarea {
+    font: inherit;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.5rem 0.65rem;
+    width: 100%;
+  }
+  textarea {
+    min-height: 4.2rem;
+    resize: vertical;
+  }
+  input:focus-visible,
+  textarea:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  small {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+  }
+  button {
+    font: inherit;
+    font-weight: 600;
+    background: var(--accent);
+    color: var(--paper);
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1.1rem;
+    cursor: pointer;
+  }
+  button:hover {
+    filter: brightness(1.08);
+  }
+  [role="alert"] {
+    color: var(--error);
+    font-size: 0.85rem;
+    margin: 0 0 0.8rem;
+  }
+  [role="status"] {
+    margin: 0.9rem 0 0;
+    font-size: 0.85rem;
+    color: var(--accent);
+  }
+</style>
