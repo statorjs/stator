@@ -13,7 +13,7 @@ highest-value debugging affordances a state framework can offer. The obvious
 implementation — rewind the canonical machine state — is hard in Stator: state
 is **server-authoritative**, spans a **graph** of machines (emits/subscribes/
 `reads`), and involves **effects** (real I/O) that can't be replayed. See
-[async-data-defer-boundary](./async-data-defer-boundary.md) and the audit of the engine for why server-side
+[async-data-defer-boundary](../shipped/async-data-defer-boundary.md) and the audit of the engine for why server-side
 rewind is a big lift.
 
 The insight that makes this tractable: **do it client-side only, over the wire

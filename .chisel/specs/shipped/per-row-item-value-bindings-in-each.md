@@ -1,8 +1,8 @@
 ---
 title: Per-row item-value bindings in each
-status: draft
+status: shipped
 created: 2026-07-20
-updated: 2026-07-20
+updated: 2026-08-02
 area: runtime
 ---
 
