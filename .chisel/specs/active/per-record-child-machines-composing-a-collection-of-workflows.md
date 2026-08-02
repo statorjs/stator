@@ -92,9 +92,76 @@ per-record workflow is a real chart (auditable); (c) a per-row component reads i
 own record's machine directly, so a list decomposes into `<Row>` components
 without find-by-id. Non-breaking for the flat/inline case.
 
+## Decision — families (2026-08-01)
+
+**The collection-of-workflows shape is a families problem; regions are parked** as a
+distinct future primitive for *orthogonal aspects of a single entity* (static, shared
+context) — not a rival here. Reframe that drove it: A (regions) and B (families) don't
+solve the same shape. Families = *a dynamic collection of like entities*, each with
+its own lifecycle; regions = *orthogonal aspects of one entity*. A per-record
+collection is N runtime-keyed disposable entities — modelling it as "0..N dynamic
+parallel regions" is the awkward corner of statecharts. Decisive axes: **Evidence 3**
+(a per-row component reads its *own* machine — only families give the row an address;
+regions leave it a slice of the parent → find-by-id persists), **per-child isomorphic
+placement** (effectful child→server, interaction child→client per the two-family
+taxonomy; regions force one plane), and **keeping the engine core untouched** (the
+ownership spike needed zero engine changes; regions would rewrite the actor event
+loop — the one layer we want proven-and-simple).
+
+Grounding (why the "families relocate complexity to a harder layer" critique fails):
+families reuse layers already built for multiplicity. The `Store` is already a
+per-session `(machineName → snapshot)` map with **per-session TTL** ("the session is
+the TTL unit; machines within a session are not independent") — a keyed family is more
+named entries under the same session, not a new persistence model. Session actors are
+**per-request-transient**, hydrated from the host's own enumerated keys (`ctx.rows`),
+so "N child actors" is a per-request working set, not standing memory. Cross-machine
+reactions (host↔child) ride the existing `subscribes` cascade (`subscribersBySource`,
+`MAX_CASCADE_DEPTH`). The genuinely-new surface is a **naming convention + dead-key GC
++ the compiler binding** — not a new persistence or concurrency layer.
+
+### Single child vs. keyed family — one idea, cardinality as a modifier
+
+Considered whether "a host owns ONE named child" and "a host owns a KEYED FAMILY" are
+the same concept or distinct. **Verdict: one underlying idea (a host owning child
+machines) with cardinality as a modifier — one runtime substrate, one keyword,
+`keyed()` as the discriminator.** What's shared is the whole substrate
+(hydrate/persist/route/dispose); what differs is only *cardinality-known-at-authoring
+vs. runtime*, which cascades into access shape, lifecycle, template pairing, and
+lowering. Precedent splits these into TWO keywords (XState `invoke` vs `spawn`; Elixir
+`Supervisor` vs `DynamicSupervisor`) because lifecycle differs — but Stator can express
+that same distinction through the *value shape* instead of two declaration sites:
+
+```ts
+defineMachine({
+  children: {
+    checkout: CheckoutMachine,                          // un-keyed → host.checkout : InstanceOf<…>             (property, always present, host-bound life)
+    save: keyed(AsyncUpdate(commit), (r: Row) => r.id), // keyed    → host.save(id) : InstanceOf<…> | undefined (accessor, dynamic, GC'd; pairs with `each`)
+  },
+})
+```
+
+The `keyed()` wrapper flips the type surface and lifecycle exactly where they differ —
+property vs. keyed-accessor-returning-maybe, host-bound vs. dynamically-GC'd — and
+nowhere else. This **supersedes the earlier `family:`-only sketch**: `children:` reads
+correctly for one *or* many; `family` implied a multiplicity wrong for the single case
+(which is likely the *more common* entry point — a form with one async save — so it
+gets the clean non-optional property access, not a family-of-size-1 maybe-accessor).
+Keyword itself (`children` vs `use`) is a non-blocking bikeshed. Lowering: one runtime
+mechanism for both; a fixed single child *could* be compile-time-inlined later as an
+optimization, not a separate concept.
+
+### Build gate
+
+Design settled; **the build stays evidence-gated** (repo promotion discipline).
+Trigger: a second independent collection example, or a real user hitting Evidence 3 (a
+per-row component forced into find-by-id). Until then this is ready-to-build, not a
+build order — when triggered, a staged build spins out (save-workflow-as-child first,
+host keeps `ctx.rows`, deferring per-key persistence; then row-as-child as per-key
+context lands).
+
 ## Approach
 
-Open — the two candidate shapes are in the parallel-regions RFC:
+The two candidate shapes weighed (**decided: families, see Decision above**):
 - **Intra-machine parallel regions with a keyed family** — keeps one actor,
   shared context, one snapshot; adds a delivery loop + keyed routing.
 - **Child / family machines** — each record is a real machine (its own chart);
@@ -102,10 +169,10 @@ Open — the two candidate shapes are in the parallel-regions RFC:
   Evidence 3 (the child reads its own machine); extends the reads model
   (`read(family(id), …)`) and per-key persistence.
 
-The maintainer response leans toward the family/child-machine framing, seeded by a
-reusable generic `AsyncUpdate<T>` machine. Of the two fixed constraints, **the
-generic-inference one is now retired — GREEN** (see below). The decision between
-regions and families still wants a second collection example + a design pass.
+The family/child-machine framing is the decision, seeded by a reusable generic
+`AsyncUpdate<T>` machine. **All three de-risking gates are now GREEN** (typing,
+single-actor runtime, family ownership — see below); what stays gated is the *build*,
+not the design.
 
 ### Granularity — how much moves into the child
 
@@ -236,8 +303,9 @@ the **compiler surface** (and it is still where "regions vs. families" is decide
    `computeCapabilities` scans only `reads`, so it would currently miss that a
    server-I/O op pins the child. Bounded gap (the second fixed constraint), untouched.
 4. **Reads extension** — the read-BACK mechanic is proven at the actor level; what
-   remains is the **template/compiler** lowering of `read(family(id), …)` (reading a
-   child through its host in a `.stator` template, not just via the actor API).
+   remains is the **template/compiler** lowering of the decided accessors —
+   `read(host.child, …)` (un-keyed property) and `read(host.save(id), …)` (keyed) —
+   reading a child through its host in a `.stator` template, not just via the actor API.
 
 Also carried from the RFC: per-key context vs. shared; keyed virtualization; a
 reusable-machine standard library; event routing (explicit vs. auto by key);
