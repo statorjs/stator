@@ -41,7 +41,7 @@ const error =
 
   <footer>
     <p>
-      The oldest idea on the web, on the newest architecture — built with
+      The oldest idea on the web, on the newest architecture — built with{' '}
       <a href="https://statorjs.dev">Stator</a>. This page ships no custom
       JavaScript.
     </p>

@@ -23,7 +23,7 @@ const byId = products.byId as unknown as (id: string) => Product | undefined
   <header class="cart-header">
     <h1>Your cart</h1>
     <p class="cart-summary-line">
-      {read(cart, c => c.itemCount)} item{read(cart, c => c.itemCount === 1 ? '' : 's')} · subtotal
+      {read(cart, c => c.itemCount)} item{read(cart, c => c.itemCount === 1 ? '' : 's')} · subtotal{' '}
       <strong>${read(cart, c => c.total.toFixed(2))}</strong>
     </p>
   </header>
