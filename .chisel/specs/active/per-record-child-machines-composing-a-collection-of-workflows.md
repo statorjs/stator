@@ -67,6 +67,25 @@ Item-value bindings are the inline-only stopgap that works until the list is
 decomposed into components; see the "inline-only" note in
 [`per-row-item-value-bindings-in-each.md`](per-row-item-value-bindings-in-each.md).
 
+**Second independent instance — `live-poll` poll-page (found 2026-08-02, examples
+style-guide cleanup).** Bringing the examples to a component style guide, `poll-page`
+hit exactly this wall: its live results rows use item reads (`read(option, o =>
+o.count)`, the bar's `read(option, o => o.pct)`), so the row can't be a
+`<ResultsRow>` component — it stays inline, and that inline row is the bulk of the
+file. A second, *independent* example of this friction (stockroom's table was the
+first) — which is this spec's own promotion trigger. **A useful nuance it adds:**
+poll-page's rows are *read-only live displays*, not per-record *workflows* (no
+save/conflict/retry). So the demand splits into two shapes — **read-only addressable
+rows** (poll-page, most tables/dashboards) vs. **per-record workflows** (stockroom's
+saves). The first doesn't need a machine per row at all; it needs only *item reads
+that cross a component boundary* (pass the item, read it reactively in the child).
+That points at a **lighter primitive** — cross-boundary item reads — that may cover a
+large share of the cases the child-machine design targets with the heavier hammer;
+worth weighing when the regions-vs-families build is scoped (it may be the cheap
+first slice). (Decomposing poll-page further also prop-drills `polls`/`voter`/`pollId`
+into both extracted panels — a second witness for
+[`ambient-by-def-machine-reads-with-a-typed-requirement-channel.md`](ambient-by-def-machine-reads-with-a-typed-requirement-channel.md).)
+
 ### Evidence 4 — authoring DX: reusable machines are how you shrink a large `defineMachine`
 
 Separately, a machine-authoring-DX pass (riffed 2026-08-01) asked "what higher-level
