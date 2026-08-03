@@ -12,7 +12,7 @@ const { polls, voter, pollId } = Stator.props<{
 ---
 <div class="results">
   <p>
-    You voted for
+    You voted for{' '}
     <strong>
       {read(voter, (v) => {
         const optId = (v.votedFor as (id: string) => string | null)(pollId)
