@@ -26,10 +26,58 @@ const [catalog, cart] = Stator.reads([CatalogMachine, CartMachine])
 
   <section class="cat-tiles">
     {each(Object.entries(CATEGORIES), ([key, c]) => (
-      <a class="cat-tile" href={`/c/${key}`}>
+      <a href={`/c/${key}`}>
         <h3>{c.title}</h3>
         <p>{c.lede}</p>
       </a>
     ))}
   </section>
 </Layout>
+
+<style>
+  .hero {
+    padding: 64px 0 44px;
+    max-width: 62ch;
+  }
+  .hero h1 {
+    font-size: 42px;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+  }
+  .hero-lede {
+    font-size: 17px;
+    color: var(--body);
+    margin: 14px 0 0;
+  }
+  .band {
+    padding: 8px 0 20px;
+  }
+  .cat-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    padding-top: 34px;
+  }
+  .cat-tiles a {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 18px;
+  }
+  .cat-tiles a:hover {
+    border-color: var(--harbor);
+  }
+  .cat-tiles h3 {
+    font-size: 16px;
+  }
+  .cat-tiles p {
+    margin: 4px 0 0;
+    font-size: 13.5px;
+    color: var(--body);
+  }
+  @media (max-width: 760px) {
+    .hero h1 {
+      font-size: 32px;
+    }
+  }
+</style>

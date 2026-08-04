@@ -13,9 +13,9 @@ const { cart } = Stator.props<{ cart?: InstanceOf<typeof CartMachine> }>()
     <link rel="stylesheet" href="/static/app.css" />
   </head>
   <body>
-    <header class="site-header">
+    <header>
       <a href="/" class="brand">PLIMSOLL</a>
-      <nav class="site-nav">
+      <nav>
         <a href="/c/everyday">Everyday</a>
         <a href="/c/deck">Deck</a>
         <a href="/c/weather">Weather</a>
@@ -27,12 +27,76 @@ const { cart } = Stator.props<{ cart?: InstanceOf<typeof CartMachine> }>()
       </a>
     </header>
     <main><children /></main>
-    <footer class="site-footer">
+    <footer>
       <p>Plimsoll · harbor-grade footwear · every pair ships with its ledger.</p>
       <p class="footer-note">
-        A demonstration store built with <a href="https://github.com/statorjs/stator">Stator</a>.
+        A demonstration store built with <a href="https://github.com/statorjs/stator">Stator</a>.{' '}
         Nothing here is for sale.
       </p>
     </footer>
   </body>
 </html>
+
+<style>
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 28px;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand {
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    font-size: 15px;
+  }
+  nav {
+    display: flex;
+    gap: 18px;
+    font-size: 14px;
+    color: var(--body);
+  }
+  nav a:hover,
+  .cart-link:hover {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .cart-link {
+    margin-left: auto;
+    font-size: 14px;
+    color: var(--body);
+  }
+  .cart-count {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--harbor);
+  }
+  main {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 32px 72px;
+  }
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 26px 32px 40px;
+    font-size: 13px;
+    color: var(--body);
+  }
+  footer p {
+    margin: 0 0 4px;
+  }
+  .footer-note a {
+    color: var(--harbor);
+    text-decoration: underline;
+  }
+  @media (max-width: 760px) {
+    header {
+      flex-wrap: wrap;
+      padding: 16px 20px;
+    }
+    main {
+      padding: 0 20px 56px;
+    }
+  }
+</style>

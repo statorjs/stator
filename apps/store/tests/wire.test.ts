@@ -49,7 +49,7 @@ describe('the wire contract', () => {
   it('renders the catalog with cards and plates', async () => {
     const res = await app.fetch(new Request('http://test/c/all'))
     const html = await res.text()
-    expect(html).toContain('class="card"')
+    expect(html).toContain('href="/p/') // a product card links to its PDP
     expect(html).toContain('--plate-upper:')
   })
 

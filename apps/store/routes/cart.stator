@@ -1,13 +1,13 @@
 ---
 import { formatPrice } from '../lib/catalog-data.ts'
 import CartMachine from '../machines/cart.ts'
+import CartLine from '../templates/cart-line.stator'
 import Layout from '../templates/layout.stator'
-import Plate from '../templates/plate.stator'
 
 const [cart] = Stator.reads([CartMachine])
 ---
 <Layout cart={cart}>
-  <section class="cart-page">
+  <section>
     <header class="browse-head">
       <p class="eyebrow">CART</p>
       <h1>The manifest.</h1>
@@ -17,48 +17,16 @@ const [cart] = Stator.reads([CartMachine])
       <p class="empty">Nothing aboard yet. <a class="link" href="/c/all">Browse the chandlery.</a></p>
     ))}
 
-    <ul class="cart-lines">
+    <ul>
       {each(
         read(cart, (c) => c.display),
-        (line) => (
-          <li class="cart-line">
-            <a href={`/p/${line.slug}`} class="cart-line-plate">
-              <Plate silhouette={line.silhouette} colorway={line.colorway} />
-            </a>
-            <div class="cart-line-info">
-              <p class="cart-line-name">{line.name}</p>
-              <p class="cart-line-variant">{line.colorwayLabel} · {line.size === 'one-size' ? 'One size' : `EU ${line.size}`}</p>
-              <button
-                class="cart-line-remove"
-                type="button"
-                on:click={() => cart.send({ type: 'REMOVE', sku: line.sku })}
-              >
-                Remove
-              </button>
-            </div>
-            <div class="cart-line-qty">
-              <button type="button" class="qty-btn" on:click={() => cart.send({ type: 'DECREMENT', sku: line.sku })}>−</button>
-              <span class="qty-num">
-                {read(cart, (c) => c.display.find((l) => l.sku === line.sku)?.qty ?? '')}
-              </span>
-              <button
-                type="button"
-                class="qty-btn"
-                disabled={read(cart, (c) => c.atCeiling(line.sku))}
-                on:click={() => cart.send({ type: 'INCREMENT', sku: line.sku })}
-              >+</button>
-            </div>
-            <p class="cart-line-total">
-              {read(cart, (c) => formatPrice(c.display.find((l) => l.sku === line.sku)?.lineTotal ?? 0))}
-            </p>
-          </li>
-        ),
+        (line) => <CartLine line={line} cart={cart} />,
         { key: (line) => line.sku },
       )}
     </ul>
 
     {when(read(cart, (c) => c.count > 0), () => (
-      <footer class="cart-foot">
+      <footer>
         <button class="cart-clear" type="button" on:click={() => cart.send({ type: 'CLEAR' })}>
           Clear the manifest
         </button>
@@ -71,3 +39,35 @@ const [cart] = Stator.reads([CartMachine])
     ))}
   </section>
 </Layout>
+
+<style>
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 22px 4px 0;
+  }
+  .cart-sub {
+    display: flex;
+    gap: 16px;
+    align-items: baseline;
+  }
+  .cart-sub-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: var(--harbor);
+  }
+  .cart-sub-amount {
+    font-family: var(--mono);
+    font-size: 20px;
+  }
+</style>

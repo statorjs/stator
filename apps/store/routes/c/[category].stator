@@ -39,7 +39,7 @@ const hasFilters = Boolean(q.material || q.color || q.size)
   ))}
 
   {when(!!cat, () => (
-    <div class="browse">
+    <div>
       <header class="browse-head">
         <p class="eyebrow">{cat.title.toUpperCase()}</p>
         <h1>{cat.lede}</h1>
@@ -53,7 +53,7 @@ const hasFilters = Boolean(q.material || q.color || q.size)
 
       <div class="browse-body">
         <aside class="facets">
-          <div class="facet-group">
+          <div>
             <h3>Material</h3>
             {each(facets.materials, (o) => (
               <a
@@ -64,7 +64,7 @@ const hasFilters = Boolean(q.material || q.color || q.size)
               </a>
             ))}
           </div>
-          <div class="facet-group">
+          <div>
             <h3>Color</h3>
             {each(facets.colors, (o) => (
               <a
@@ -75,7 +75,7 @@ const hasFilters = Boolean(q.material || q.color || q.size)
               </a>
             ))}
           </div>
-          <div class="facet-group">
+          <div>
             <h3>Size</h3>
             <div class="facet-sizes">
               {each(facets.sizes, (o) => (
@@ -90,7 +90,7 @@ const hasFilters = Boolean(q.material || q.color || q.size)
           </div>
         </aside>
 
-        <section class="results">
+        <section>
           {when(page.total === 0, () => (
             <p class="empty">Nothing matches that combination. <a href={base} class="link">Clear the filters</a> and try again.</p>
           ))}
@@ -113,3 +113,103 @@ const hasFilters = Boolean(q.material || q.color || q.size)
     </div>
   ))}
 </Layout>
+
+<style>
+  .browse-body {
+    display: grid;
+    grid-template-columns: 190px 1fr;
+    gap: 32px;
+    align-items: start;
+  }
+  .facets {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    position: sticky;
+    top: 20px;
+  }
+  .facets h3 {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--harbor);
+    font-family: var(--mono);
+    font-weight: 500;
+    margin: 0 0 8px;
+  }
+  .facet {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13.5px;
+    color: var(--body);
+    padding: 3px 0;
+  }
+  .facet:hover {
+    color: var(--ink);
+  }
+  .facet.is-on {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .facet.is-on::after {
+    content: "×";
+    color: var(--buoy);
+    margin-left: 6px;
+  }
+  .facet-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--body);
+  }
+  .facet-sizes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .size {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 3px 8px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--body);
+    background: var(--card);
+  }
+  .size:hover {
+    border-color: var(--harbor);
+    color: var(--ink);
+  }
+  .size.is-on {
+    background: var(--ink);
+    color: var(--card);
+    border-color: var(--ink);
+  }
+  .pager {
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    padding: 26px 0 0;
+    font-size: 14px;
+  }
+  .pager-link {
+    color: var(--harbor);
+  }
+  .pager-link:hover {
+    text-decoration: underline;
+  }
+  .pager-status {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--body);
+  }
+  @media (max-width: 760px) {
+    .browse-body {
+      grid-template-columns: 1fr;
+    }
+    .facets {
+      position: static;
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+  }
+</style>

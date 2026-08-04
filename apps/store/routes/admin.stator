@@ -28,7 +28,7 @@ const skuLabel = (sku: string): string => {
   ))}
 
   {when(adminEnabled, () => (
-    <section class="admin">
+    <section>
       <header class="browse-head">
         <p class="eyebrow">HARBORMASTER</p>
         <h1>The back office.</h1>
@@ -41,7 +41,7 @@ const skuLabel = (sku: string): string => {
         <div class="panel">
           <p class="panel-lede">
             Restocking is gated by a session machine's guard — the
-            <a class="link" href="https://statorjs.dev/guides/app-machines/"> gateway pattern</a>.
+            <a class="link" href="https://statorjs.dev/guides/app-machines/"> gateway pattern</a>.{' '}
             This toggle stands in for real auth in the demo.
           </p>
           <div class="panel-actions">
@@ -116,3 +116,37 @@ const skuLabel = (sku: string): string => {
     </section>
   ))}
 </Layout>
+
+<style>
+  .admin-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .admin-list {
+    list-style: none;
+    margin: 0 0 18px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .admin-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 16px;
+    align-items: center;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+  .admin-row-name {
+    color: var(--body);
+  }
+  .admin-restock {
+    font-size: 12.5px;
+    padding: 6px 12px;
+  }
+</style>

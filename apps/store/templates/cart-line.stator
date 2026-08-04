@@ -1,0 +1,112 @@
+---
+import { formatPrice } from '../lib/catalog-data.ts'
+import type { InstanceOf } from '@statorjs/stator/template'
+import type CartMachine from '../machines/cart.ts'
+import type { CartDisplayLine } from '../machines/cart.ts'
+import Plate from './plate.stator'
+
+const { line, cart } = Stator.props<{
+  line: CartDisplayLine
+  cart: InstanceOf<typeof CartMachine>
+}>()
+---
+<li>
+  <a href={`/p/${line.slug}`}>
+    <Plate silhouette={line.silhouette} colorway={line.colorway} />
+  </a>
+  <div class="info">
+    <p class="name">{line.name}</p>
+    <p class="variant">{line.colorwayLabel} · {line.size === 'one-size' ? 'One size' : `EU ${line.size}`}</p>
+    <button type="button" on:click={() => cart.send({ type: 'REMOVE', sku: line.sku })}>Remove</button>
+  </div>
+  <div class="qty">
+    <button type="button" on:click={() => cart.send({ type: 'DECREMENT', sku: line.sku })}>−</button>
+    <span>{read(cart, (c) => c.display.find((l) => l.sku === line.sku)?.qty ?? '')}</span>
+    <button
+      type="button"
+      disabled={read(cart, (c) => c.atCeiling(line.sku))}
+      on:click={() => cart.send({ type: 'INCREMENT', sku: line.sku })}
+    >+</button>
+  </div>
+  <p>{read(cart, (c) => formatPrice(c.display.find((l) => l.sku === line.sku)?.lineTotal ?? 0))}</p>
+</li>
+
+<style>
+  li {
+    display: grid;
+    grid-template-columns: 130px 1fr auto auto;
+    gap: 20px;
+    align-items: center;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px 18px;
+  }
+  .name {
+    font-weight: 600;
+    margin: 0;
+  }
+  .variant {
+    font-size: 13px;
+    color: var(--body);
+    margin: 2px 0 6px;
+  }
+  /* the remove control — the only button in the info column */
+  .info button {
+    font: inherit;
+    font-size: 12px;
+    color: var(--buoy);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .qty {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .qty button {
+    font: inherit;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--canvas);
+    cursor: pointer;
+    line-height: 1;
+  }
+  .qty button:hover:not(:disabled) {
+    border-color: var(--harbor);
+  }
+  .qty button:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .qty span {
+    font-family: var(--mono);
+    font-size: 14px;
+    min-width: 2ch;
+    text-align: center;
+  }
+  /* line total — the row's only direct-child paragraph */
+  li > p {
+    font-family: var(--mono);
+    font-size: 14px;
+    margin: 0;
+    min-width: 8ch;
+    text-align: right;
+  }
+  @media (max-width: 640px) {
+    li {
+      grid-template-columns: 90px 1fr;
+    }
+    .qty,
+    li > p {
+      grid-column: 2;
+      justify-self: end;
+    }
+  }
+</style>
