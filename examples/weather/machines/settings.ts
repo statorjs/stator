@@ -14,6 +14,12 @@ import { defineMachine } from '@statorjs/stator/server'
 export type Units = 'metric' | 'imperial'
 export type Clock = '12h' | '24h'
 
+/** The app's starting preferences. Change these two to ship different defaults
+ *  (e.g. `'imperial'` / `'12h'`) — WeatherMachine imports them for its mirrored
+ *  copy, so both machines stay one source of truth. */
+export const DEFAULT_UNITS: Units = 'metric'
+export const DEFAULT_CLOCK: Clock = '24h'
+
 interface Ctx {
   units: Units
   clock: Clock
@@ -34,7 +40,7 @@ export default defineMachine({
       payload: (ctx: Ctx) => ({ units: ctx.units, clock: ctx.clock }),
     },
   },
-  context: { units: 'metric', clock: '24h' } as Ctx,
+  context: { units: DEFAULT_UNITS, clock: DEFAULT_CLOCK } as Ctx,
   initial: 'ready',
   states: {
     ready: {

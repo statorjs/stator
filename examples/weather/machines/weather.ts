@@ -1,6 +1,6 @@
 import { defineMachine } from '@statorjs/stator/server'
 import { type Place, placeId } from '../lib/open-meteo.ts'
-import SettingsMachine, { type Clock, type Units } from './settings.ts'
+import SettingsMachine, { DEFAULT_CLOCK, DEFAULT_UNITS, type Clock, type Units } from './settings.ts'
 
 /**
  * The DOMAIN machine: which places this session tracks, which is active, and
@@ -21,7 +21,7 @@ export interface SavedPlace extends Place {
   id: string
 }
 
-const DEFAULT_PLACES: SavedPlace[] = (
+export const DEFAULT_PLACES: SavedPlace[] = (
   [
     { name: 'London', admin: 'England', country: 'United Kingdom', countryCode: 'GB', lat: 51.5074, lon: -0.1278, timezone: 'Europe/London' },
     { name: 'Tokyo', country: 'Japan', countryCode: 'JP', lat: 35.6762, lon: 139.6503, timezone: 'Asia/Tokyo' },
@@ -69,8 +69,8 @@ export default defineMachine({
   context: {
     places: DEFAULT_PLACES,
     activeId: DEFAULT_PLACES[0]!.id,
-    units: 'metric',
-    clock: '24h',
+    units: DEFAULT_UNITS,
+    clock: DEFAULT_CLOCK,
   } as Ctx,
   initial: 'ready',
   states: {
