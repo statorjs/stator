@@ -72,130 +72,9 @@ main {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- Header ---------------------------------------------------------- */
-header {
-  margin-bottom: 24px;
-}
-.eyebrow {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.22em;
-  color: var(--fg-2);
-  font-weight: 600;
-}
-.wx h1 {
-  margin: 2px 0 0;
-  font-size: clamp(40px, 8vw, 72px);
-  font-weight: 200;
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
-.sub {
-  margin-top: 8px;
-  color: var(--fg-2);
-  font-size: 14px;
-}
-.units {
-  display: inline-flex;
-  height: 32px;
-  border: 1px solid var(--line);
-}
-.u-btn {
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  border: 0;
-  background: transparent;
-  color: var(--fg-2);
-  padding: 6px 14px;
-  cursor: pointer;
-}
-.u-btn.active {
-  background: var(--fg);
-  color: var(--bg);
-}
-.u-btn:focus-visible {
-  outline: 2px solid #1ba1e2;
-  outline-offset: 2px;
-}
-
-/* ---- Location search ------------------------------------------------- */
-.search-wrap {
-  position: relative;
-  max-width: 340px;
-  margin-top: 16px;
-}
-location-search {
-  position: relative;
-  display: block;
-}
-.search-input {
-  width: 100%;
-  background: transparent;
-  border: 0;
-  border-bottom: 2px solid var(--line);
-  color: var(--fg);
-  font-family: inherit;
-  font-size: 15px;
-  padding: 8px 28px 8px 2px;
-  outline: none;
-}
-.search-input::placeholder {
-  color: var(--fg-2);
-}
-.search-input:focus {
-  border-color: #1ba1e2;
-}
-.search-mag {
-  position: absolute;
-  right: 2px;
-  top: 9px;
-  width: 17px;
-  height: 17px;
-  color: var(--fg-2);
-  pointer-events: none;
-}
-.search-results,
-.search-empty {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  margin-top: 2px;
-  z-index: 30;
-  background: var(--tile-surface);
-  border: 1px solid var(--line);
-}
-.search-results {
-  max-height: 280px;
-  overflow-y: auto;
-}
-.search-result {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: 0;
-  color: var(--fg);
-  font-family: inherit;
-  font-size: 14px;
-  padding: 11px 13px;
-  cursor: pointer;
-}
-.search-result:hover {
-  background: var(--line);
-}
-.sr-region {
-  color: var(--fg-2);
-  font-size: 12px;
-}
-.search-empty {
-  padding: 11px 13px;
-  color: var(--fg-2);
-  font-size: 13px;
-}
+/* Header (route index.stator), the location search field + results dropdown
+   (location-search / search-bar), and the unit/clock toggles (settings-controls)
+   are all scoped in their own components now. */
 
 /* ---- Tile grid ------------------------------------------------------- */
 .grid {
@@ -404,12 +283,6 @@ tile-motion {
 /* Hero (the current-conditions tile) styles are scoped in templates/hero.stator
    — including the .live-sky/.sky-canvas positioning it wraps. */
 
-/* Touch devices: fingers need a bigger vertical hit area on the pivot pills. */
-@media (pointer: coarse) {
-  .pivot-item {
-    padding: 9px 0;
-  }
-}
 
 /* ---- Forecast tiles (hourly + 10-day) ------------------------------- */
 /* The frame-layout choice and the row grids are scoped in their components
@@ -450,58 +323,8 @@ tile-motion {
 /* .compass (wind-tile) and .mini-arc/.mini-moon (sun-moon-tile) are scoped in
    those components; the shared .t-glyph/.t-bg-glyph above stay global. */
 
-/* ---- Metro Pivot: horizontal scroll-snap location strip -------------- */
-.pivot {
-  display: flex;
-  gap: 22px;
-  margin: 2px 0 22px;
-  padding-bottom: 6px;
-  overflow-x: auto;
-  scroll-snap-type: x proximity;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-.pivot::-webkit-scrollbar {
-  display: none;
-}
-.pivot-item {
-  scroll-snap-align: start;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: baseline;
-  gap: 9px;
-  background: transparent;
-  border: 0;
-  padding: 2px 0;
-  cursor: pointer;
-  font-family: inherit;
-  color: var(--fg-2);
-  opacity: 0.45;
-  transition: opacity 0.2s;
-}
-.pivot-item:hover {
-  opacity: 0.8;
-}
-.pivot-item.active {
-  opacity: 1;
-}
-.pivot-name {
-  font-size: clamp(21px, 4vw, 30px);
-  font-weight: 200;
-  letter-spacing: -0.01em;
-}
-.pivot-item.active .pivot-name {
-  color: var(--fg);
-}
-.pivot-temp {
-  font-size: 14px;
-  color: var(--fg-2);
-  font-weight: 400;
-}
-.pivot-item:focus-visible {
-  outline: 2px solid #1ba1e2;
-  outline-offset: 3px;
-}
+/* The Metro pivot (location strip) — base + edit-mode reveals — is scoped in
+   templates/pivot.stator. */
 
 @media (prefers-reduced-motion: reduce) {
   .flip-face,
@@ -666,16 +489,8 @@ main {
     visibility 0s,
     padding 0.28s cubic-bezier(0.25, 0.9, 0.25, 1);
 }
-.set-row {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.set-label {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  opacity: 0.7;
-}
+/* .set-row/.set-label (the drawer's unit + clock toggles) are scoped in
+   templates/settings-controls.stator. */
 .ab-updated {
   font-size: 11.5px;
   opacity: 0.6;
@@ -712,82 +527,9 @@ main {
   }
 }
 
-/* ---- Edit mode: chrome view state, projected as .wx[data-view] --------- */
-/* The mode's OWNER is the app bar's ViewMode client machine (app-bar-ctl);
-   `data-view` is only its projection, and CSS drives every reveal below.
-   Resting state is clean — no ✕, no search. */
-
-/* Eyebrow names the mode: "weather" → "edit locations". */
-.eb-edit {
-  display: none;
-}
-.wx[data-view="editing"] .eb-rest {
-  display: none;
-}
-.wx[data-view="editing"] .eb-edit {
-  display: inline;
-}
-
-/* Search: absent from the resting state, slides in on edit. */
-.search-wrap {
-  display: none;
-}
-.wx[data-view="editing"] .search-wrap {
-  display: block;
-  animation: edit-slide-in 0.24s ease-out;
-}
-@keyframes edit-slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Pivot pills gain a chip outline + a ✕ delete chip. The ✕'s ACTION is a real
-   REMOVE_PLACE event; only its VISIBILITY is client-side view state. */
-.pivot-remove {
-  display: none;
-}
-.wx[data-view="editing"] .pivot-item {
-  padding: 4px 6px 4px 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-}
-.wx[data-view="editing"] .pivot-remove {
-  display: inline-flex;
-  align-self: center;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: rgba(127, 127, 127, 0.25);
-  color: var(--fg);
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-  animation: edit-pop-in 0.2s ease-out;
-}
-.wx[data-view="editing"] .pivot-remove:hover {
-  background: #d64545;
-  color: #fff;
-}
-.pivot-remove svg {
-  display: block;
-  width: 11px;
-  height: 11px;
-}
-@keyframes edit-pop-in {
-  from {
-    opacity: 0;
-    transform: scale(0.6);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
+/* ---- Edit-mode view-cascade -------------------------------------------
+   The mode's OWNER is the app bar's ViewMode client machine (app-bar-ctl),
+   projected as `data-view` on the route's .wx section. Each reveal it drives is
+   now co-located with the element it reveals — the eyebrow label in the route,
+   the search box in search-bar, the pivot delete-chips in pivot — because
+   subject-only scoping leaves the `.wx[data-view]` ancestor selector global. */

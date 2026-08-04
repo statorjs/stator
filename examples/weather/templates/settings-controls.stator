@@ -37,3 +37,39 @@ const { settings } = Stator.props<{ settings: InstanceOf<typeof SettingsMachine>
     >24h</button>
   </div>
 </div>
+
+<style>
+  .set-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .set-label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    opacity: 0.7;
+  }
+  .units {
+    display: inline-flex;
+    height: 32px;
+    border: 1px solid var(--line);
+  }
+  .u-btn {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    border: 0;
+    background: transparent;
+    color: var(--fg-2);
+    padding: 6px 14px;
+    cursor: pointer;
+  }
+  .u-btn.active {
+    background: var(--fg);
+    color: var(--bg);
+  }
+  .u-btn:focus-visible {
+    outline: 2px solid #1ba1e2;
+    outline-offset: 2px;
+  }
+</style>

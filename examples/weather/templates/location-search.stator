@@ -49,3 +49,36 @@
     }
   }
 </script>
+
+<style>
+  location-search {
+    position: relative;
+    display: block;
+  }
+  .search-input {
+    width: 100%;
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid var(--line);
+    color: var(--fg);
+    font-family: inherit;
+    font-size: 15px;
+    padding: 8px 28px 8px 2px;
+    outline: none;
+  }
+  .search-input::placeholder {
+    color: var(--fg-2);
+  }
+  .search-input:focus {
+    border-color: #1ba1e2;
+  }
+  .search-mag {
+    position: absolute;
+    right: 2px;
+    top: 9px;
+    width: 17px;
+    height: 17px;
+    color: var(--fg-2);
+    pointer-events: none;
+  }
+</style>
