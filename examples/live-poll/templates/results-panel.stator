@@ -1,0 +1,107 @@
+---
+import type { InstanceOf } from '@statorjs/stator/template'
+import type PollsMachine from '../machines/polls.ts'
+import type VoterMachine from '../machines/voter.ts'
+import { pollOf } from '../lib/poll.ts'
+
+const { polls, voter, pollId } = Stator.props<{
+  polls: InstanceOf<typeof PollsMachine>
+  voter: InstanceOf<typeof VoterMachine>
+  pollId: string
+}>()
+---
+<div class="results">
+  <p>
+    You voted for{' '}
+    <strong>
+      {read(voter, (v) => {
+        const optId = (v.votedFor as (id: string) => string | null)(pollId)
+        const poll = pollOf(polls, pollId)
+        return poll?.options.find((o) => o.id === optId)?.text ?? ''
+      })}
+    </strong>
+    . Live results below.
+  </p>
+
+  <ul>
+    {/* Row-complete items: pct is derived in the selector, so every live field in
+        a row — the count, the bar width — is an item read (inline-only, so the
+        row can't be its own component). A vote for ANY option moves every row's
+        pct; the per-row value diff patches exactly the bars that changed. */}
+    {each(
+      read(polls, (p) => {
+        const poll = pollOf(p, pollId)
+        if (!poll) return []
+        const total = poll.options.reduce((s, o) => s + o.count, 0)
+        return poll.options.map((o) => ({
+          ...o,
+          pct: total === 0 ? '0.0' : ((o.count / total) * 100).toFixed(1),
+        }))
+      }),
+      (option) => (
+        <li>
+          <div class="head">
+            <span class="text">{option.text}</span>
+            <span class="count">{read(option, (o) => o.count)}</span>
+          </div>
+          <div class="bar">
+            <div class="fill" style={read(option, (o) => `width: ${o.pct}%`)}></div>
+          </div>
+        </li>
+      ),
+    )}
+  </ul>
+</div>
+
+<style>
+  .results {
+    margin-top: 1.5rem;
+  }
+  p {
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-sm);
+    margin: 0 0 1.25rem;
+    color: var(--text);
+  }
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  li {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+  }
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.5rem;
+  }
+  .text {
+    font-weight: 500;
+  }
+  .count {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+  .bar {
+    height: 8px;
+    background: var(--bg);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s ease;
+  }
+</style>

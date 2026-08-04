@@ -1,0 +1,66 @@
+---
+import type { Entry } from '../machines/book.ts'
+import { fmtWhen } from '../lib/format.ts'
+
+const { entry } = Stator.props<{ entry: Entry }>()
+---
+<li>
+  <div>
+    <cite>{entry.name}</cite>
+    <time>{fmtWhen(entry.signedAt)}</time>
+  </div>
+  <p>{entry.message}</p>
+</li>
+
+<style>
+  li {
+    padding: 1.05rem 0.2rem 1.15rem;
+    border-bottom: 1px solid var(--rule);
+    animation: settle 0.5s ease-out;
+  }
+  @keyframes settle {
+    from {
+      opacity: 0;
+      transform: translateY(-3px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    li {
+      animation: none;
+    }
+  }
+  div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.25rem;
+  }
+  cite {
+    font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+    font-style: italic;
+    font-size: 1.12rem;
+  }
+  time {
+    font-size: 0.75rem;
+    color: var(--ink-faint);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  p {
+    margin: 0;
+    color: var(--ink-soft);
+  }
+  p::before {
+    content: "\201C";
+    color: var(--ink-faint);
+  }
+  p::after {
+    content: "\201D";
+    color: var(--ink-faint);
+  }
+</style>

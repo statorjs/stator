@@ -19,3 +19,70 @@ const { panels, placeId, from, to, title } = Stator.props<{
     ))}
   </div>
 </div>
+
+<style>
+  /* One frame of the hourly strip. `.slide`/`.fc-slide` (the peek-frame + its
+     top-align) stay global — shared with the daily tile; this owns the hour-row
+     grid. The weather glyph is a raw()-injected <svg class="wx-ico"> — runtime
+     DOM with no scope attribute — so a scoped subject would miss it; :global()
+     below keeps the sizing matching it. */
+  .fc-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.11em;
+    font-weight: 600;
+    opacity: 0.85;
+    margin-bottom: 4px;
+  }
+  .hourly {
+    flex: 1;
+    display: grid;
+    /* Content-width columns spread edge-to-edge: first hour flush-left with the
+       title, last flush-right — no per-cell centering offset. */
+    grid-template-columns: repeat(6, auto);
+    grid-auto-rows: 1fr;
+    justify-content: space-between;
+    gap: 4px 8px;
+  }
+  .hour {
+    /* Group the values tightly and centre them so spare vertical space sits
+       above/below the group, not between the icon and temp. */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+  .h-time {
+    font-size: 11.5px;
+    opacity: 0.85;
+  }
+  .hour :global(.wx-ico) {
+    width: 26px;
+    height: 26px;
+    opacity: 0.95;
+  }
+  .h-temp {
+    font-size: 16px;
+  }
+  .h-pop {
+    font-size: 10.5px;
+    min-height: 13px;
+    opacity: 0.9;
+  }
+  .h-rain {
+    font-size: 9px;
+    opacity: 0.72;
+    min-height: 11px;
+  }
+  /* Tiny tiles: trade the fine rain print for never clipping a row. */
+  @container tile (height < 150px) {
+    .hour :global(.wx-ico) {
+      width: 22px;
+      height: 22px;
+    }
+    .h-rain {
+      display: none;
+    }
+  }
+</style>

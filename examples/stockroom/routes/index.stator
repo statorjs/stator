@@ -8,19 +8,41 @@ import StockToolbar from '../templates/stock-toolbar.stator'
 const [inventory] = Stator.reads([Inventory])
 ---
 <Layout>
-  <section class="stockroom">
-    <header class="bar">
+  <section>
+    <header>
       <h1>Stockroom</h1>
       <StockToolbar inventory={inventory} />
     </header>
 
     {match(read(inventory, (i) => i.state), {
-      loading: () => <p class="status">Loading inventory…</p>,
+      loading: () => <p role="status">Loading inventory…</p>,
       ready: () => <InventoryTable inventory={inventory} />,
     })}
 
     {when(read(inventory, (i) => i.loadError), () => (
-      <p class="error">Load failed: {read(inventory, (i) => i.loadError)}</p>
+      <p role="alert">Load failed: {read(inventory, (i) => i.loadError)}</p>
     ))}
   </section>
 </Layout>
+
+<style>
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    letter-spacing: -0.01em;
+  }
+  [role="status"] {
+    color: var(--muted);
+    padding: 2rem 0;
+  }
+  [role="alert"] {
+    color: var(--err);
+  }
+</style>

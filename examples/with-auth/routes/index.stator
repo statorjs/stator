@@ -3,6 +3,7 @@
 import AuthMachine from '../machines/auth.ts'
 import BoardMachine, { type Notice } from '../machines/board.ts'
 import PrefsMachine from '../machines/prefs.ts'
+import NoticeCard from '../templates/notice.stator'
 
 const [auth, board, prefs] = Stator.reads([AuthMachine, BoardMachine, PrefsMachine])
 
@@ -20,11 +21,11 @@ const isMember = auth.isAuthenticated
     <link rel="stylesheet" href="/static/app.css" />
   </head>
   <body>
-    <main class="wall">
+    <main>
       <header class="masthead">
         <h1>The Quay Wall</h1>
         <p class="sub">harbor notices · live for everyone in port</p>
-        <nav class="who">
+        <nav>
           {when(read(auth, (a) => !a.isAuthenticated), () => (
             <a class="link" href="/login">Sign in to post</a>
           ))}
@@ -52,61 +53,10 @@ const isMember = auth.isAuthenticated
         </form>
       ))}
 
-      <ul class="notices">
+      <ul>
         {each(
           read(board, (b) => b.visibleTo(isMember)),
-          (notice) => (
-            <li class={notice.pinned ? 'notice pinned' : 'notice'}>
-              <div class="notice-head">
-                <strong>{read(board, (b) => b.all.find((n) => n.id === notice.id)?.title ?? '')}</strong>
-                {when(read(board, (b) => b.all.find((n) => n.id === notice.id)?.pinned ?? false), () => (
-                  <span class="pin-flag">⚓ pinned</span>
-                ))}
-                {when(notice.visibility === 'members', () => (
-                  <span class="members-flag">members</span>
-                ))}
-              </div>
-              <p class="notice-body">{read(board, (b) => b.all.find((n) => n.id === notice.id)?.body ?? '')}</p>
-              <div class="notice-meta">
-                <span>— {notice.authorName}</span>
-                {when(read(auth, (a) => a.isAuthenticated), () => (
-                  <span class="notice-actions">
-                    <button
-                      class="linkish"
-                      type="button"
-                      on:click={() => auth.send({ type: 'WATCH', noticeId: notice.id })}
-                    >watch</button>
-                    <button
-                      class="linkish"
-                      type="button"
-                      on:click={() => auth.send({ type: 'UNWATCH', noticeId: notice.id })}
-                    >unwatch</button>
-                  </span>
-                ))}
-                {when(read(auth, (a) => a.isAuthenticated && a.userId === notice.authorId), () => (
-                  <button
-                    class="linkish danger"
-                    type="button"
-                    on:click={() => auth.send({ type: 'WITHDRAW_NOTICE', noticeId: notice.id })}
-                  >withdraw</button>
-                ))}
-                {when(read(auth, (a) => a.isHarbormaster), () => (
-                  <span class="notice-actions">
-                    <button
-                      class="linkish"
-                      type="button"
-                      on:click={() => auth.send({ type: 'MODERATE', noticeId: notice.id, action: 'pin' })}
-                    >pin/unpin</button>
-                    <button
-                      class="linkish danger"
-                      type="button"
-                      on:click={() => auth.send({ type: 'MODERATE', noticeId: notice.id, action: 'remove' })}
-                    >remove</button>
-                  </span>
-                ))}
-              </div>
-            </li>
-          ),
+          (notice) => <NoticeCard notice={notice} board={board} auth={auth} />,
           { key: (notice: Notice) => notice.id },
         )}
       </ul>
@@ -115,7 +65,7 @@ const isMember = auth.isAuthenticated
       ))}
 
       {when(read(auth, (a) => a.isAuthenticated), () => (
-        <footer class="watching">
+        <footer>
           <span class="watch-label">watching:</span>
           {read(prefs, (p) => {
             const ids = p.watchedBy(uid)
@@ -126,3 +76,50 @@ const isMember = auth.isAuthenticated
     </main>
   </body>
 </html>
+
+<style>
+  .sub {
+    margin: 0.15rem 0 0.4rem;
+    color: var(--soft);
+    font-size: 0.9rem;
+  }
+  nav {
+    font-size: 0.9rem;
+  }
+  .post-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.9rem;
+    margin: 1.2rem 0;
+  }
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.85rem;
+    color: var(--soft);
+  }
+  ul {
+    list-style: none;
+    margin: 1.2rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+  footer {
+    margin-top: 1.4rem;
+    font-size: 0.85rem;
+    color: var(--soft);
+    border-top: 1px solid var(--line);
+    padding-top: 0.7rem;
+  }
+  .watch-label {
+    font-weight: 600;
+    margin-right: 0.35rem;
+  }
+</style>

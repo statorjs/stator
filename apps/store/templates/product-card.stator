@@ -5,16 +5,63 @@ import Plate from './plate.stator'
 
 const { product } = Stator.props<{ product: Product }>()
 ---
-<a href={`/p/${product.slug}`} class="card">
+<a href={`/p/${product.slug}`}>
   <Plate silhouette={product.silhouette} colorway={product.colorways[0]!} />
-  <div class="card-row">
-    <h3 class="card-name">{product.name}</h3>
-    <span class="card-price">{formatPrice(product.price)}</span>
+  <div class="row">
+    <h3 class="name">{product.name}</h3>
+    <span class="price">{formatPrice(product.price)}</span>
   </div>
-  <p class="card-blurb">{product.blurb}</p>
-  <div class="card-dots">
+  <p class="blurb">{product.blurb}</p>
+  <div class="dots">
     {each(product.colorways, (c) => (
       <span class="dot" style={`background:${COLORWAYS[c].swatch}`} title={COLORWAYS[c].label}></span>
     ))}
   </div>
 </a>
+
+<style>
+  a {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  a:hover {
+    border-color: var(--harbor);
+  }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .name {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .price {
+    font-family: var(--mono);
+    font-size: 13.5px;
+  }
+  .blurb {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--body);
+    line-height: 1.45;
+  }
+  .dots {
+    display: flex;
+    gap: 5px;
+    margin-top: 2px;
+  }
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.18);
+    display: inline-block;
+  }
+</style>

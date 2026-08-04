@@ -24,3 +24,67 @@ const { panels, placeId } = Stator.props<{
     </div>
   </div>
 </div>
+
+<style>
+  /* The hero is a grid tile like the others — full row, two rows tall — so its
+     height sits on the same rhythm as the m2 tiles beside it (.tile/.grid stay
+     global; this is the hero's own placement + treatment). */
+  .hero {
+    position: relative;
+    grid-column: 1 / -1;
+    grid-row: span 2;
+    overflow: hidden;
+    background: linear-gradient(168deg, #589fdb, #d6e7f4);
+  }
+  /* Tiny screens get a third row so the meta line never clips. */
+  @media (max-width: 374px) {
+    .hero {
+      grid-row: span 3;
+    }
+  }
+  /* The live-sky island fills the hero by owning its own absolute fill (in
+     live-sky.stator) — it can't be styled from here: a scoped `.hero .live-sky`
+     stamps the subject with the hero's hash, which the island's elements don't
+     carry. .hero being position:relative is the anchor the island fills. */
+  .hero-body {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 24px 26px;
+    color: #fff;
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.28);
+  }
+  .hero-body::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(180deg, transparent 45%, rgba(0, 0, 0, 0.28));
+  }
+  .hero-temp {
+    font-size: clamp(56px, 12vw, 96px);
+    font-weight: 200;
+    line-height: 0.92;
+    letter-spacing: -0.03em;
+  }
+  .hero-cond {
+    font-size: 18px;
+    font-weight: 500;
+    margin-top: 2px;
+  }
+  .hero-meta {
+    font-size: 13px;
+    opacity: 0.92;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .hero-meta .num {
+    font-weight: 600;
+  }
+</style>

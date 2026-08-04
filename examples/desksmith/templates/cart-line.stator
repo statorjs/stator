@@ -1,0 +1,120 @@
+---
+import type { InstanceOf } from '@statorjs/stator/template'
+import type CartMachine from '../machines/cart.ts'
+
+type CartItem = { productId: string; quantity: number; unitPrice: number }
+
+const { item, idx, cart, name, cat, initials } = Stator.props<{
+  item: CartItem
+  idx: number
+  cart: InstanceOf<typeof CartMachine>
+  name: string
+  cat: string
+  initials: string
+}>()
+---
+<li>
+  <div class={`thumb product-thumb--${cat}`}>
+    <span class="product-thumb-initials">{initials}</span>
+  </div>
+  <div class="info">
+    <span class="name">{name}</span>
+    <span class="unit">${item.unitPrice.toFixed(2)} each</span>
+  </div>
+  <div class="qty">
+    <button on:click={() => cart.send({ type: 'DECREMENT', productId: item.productId })}>−</button>
+    <span>{read(cart, c => (c.items as CartItem[])[idx]?.quantity ?? 0)}</span>
+    <button on:click={() => cart.send({ type: 'INCREMENT', productId: item.productId })}>+</button>
+  </div>
+  <div class="total">${(item.unitPrice * item.quantity).toFixed(2)}</div>
+  <button on:click={() => cart.send({ type: 'REMOVE_ITEM', productId: item.productId })} title="Remove">×</button>
+</li>
+
+<style>
+  li {
+    display: grid;
+    grid-template-columns: 64px 1fr auto auto auto;
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  li:last-child {
+    border-bottom: none;
+  }
+  .thumb {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Georgia", "Times New Roman", serif;
+    font-weight: 500;
+    font-size: 0.95rem;
+    letter-spacing: 0.06em;
+  }
+  .info {
+    display: flex;
+    flex-direction: column;
+  }
+  .name {
+    font-weight: 500;
+  }
+  .unit {
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .qty {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.15rem;
+  }
+  .qty button {
+    border: none;
+    background: transparent;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    font-size: 1rem;
+    line-height: 1;
+    color: var(--muted);
+    border-radius: 4px;
+  }
+  .qty button:hover {
+    background: var(--surface);
+    color: var(--text);
+  }
+  .qty span {
+    min-width: 2ch;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+  .total {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 70px;
+    text-align: right;
+  }
+  /* the remove ✕ — the only direct-child button of the row */
+  li > button {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--muted-2);
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+  li > button:hover {
+    background: #f2e9e9;
+    color: #b85b5b;
+  }
+</style>

@@ -10,7 +10,7 @@ const { title } = Stator.props<{ title: string }>()
     <link rel="stylesheet" href="/static/app.css" />
   </head>
   <body>
-    <main class="wall narrow">
+    <main class="narrow">
       <header class="masthead">
         <h1><a class="plain" href="/">The Quay Wall</a></h1>
       </header>

@@ -1,0 +1,32 @@
+---
+const { name, quantity, lineTotal } = Stator.props<{
+  name: string
+  quantity: number
+  lineTotal: number
+}>()
+---
+<li>
+  <span>{name}</span>
+  <span class="qty">×{quantity}</span>
+  <span class="price">${lineTotal.toFixed(2)}</span>
+</li>
+
+<style>
+  li {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 1rem;
+    padding: 0.4rem 0;
+    border-top: 1px solid #f0ece5;
+    font-size: 0.95rem;
+  }
+  .qty {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .price {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    width: 80px;
+  }
+</style>

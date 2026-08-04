@@ -1,3 +1,13 @@
+/* Desksmith global sheet — the shared design system only.
+ *
+ * Per the examples style guide, component-specific rules live in each SFC's
+ * scoped <style>. What stays global is genuinely shared: design tokens, the
+ * reset, base typography, the header chrome (both layouts render it), the
+ * demo banners, the button primitives (a Button component is a later,
+ * typing-dependent refactor), the per-category thumb colors (ProductCard and
+ * the cart line both use them), and the runtime-owned network-signal styles.
+ */
+
 :root {
   --bg: #fafaf7;
   --surface: #ffffff;
@@ -104,7 +114,9 @@ h3 {
   font-size: 1.05rem;
 }
 
-/* --- Header --- */
+/* --- Header --- Shared chrome: customer-layout and admin-layout both render
+   a <header class="site-header">, so it stays global (with the --admin
+   variant) rather than duplicating the popover-nav logic in two SFCs. */
 
 .site-header {
   display: flex;
@@ -246,7 +258,7 @@ h3 {
   }
 }
 
-/* --- Banners --- */
+/* --- Banners --- Shared by the checkout and admin demo pages. */
 
 .demo-banner,
 .admin-banner {
@@ -265,88 +277,10 @@ h3 {
   color: #3a2e08;
 }
 
-/* --- Catalog (product list) --- */
-
-.catalog-hero {
-  margin-bottom: 2rem;
-  padding: 1.75rem 0 1rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.catalog-hero h1 {
-  font-size: 2.1rem;
-  margin-bottom: 0.4rem;
-}
-
-.catalog-hero p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 1.05rem;
-}
-
-.catalog-section {
-  margin-bottom: 3rem;
-}
-
-.catalog-section-header {
-  margin-bottom: 1.1rem;
-  display: flex;
-  align-items: baseline;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.catalog-section-header h2 {
-  font-size: 1.4rem;
-}
-
-.catalog-section-blurb {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.95rem;
-}
-
-.product-grid {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 1.25rem;
-}
-
-.product-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--shadow-sm);
-  transition:
-    transform 0.15s ease,
-    box-shadow 0.15s ease;
-}
-
-.product-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-/* Placeholder thumbnail. Flat color block per category, restrained
- * initials — stands in for product imagery without competing with the
- * actual product info below. */
-.product-thumb {
-  aspect-ratio: 4 / 3;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: "Georgia", "Times New Roman", serif;
-  font-weight: 500;
-  font-size: 1.6rem;
-  letter-spacing: 0.08em;
-  border-bottom: 1px solid var(--border);
-}
+/* --- Thumb color primitives --- The flat per-category color block for a
+   product thumbnail. Shared: ProductCard's thumbnail and the cart line's
+   thumbnail both apply `product-thumb--<category>` over their own (scoped)
+   base layout, so the color map lives here. */
 
 .product-thumb-initials {
   opacity: 0.6;
@@ -367,37 +301,9 @@ h3 {
   color: #4f5e3a;
 }
 
-.product-body {
-  padding: 1rem 1rem 1.1rem;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-.product-name {
-  margin-bottom: 0.3rem;
-}
-
-.product-description {
-  color: var(--muted);
-  font-size: 0.9rem;
-  margin: 0 0 1rem;
-  flex: 1;
-}
-
-.product-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.product-price {
-  font-weight: 600;
-  font-size: 1.05rem;
-}
-
-/* --- Buttons --- */
+/* --- Buttons --- Base button + shared variants. A typed <Button> component
+   is a deliberate later refactor (it needs per-element JSX attribute types);
+   until then the variants stay global classes. */
 
 button {
   cursor: pointer;
@@ -456,382 +362,6 @@ button:hover {
   border-color: var(--border-strong);
   color: var(--text);
   padding: 0.55rem 1rem;
-}
-
-/* --- Cart --- */
-
-.cart-header {
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.cart-summary-line {
-  margin: 0.5rem 0 0;
-  color: var(--muted);
-  font-size: 1rem;
-}
-
-.cart-summary-line strong {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.cart-empty {
-  background: var(--surface);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius);
-  padding: 2rem;
-  text-align: center;
-  color: var(--muted);
-}
-
-.cart-empty .link-back {
-  display: inline-block;
-  margin-top: 0.75rem;
-  text-decoration: none;
-  color: var(--accent-strong);
-}
-
-.cart-lines {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.cart-line {
-  display: grid;
-  grid-template-columns: 64px 1fr auto auto auto;
-  gap: 1rem;
-  align-items: center;
-  padding: 1rem 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.cart-line:last-child {
-  border-bottom: none;
-}
-
-.cart-line-thumb {
-  width: 64px;
-  height: 64px;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: "Georgia", "Times New Roman", serif;
-  font-weight: 500;
-  font-size: 0.95rem;
-  letter-spacing: 0.06em;
-}
-
-.cart-line-thumb .product-thumb-initials {
-  opacity: 0.6;
-}
-
-.cart-line-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.cart-line-name {
-  font-weight: 500;
-}
-
-.cart-line-unit {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.cart-line-qty {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0.15rem;
-}
-
-.qty-btn {
-  border: none;
-  background: transparent;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  font-size: 1rem;
-  line-height: 1;
-  color: var(--muted);
-  border-radius: 4px;
-}
-
-.qty-btn:hover {
-  background: var(--surface);
-  color: var(--text);
-}
-
-.qty-value {
-  min-width: 2ch;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-}
-
-.cart-line-total {
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  min-width: 70px;
-  text-align: right;
-}
-
-.cart-line-remove {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: var(--muted-2);
-  font-size: 1.2rem;
-  line-height: 1;
-}
-
-.cart-line-remove:hover {
-  background: #f2e9e9;
-  color: #b85b5b;
-}
-
-.cart-footer {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
-}
-
-.cart-totals {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  max-width: 360px;
-  margin-left: auto;
-}
-
-.cart-totals-row {
-  display: flex;
-  justify-content: space-between;
-  font-variant-numeric: tabular-nums;
-}
-
-.cart-totals-row--muted {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.cart-totals-row--grand {
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--border);
-  font-weight: 600;
-  font-size: 1.05rem;
-}
-
-.cart-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-}
-
-/* --- Checkout --- */
-
-.state-label {
-  color: var(--muted-2);
-  font-style: italic;
-  font-size: 0.85rem;
-  margin: 0.25rem 0 1.5rem;
-}
-
-.step {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.5rem;
-  margin: 1rem 0;
-  box-shadow: var(--shadow-sm);
-}
-
-.step h2 {
-  margin-bottom: 0.75rem;
-}
-
-.step p {
-  margin: 0.4rem 0;
-}
-
-.step-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.hint {
-  color: var(--muted-2);
-  font-size: 0.85rem;
-  margin-top: 1rem;
-}
-
-/* --- Admin dashboard --- */
-
-.admin-hint {
-  color: var(--muted);
-  font-style: italic;
-  margin-bottom: 1.5rem;
-}
-
-.admin-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.6rem 1rem;
-  background: #1a1a1a;
-  color: #d0d0d0;
-  border-radius: var(--radius-sm);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.78rem;
-  margin-bottom: 1.5rem;
-}
-
-.admin-metrics-label {
-  color: #6a9955;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
-}
-
-.admin-metric {
-  display: inline-flex;
-  gap: 0.4rem;
-  align-items: baseline;
-}
-
-.admin-metric-label {
-  color: #888;
-}
-
-.admin-metric-value {
-  color: #d0d0d0;
-  font-variant-numeric: tabular-nums;
-}
-
-.admin-aggregates {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.aggregate {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-}
-
-.aggregate-label {
-  font-size: 0.78rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.aggregate-value {
-  font-size: 1.6rem;
-  font-weight: 600;
-  margin-top: 0.25rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.product-totals,
-.admin-sessions {
-  list-style: none;
-  padding: 0;
-}
-
-.product-total-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.product-total-count {
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-}
-
-.admin-empty {
-  color: var(--muted-2);
-  font-style: italic;
-}
-
-.admin-session {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem;
-  margin: 0.75rem 0;
-}
-
-.admin-session-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 0.5rem;
-}
-
-.admin-session-sid {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.admin-session-meta {
-  font-weight: 500;
-}
-
-.admin-session-items {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.admin-session-item {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 1rem;
-  padding: 0.4rem 0;
-  border-top: 1px solid #f0ece5;
-  font-size: 0.95rem;
-}
-
-.admin-item-qty {
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.admin-item-price {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  width: 80px;
 }
 
 /* ---- Network signals (runtime-owned data attributes) ------------------- */

@@ -1,0 +1,65 @@
+---
+import type { InstanceOf } from '@statorjs/stator/template'
+import type ProductsMachine from '../machines/products.ts'
+import AdminSessionItem from './admin-session-item.stator'
+
+type SessionRow = {
+  sid: string
+  items: Array<{ productId: string; quantity: number; unitPrice: number }>
+  itemCount: number
+  total: number
+}
+
+const { session, products } = Stator.props<{
+  session: SessionRow
+  products: InstanceOf<typeof ProductsMachine>
+}>()
+const nameOf = (id: string) => (products.byId as any)(id)?.name ?? id
+---
+<li>
+  <div class="head">
+    <span class="sid">{session.sid.slice(0, 8)}…</span>
+    <span class="meta">
+      {session.itemCount} item{session.itemCount === 1 ? '' : 's'} ·
+      ${session.total.toFixed(2)}
+    </span>
+  </div>
+  <ul>
+    {each(session.items, (item) =>
+      <AdminSessionItem
+        name={nameOf(item.productId)}
+        quantity={item.quantity}
+        lineTotal={item.unitPrice * item.quantity}
+      />
+    )}
+  </ul>
+</li>
+
+<style>
+  li {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin: 0.75rem 0;
+  }
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.5rem;
+  }
+  .sid {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .meta {
+    font-weight: 500;
+  }
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+</style>

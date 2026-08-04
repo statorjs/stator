@@ -2,6 +2,9 @@
 // @stator live
 import BookMachine from '../machines/book.ts'
 import VisitorMachine from '../machines/visitor.ts'
+import Layout from '../templates/layout.stator'
+import SignForm from '../templates/sign-form.stator'
+import Entry from '../templates/entry.stator'
 
 const [book, visitor] = Stator.reads([BookMachine, VisitorMachine])
 const { query } = Stator.request
@@ -15,79 +18,75 @@ const error =
       : query.error === 'long'
         ? 'Notes fit in 280 characters.'
         : null
-
-const fmtWhen = (t: number) => {
-  const d = new Date(t)
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  return `${d.toLocaleDateString('en', { month: 'short', day: 'numeric' })} · ${hh}:${mm}`
-}
 ---
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>The Guestbook · Stator</title>
-    <link rel="stylesheet" href="/static/app.css" />
-  </head>
-  <body>
-    <div class="book">
-      <header class="masthead">
-        <h1>The Guestbook</h1>
-        <p>
-          One page, shared by everyone who visits. Sign it and your entry
-          appears on every open copy of this page — try it in two windows.
-        </p>
-        <p class="count-line">
-          <span class="count-num">{read(book, (b) => b.count)}</span> signatures
-        </p>
-      </header>
+<Layout>
+  <header>
+    <h1>The Guestbook</h1>
+    <p>
+      One page, shared by everyone who visits. Sign it and your entry
+      appears on every open copy of this page — try it in two windows.
+    </p>
+    <p class="count-line"><strong>{read(book, (b) => b.count)}</strong> signatures</p>
+  </header>
 
-      <section class="sign" aria-label="Sign the guestbook">
-        <p class="sign-label">Sign here</p>
-        {error ? <p class="form-error">{error}</p> : null}
-        <form method="post" action="/">
-          <input type="text" name="name" placeholder="Your name" autocomplete="name" aria-label="Your name" />
-          <textarea
-            name="message"
-            maxlength="280"
-            placeholder="Leave a note for whoever comes next"
-            aria-label="Your message"
-          ></textarea>
-          <div class="sign-row">
-            <span class="char-hint">280 characters, tops</span>
-            <button type="submit">Sign the book</button>
-          </div>
-        </form>
-        {when(read(visitor, (v) => v.hasSigned), () => (
-          <p class="signed-note">Thanks for signing — your note is in the book below.</p>
-        ))}
-      </section>
+  <SignForm error={error} visitor={visitor} />
 
-      <ol class="entries">
-        {each(
-          read(book, (b) => b.entries),
-          (entry) => (
-            <li class="entry">
-              <div class="entry-head">
-                <span class="entry-name">{entry.name}</span>
-                <span class="entry-when">{fmtWhen(entry.signedAt)}</span>
-              </div>
-              <p class="entry-msg">{entry.message}</p>
-            </li>
-          ),
-          { key: (entry) => entry.id },
-        )}
-      </ol>
+  <ol>
+    {each(
+      read(book, (b) => b.entries),
+      (entry) => <Entry entry={entry} />,
+      { key: (entry) => entry.id },
+    )}
+  </ol>
 
-      <footer class="colophon">
-        <p>
-          The oldest idea on the web, on the newest architecture — built with
-          <a href="https://statorjs.dev">Stator</a>. This page ships no custom
-          JavaScript.
-        </p>
-      </footer>
-    </div>
-  </body>
-</html>
+  <footer>
+    <p>
+      The oldest idea on the web, on the newest architecture — built with{' '}
+      <a href="https://statorjs.dev">Stator</a>. This page ships no custom
+      JavaScript.
+    </p>
+  </footer>
+</Layout>
+
+<style>
+  header h1 {
+    font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+    font-size: 2.4rem;
+    font-weight: 600;
+    margin: 0 0 0.4rem;
+    letter-spacing: -0.01em;
+  }
+  header p {
+    margin: 0;
+    color: var(--ink-soft);
+    max-width: 30rem;
+  }
+  .count-line {
+    margin-top: 1.1rem;
+    font-size: 0.85rem;
+  }
+  .count-line strong {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  footer {
+    margin-top: 3rem;
+    border-top: 1px solid var(--rule);
+    padding-top: 1.1rem;
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+  }
+  footer p {
+    margin: 0;
+  }
+  footer a {
+    color: var(--ink-soft);
+  }
+</style>

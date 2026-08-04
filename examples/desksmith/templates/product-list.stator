@@ -9,8 +9,8 @@ const { products, cart } = Stator.props<{
   cart: InstanceOf<typeof CartMachine>
 }>()
 ---
-<div class="catalog">
-  <section class="catalog-hero">
+<div>
+  <section>
     <h1>Goods for the desk and home</h1>
     <p>A small, hand-picked selection. Everything ships from one workshop.</p>
   </section>
@@ -19,3 +19,21 @@ const { products, cart } = Stator.props<{
   <CategorySection title="Office" blurb="Working-from-anywhere essentials." cat="office" products={products} cart={cart} />
   <CategorySection title="Lifestyle" blurb="Quietly nice things for the rest of the day." cat="lifestyle" products={products} cart={cart} />
 </div>
+
+<style>
+  /* the catalog hero — the category sections scope their own styles */
+  section {
+    margin-bottom: 2rem;
+    padding: 1.75rem 0 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  section h1 {
+    font-size: 2.1rem;
+    margin-bottom: 0.4rem;
+  }
+  section p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 1.05rem;
+  }
+</style>

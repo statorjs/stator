@@ -31,3 +31,70 @@ const { weather, search } = Stator.props<{
     <div class="search-empty">No matches — try another name.</div>
   ))}
 </div>
+
+<style>
+  /* The input field itself (.search-input/.search-mag) is scoped in the
+     location-search island; this owns the wrapper + the results dropdown. */
+  .search-wrap {
+    position: relative;
+    max-width: 340px;
+    margin-top: 16px;
+    /* Absent from the resting state; slides in on edit (view-cascade off .wx). */
+    display: none;
+  }
+  .wx[data-view="editing"] .search-wrap {
+    display: block;
+    animation: edit-slide-in 0.24s ease-out;
+  }
+  @keyframes edit-slide-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .search-results,
+  .search-empty {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    margin-top: 2px;
+    z-index: 30;
+    background: var(--tile-surface);
+    border: 1px solid var(--line);
+  }
+  .search-results {
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  .search-result {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    color: var(--fg);
+    font-family: inherit;
+    font-size: 14px;
+    padding: 11px 13px;
+    cursor: pointer;
+  }
+  .search-result:hover {
+    background: var(--line);
+  }
+  .sr-region {
+    color: var(--fg-2);
+    font-size: 12px;
+  }
+  .search-empty {
+    padding: 11px 13px;
+    color: var(--fg-2);
+    font-size: 13px;
+  }
+</style>

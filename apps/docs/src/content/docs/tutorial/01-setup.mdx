@@ -43,6 +43,10 @@ desksmith/
 
 This is the **end state** — what you'll have built by the last step. Create each file when the step that introduces it tells you to; don't pre-create them now.
 
+:::note[The installable version goes further]
+To keep each step focused on one Stator idea, this tutorial builds a flat version — plain class names and a single `static/app.css`. The `pnpm create stator --template desksmith` scaffold is the same app taken further — every component keeps its styles in a scoped `<style>` block, and repeated markup like a product card or a cart line is pulled into its own small component. The machines, `read()` bindings, events, and effects are identical. Once these concepts click, that source is a good look at how the pieces factor for a real project.
+:::
+
 :::caution[Don't create empty machine files]
 Files in `machines/` and `routes/` are discovered automatically — there's no registry to keep in sync. The flip side: Stator validates that **every** file in `machines/` is a real machine, so a blank `machines/cart.ts` errors on boot ("default export is not a stator machine"). Add a machine file only when you're ready to fill it in — which for `machines/` is the next step.
 :::

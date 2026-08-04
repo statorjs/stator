@@ -28,31 +28,10 @@ main {
   padding: 2rem 1.25rem 4rem;
 }
 
-.bar {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-}
-
-.bar h1 {
-  margin: 0;
-  font-size: 1.5rem;
-  letter-spacing: -0.01em;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.dirty {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
+/* Shared button baseline — used verbatim across components, so it lives here as a
+   shared primitive. Each variant (stepper, remove, refresh) scopes its own
+   overrides in its component's <style>. Tokens + reset + this baseline are ALL
+   that belongs in the global sheet; component styles live in their SFCs. */
 button {
   font: inherit;
   cursor: pointer;
@@ -66,102 +45,4 @@ button {
 
 button:hover {
   border-color: var(--accent);
-}
-
-.refresh {
-  font-weight: 550;
-}
-
-.status {
-  color: var(--muted);
-  padding: 2rem 0;
-}
-
-.error {
-  color: var(--err);
-}
-
-table.stock {
-  width: 100%;
-  border-collapse: collapse;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.stock th,
-.stock td {
-  text-align: left;
-  padding: 0.6rem 0.8rem;
-  border-bottom: 1px solid var(--line);
-  vertical-align: middle;
-}
-
-.stock thead th {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-  background: #fafbfc;
-}
-
-.stock tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.stock .num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.stock .sku {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.qty {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.step {
-  width: 1.9rem;
-  padding: 0.2rem 0;
-  text-align: center;
-  line-height: 1;
-}
-
-.draft {
-  min-width: 2.5ch;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  font-weight: 550;
-}
-
-.save-status {
-  font-size: 0.85rem;
-  color: var(--muted);
-  text-transform: capitalize;
-}
-
-.save-msg {
-  text-transform: none;
-  color: var(--warn);
-}
-
-.actions {
-  text-align: right;
-}
-
-.remove {
-  color: var(--err);
-  border-color: transparent;
-  padding: 0.35rem 0.55rem;
-}
-
-.remove:hover {
-  border-color: var(--err);
 }

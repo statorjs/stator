@@ -26,3 +26,135 @@ const { weather, panels } = Stator.props<{
     { key: (p) => p.id },
   )}
 </nav>
+
+<style>
+  .pivot {
+    display: flex;
+    gap: 22px;
+    margin: 2px 0 22px;
+    padding-bottom: 6px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .pivot::-webkit-scrollbar {
+    display: none;
+  }
+  .pivot-item {
+    scroll-snap-align: start;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    background: transparent;
+    border: 0;
+    padding: 2px 0;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--fg-2);
+    opacity: 0.45;
+    transition: opacity 0.2s;
+  }
+  .pivot-item:hover {
+    opacity: 0.8;
+  }
+  .pivot-item.active {
+    opacity: 1;
+  }
+  .pivot-name {
+    font-size: clamp(21px, 4vw, 30px);
+    font-weight: 200;
+    letter-spacing: -0.01em;
+  }
+  .pivot-item.active .pivot-name {
+    color: var(--fg);
+  }
+  .pivot-temp {
+    font-size: 14px;
+    color: var(--fg-2);
+    font-weight: 400;
+  }
+  .pivot-item:focus-visible {
+    outline: 2px solid #1ba1e2;
+    outline-offset: 3px;
+  }
+  /* Touch devices: fingers need a bigger vertical hit area on the pills. */
+  @media (pointer: coarse) {
+    .pivot-item {
+      padding: 9px 0;
+    }
+  }
+  /* Edit mode — a view-cascade off the route's .wx[data-view]. The pills gain a
+     chip outline and reveal a ✕ delete chip. The ✕'s ACTION is a real
+     REMOVE_PLACE event; only its VISIBILITY is client view state. */
+  .pivot-remove {
+    display: none;
+  }
+  .wx[data-view="editing"] .pivot-item {
+    padding: 4px 6px 4px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+  }
+  .wx[data-view="editing"] .pivot-remove {
+    display: inline-flex;
+    align-self: center;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(127, 127, 127, 0.25);
+    color: var(--fg);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    animation: edit-pop-in 0.2s ease-out;
+  }
+  .wx[data-view="editing"] .pivot-remove:hover {
+    background: #d64545;
+    color: #fff;
+  }
+  .pivot-remove svg {
+    display: block;
+    width: 11px;
+    height: 11px;
+  }
+  /* REMOVE_PLACE round-trip in flight → the ✕ becomes a spinner (from PR #78).
+     The same runtime-owned affordance as the app bar's refresh:
+     [data-stator-pending] appears the instant you tap and clears when the
+     server's authoritative frame lands — the pill removed, or the ✕ restored if
+     the remove was dropped. Honest "working" feedback that asserts nothing about
+     the outcome. Its own spin keyframe below — the app bar's `ab-spin` is scoped
+     to that SFC and can't be reached from here. */
+  .pivot-remove[data-stator-pending] {
+    pointer-events: none;
+  }
+  .pivot-remove[data-stator-pending] svg {
+    display: none;
+  }
+  .pivot-remove[data-stator-pending]::after {
+    content: "";
+    width: 12px;
+    height: 12px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: pivot-spin 0.7s linear infinite;
+  }
+  @keyframes edit-pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes pivot-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+</style>

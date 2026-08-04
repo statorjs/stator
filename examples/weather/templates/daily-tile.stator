@@ -28,3 +28,109 @@ const { panels, placeId } = Stator.props<{
     </div>
   </div>
 </div>
+
+<style>
+  /* The 5-day rows. `.slide`/`.fc-slide` (peek frame) and `.peek-tile .slide`'s
+     tiny-tile padding stay global — shared with the hourly tile. Row density
+     steps down by the tile's real height (the global `.peek-tile` container).
+     The weather glyph is a raw()-injected <svg class="wx-ico"> (runtime DOM, no
+     scope attribute) — reached with :global() below so a scoped subject can't
+     miss it. */
+  .daily {
+    flex: 1;
+    display: grid;
+    align-content: stretch;
+    grid-auto-rows: 1fr;
+  }
+  .drow {
+    display: grid;
+    grid-template-columns: 1fr 26px 40px 32px 32px;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+  }
+  .drow-head {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    opacity: 0.6;
+    padding-bottom: 3px;
+  }
+  .drow :global(.wx-ico) {
+    width: 22px;
+    height: 22px;
+    opacity: 0.9;
+    justify-self: center;
+  }
+  .d-day {
+    font-size: 13.5px;
+  }
+  .d-date {
+    display: inline-block;
+    width: 1.5em;
+    margin-right: 7px;
+    text-align: right;
+    opacity: 0.6;
+  }
+  .d-pop {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    line-height: 1.25;
+    font-size: 11px;
+    opacity: 0.85;
+  }
+  .d-rain {
+    font-size: 9.5px;
+    opacity: 0.7;
+  }
+  .d-lo {
+    font-size: 13px;
+    text-align: right;
+    opacity: 0.65;
+  }
+  .d-hi {
+    font-size: 13px;
+    text-align: right;
+    font-weight: 500;
+  }
+  /* Full rows (with the rain-amount sub-line) need ~215px of tile; below that
+     drop the stacked sub-line and lay the amount inline with the probability. */
+  @container tile (height < 216px) {
+    .drow {
+      grid-template-columns: 1fr 22px 76px 30px 30px;
+      padding: 3px 0;
+    }
+    .drow :global(.wx-ico) {
+      width: 18px;
+      height: 18px;
+    }
+    .d-pop {
+      flex-direction: row;
+      align-items: baseline;
+      justify-content: flex-end;
+      gap: 4px;
+    }
+  }
+  /* Tiny tiles: trade a few px of type for never clipping a row. */
+  @container tile (height < 150px) {
+    .drow {
+      grid-template-columns: 1fr 18px 68px 28px 28px;
+      padding: 2px 0;
+    }
+    .drow :global(.wx-ico) {
+      width: 16px;
+      height: 16px;
+    }
+    .d-day {
+      font-size: 12px;
+    }
+    .d-rain {
+      font-size: 8.5px;
+    }
+    .drow-head {
+      font-size: 8.5px;
+    }
+  }
+</style>

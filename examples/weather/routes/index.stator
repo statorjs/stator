@@ -53,3 +53,42 @@ const [weather, settings, search, panels] = Stator.reads([WeatherMachine, Settin
     <RefreshClock />
   </section>
 </Layout>
+
+<style>
+  /* The page header. `.panorama`/`.panel` (the carousel structure) stay global,
+     shared with the tile grid. */
+  header {
+    margin-bottom: 24px;
+  }
+  .eyebrow {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--fg-2);
+    font-weight: 600;
+  }
+  h1 {
+    margin: 2px 0 0;
+    font-size: clamp(40px, 8vw, 72px);
+    font-weight: 200;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .sub {
+    margin-top: 8px;
+    color: var(--fg-2);
+    font-size: 14px;
+  }
+  /* The eyebrow names the mode: "weather" → "edit locations". `data-view` lives
+     on this route's own .wx section (set by the app-bar's client machine); the
+     ancestor selector stays unscoped, so the reveal works from here. */
+  .eb-edit {
+    display: none;
+  }
+  .wx[data-view="editing"] .eb-rest {
+    display: none;
+  }
+  .wx[data-view="editing"] .eb-edit {
+    display: inline;
+  }
+</style>

@@ -155,13 +155,14 @@ describe('members-only visibility', () => {
       membersOnly: 'on',
     })
 
-    // A member sees both (with the members badge)…
+    // A member sees both — including the private notice's body, which is the
+    // real property (the content reached them, not just a badge).
     const memberHtml = await (
       await app.fetch(new Request('http://test/', { headers: { Cookie: `stator_sid=${member}` } }))
     ).text()
     expect(memberHtml).toContain('Public tide chart')
     expect(memberHtml).toContain('Secret members regatta')
-    expect(memberHtml).toContain('members-flag')
+    expect(memberHtml).toContain('Berth 9')
 
     // …a visitor's HTML contains no trace of the private one — not hidden,
     // absent. Server-side filtering means it never crossed the wire.

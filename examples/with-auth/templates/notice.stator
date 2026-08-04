@@ -1,0 +1,87 @@
+---
+import type { InstanceOf } from '@statorjs/stator/template'
+import type AuthMachine from '../machines/auth.ts'
+import BoardMachine, { type Notice } from '../machines/board.ts'
+
+const { notice, board, auth } = Stator.props<{
+  notice: Notice
+  board: InstanceOf<typeof BoardMachine>
+  auth: InstanceOf<typeof AuthMachine>
+}>()
+---
+<li data-pinned={notice.pinned ? '' : undefined}>
+  <div class="head">
+    <strong>{read(board, (b) => b.all.find((n) => n.id === notice.id)?.title ?? '')}</strong>
+    {when(read(board, (b) => b.all.find((n) => n.id === notice.id)?.pinned ?? false), () => (
+      <span class="pin">⚓ pinned</span>
+    ))}
+    {when(notice.visibility === 'members', () => (
+      <span class="members">members</span>
+    ))}
+  </div>
+  <p class="body">{read(board, (b) => b.all.find((n) => n.id === notice.id)?.body ?? '')}</p>
+  <div class="meta">
+    <span>— {notice.authorName}</span>
+    {when(read(auth, (a) => a.isAuthenticated), () => (
+      <span class="actions">
+        <button class="linkish" type="button" on:click={() => auth.send({ type: 'WATCH', noticeId: notice.id })}>watch</button>
+        <button class="linkish" type="button" on:click={() => auth.send({ type: 'UNWATCH', noticeId: notice.id })}>unwatch</button>
+      </span>
+    ))}
+    {when(read(auth, (a) => a.isAuthenticated && a.userId === notice.authorId), () => (
+      <button class="linkish danger" type="button" on:click={() => auth.send({ type: 'WITHDRAW_NOTICE', noticeId: notice.id })}>withdraw</button>
+    ))}
+    {when(read(auth, (a) => a.isHarbormaster), () => (
+      <span class="actions">
+        <button class="linkish" type="button" on:click={() => auth.send({ type: 'MODERATE', noticeId: notice.id, action: 'pin' })}>pin/unpin</button>
+        <button class="linkish danger" type="button" on:click={() => auth.send({ type: 'MODERATE', noticeId: notice.id, action: 'remove' })}>remove</button>
+      </span>
+    ))}
+  </div>
+</li>
+
+<style>
+  li {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.8rem 1rem;
+  }
+  li[data-pinned] {
+    border-color: var(--harbor);
+    box-shadow: 0 0 0 1px var(--harbor);
+  }
+  .head {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .pin {
+    font-size: 0.75rem;
+    color: var(--harbor);
+  }
+  .body {
+    margin: 0.3rem 0 0.5rem;
+    white-space: pre-wrap;
+  }
+  .meta {
+    display: flex;
+    gap: 0.9rem;
+    align-items: baseline;
+    flex-wrap: wrap;
+    font-size: 0.82rem;
+    color: var(--soft);
+  }
+  .actions {
+    display: inline-flex;
+    gap: 0.6rem;
+  }
+  .members {
+    font-size: 0.72rem;
+    color: var(--buoy);
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    padding: 0 0.35rem;
+    align-self: center;
+  }
+</style>

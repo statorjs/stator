@@ -9,9 +9,9 @@ const { panels, placeId } = Stator.props<{
 }>()
 ---
 <div class="tile w4 press peek-tile" style="--c:#1BA1E2;--tc:#fff">
-  {/* The same 24 hours in two frame layouts; the container query in app.css
-      shows whichever fits the tile's real height — two 12-hour frames when two
-      rows of hours fit, four 6-hour frames when they don't (short tiles). */}
+  {/* The same 24 hours in two frame layouts; the container query below shows
+      whichever fits the tile's real height — two 12-hour frames when two rows of
+      hours fit, four 6-hour frames when they don't (short tiles). */}
   <div class="slides slides-two">
     <HourlySlide panels={panels} placeId={placeId} from={0} to={12} title="Next 12 hours" />
     <HourlySlide panels={panels} placeId={placeId} from={12} to={24} title="In 12–24 hours" />
@@ -23,3 +23,20 @@ const { panels, placeId } = Stator.props<{
     <HourlySlide panels={panels} placeId={placeId} from={18} to={24} title="In 18–24 hours" />
   </div>
 </div>
+
+<style>
+  /* The tile ships BOTH frame layouts; its grid-derived height (via the global
+     `.peek-tile { container: tile }`) picks one. ≥254px fits two full rows of
+     hours; below that the four-frame layout cycles single rows instead. */
+  .slides-four {
+    display: none;
+  }
+  @container tile (height < 254px) {
+    .slides-two {
+      display: none;
+    }
+    .slides-four {
+      display: block;
+    }
+  }
+</style>

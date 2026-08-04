@@ -2,6 +2,7 @@
 import type { InstanceOf } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
 import type ProductsMachine from '../machines/products.ts'
+import CartLine from './cart-line.stator'
 
 type CartItem = { productId: string; quantity: number; unitPrice: number }
 type Product = {
@@ -19,68 +20,131 @@ const { cart, products } = Stator.props<{
 }>()
 const byId = products.byId as unknown as (id: string) => Product | undefined
 ---
-<section class="cart">
-  <header class="cart-header">
+<section>
+  <header>
     <h1>Your cart</h1>
-    <p class="cart-summary-line">
-      {read(cart, c => c.itemCount)} item{read(cart, c => c.itemCount === 1 ? '' : 's')} · subtotal
+    <p>
+      {read(cart, c => c.itemCount)} item{read(cart, c => c.itemCount === 1 ? '' : 's')} · subtotal{' '}
       <strong>${read(cart, c => c.total.toFixed(2))}</strong>
     </p>
   </header>
 
   {when(read(cart, c => c.isEmpty), () =>
-    <div class="cart-empty">
+    <div class="empty">
       <p>Your cart is empty.</p>
-      <a href="/" class="link-back">← Browse products</a>
+      <a href="/">← Browse products</a>
     </div>
   )}
 
-  <ul class="cart-lines">
+  <ul>
     {each(read(cart, c => c.items as CartItem[]), (item, idx) => {
       const product = byId(item.productId)
-      const name = product?.name ?? item.productId
-      const cat = product?.category ?? 'stationery'
-      const initials = product?.initials ?? '··'
-      return <li class="cart-line">
-        <div class={`cart-line-thumb product-thumb--${cat}`}>
-          <span class="product-thumb-initials">{initials}</span>
-        </div>
-        <div class="cart-line-info">
-          <span class="cart-line-name">{name}</span>
-          <span class="cart-line-unit">${item.unitPrice.toFixed(2)} each</span>
-        </div>
-        <div class="cart-line-qty">
-          <button class="qty-btn" on:click={() => cart.send({ type: 'DECREMENT', productId: item.productId })}>−</button>
-          <span class="qty-value">{read(cart, c => (c.items as CartItem[])[idx]?.quantity ?? 0)}</span>
-          <button class="qty-btn" on:click={() => cart.send({ type: 'INCREMENT', productId: item.productId })}>+</button>
-        </div>
-        <div class="cart-line-total">
-          ${(item.unitPrice * item.quantity).toFixed(2)}
-        </div>
-        <button class="cart-line-remove" on:click={() => cart.send({ type: 'REMOVE_ITEM', productId: item.productId })} title="Remove">×</button>
-      </li>
+      return <CartLine
+        item={item}
+        idx={idx}
+        cart={cart}
+        name={product?.name ?? item.productId}
+        cat={product?.category ?? 'stationery'}
+        initials={product?.initials ?? '··'}
+      />
     })}
   </ul>
 
   {when(read(cart, c => !c.isEmpty), () =>
-    <footer class="cart-footer">
-      <div class="cart-totals">
-        <div class="cart-totals-row">
+    <footer>
+      <div class="totals">
+        <div>
           <span>Subtotal</span>
           <span>${read(cart, c => c.total.toFixed(2))}</span>
         </div>
-        <div class="cart-totals-row cart-totals-row--muted">
+        <div class="muted">
           <span>Shipping calculated at checkout</span>
         </div>
-        <div class="cart-totals-row cart-totals-row--grand">
+        <div class="grand">
           <span>Estimated total</span>
           <span>${read(cart, c => c.total.toFixed(2))}</span>
         </div>
       </div>
-      <div class="cart-actions">
+      <div class="actions">
         <button class="btn-secondary" on:click={() => cart.send({ type: 'CLEAR' })}>Clear cart</button>
         <a href="/checkout" class="btn-primary">Checkout →</a>
       </div>
     </footer>
   )}
 </section>
+
+<style>
+  header {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  header p {
+    margin: 0.5rem 0 0;
+    color: var(--muted);
+    font-size: 1rem;
+  }
+  header p strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .empty {
+    background: var(--surface);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius);
+    padding: 2rem;
+    text-align: center;
+    color: var(--muted);
+  }
+  .empty a {
+    display: inline-block;
+    margin-top: 0.75rem;
+    text-decoration: none;
+    color: var(--accent-strong);
+  }
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  footer {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+  }
+  .totals {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    max-width: 360px;
+    margin-left: auto;
+  }
+  .totals > div {
+    display: flex;
+    justify-content: space-between;
+    font-variant-numeric: tabular-nums;
+  }
+  .totals > .muted {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .totals > .grand {
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 1.05rem;
+  }
+  .actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+</style>

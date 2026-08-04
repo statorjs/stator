@@ -8,7 +8,7 @@ import Layout from '../templates/layout.stator'
 const [cart] = Stator.reads([CartMachine])
 ---
 <Layout cart={cart}>
-  <section class="checkout">
+  <section>
     <header class="browse-head">
       <p class="eyebrow">CHECKOUT</p>
       <h1>Clearing the harbor.</h1>
@@ -139,3 +139,53 @@ const [cart] = Stator.reads([CartMachine])
     })}
   </section>
 </Layout>
+
+<style>
+  section {
+    max-width: 620px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 13.5px;
+    color: var(--body);
+  }
+  .field input,
+  .field select {
+    font: inherit;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--canvas);
+    color: var(--ink);
+  }
+  .field input:focus-visible,
+  .field select:focus-visible {
+    outline: 2px solid var(--harbor);
+    outline-offset: 1px;
+  }
+  .review-lines {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--body);
+  }
+  .review-lines li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .review-total {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 650;
+    border-top: 1px solid var(--line);
+    padding-top: 10px;
+    margin: 0;
+  }
+</style>

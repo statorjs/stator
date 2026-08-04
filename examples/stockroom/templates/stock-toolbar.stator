@@ -4,7 +4,22 @@ import InventoryMachine from '../machines/inventory.ts'
 
 const { inventory } = Stator.props<{ inventory: InstanceOf<typeof InventoryMachine> }>()
 ---
-<div class="toolbar">
-  <span class="dirty">{read(inventory, (i) => `${i.dirtyCount} unsaved`)}</span>
-  <button class="refresh" on:click={() => inventory.send({ type: 'REFRESH' })}>Refresh</button>
+<div>
+  <span>{read(inventory, (i) => `${i.dirtyCount} unsaved`)}</span>
+  <button on:click={() => inventory.send({ type: 'REFRESH' })}>Refresh</button>
 </div>
+
+<style>
+  div {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  span {
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  button {
+    font-weight: 550;
+  }
+</style>

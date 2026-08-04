@@ -1,3 +1,9 @@
+/* Global sheet = tokens + reset + the app's SHARED design system (buttons, links,
+   the page-header pattern) + cross-cutting runtime rules. Page-specific styling
+   lives scoped in each page component. The new-poll FORM also stays here on
+   purpose — its "add option" script builds rows via innerHTML at runtime, and
+   scoped styles only reach compiler-stamped elements, so those rows need global
+   rules. */
 :root {
   --bg: #f9f7f1;
   --surface: #ffffff;
@@ -23,7 +29,6 @@ body {
   margin: 0;
   padding: 0;
 }
-
 body {
   font-family:
     ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
@@ -33,32 +38,13 @@ body {
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
-
 a {
   color: var(--accent-strong);
 }
-
 main {
   max-width: 720px;
   margin: 0 auto;
   padding: 2rem 1.25rem 4rem;
-}
-
-.site-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.9rem 1.5rem;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
-
-.brand {
-  font-weight: 700;
-  font-size: 1.05rem;
-  text-decoration: none;
-  color: var(--text);
-  letter-spacing: -0.01em;
 }
 
 h1,
@@ -75,9 +61,7 @@ h2 {
   margin: 2rem 0 1rem;
 }
 
-.page {
-  display: block;
-}
+/* ---- Shared page-header pattern (every page) --------------------------- */
 .page-header {
   margin-bottom: 2rem;
 }
@@ -86,12 +70,7 @@ h2 {
   margin: 0.25rem 0 1rem;
 }
 
-.cta-row {
-  display: flex;
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
-
+/* ---- Shared button + link primitives (used across pages) --------------- */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -105,7 +84,6 @@ h2 {
   cursor: pointer;
   border: 1px solid transparent;
 }
-
 .btn-primary {
   background: var(--accent);
   color: #fff;
@@ -115,7 +93,6 @@ h2 {
   background: var(--accent-strong);
   border-color: var(--accent-strong);
 }
-
 .btn-secondary {
   background: var(--surface);
   color: var(--text);
@@ -128,7 +105,6 @@ h2 {
   opacity: 0.5;
   cursor: not-allowed;
 }
-
 .btn-text {
   background: transparent;
   color: var(--muted);
@@ -136,7 +112,6 @@ h2 {
 .btn-text:hover {
   color: var(--text);
 }
-
 .link {
   color: var(--accent-strong);
   text-decoration: underline;
@@ -147,58 +122,12 @@ h2 {
   text-decoration-color: var(--accent);
 }
 
-.empty {
-  color: var(--muted);
-  font-style: italic;
-}
-
-/* Home / poll list */
-
-.poll-list {
-  list-style: none;
-  padding: 0;
-  margin: 1rem 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.poll-link {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 1rem 1.1rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  text-decoration: none;
-  color: var(--text);
-  transition:
-    transform 0.1s ease,
-    box-shadow 0.1s ease;
-  box-shadow: var(--shadow-sm);
-}
-.poll-link:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-}
-.poll-link-question {
-  font-weight: 500;
-  font-size: 1.05rem;
-}
-.poll-link-meta {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-/* New poll form */
-
+/* ---- New-poll form (global: script-built option rows, see header) ------ */
 .form {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
 }
-
 .field {
   display: flex;
   flex-direction: column;
@@ -209,7 +138,6 @@ h2 {
   font-size: 0.92rem;
   color: var(--muted);
 }
-
 input[type="text"] {
   font-family: inherit;
   font-size: 1rem;
@@ -224,7 +152,6 @@ input[type="text"]:focus {
   outline-offset: -1px;
   border-color: var(--accent);
 }
-
 .options {
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -238,34 +165,29 @@ input[type="text"]:focus {
   color: var(--muted);
   font-size: 0.92rem;
 }
-
 .option-rows {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   margin-bottom: 0.85rem;
 }
-
 .option-row {
   display: grid;
   grid-template-columns: 1.5rem 1fr;
   align-items: center;
   gap: 0.5rem;
 }
-
 .option-num {
   font-variant-numeric: tabular-nums;
   color: var(--muted-2);
   font-size: 0.9rem;
   text-align: right;
 }
-
 .form-actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
 }
-
 .form-error {
   color: var(--danger);
   background: #fbe8e8;
@@ -275,139 +197,13 @@ input[type="text"]:focus {
   margin: 0;
 }
 
-/* Poll page (voting + results) */
-
-.vote-options {
-  list-style: none;
-  padding: 0;
-  margin: 1rem 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.vote-option {
-  display: block;
-}
-
-.vote-btn {
-  width: 100%;
-  text-align: left;
-  padding: 0.85rem 1.1rem;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  font-family: inherit;
-  font-size: 1rem;
-  color: var(--text);
-  cursor: pointer;
-  transition:
-    background 0.12s ease,
-    border-color 0.12s ease;
-}
-.vote-btn:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-}
-
-.results {
-  margin-top: 1.5rem;
-}
-
-.results-banner {
-  background: var(--accent-soft);
-  border-left: 3px solid var(--accent);
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius-sm);
-  margin: 0 0 1.25rem;
-  color: var(--text);
-}
-
-.results-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.results-row {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.75rem 1rem;
-}
-
-.results-row-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 0.5rem;
-}
-
-.results-row-text {
-  font-weight: 500;
-}
-.results-row-count {
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-}
-
-.results-bar {
-  height: 8px;
-  background: var(--bg);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.results-bar-fill {
-  height: 100%;
-  background: var(--accent);
-  transition: width 0.3s ease;
-}
-
-.share-row {
-  margin-top: 2rem;
-  padding: 0.9rem 1rem;
-  background: var(--surface);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius);
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.share-label {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-.share-url {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.9rem;
-  background: var(--bg);
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-}
-
-/* ---- Network signals (runtime-owned data attributes) ------------------- */
-
-/* In-flight dispatches: the runtime marks the element (vote buttons) or the
-   form (the enhanced /new submit) until the request settles. */
+/* ---- Network signals (runtime-owned data attributes, cross-cutting) ----- */
 button[data-stator-pending],
 form[data-stator-pending] .btn-primary {
   opacity: 0.6;
   pointer-events: none;
   cursor: progress;
 }
-
-/* Both routes are live — surface a dropped SSE channel without markup.
-   Bottom-edge toast: never collides with page chrome. High z-index on
-   purpose — body::before is the first box in <body>, so any later sibling
-   with an equal z-index would paint over it. */
 html[data-stator-connection="disconnected"] body::before,
 html[data-stator-connection="stale"] body::before {
   content: "connection lost — reconnecting…";

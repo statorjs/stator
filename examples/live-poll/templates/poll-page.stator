@@ -2,135 +2,77 @@
 import type { InstanceOf } from '@statorjs/stator/template'
 import type PollsMachine from '../machines/polls.ts'
 import type VoterMachine from '../machines/voter.ts'
-
-type PollOption = { id: string; text: string; count: number }
-type Poll = {
-  id: string
-  question: string
-  options: PollOption[]
-  createdAt: number
-}
+import { pollOf } from '../lib/poll.ts'
+import VotePanel from './vote-panel.stator'
+import ResultsPanel from './results-panel.stator'
 
 const { polls, voter, pollId } = Stator.props<{
   polls: InstanceOf<typeof PollsMachine>
   voter: InstanceOf<typeof VoterMachine>
   pollId: string
 }>()
-
-// Reads on machine state inside slot selectors MUST go through the proxy
-// arg the selector receives (fresh snapshot per evaluation), never a
-// closure captured at render time — that would be stale forever.
-const pollOf = (p: InstanceOf<typeof PollsMachine>): Poll | undefined =>
-  (p.byId as (id: string) => Poll | undefined)(pollId)
 ---
-<section class="page page--poll">
-  {when(
-    read(polls, (p) => !pollOf(p)),
-    () => (
+<section>
+  {when(read(polls, (p) => !pollOf(p, pollId)), () => (
+    <header class="page-header">
+      <h1>Poll not found</h1>
+      <p class="page-lede">No poll with that id exists.</p>
+      <p><a href="/" class="link">Back to all polls</a></p>
+    </header>
+  ))}
+
+  {when(read(polls, (p) => !!pollOf(p, pollId)), () => (
+    <div>
       <header class="page-header">
-        <h1>Poll not found</h1>
-        <p class="page-lede">No poll with that id exists.</p>
-        <p><a href="/" class="link">Back to all polls</a></p>
+        <h1>{read(polls, (p) => pollOf(p, pollId)?.question ?? '')}</h1>
+        <p class="page-lede">
+          {read(polls, (p) => {
+            const poll = pollOf(p, pollId)
+            if (!poll) return ''
+            const total = poll.options.reduce((s, o) => s + o.count, 0)
+            return `${total} vote${total === 1 ? '' : 's'}`
+          })}
+        </p>
       </header>
-    ),
-  )}
 
-  {when(
-    read(polls, (p) => !!pollOf(p)),
-    () => (
-      <div>
-        <header class="page-header">
-          <h1>{read(polls, (p) => pollOf(p)?.question ?? '')}</h1>
-          <p class="page-lede">
-            {read(polls, (p) => {
-              const poll = pollOf(p)
-              if (!poll) return ''
-              const total = poll.options.reduce((s, o) => s + o.count, 0)
-              return `${total} vote${total === 1 ? '' : 's'}`
-            })}
-          </p>
-        </header>
+      {match(
+        read(voter, (v) => ((v.votedFor as (id: string) => string | null)(pollId) ? 'voted' : 'voting')),
+        {
+          voting: () => <VotePanel polls={polls} voter={voter} pollId={pollId} />,
+          voted: () => <ResultsPanel polls={polls} voter={voter} pollId={pollId} />,
+        },
+      )}
 
-        {match(
-          read(voter, (v) =>
-            (v.votedFor as (id: string) => string | null)(pollId) ? 'voted' : 'voting',
-          ),
-          {
-            voting: () => (
-              <ul class="vote-options">
-                {each(
-                  read(polls, (p) => pollOf(p)?.options ?? []),
-                  (option) => (
-                    <li class="vote-option">
-                      <button
-                        class="vote-btn"
-                        on:click={() =>
-                          voter.send({ type: 'VOTE', pollId: pollId, optionId: option.id })
-                        }
-                      >
-                        <span class="vote-btn-text">{option.text}</span>
-                      </button>
-                    </li>
-                  ),
-                )}
-              </ul>
-            ),
-
-            voted: () => (
-              <div class="results">
-                <p class="results-banner">
-                  You voted for
-                  <strong>
-                    {read(voter, (v) => {
-                      const optId = (v.votedFor as (id: string) => string | null)(pollId)
-                      const poll = pollOf(polls)
-                      return poll?.options.find((o) => o.id === optId)?.text ?? ''
-                    })}
-                  </strong>
-                  . Live results below.
-                </p>
-
-                <ul class="results-list">
-                  {/* Row-complete items: pct is derived in the selector, so every
-                      live field in a row — the count, the bar width — is an item
-                      read. A vote for ANY option moves every row's pct; the
-                      per-row value diff patches exactly the bars that changed. */}
-                  {each(
-                    read(polls, (p) => {
-                      const poll = pollOf(p)
-                      if (!poll) return []
-                      const total = poll.options.reduce((s, o) => s + o.count, 0)
-                      return poll.options.map((o) => ({
-                        ...o,
-                        pct: total === 0 ? '0.0' : ((o.count / total) * 100).toFixed(1),
-                      }))
-                    }),
-                    (option) => (
-                      <li class="results-row">
-                        <div class="results-row-head">
-                          <span class="results-row-text">{option.text}</span>
-                          <span class="results-row-count">{read(option, (o) => o.count)}</span>
-                        </div>
-                        <div class="results-bar">
-                          <div
-                            class="results-bar-fill"
-                            style={read(option, (o) => `width: ${o.pct}%`)}
-                          ></div>
-                        </div>
-                      </li>
-                    ),
-                  )}
-                </ul>
-              </div>
-            ),
-          },
-        )}
-
-        <div class="share-row">
-          <p class="share-label">Share this poll:</p>
-          <code class="share-url">{pollId}</code>
-        </div>
+      <div class="share">
+        <p>Share this poll:</p>
+        <code>{pollId}</code>
       </div>
-    ),
-  )}
+    </div>
+  ))}
 </section>
+
+<style>
+  .share {
+    margin-top: 2rem;
+    padding: 0.9rem 1rem;
+    background: var(--surface);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .share p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.9rem;
+    background: var(--bg);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+  }
+</style>

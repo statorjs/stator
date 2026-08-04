@@ -2,6 +2,7 @@
 import type { InstanceOf } from '@statorjs/stator/template'
 import type AdminMachine from '../machines/admin.ts'
 import type ProductsMachine from '../machines/products.ts'
+import AdminSession from './admin-session.stator'
 
 type SessionRow = {
   sid: string
@@ -16,7 +17,7 @@ const { admin, products } = Stator.props<{
 }>()
 const nameOf = (id: string) => (products.byId as any)(id)?.name ?? id
 ---
-<section class="admin">
+<section>
   <div class="admin-banner">
     <strong>Live demo.</strong> This page shows every visitor's cart in real
     time to demonstrate the framework's cross-session SSE pipeline. Carts
@@ -25,34 +26,34 @@ const nameOf = (id: string) => (products.byId as any)(id)?.name ?? id
   </div>
 
   <h1>Admin dashboard</h1>
-  <p class="admin-hint">Live view of carts across all sessions. Open shopping
+  <p class="hint">Live view of carts across all sessions. Open shopping
     tabs in other windows and watch this page update.</p>
 
-  <div class="admin-metrics">
-    <span class="admin-metrics-label">Runtime</span>
-    <span class="admin-metric">
-      <span class="admin-metric-label">heap</span>
-      <span class="admin-metric-value">{read(admin, a => a.runtimeMetrics.heapUsedMB)} / {read(admin, a => a.runtimeMetrics.heapTotalMB)} MB</span>
+  <div class="metrics">
+    <span class="metrics-label">Runtime</span>
+    <span class="metric">
+      <span class="metric-label">heap</span>
+      <span class="metric-value">{read(admin, a => a.runtimeMetrics.heapUsedMB)} / {read(admin, a => a.runtimeMetrics.heapTotalMB)} MB</span>
     </span>
-    <span class="admin-metric">
-      <span class="admin-metric-label">rss</span>
-      <span class="admin-metric-value">{read(admin, a => a.runtimeMetrics.rssMB)} MB</span>
+    <span class="metric">
+      <span class="metric-label">rss</span>
+      <span class="metric-value">{read(admin, a => a.runtimeMetrics.rssMB)} MB</span>
     </span>
-    <span class="admin-metric">
-      <span class="admin-metric-label">external</span>
-      <span class="admin-metric-value">{read(admin, a => a.runtimeMetrics.externalMB)} MB</span>
+    <span class="metric">
+      <span class="metric-label">external</span>
+      <span class="metric-value">{read(admin, a => a.runtimeMetrics.externalMB)} MB</span>
     </span>
-    <span class="admin-metric">
-      <span class="admin-metric-label">sse</span>
-      <span class="admin-metric-value">{read(admin, a => a.runtimeMetrics.activeConnections)} conn</span>
+    <span class="metric">
+      <span class="metric-label">sse</span>
+      <span class="metric-value">{read(admin, a => a.runtimeMetrics.activeConnections)} conn</span>
     </span>
-    <span class="admin-metric">
-      <span class="admin-metric-label">uptime</span>
-      <span class="admin-metric-value">{read(admin, a => a.runtimeMetrics.uptimeSeconds)}s</span>
+    <span class="metric">
+      <span class="metric-label">uptime</span>
+      <span class="metric-value">{read(admin, a => a.runtimeMetrics.uptimeSeconds)}s</span>
     </span>
   </div>
 
-  <div class="admin-aggregates">
+  <div class="aggregates">
     <div class="aggregate">
       <span class="aggregate-label">Active carts</span>
       <span class="aggregate-value">{read(admin, a => a.activeCartCount)}</span>
@@ -69,11 +70,11 @@ const nameOf = (id: string) => (products.byId as any)(id)?.name ?? id
 
   <h2>Per-product totals</h2>
   {when(read(admin, a => a.totalItemsInCarts > 0), () =>
-    <ul class="product-totals">
+    <ul class="totals">
       {each(read(admin, a => a.inCartProducts as Array<{ productId: string; count: number }>), (row) =>
-        <li class="product-total-row">
-          <span class="product-total-name">{nameOf(row.productId)}</span>
-          <span class="product-total-count">{row.count}</span>
+        <li>
+          <span>{nameOf(row.productId)}</span>
+          <span>{row.count}</span>
         </li>
       )}
     </ul>
@@ -81,28 +82,100 @@ const nameOf = (id: string) => (products.byId as any)(id)?.name ?? id
 
   <h2>Active carts</h2>
   {when(read(admin, a => a.activeCartCount === 0), () =>
-    <p class="admin-empty">No active carts. Add an item from the products page.</p>
+    <p class="empty">No active carts. Add an item from the products page.</p>
   )}
-  <ul class="admin-sessions">
+  <ul class="sessions">
     {each(read(admin, a => a.sessionList as SessionRow[]), (session) =>
-      <li class="admin-session">
-        <div class="admin-session-head">
-          <span class="admin-session-sid">{session.sid.slice(0, 8)}…</span>
-          <span class="admin-session-meta">
-            {session.itemCount} item{session.itemCount === 1 ? '' : 's'} ·
-            ${session.total.toFixed(2)}
-          </span>
-        </div>
-        <ul class="admin-session-items">
-          {each(session.items, (item) =>
-            <li class="admin-session-item">
-              <span class="admin-item-name">{nameOf(item.productId)}</span>
-              <span class="admin-item-qty">×{item.quantity}</span>
-              <span class="admin-item-price">${(item.unitPrice * item.quantity).toFixed(2)}</span>
-            </li>
-          )}
-        </ul>
-      </li>
+      <AdminSession session={session} products={products} />
     )}
   </ul>
 </section>
+
+<style>
+  .hint {
+    color: var(--muted);
+    font-style: italic;
+    margin-bottom: 1.5rem;
+  }
+  .metrics {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 1rem;
+    background: #1a1a1a;
+    color: #d0d0d0;
+    border-radius: var(--radius-sm);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.78rem;
+    margin-bottom: 1.5rem;
+  }
+  .metrics-label {
+    color: #6a9955;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+  .metric {
+    display: inline-flex;
+    gap: 0.4rem;
+    align-items: baseline;
+  }
+  .metric-label {
+    color: #888;
+  }
+  .metric-value {
+    color: #d0d0d0;
+    font-variant-numeric: tabular-nums;
+  }
+  .aggregates {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .aggregate {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+  }
+  .aggregate-label {
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .aggregate-value {
+    font-size: 1.6rem;
+    font-weight: 600;
+    margin-top: 0.25rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .totals {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .totals li {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .totals li span:last-child {
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+  .empty {
+    color: var(--muted-2);
+    font-style: italic;
+  }
+  .sessions {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+</style>
