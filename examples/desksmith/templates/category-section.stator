@@ -2,6 +2,7 @@
 import type { InstanceOf } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
 import type ProductsMachine from '../machines/products.ts'
+import ProductCard from './product-card.stator'
 
 type Product = {
   id: string
@@ -20,31 +21,43 @@ const { title, blurb, cat, products, cart } = Stator.props<{
   cart: InstanceOf<typeof CartMachine>
 }>()
 ---
-<section class={`catalog-section catalog-section--${cat}`}>
-  <header class="catalog-section-header">
+<section>
+  <header>
     <h2>{title}</h2>
-    <p class="catalog-section-blurb">{blurb}</p>
+    <p>{blurb}</p>
   </header>
-  <ul class="product-grid">
+  <ul>
     {each(read(products, p => (p.byCategory as (c: string) => Product[])(cat)), (product: Product) =>
-      <li class="product-card">
-        <div class={`product-thumb product-thumb--${product.category}`}>
-          <span class="product-thumb-initials">{product.initials}</span>
-        </div>
-        <div class="product-body">
-          <h3 class="product-name">{product.name}</h3>
-          <p class="product-description">{product.description}</p>
-          <div class="product-footer">
-            <span class="product-price">${product.price.toFixed(2)}</span>
-            <button
-              on:click={() => cart.send({ type: 'ADD_ITEM', productId: product.id })}
-              class:list={{ 'add-btn': true, 'in-cart': read(cart, c => c.contains(product.id)) }}
-            >
-              {read(cart, c => c.contains(product.id) ? 'In cart ✓' : 'Add to cart')}
-            </button>
-          </div>
-        </div>
-      </li>
+      <ProductCard product={product} cart={cart} />
     )}
   </ul>
 </section>
+
+<style>
+  section {
+    margin-bottom: 3rem;
+  }
+  header {
+    margin-bottom: 1.1rem;
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  header h2 {
+    font-size: 1.4rem;
+  }
+  header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1.25rem;
+  }
+</style>

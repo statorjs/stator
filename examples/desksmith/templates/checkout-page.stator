@@ -8,7 +8,7 @@ const { checkout } = Stator.props<{
   cart: InstanceOf<typeof CartMachine>
 }>()
 ---
-<section class="checkout">
+<section>
   <div class="demo-banner">
     <strong>Demo flow.</strong> The buttons below stand in for real form
     fields so this demo doesn't collect or store any of your personal data.
@@ -26,7 +26,7 @@ const { checkout } = Stator.props<{
         <h2>1. Shipping</h2>
         <p>Name: {read(checkout, c => c.shippingName)}</p>
         <p>Address: {read(checkout, c => c.shippingAddress)}</p>
-        <div class="step-actions">
+        <div class="actions">
           <button on:click={() => checkout.send({ type: 'SET_FIELD', field: 'shippingName', value: 'Demo Customer' })}>Set name</button>
           <button on:click={() => checkout.send({ type: 'SET_FIELD', field: 'shippingAddress', value: '123 Demo St' })}>Set address</button>
           <button on:click={() => checkout.send({ type: 'SUBMIT_SHIPPING' })}>Continue to payment →</button>
@@ -41,7 +41,7 @@ const { checkout } = Stator.props<{
         {when(read(checkout, c => c.error), () => (
           <p class="error">{read(checkout, c => c.error)}</p>
         ))}
-        <div class="step-actions">
+        <div class="actions">
           <button on:click={() => checkout.send({ type: 'SET_FIELD', field: 'paymentLast4', value: '4242' })}>Set card</button>
           <button on:click={() => checkout.send({ type: 'SET_FIELD', field: 'paymentLast4', value: '0000' })}>Set declined card</button>
           <button on:click={() => checkout.send({ type: 'SET_FIELD', field: 'paymentLast4', value: '9999' })}>Set silent card</button>
@@ -62,9 +62,48 @@ const { checkout } = Stator.props<{
       <div class="step">
         <h2>3. Complete</h2>
         <p>Thanks! Order number: <strong>{read(checkout, c => c.orderNumber)}</strong></p>
-        <div class="step-actions">
+        <div class="actions">
           <button on:click={() => checkout.send({ type: 'RESET' })}>Start a new order</button>
         </div>
       </div>,
   })}
 </section>
+
+<style>
+  .state-label {
+    color: var(--muted-2);
+    font-style: italic;
+    font-size: 0.85rem;
+    margin: 0.25rem 0 1.5rem;
+  }
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin: 1rem 0;
+    box-shadow: var(--shadow-sm);
+  }
+  .step h2 {
+    margin-bottom: 0.75rem;
+  }
+  .step p {
+    margin: 0.4rem 0;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+  .hint {
+    color: var(--muted-2);
+    font-size: 0.85rem;
+    margin-top: 1rem;
+  }
+  .error {
+    color: #b85b5b;
+    font-size: 0.9rem;
+    margin: 0.5rem 0 0;
+  }
+</style>
