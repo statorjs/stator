@@ -21,7 +21,7 @@ export interface SavedPlace extends Place {
   id: string
 }
 
-const DEFAULT_PLACES: SavedPlace[] = (
+export const DEFAULT_PLACES: SavedPlace[] = (
   [
     { name: 'London', admin: 'England', country: 'United Kingdom', countryCode: 'GB', lat: 51.5074, lon: -0.1278, timezone: 'Europe/London' },
     { name: 'Tokyo', country: 'Japan', countryCode: 'JP', lat: 35.6762, lon: 139.6503, timezone: 'Asia/Tokyo' },
