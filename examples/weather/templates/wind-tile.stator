@@ -34,3 +34,14 @@ const { panels, placeId } = Stator.props<{
     </div>
   </div>
 </div>
+
+<style>
+  /* The wind compass glyph (the tile vocabulary — .tile/.t-* /.flip-* — is a
+     shared global primitive). */
+  .compass {
+    width: 30px;
+    height: 30px;
+    color: #fff;
+    opacity: 0.9;
+  }
+</style>

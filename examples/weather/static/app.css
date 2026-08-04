@@ -401,70 +401,9 @@ tile-motion {
      adjacent (offscreen) panel during the carousel. */
   overflow: hidden;
 }
-/* The hero is a GRID TILE like everything else — full row width, two rows
-   tall, so its height sits on the same rhythm as the m2 tiles beside it.
-   Tiny screens give it a third row so the meta line never clips. */
-.hero {
-  position: relative;
-  grid-column: 1 / -1;
-  grid-row: span 2;
-  overflow: hidden;
-  background: linear-gradient(168deg, #589fdb, #d6e7f4);
-}
-@media (max-width: 374px) {
-  .hero {
-    grid-row: span 3;
-  }
-}
-.hero .live-sky,
-.hero .sky-canvas {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-.hero-body {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 24px 26px;
-  color: #fff;
-  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.28);
-}
-.hero-body::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: linear-gradient(180deg, transparent 45%, rgba(0, 0, 0, 0.28));
-}
-.hero-temp {
-  font-size: clamp(56px, 12vw, 96px);
-  font-weight: 200;
-  line-height: 0.92;
-  letter-spacing: -0.03em;
-}
-.hero-cond {
-  font-size: 18px;
-  font-weight: 500;
-  margin-top: 2px;
-}
-.hero-meta {
-  font-size: 13px;
-  opacity: 0.92;
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-.hero-meta .num {
-  font-weight: 600;
-}
+/* Hero (the current-conditions tile) styles are scoped in templates/hero.stator
+   — including the .live-sky/.sky-canvas positioning it wraps. */
+
 /* Touch devices: fingers need a bigger vertical hit area on the pivot pills. */
 @media (pointer: coarse) {
   .pivot-item {
@@ -472,187 +411,20 @@ tile-motion {
   }
 }
 
-/* ---- Forecast tiles (hourly + 10-day) — w4 grid tiles ---------------- */
-/* hourly: 6-across rows of hours; 10-day: a peek tile of day rows.
-   The tile is a fixed span-2 grid cell, so its height is width-derived while
-   the row content is font-derived — on short tiles they can't both win. The
-   hourly tile ships BOTH frame layouts and the tile's height picks one:
-   ≥254px fits two full rows (worst-case populated pop+rain lines), below
-   that the peek cycles four single-row frames instead. Same data, shorter
-   frames — never a clipped row. */
-.slides-four {
-  display: none;
-}
-@container tile (height < 254px) {
-  .slides-two {
-    display: none;
-  }
-  .slides-four {
-    display: block;
-  }
-}
+/* ---- Forecast tiles (hourly + 10-day) ------------------------------- */
+/* The frame-layout choice and the row grids are scoped in their components
+   (hourly-tile / hourly-slide / daily-tile). What stays global is shared by
+   both forecast tiles: the peek-frame base below, and the tiny-tile slide
+   padding (in the <150px container query further down). */
 .fc-slide {
   justify-content: flex-start;
   gap: 4px;
 }
-.fc-title {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.11em;
-  font-weight: 600;
-  opacity: 0.85;
-  margin-bottom: 4px;
-}
-.hourly {
-  flex: 1;
-  display: grid;
-  /* Content-width columns spread edge-to-edge: the first hour aligns flush-left
-     with the title, the last flush-right — no per-cell centering offset. */
-  grid-template-columns: repeat(6, auto);
-  grid-auto-rows: 1fr;
-  justify-content: space-between;
-  gap: 4px 8px;
-}
-.hour {
-  /* Group the values tightly and centre them in the row, so the spare vertical
-     space sits above/below the group rather than between the icon and temp. */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-}
-.h-time {
-  font-size: 11.5px;
-  opacity: 0.85;
-}
-.hour .wx-ico {
-  width: 26px;
-  height: 26px;
-  opacity: 0.95;
-}
-.h-temp {
-  font-size: 16px;
-}
-.h-pop {
-  font-size: 10.5px;
-  min-height: 13px;
-  opacity: 0.9;
-}
-.h-rain {
-  font-size: 9px;
-  opacity: 0.72;
-  min-height: 11px;
-}
-.daily {
-  flex: 1;
-  display: grid;
-  align-content: stretch;
-  grid-auto-rows: 1fr;
-}
-.drow {
-  display: grid;
-  grid-template-columns: 1fr 26px 40px 32px 32px;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-}
-.drow-head {
-  font-size: 9.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  opacity: 0.6;
-  padding-bottom: 3px;
-}
-.drow .wx-ico {
-  width: 22px;
-  height: 22px;
-  opacity: 0.9;
-  justify-self: center;
-}
-.d-day {
-  font-size: 13.5px;
-}
-.d-date {
-  display: inline-block;
-  width: 1.5em;
-  margin-right: 7px;
-  text-align: right;
-  opacity: 0.6;
-}
-.d-pop {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  line-height: 1.25;
-  font-size: 11px;
-  opacity: 0.85;
-}
-.d-rain {
-  font-size: 9.5px;
-  opacity: 0.7;
-}
-.d-lo {
-  font-size: 13px;
-  text-align: right;
-  opacity: 0.65;
-}
-.d-hi {
-  font-size: 13px;
-  text-align: right;
-  font-weight: 500;
-}
-/* Daily density: the full rows (with the rain-amount sub-line) need ~215px of
-   tile; below that drop the sub-line and tighten so all five days still show. */
-@container tile (height < 216px) {
-  .drow {
-    /* Narrower icon/lo/hi columns buy a wide rain column — the day's expected
-       amount stays, laid INLINE with the probability; it's the STACKED pair
-       that doesn't fit a short tile's rows. */
-    grid-template-columns: 1fr 22px 76px 30px 30px;
-    padding: 3px 0;
-  }
-  .drow .wx-ico {
-    width: 18px;
-    height: 18px;
-  }
-  .d-pop {
-    flex-direction: row;
-    align-items: baseline;
-    justify-content: flex-end;
-    gap: 4px;
-  }
-}
-/* Tiny tiles (≲340px viewports — 2.8" phones): trade fine print and a few px
-   of type for never clipping a row. The rain-probability column stays. */
+/* Tiny-tile slide padding — shared by both forecast tiles (the per-tile row
+   density lives in daily-tile / hourly-slide's own <150px queries). */
 @container tile (height < 150px) {
   .peek-tile .slide {
     padding: 10px 12px;
-  }
-  .hour .wx-ico {
-    width: 22px;
-    height: 22px;
-  }
-  .h-rain {
-    display: none;
-  }
-  .drow {
-    grid-template-columns: 1fr 18px 68px 28px 28px;
-    padding: 2px 0;
-  }
-  .drow .wx-ico {
-    width: 16px;
-    height: 16px;
-  }
-  .d-day {
-    font-size: 12px;
-  }
-  .d-rain {
-    font-size: 8.5px;
-  }
-  .drow-head {
-    font-size: 8.5px;
   }
 }
 
@@ -675,22 +447,8 @@ tile-motion {
   opacity: 0.9;
   pointer-events: none;
 }
-.compass {
-  width: 30px;
-  height: 30px;
-  color: #fff;
-  opacity: 0.9;
-}
-.mini-moon {
-  width: 42px;
-  height: 42px;
-}
-.mini-arc {
-  width: 100%;
-  height: auto;
-  display: block;
-  overflow: visible;
-}
+/* .compass (wind-tile) and .mini-arc/.mini-moon (sun-moon-tile) are scoped in
+   those components; the shared .t-glyph/.t-bg-glyph above stay global. */
 
 /* ---- Metro Pivot: horizontal scroll-snap location strip -------------- */
 .pivot {

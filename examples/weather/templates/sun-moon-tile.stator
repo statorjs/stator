@@ -37,3 +37,17 @@ const { panels, placeId } = Stator.props<{
     </div>
   </div>
 </div>
+
+<style>
+  /* The sun-arc and moon-disc glyphs (shared tile vocabulary stays global). */
+  .mini-arc {
+    width: 100%;
+    height: auto;
+    display: block;
+    overflow: visible;
+  }
+  .mini-moon {
+    width: 42px;
+    height: 42px;
+  }
+</style>
