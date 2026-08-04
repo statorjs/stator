@@ -300,6 +300,9 @@ importers:
       vite:
         specifier: ^6.0.0
         version: 6.4.3(@types/node@22.19.19)(tsx@4.21.0)
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.19.19)(happy-dom@15.11.7)(tsx@4.21.0)
 
   examples/with-auth:
     dependencies:
