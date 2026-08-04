@@ -344,5 +344,6 @@ tile-motion {
    The mode's OWNER is the app bar's ViewMode client machine (app-bar-ctl),
    projected as `data-view` on the route's .wx section. Each reveal it drives is
    now co-located with the element it reveals — the eyebrow label in the route,
-   the search box in search-bar, the pivot delete-chips in pivot — because
-   subject-only scoping leaves the `.wx[data-view]` ancestor selector global. */
+   the search box in search-bar, the pivot delete-chips (incl. the #78 in-flight
+   spinner) in pivot — because subject-only scoping leaves the `.wx[data-view]`
+   ancestor selector global. */

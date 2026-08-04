@@ -65,7 +65,7 @@ per-record child machine, `<StockRow>` would read *its own* state
 (`read(rowMachine, m => m.onHand)`) — clean AND composable, no find-by-id, no O(n²).
 Item-value bindings are the inline-only stopgap that works until the list is
 decomposed into components; see the "inline-only" note in
-[`per-row-item-value-bindings-in-each.md`](per-row-item-value-bindings-in-each.md).
+[`per-row-item-value-bindings-in-each.md`](../shipped/per-row-item-value-bindings-in-each.md).
 
 ### Evidence 4 — authoring DX: reusable machines are how you shrink a large `defineMachine`
 
