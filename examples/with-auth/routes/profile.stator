@@ -31,7 +31,7 @@ if (!auth.isAuthenticated) Stator.response.status = 401
           These follow your <em>account</em>, not your session — sign out,
           sign in from another browser, and they're still here.
         </p>
-        <ul class="watchlist">
+        <ul>
           {each(
             read(prefs, (p) => p.watchedBy(uid).map((id) => ({ id }))),
             (w) => (
@@ -49,3 +49,10 @@ if (!auth.isAuthenticated) Stator.response.status = 401
     </div>
   ))}
 </Layout>
+
+<style>
+  ul {
+    margin: 0.4rem 0 0;
+    padding-left: 1.2rem;
+  }
+</style>
