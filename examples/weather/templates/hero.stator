@@ -42,16 +42,10 @@ const { panels, placeId } = Stator.props<{
       grid-row: span 3;
     }
   }
-  /* The live-sky island fills the hero (descendant selector — the island's
-     elements carry their own scope, so this reaches them from the .hero side). */
-  .hero .live-sky,
-  .hero .sky-canvas {
-    position: absolute;
-    inset: 0;
-    display: block;
-    width: 100%;
-    height: 100%;
-  }
+  /* The live-sky island fills the hero by owning its own absolute fill (in
+     live-sky.stator) — it can't be styled from here: a scoped `.hero .live-sky`
+     stamps the subject with the hero's hash, which the island's elements don't
+     carry. .hero being position:relative is the anchor the island fills. */
   .hero-body {
     position: absolute;
     inset: 0;

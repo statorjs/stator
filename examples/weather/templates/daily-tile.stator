@@ -33,8 +33,9 @@ const { panels, placeId } = Stator.props<{
   /* The 5-day rows. `.slide`/`.fc-slide` (peek frame) and `.peek-tile .slide`'s
      tiny-tile padding stay global — shared with the hourly tile. Row density
      steps down by the tile's real height (the global `.peek-tile` container).
-     The weather glyph is a raw()-injected <svg class="wx-ico">, reached below by
-     descendant selector. */
+     The weather glyph is a raw()-injected <svg class="wx-ico"> (runtime DOM, no
+     scope attribute) — reached with :global() below so a scoped subject can't
+     miss it. */
   .daily {
     flex: 1;
     display: grid;
@@ -55,7 +56,7 @@ const { panels, placeId } = Stator.props<{
     opacity: 0.6;
     padding-bottom: 3px;
   }
-  .drow .wx-ico {
+  .drow :global(.wx-ico) {
     width: 22px;
     height: 22px;
     opacity: 0.9;
@@ -101,7 +102,7 @@ const { panels, placeId } = Stator.props<{
       grid-template-columns: 1fr 22px 76px 30px 30px;
       padding: 3px 0;
     }
-    .drow .wx-ico {
+    .drow :global(.wx-ico) {
       width: 18px;
       height: 18px;
     }
@@ -118,7 +119,7 @@ const { panels, placeId } = Stator.props<{
       grid-template-columns: 1fr 18px 68px 28px 28px;
       padding: 2px 0;
     }
-    .drow .wx-ico {
+    .drow :global(.wx-ico) {
       width: 16px;
       height: 16px;
     }

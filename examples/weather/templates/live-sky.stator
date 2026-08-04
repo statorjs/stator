@@ -208,3 +208,25 @@
     }
   }
 </script>
+
+<style>
+  /* The island is a full-bleed background: it fills the hero (its only host,
+     which is position:relative). Owning the fill here — rather than the hero
+     reaching in with `.hero .live-sky` — is what keeps it working: a scoped
+     `.hero .live-sky` would stamp the SUBJECT with the hero's hash, and these
+     elements carry the island's hash, not the hero's. */
+  live-sky {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .sky-canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+</style>
