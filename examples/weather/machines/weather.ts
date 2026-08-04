@@ -1,6 +1,6 @@
 import { defineMachine } from '@statorjs/stator/server'
 import { type Place, placeId } from '../lib/open-meteo.ts'
-import SettingsMachine, { type Clock, type Units } from './settings.ts'
+import SettingsMachine, { DEFAULT_CLOCK, DEFAULT_UNITS, type Clock, type Units } from './settings.ts'
 
 /**
  * The DOMAIN machine: which places this session tracks, which is active, and
@@ -69,8 +69,8 @@ export default defineMachine({
   context: {
     places: DEFAULT_PLACES,
     activeId: DEFAULT_PLACES[0]!.id,
-    units: 'metric',
-    clock: '24h',
+    units: DEFAULT_UNITS,
+    clock: DEFAULT_CLOCK,
   } as Ctx,
   initial: 'ready',
   states: {
