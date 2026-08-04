@@ -30,7 +30,7 @@ const { cart } = Stator.props<{ cart?: InstanceOf<typeof CartMachine> }>()
     <footer class="site-footer">
       <p>Plimsoll · harbor-grade footwear · every pair ships with its ledger.</p>
       <p class="footer-note">
-        A demonstration store built with <a href="https://github.com/statorjs/stator">Stator</a>.
+        A demonstration store built with <a href="https://github.com/statorjs/stator">Stator</a>.{' '}
         Nothing here is for sale.
       </p>
     </footer>

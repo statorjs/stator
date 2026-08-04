@@ -41,7 +41,7 @@ const skuLabel = (sku: string): string => {
         <div class="panel">
           <p class="panel-lede">
             Restocking is gated by a session machine's guard — the
-            <a class="link" href="https://statorjs.dev/guides/app-machines/"> gateway pattern</a>.
+            <a class="link" href="https://statorjs.dev/guides/app-machines/"> gateway pattern</a>.{' '}
             This toggle stands in for real auth in the demo.
           </p>
           <div class="panel-actions">
