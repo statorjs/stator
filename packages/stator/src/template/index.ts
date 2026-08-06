@@ -22,6 +22,8 @@ export {
 export type { ClassListSpec, StyleListSpec } from './directives/list-attr.ts'
 export { classList, styleList } from './directives/list-attr.ts'
 export { on } from './directives/on.ts'
+export type { SpreadAttrs } from './directives/spread.ts'
+export { spreadAttrs } from './directives/spread.ts'
 export type { EachResult } from './each.ts'
 export { each, isEachResult, itemBind, renderListBody } from './each.ts'
 export { html, raw } from './html.ts'

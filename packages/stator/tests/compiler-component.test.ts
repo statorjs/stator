@@ -41,8 +41,24 @@ describe('compiler: component invocation (stage 1)', () => {
     expect(() => lowerTemplate('<Button on:click={h} />')).toThrow(CompileError)
   })
 
-  it('errors on spread props on a component', () => {
-    expect(() => lowerTemplate('<Card {...rest} />')).toThrow(CompileError)
+  it('lowers spread props on a component to an object spread', () => {
+    expect(lowerTemplate('<Card {...rest} />')).toBe('html`${Card({ ...rest })}`')
+  })
+
+  it('keeps spread + explicit props in source order (explicit overrides spread)', () => {
+    expect(lowerTemplate('<Card {...rest} title="Hi" />')).toBe(
+      'html`${Card({ ...rest, title: "Hi" })}`',
+    )
+  })
+
+  it('lowers a spread on an element to a spreadAttrs directive', () => {
+    expect(lowerTemplate('<button {...rest} />')).toBe('html`<button ${spreadAttrs(rest)} />`')
+  })
+
+  it('keeps element spread in source order among static attributes', () => {
+    expect(lowerTemplate('<button type="submit" {...rest} disabled />')).toBe(
+      'html`<button type="submit" ${spreadAttrs(rest)} disabled />`',
+    )
   })
 
   it('lowers a component inside an each callback', () => {
