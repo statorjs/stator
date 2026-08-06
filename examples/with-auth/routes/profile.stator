@@ -2,6 +2,7 @@
 import AuthMachine from '../machines/auth.ts'
 import BoardMachine from '../machines/board.ts'
 import PrefsMachine from '../machines/prefs.ts'
+import Field from '../templates/field.stator'
 import Layout from '../templates/auth-layout.stator'
 
 const [auth, board, prefs] = Stator.reads([AuthMachine, BoardMachine, PrefsMachine])
@@ -17,9 +18,7 @@ if (!auth.isAuthenticated) Stator.response.status = 401
       <section class="card">
         <h2>Display name</h2>
         <form method="post" action="/profile/name">
-          <label>Shown on your notices
-            <input name="name" value={read(auth, (a) => a.name)} required maxlength="40" />
-          </label>
+          <Field label="Shown on your notices" name="name" value={read(auth, (a) => a.name)} required maxlength="40" />
           <button class="btn" type="submit">Save</button>
         </form>
         <p class="note">Existing notices keep the name they were posted under.</p>
