@@ -25,6 +25,15 @@ export { on } from './directives/on.ts'
 export type { EachResult } from './each.ts'
 export { each, isEachResult, itemBind, renderListBody } from './each.ts'
 export { html, raw } from './html.ts'
+export type {
+  AriaAttributes,
+  ElementSpecificAttributes,
+  GlobalHTMLAttributes,
+  HTMLAttributes,
+  Reactive,
+  StatorDirectiveAttributes,
+  StatorIntrinsicElements,
+} from './html-attributes.ts'
 export type { ReadResult } from './read.ts'
 export { isReadResult, read } from './read.ts'
 export type { HtmlFragment, InstanceOf } from './types.ts'
