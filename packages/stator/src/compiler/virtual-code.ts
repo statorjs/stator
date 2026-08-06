@@ -92,7 +92,8 @@ function injectImports(globals: string[], modulePath: string, userCode: string):
 // `Stator.reads` binding unassignable to component props.
 const AMBIENT_TYPE_IMPORTS =
   "import type { AnyMachineDef as __SMachineDef } from '@statorjs/stator/machine';\n" +
-  "import type { InstanceOf as __SInstanceOf } from '@statorjs/stator/template';\n"
+  "import type { InstanceOf as __SInstanceOf } from '@statorjs/stator/template';\n" +
+  "import type { StatorIntrinsicElements as __SIntrinsics } from '@statorjs/stator/template';\n"
 
 /**
  * Per-file ambient scaffold prepended to every virtual TSX. `Stator` (the macro
@@ -113,7 +114,7 @@ const STATOR_AMBIENT = `declare const Stator: {
 };
 declare global {
   namespace JSX {
-    interface IntrinsicElements extends Record<string, any> {}
+    interface IntrinsicElements extends __SIntrinsics {}
   }
 }
 `
