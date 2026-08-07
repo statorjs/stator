@@ -101,6 +101,17 @@ const wrong = { disabled: 'yes' }
 <button {...wrong}>x</button>
 `
 
+// A forwarding component: it reads a parent-forwarded on:click via
+// Stator.forwarded and re-attaches it to a chosen inner element. Both the
+// accessor (ambient-typed) and the directive placement must typecheck clean.
+const FORWARD_BUTTON = `---
+import type { HTMLAttributes } from '@statorjs/stator/template'
+const { variant, ...rest } = Stator.props<HTMLAttributes<'button'> & { variant?: 'primary' }>()
+const onClick = Stator.forwarded('on:click')
+---
+<button class={variant} on:click={onClick} {...rest}><children /></button>
+`
+
 function emitAll(): Record<string, string> {
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'cart-machine.ts'), CART_MACHINE)
@@ -112,6 +123,7 @@ function emitAll(): Record<string, string> {
     ['component-await', COMPONENT_AWAIT],
     ['button', BUTTON],
     ['button-bad', BUTTON_BAD],
+    ['forward-button', FORWARD_BUTTON],
   ] as const) {
     // The editor resolves `.stator` imports through the language plugin; here
     // tsc plays that role by resolving the emitted sibling `.tsx`.
@@ -170,6 +182,10 @@ describe('virtual code under real tsc (the editor contract)', () => {
     const bad = diags.get('button-bad')!
     expect(bad.length).toBeGreaterThan(0)
     expect(bad.join('\n')).toMatch(/disabled|not assignable/)
+  })
+
+  it('a forwarding component (Stator.forwarded + on:click on an inner element) typechecks clean', () => {
+    expect(diags.get('forward-button')).toEqual([])
   })
 
   it('a top-level await in frontmatter is a TS error (sync-frontmatter contract)', () => {

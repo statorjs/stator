@@ -3,9 +3,13 @@ import { type DirectiveInvocation, defineDirective, invoke } from './core.ts'
 
 type Handler = () => EventDescriptor | undefined
 
-const onDirective = defineDirective<Handler>({
+const onDirective = defineDirective<Handler | null | undefined>({
   name: 'on',
   apply({ modifier, arg, addAttribute }) {
+    // A forwarded/optional handler may be absent — `on:click={onClick}` where the
+    // caller passed no handler (Stator.forwarded returns undefined). Emit no
+    // binding rather than crash on `arg()`.
+    if (arg == null) return
     const result = arg()
     if (!isEventDescriptor(result)) {
       throw new Error(
@@ -17,6 +21,9 @@ const onDirective = defineDirective<Handler>({
   },
 })
 
-export function on(modifier: string, handler: Handler): DirectiveInvocation<Handler> {
+export function on(
+  modifier: string,
+  handler: Handler | null | undefined,
+): DirectiveInvocation<Handler | null | undefined> {
   return invoke(onDirective, modifier, handler)
 }

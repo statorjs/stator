@@ -37,8 +37,20 @@ describe('compiler: component invocation (stage 1)', () => {
     )
   })
 
-  it('errors on a directive applied to a component', () => {
-    expect(() => lowerTemplate('<Button on:click={h} />')).toThrow(CompileError)
+  it('collects an on: directive on a component into a $directives bag (forwarding)', () => {
+    expect(lowerTemplate('<Button on:click={h} />')).toBe(
+      'html`${Button({ $directives: { "on:click": h } })}`',
+    )
+  })
+
+  it('keeps on: forwarding alongside normal props', () => {
+    expect(lowerTemplate('<Button variant="primary" on:click={h} />')).toBe(
+      'html`${Button({ variant: "primary", $directives: { "on:click": h } })}`',
+    )
+  })
+
+  it('still rejects bind:/ref: forwarding to a component (on:* only, for now)', () => {
+    expect(() => lowerTemplate('<Button bind:value={v} />')).toThrow(CompileError)
   })
 
   it('lowers spread props on a component to an object spread', () => {
