@@ -3,6 +3,7 @@ import { compile } from '../src/compiler/compile.ts'
 import {
   createEventDescriptor,
   createRenderState,
+  type EventDescriptor,
   runInRender,
 } from '../src/server/render-context.ts'
 import { on } from '../src/template/directives/on.ts'
@@ -42,7 +43,7 @@ describe('directive forwarding — runtime', () => {
   it('a forwarded handler wires data-event-click on the author-chosen element', () => {
     const state = createRenderState('fwd', 'GET /x')
     const out = runInRender(state, () => {
-      const props: { $directives?: Record<string, () => unknown> } = {
+      const props: { $directives?: Record<string, () => EventDescriptor> } = {
         $directives: { 'on:click': () => createEventDescriptor('CartMachine', { type: 'BACK' }) },
       }
       const onClick = props.$directives?.['on:click']
@@ -55,7 +56,7 @@ describe('directive forwarding — runtime', () => {
   it('an absent forwarded handler renders no binding and does not throw', () => {
     const state = createRenderState('fwd-absent', 'GET /x')
     const out = runInRender(state, () => {
-      const props: { $directives?: Record<string, () => unknown> } = {} // caller passed no on:click
+      const props: { $directives?: Record<string, () => EventDescriptor> } = {} // caller passed no on:click
       const onClick = props.$directives?.['on:click']
       return html`<button ${on('click', onClick)}>go</button>`
     })
