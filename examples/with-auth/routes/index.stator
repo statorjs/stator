@@ -2,6 +2,7 @@
 // @stator live
 import AuthMachine from '../machines/auth.ts'
 import BoardMachine, { type Notice } from '../machines/board.ts'
+import Field from '../templates/field.stator'
 import PrefsMachine from '../machines/prefs.ts'
 import NoticeCard from '../templates/notice.stator'
 
@@ -43,7 +44,7 @@ const isMember = auth.isAuthenticated
 
       {when(read(auth, (a) => a.isAuthenticated), () => (
         <form class="post-form" method="post" action="/notices/create">
-          <input name="title" placeholder="Notice title" required maxlength="80" />
+          <Field name="title" placeholder="Notice title" required maxlength="80" />
           <textarea name="body" placeholder="What does the harbor need to know?" rows="2" maxlength="500"></textarea>
           <label class="check-row">
             <input type="checkbox" name="membersOnly" />

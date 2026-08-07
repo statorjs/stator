@@ -1,5 +1,6 @@
 ---
 import AuthMachine from '../machines/auth.ts'
+import Field from '../templates/field.stator'
 import Layout from '../templates/auth-layout.stator'
 
 const [auth] = Stator.reads([AuthMachine])
@@ -25,8 +26,8 @@ const error = query.error
       <section class="card">
         <h2>Sign in</h2>
         <form method="post" action="/auth/login">
-          <label>Email <input name="email" type="email" required /></label>
-          <label>Password <input name="password" type="password" required /></label>
+          <Field label="Email" name="email" type="email" required />
+          <Field label="Password" name="password" type="password" required />
           <button class="btn" type="submit">Sign in</button>
         </form>
       </section>
@@ -34,9 +35,9 @@ const error = query.error
       <section class="card">
         <h2>New to the harbor?</h2>
         <form method="post" action="/auth/register">
-          <label>Email <input name="email" type="email" required /></label>
-          <label>Display name <input name="name" required maxlength="40" /></label>
-          <label>Password <input name="password" type="password" required minlength="8" /></label>
+          <Field label="Email" name="email" type="email" required />
+          <Field label="Display name" name="name" required maxlength="40" />
+          <Field label="Password" name="password" type="password" required minlength="8" />
           <button class="btn" type="submit">Register</button>
         </form>
       </section>

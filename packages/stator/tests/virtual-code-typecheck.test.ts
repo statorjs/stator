@@ -80,6 +80,27 @@ const data = await Promise.resolve(1)
 <p>{String(data)}</p>
 `
 
+// The HTMLAttributes<Tag> + attribute-spread pattern end to end: a component
+// extends a native element's attributes and forwards the rest onto it via
+// {...rest}. The typecheck path keeps the spread as native JSX, so tsc validates
+// `rest` (HTMLAttributes<'button'>) against the <button> intrinsic — clean.
+const BUTTON = `---
+import type { HTMLAttributes } from '@statorjs/stator/template'
+
+const { variant, ...rest } = Stator.props<HTMLAttributes<'button'> & { variant?: 'primary' | 'ghost' }>()
+---
+<button class={variant} {...rest}><children /></button>
+`
+
+// A spread whose type CONFLICTS with a known attribute (disabled: string, but a
+// button's disabled is boolean) must still be a real error at the element —
+// proving the spread is typechecked, not waved through.
+const BUTTON_BAD = `---
+const wrong = { disabled: 'yes' }
+---
+<button {...wrong}>x</button>
+`
+
 function emitAll(): Record<string, string> {
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'cart-machine.ts'), CART_MACHINE)
@@ -89,6 +110,8 @@ function emitAll(): Record<string, string> {
     ['route-good', ROUTE_GOOD],
     ['route-bad', ROUTE_BAD],
     ['component-await', COMPONENT_AWAIT],
+    ['button', BUTTON],
+    ['button-bad', BUTTON_BAD],
   ] as const) {
     // The editor resolves `.stator` imports through the language plugin; here
     // tsc plays that role by resolving the emitted sibling `.tsx`.
@@ -137,6 +160,16 @@ describe('virtual code under real tsc (the editor contract)', () => {
     const bad = diags.get('route-bad')!
     expect(bad.length).toBeGreaterThan(0)
     expect(bad.join('\n')).toMatch(/notACart|not assignable/)
+  })
+
+  it('a component forwards {...rest} onto a native element and typechecks clean', () => {
+    expect(diags.get('button')).toEqual([])
+  })
+
+  it('a spread whose type conflicts with a known attribute is a real error', () => {
+    const bad = diags.get('button-bad')!
+    expect(bad.length).toBeGreaterThan(0)
+    expect(bad.join('\n')).toMatch(/disabled|not assignable/)
   })
 
   it('a top-level await in frontmatter is a TS error (sync-frontmatter contract)', () => {

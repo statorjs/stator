@@ -1,0 +1,15 @@
+---
+import type { HTMLAttributes } from '@statorjs/stator/template'
+
+// A text field that types + forwards every native <input> attribute via {...rest}
+// (the HTMLAttributes<'input'> pattern). With a `label` it renders the harbor's
+// stacked `<label>text <input/></label>` shape (styled by the global `.card
+// label` + `input` rules); without one it renders a bare input for the board's
+// post form. `value={read(...)}` forwards as a live binding — spread carries it.
+type Props = HTMLAttributes<'input'> & { label?: string }
+
+const { label, ...rest } = Stator.props<Props>()
+---
+{label
+  ? <label>{label} <input {...rest} /></label>
+  : <input {...rest} />}
