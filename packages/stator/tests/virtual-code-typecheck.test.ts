@@ -112,6 +112,14 @@ const onClick = Stator.forwarded('on:click')
 <button class={variant} on:click={onClick} {...rest}><children /></button>
 `
 
+// Stator.forwarded's argument is typed `on:${string}`, so a string that isn't an
+// on: directive name (here, a missing namespace) is a real error.
+const FORWARD_BAD = `---
+const onClick = Stator.forwarded('click')
+---
+<button on:click={onClick}>go</button>
+`
+
 function emitAll(): Record<string, string> {
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'cart-machine.ts'), CART_MACHINE)
@@ -124,6 +132,7 @@ function emitAll(): Record<string, string> {
     ['button', BUTTON],
     ['button-bad', BUTTON_BAD],
     ['forward-button', FORWARD_BUTTON],
+    ['forward-bad', FORWARD_BAD],
   ] as const) {
     // The editor resolves `.stator` imports through the language plugin; here
     // tsc plays that role by resolving the emitted sibling `.tsx`.
@@ -186,6 +195,12 @@ describe('virtual code under real tsc (the editor contract)', () => {
 
   it('a forwarding component (Stator.forwarded + on:click on an inner element) typechecks clean', () => {
     expect(diags.get('forward-button')).toEqual([])
+  })
+
+  it("Stator.forwarded rejects a string that isn't an on: directive name", () => {
+    const bad = diags.get('forward-bad')!
+    expect(bad.length).toBeGreaterThan(0)
+    expect(bad.join('\n')).toMatch(/on:|not assignable/)
   })
 
   it('a top-level await in frontmatter is a TS error (sync-frontmatter contract)', () => {

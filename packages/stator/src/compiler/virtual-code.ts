@@ -109,7 +109,7 @@ const AMBIENT_TYPE_IMPORTS =
 const STATOR_AMBIENT = `declare const Stator: {
   props<P>(): P;
   reads<const T extends readonly __SMachineDef[]>(defs: T): { -readonly [K in keyof T]: __SInstanceOf<T[K]> };
-  forwarded(name: string): (() => unknown) | undefined;
+  forwarded(name: \`on:\${string}\`): (() => unknown) | undefined;
   request: any;
   response: { status: number; headers: Record<string, string>; cookies: any };
 };
