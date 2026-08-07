@@ -5,6 +5,7 @@ import { productForSku } from '../lib/sku.ts'
 import AdminMachine from '../machines/admin.ts'
 import InventoryMachine from '../machines/inventory.ts'
 import OrdersMachine from '../machines/orders.ts'
+import Button from '../templates/button.stator'
 import Layout from '../templates/layout.stator'
 
 const [admin, orders, inventory] = Stator.reads([AdminMachine, OrdersMachine, InventoryMachine])
@@ -46,9 +47,9 @@ const skuLabel = (sku: string): string => {
           </p>
           <div class="panel-actions">
             <span></span>
-            <button class="btn-primary" type="button" on:click={() => admin.send({ type: 'BECOME_ADMIN' })}>
+            <Button type="button" on:click={() => admin.send({ type: 'BECOME_ADMIN' })}>
               Become the harbormaster (dev toggle)
-            </button>
+            </Button>
           </div>
         </div>
       ))}
@@ -66,14 +67,15 @@ const skuLabel = (sku: string): string => {
                     <span class="mono">
                       {read(inventory, (i) => `${i.stock[row.sku] ?? 0} left`)}
                     </span>
-                    <button
-                      class="btn-ghost admin-restock"
+                    <Button
+                      variant="ghost"
+                      class="admin-restock"
                       type="button"
                       disabled={read(inventory, (i) => i.isPending(row.sku))}
                       on:click={() => admin.send({ type: 'REQUEST_RESTOCK', sku: row.sku })}
                     >
                       {read(inventory, (i) => (i.isPending(row.sku) ? 'On its way…' : 'Order restock'))}
-                    </button>
+                    </Button>
                   </li>
                 ),
                 { key: (row) => row.sku },
@@ -107,9 +109,9 @@ const skuLabel = (sku: string): string => {
           </section>
 
           <p class="panel-hint">
-            <button class="cart-clear" type="button" on:click={() => admin.send({ type: 'LEAVE_ADMIN' })}>
+            <Button variant="quiet" type="button" on:click={() => admin.send({ type: 'LEAVE_ADMIN' })}>
               Hand back the keys
-            </button>
+            </Button>
           </p>
         </div>
       ))}

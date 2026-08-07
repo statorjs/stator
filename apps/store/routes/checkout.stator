@@ -3,6 +3,7 @@
 import { formatPrice } from '../lib/catalog-data.ts'
 import { CARD_TOKENS } from '../lib/payments.ts'
 import CartMachine from '../machines/cart.ts'
+import Button from '../templates/button.stator'
 import Layout from '../templates/layout.stator'
 
 const [cart] = Stator.reads([CartMachine])
@@ -24,14 +25,13 @@ const [cart] = Stator.reads([CartMachine])
           </p>
           <div class="panel-actions">
             <a class="link" href="/cart">Edit the manifest</a>
-            <button
-              class="btn-primary"
+            <Button
               type="button"
               disabled={read(cart, (c) => c.count === 0)}
               on:click={() => cart.send({ type: 'BEGIN_CHECKOUT' })}
             >
               Begin checkout
-            </button>
+            </Button>
           </div>
           <p class="panel-hint">
             The button's disabled state is a live server binding — the same
@@ -51,8 +51,8 @@ const [cart] = Stator.reads([CartMachine])
             <input name="email" type="email" value="wendell@example.harbor" required />
           </label>
           <div class="panel-actions">
-            <button class="btn-ghost" type="button" on:click={() => cart.send({ type: 'BACK' })}>Back</button>
-            <button class="btn-primary" type="submit">Continue to shipping</button>
+            <Button variant="ghost" type="button" on:click={() => cart.send({ type: 'BACK' })}>Back</Button>
+            <Button type="submit">Continue to shipping</Button>
           </div>
         </form>
       ),
@@ -72,8 +72,8 @@ const [cart] = Stator.reads([CartMachine])
             </select>
           </label>
           <div class="panel-actions">
-            <button class="btn-ghost" type="button" on:click={() => cart.send({ type: 'BACK' })}>Back</button>
-            <button class="btn-primary" type="submit">Continue to review</button>
+            <Button variant="ghost" type="button" on:click={() => cart.send({ type: 'BACK' })}>Back</Button>
+            <Button type="submit">Continue to review</Button>
           </div>
         </form>
       ),
@@ -107,8 +107,8 @@ const [cart] = Stator.reads([CartMachine])
             </select>
           </label>
           <div class="panel-actions">
-            <button class="btn-ghost" type="button" on:click={() => cart.send({ type: 'BACK' })}>Back</button>
-            <button class="btn-primary" type="submit">Place the order</button>
+            <Button variant="ghost" type="button" on:click={() => cart.send({ type: 'BACK' })}>Back</Button>
+            <Button type="submit">Place the order</Button>
           </div>
         </form>
       ),
@@ -132,7 +132,7 @@ const [cart] = Stator.reads([CartMachine])
           <p class="panel-lede">{read(cart, (c) => c.lastOrder?.summary ?? '')}</p>
           <p class="panel-hint">Nothing was charged and nothing will ship — this is a demonstration.</p>
           <div class="panel-actions">
-            <a class="btn-primary" href="/c/all">Continue shopping</a>
+            <Button href="/c/all">Continue shopping</Button>
           </div>
         </div>
       ),
