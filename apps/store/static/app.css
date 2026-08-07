@@ -90,8 +90,9 @@ h3 {
   gap: 16px;
 }
 
-/* buttons — shared primitives. A typed <Button variant> is a later refactor
-   (it needs per-element JSX attribute types); until then variants are classes. */
+/* buttons — the variant classes behind <Button variant> (templates/button.stator):
+   one polymorphic button/link that forwards native attrs + on:click and folds a
+   caller class into these. */
 .btn-primary {
   font: inherit;
   font-weight: 600;

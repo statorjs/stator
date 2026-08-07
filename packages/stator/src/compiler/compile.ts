@@ -373,6 +373,26 @@ function processFrontmatter(
         repls.push([n.getStart(sf), n.getEnd(), bound])
         return
       }
+      if (ts.isCallExpression(n) && isStatorCall(n, 'forwarded')) {
+        if (kind === 'route') {
+          throw new CompileError(
+            'stator: Stator.forwarded() is only available in a component — it reads a directive ' +
+              'forwarded from a parent (`<Child on:click={h}/>`), and a route has no parent.',
+            locInFm(n),
+          )
+        }
+        const arg = n.arguments[0]
+        if (!arg) {
+          throw new CompileError(
+            "stator: Stator.forwarded(name) takes a directive name, e.g. Stator.forwarded('on:click')",
+            locInFm(n),
+          )
+        }
+        // The parent packs component-level directives into a reserved `$directives`
+        // prop; this reads one back so the author can re-attach it where they like.
+        repls.push([n.getStart(sf), n.getEnd(), `props.$directives?.[${arg.getText(sf)}]`])
+        return
+      }
       if (ts.isPropertyAccessExpression(n) && isStatorMember(n, 'request')) {
         requireRoute('Stator.request', kind, locInFm(n))
         repls.push([n.getStart(sf), n.getEnd(), '__req'])

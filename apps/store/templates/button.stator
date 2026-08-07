@@ -1,0 +1,29 @@
+---
+import type { HTMLAttributes } from '@statorjs/stator/template'
+
+// The store's shared button/link primitive. A discriminated union on `href`
+// makes one component render an <a> (link) or a <button>, each with the correct
+// native attributes typed + forwarded via {...rest} — including a live
+// `disabled={read(...)}`. `on:click` forwards through to the inner <button>
+// (Stator.forwarded), and a caller `class` folds into class:list alongside the
+// variant, so composed styling (e.g. `class="admin-restock"`) still works.
+type Variant = 'primary' | 'ghost' | 'quiet'
+type ButtonProps = { variant?: Variant }
+
+type Props =
+  | ({ href: string } & HTMLAttributes<'a'> & ButtonProps)
+  | ({ href?: never } & HTMLAttributes<'button'> & ButtonProps)
+
+const VARIANT_CLASS: Record<Variant, string> = {
+  primary: 'btn-primary',
+  ghost: 'btn-ghost',
+  quiet: 'cart-clear',
+}
+
+const { href, variant, class: className, ...rest } = Stator.props<Props>()
+const cls = [VARIANT_CLASS[variant ?? 'primary'], className]
+const onClick = Stator.forwarded('on:click')
+---
+{href
+  ? <a href={href} class:list={cls} {...rest}><children /></a>
+  : <button on:click={onClick} class:list={cls} {...rest}><children /></button>}

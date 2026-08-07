@@ -1,6 +1,7 @@
 ---
 import { formatPrice } from '../lib/catalog-data.ts'
 import CartMachine from '../machines/cart.ts'
+import Button from '../templates/button.stator'
 import CartLine from '../templates/cart-line.stator'
 import Layout from '../templates/layout.stator'
 
@@ -27,13 +28,13 @@ const [cart] = Stator.reads([CartMachine])
 
     {when(read(cart, (c) => c.count > 0), () => (
       <footer>
-        <button class="cart-clear" type="button" on:click={() => cart.send({ type: 'CLEAR' })}>
+        <Button variant="quiet" type="button" on:click={() => cart.send({ type: 'CLEAR' })}>
           Clear the manifest
-        </button>
+        </Button>
         <div class="cart-sub">
           <span class="cart-sub-label">Subtotal</span>
           <span class="cart-sub-amount">{read(cart, (c) => formatPrice(c.subtotal))}</span>
-          <a class="btn-primary" href="/checkout">Checkout</a>
+          <Button href="/checkout">Checkout</Button>
         </div>
       </footer>
     ))}
