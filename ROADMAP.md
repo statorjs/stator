@@ -225,6 +225,26 @@ instead of discovered by a user.
   its own. IF a major break happens for other reasons, revisit the naming
   then — likely deprecating the machine option's name in 2.0 and removing
   it in 3.0.
+- **Reactive-model regrounding — remove `bind:`/`@set`** *(2.0 track;
+  proposed, gated)*: `read()` becomes the single display primitive (server →
+  wire patch, client-local → the subscribe-and-write `bind:` generates today),
+  `on:` + typed events the sole write path, `ref:` survives; two-way `@set` —
+  the one place a machine's state changes without a declared transition,
+  bypassing guards and types — is deleted. The prerequisites are all additive
+  1.x minors, in order: typed `use().send`, client-lowered `read()` carrying a
+  no-jank writer (selection preservation, composition safety — `bind:`
+  re-implemented on the same writer so it benefits before removal), the input
+  helper (IME guard, typed extractors, reconcile-after-send), then a
+  form-heavy proving example + jank test matrix and a `bind:` deprecation
+  diagnostic. Only the removal itself is breaking. *Decision gate*: the
+  proving app and jank matrix, per the evidence bar above — until then this is
+  a direction, not a decision. IF it ships, it is the major the `reads` naming
+  note above has been waiting for — bundle them. Design in
+  [`.chisel/specs/active/`](.chisel/specs/active/isomorphic-reactive-model-read-for-display-on-for-events.md).
+  *Motivation*: `bind:`/`@set` is the one surface that breaks "read the
+  machine, know every way its state changes" — and the measured footprint
+  (one two-way site in the whole repo; the densest island example uses none)
+  says the sugar never earned its place.
 - **Example / scaffold toolchain devDeps drift** *(found dogfooding 1.8.0)*:
   `@statorjs/stator` in scaffolded apps is version-managed (the `STATOR_RANGE`
   sync + changesets), but the *other* devDeps in the example templates —

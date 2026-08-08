@@ -2,7 +2,7 @@
 title: Directive modifiers
 status: draft
 created: 2026-08-07
-updated: 2026-08-07
+updated: 2026-08-08
 area: compiler
 ---
 
@@ -29,9 +29,39 @@ data, `|preventDefault` carries the behavior, neither reaches for `@set`.
 Independent of the binding rework, but it lands well with it: under
 [[isomorphic-reactive-model-read-for-display-on-for-events]] the directive surface
 narrows to `on:` (in) + `ref:` (identity), so modifiers concentrate on `on:` —
-exactly where they are most useful.
+exactly where they are most useful. **Decoupled from the removal gate, though:**
+the `bind:`-removal ergonomics must not depend on modifiers landing — the
+`send()` helper alone carries them, and modifiers are additive polish on top.
 
-Additive; a bounded compiler addition; can ship in a minor.
+Additive; a bounded compiler addition; can ship in a minor — **once the syntax
+hazard below is resolved.**
+
+## Blocking: `|` does not parse as TSX
+
+"Templates must parse as TSX" is a permanent design constraint, and the repo has
+already run this experiment: TS's JSX parser rejects `|` (and `.`) in attribute
+names — verified during the `is:inline` work, recorded in
+[[client-scripts-directives-and-isomorphic-machines]] ("the `|` pipe (and `.`)
+do not parse as JSX"; Svelte/Vue/Astro accept modifiers only because they ship
+custom template parsers) and independently in
+[[editor-tooling-lsp-and-vscode]] ("only the dropped `|lazy` pipe failed to
+parse"). The Approach's step 1 — parsing `|` off the name in `lowerAttribute` —
+presumes the attribute name reaches the lowerer intact; it will not, the file
+fails TSX parse first. This spec previously did not mention the constraint.
+
+Re-entry paths, none free:
+- **A preprocessor pass** (the path the vision spec recorded) that rewrites
+  `on:click|once` to a TSX-legal spelling before parse — touches the compiler
+  front door *and* the LSP's virtual-code mapping (positions shift).
+- **A TSX-legal spelling** — e.g. `on:click$once` (`$` is legal in a JSX
+  identifier) — no parser work, but a syntax nobody else uses and `$` reads
+  poorly.
+- **Attribute-per-modifier or a wrapper helper** — no grammar change at all,
+  at the cost of the compositional one-attribute form this spec exists for.
+
+Until one is chosen and spiked against both the compiler and the language
+server, this spec is design-blocked and must not be load-bearing for anything
+else's sequencing.
 
 ## Success Criteria
 

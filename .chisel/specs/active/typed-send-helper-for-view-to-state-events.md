@@ -10,8 +10,12 @@ area: runtime
 
 Thin sugar over the write path defined in
 [[isomorphic-reactive-model-read-for-display-on-for-events]] — **not a primitive,
-and not "the `bind:value` replacement" this spec originally claimed.** Its only
-job is to remove the DOM-value ceremony from an `on:` handler:
+and not "the `bind:value` replacement" this spec originally claimed.** Its
+first job is to remove the DOM-value ceremony from an `on:` handler; its second
+— added by the model spec's controlled-input contract — is to be the
+**event-side enforcement point of that contract**: the IME guard, typed value
+extraction, and reconcile-after-send live here, because a hand-written
+`on:input` handler is exactly where those guard rails get forgotten.
 
 ```stator
 <!-- the write path is on: → a typed event; send() just tidies the handler -->
@@ -41,7 +45,17 @@ corrected three things:
   mismatch forces a visible coercion (`send(inst, 'SET_AGE', v => ({ age: Number(v) }))`),
   never silent.
 - Fires a **declared** event — never `@set` or a generic setter.
-- Pure types + a tiny handler factory; no compiler change, no new runtime.
+- **Owns the contract's event side** (required behavior, not optional polish):
+  - skips sends while `e.isComposing` (the guard that today lives in the
+    compiled `@set` listener moves here);
+  - **reconciles after every send** — re-syncs the bound display *regardless of
+    notify*, so a guard-refused keystroke cannot leave the DOM holding text the
+    machine rejected (compare `getCommitCount` before/after; mechanism below);
+  - ships **typed extractors** — `fromValue` / `fromChecked` / `fromNumber`
+    (`valueAsNumber`), plus a documented select-multiple recipe — so coercion
+    is visible and typed, never a modifier DSL and never a silent string.
+- Pure types + a tiny handler factory; no compiler change; at most one tiny
+  client-runtime addition for reconcile (see Open Questions).
 - Covers `.value` and `.checked`.
 
 ## Constraints
@@ -85,6 +99,12 @@ terse case.
 - Mapper vs `{ value }`-convention as the documented default.
 - `.value` vs `.checked` accessor selection.
 - Naming — `send` collides with `instance.send`; `emit`/`dispatch` also taken.
+- **Reconcile mechanism.** The helper has no handle on the compiled writer, so
+  re-syncing after a refused send needs one of: a client-instance `refresh()`
+  that re-notifies subscribers without a commit (smallest honest addition), or
+  the compiled `value={read(…)}` wiring pairing its own writer with
+  input-originated sends. Requirement is fixed by the model spec's contract;
+  the mechanism is this spec's to choose.
 
 ## Implementation Notes
 
