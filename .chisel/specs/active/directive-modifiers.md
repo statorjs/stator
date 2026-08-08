@@ -26,6 +26,11 @@ in the handler; (2) with the `send()` helper, modifiers complete the ergonomics
 that make an explicit, no-two-way form model comfortable — `send()` carries the
 data, `|preventDefault` carries the behavior, neither reaches for `@set`.
 
+Independent of the binding rework, but it lands well with it: under
+[[isomorphic-reactive-model-read-for-display-on-for-events]] the directive surface
+narrows to `on:` (in) + `ref:` (identity), so modifiers concentrate on `on:` —
+exactly where they are most useful.
+
 Additive; a bounded compiler addition; can ship in a minor.
 
 ## Success Criteria
@@ -94,7 +99,8 @@ Proposed shortlist (flag-only, DOM-standard, behavior-only):
   arg support later — not v1.
 - Do modifiers apply uniformly to server `on:` and client-island `on:`? (Intended
   yes; the flag semantics must match on both paths.)
-- Any modifiers meaningful on `bind:`/`ref:` (if those survive), or `on:` only?
+- `on:` only. (`bind:` folds into `read()` under the model spec, so it is not a
+  modifier target; `ref:` takes no value and has no event to modify.)
 
 ## Implementation Notes
 
