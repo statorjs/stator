@@ -1,5 +1,14 @@
 # @statorjs/stator
 
+## 1.9.0
+
+### Minor Changes
+
+- bc06fb5: Attribute spread `{...rest}` now works in templates, on both elements and components. `<button {...rest}>` forwards a bag of attributes onto the element — static values (with the shared boolean/url semantics) and live machine `read(...)` values, which become real attribute bindings that patch on events — and `<Card {...rest} />` spreads into the component call in source order. This makes the `HTMLAttributes<Tag>` pattern practical: a component can extend a native element and forward every native attribute without hand-plumbing each one (`const { variant, ...rest } = Stator.props<HTMLAttributes<'button'> & { variant }>()` → `<button {...rest}>`). An item read (`read(item, …)`) or a directive invocation used as a spread value is rejected with a clear error.
+- 49ff735: `on:` event directives can now be forwarded to a component. `<Button on:click={() => cart.send(…)}>` no longer errors — the parent packs component-level directives into a reserved bag, and the component reads one back with `Stator.forwarded('on:click')` and re-attaches it to whichever inner element it chooses (`<button on:click={onClick} {...rest}>`). This keeps directive syntax on both sides and leaves placement to the component author (no forced forwarding to the root). A forwarded handler that's absent renders no binding rather than crashing. `bind:`/`ref:` forwarding and client-island forwarding are not yet supported.
+- 0e6eebd: Components can extend a native element's attributes with `HTMLAttributes<Tag>` — `Stator.props<HTMLAttributes<'button'> & { variant }>()` types and validates every native button attribute plus the component's own props, with no per-attribute forwarding. Attribute values accept live `read(…)` bindings as well as literals. Separately, `JSX.IntrinsicElements` is now typed per element, so a typo on a plain element (`<button typ=…>`) is a compile error; custom-element islands, `raw()` SVG, and unlisted tags stay permissive.
+- 9cfd282: A machine instance in a template now types `state` to the machine's state-name union and `send()` to its event union, so `s.state === 'ready'` and `m.send({ type: 'SAVE', … })` autocomplete and a typo — a bad state name, event name, or event payload — is a compile error. Both were previously loose (`state: string`, `send({ type: string })`), so template typos slipped through.
+
 ## 1.8.0
 
 ### Minor Changes
