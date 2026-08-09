@@ -47,6 +47,14 @@ didn't. The rule it taught: a mode earns machine residence only when guards
 or domain logic act on it (a checkout's states qualify); a mode with one
 render-region consumer belongs to the URL.
 
+**Acknowledgements are view state.** The "you're on the list" confirmation
+started as desk session state and outlived its moment (it survived refresh).
+It's a flash — an acknowledgement of *your* recent action — so it lives in
+the form island's client machine and dies with the page, which is its
+correct lifetime. The durable truth is the roster row itself. Net effect:
+the desk machine holds no context at all — it is guards + emits, a pure
+routing layer.
+
 ## Layout
 
 ```

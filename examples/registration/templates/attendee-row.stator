@@ -16,6 +16,7 @@ const { attendee, desk } = Stator.props<{
   </div>
   <small data-ticket={attendee.ticket}>{attendee.ticket}</small>
   <RowSeats rid={attendee.id} seats={attendee.seats} />
+  <a data-edit href={`/edit/${attendee.id}`} aria-label={`Edit ${attendee.name}`}>✎</a>
   <button
     type="button"
     data-remove
@@ -71,7 +72,8 @@ const { attendee, desk } = Stator.props<{
     color: var(--accent);
     border-color: var(--accent);
   }
-  button {
+  button,
+  a[data-edit] {
     font: inherit;
     line-height: 1;
     color: var(--ink-faint);
@@ -80,8 +82,9 @@ const { attendee, desk } = Stator.props<{
     border-radius: 4px;
     padding: 0.25rem 0.5rem;
     cursor: pointer;
+    text-decoration: none;
   }
-  button:hover {
+  a[data-edit]:hover {
     color: var(--accent);
     border-color: var(--accent);
   }

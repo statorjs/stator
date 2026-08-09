@@ -84,7 +84,8 @@ describe('the desk over the wire', () => {
     expect(r.committed).toBe(true)
     const html = await page(sid)
     expect(html).toContain('Ada Lovelace')
-    expect(html).toContain("You're on the list")
+    // No server-side confirmation line: the acknowledgement is client-local
+    // (an island flash that correctly dies with the page).
   })
 
   it('refuses a duplicate email — committed: false, roster unchanged', async () => {

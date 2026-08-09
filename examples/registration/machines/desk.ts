@@ -2,12 +2,18 @@ import { defineMachine } from '@statorjs/stator/server'
 import { cleanRegistration, seatsError } from '../lib/rules.ts'
 import RosterMachine from './roster.ts'
 
-type DeskContext = {
-  /** Name from this session's last successful registration — powers the
-   *  per-session "you're on the list" line. */
-  lastRegistered: string | null
-}
+type DeskContext = Record<string, never>
 
+// The desk holds NO context — it is guards + emits, a pure routing layer.
+// Two earlier cuts put state here and both were reclassified by use:
+//
+// `lastRegistered` (the "you're on the list" line) was a FLASH — an
+// acknowledgement of a recent action. Session state survives refresh, so the
+// message outlived its moment; and read-once flash semantics would need
+// mutate-on-render, which the model forbids. An acknowledgement is view
+// state: it lives in the form island's client machine and dies with the
+// page, which is correct.
+//
 // Editing is NOT desk state — it's an address. An earlier cut held an
 // `editing` snapshot here so an in-page arm flip could pre-fill the form; it
 // meant the MODE survived refresh while the typing (uncontrolled inputs)
@@ -60,7 +66,7 @@ const DeskMachine = defineMachine({
     },
   },
 
-  context: { lastRegistered: null, editing: null } as DeskContext,
+  context: {},
   initial: 'open',
   states: {
     open: {
@@ -72,9 +78,6 @@ const DeskMachine = defineMachine({
             const roster = helpers.reads.RosterMachine
             if (roster.attendees.some((a) => a.email === clean.email)) return false
             return roster.seatsTaken + clean.seats <= roster.capacity
-          },
-          do: (ctx, ev) => {
-            ctx.lastRegistered = ev.name.trim()
           },
           emit: 'REGISTERED',
         },
@@ -88,9 +91,6 @@ const DeskMachine = defineMachine({
             if (roster.attendees.some((a) => a.id !== ev.id && a.email === clean.email))
               return false
             return roster.seatsTaken - current.seats + clean.seats <= roster.capacity
-          },
-          do: (ctx, ev) => {
-            ctx.lastRegistered = ev.name.trim()
           },
           emit: 'UPDATED',
         },
@@ -113,10 +113,7 @@ const DeskMachine = defineMachine({
     },
   },
 
-  selectors: {
-    lastRegistered: (ctx) => ctx.lastRegistered,
-    hasRegistered: (ctx) => ctx.lastRegistered !== null,
-  },
+  selectors: {},
 })
 
 /** The roster's side of the relationship, wired from here — this file

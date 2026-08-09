@@ -28,12 +28,6 @@ const [desk, roster] = Stator.reads([DeskMachine, RosterMachine])
 
   <RegForm tickets={TICKETS} />
 
-  {when(read(desk, (d) => d.hasRegistered), () => (
-    <p role="status">
-      You're on the list, <strong>{read(desk, (d) => d.lastRegistered)}</strong>.
-    </p>
-  ))}
-
   <section aria-label="Roster">
     <h2>on the roster · {read(roster, (r) => r.count)}</h2>
     <ol>
@@ -81,11 +75,6 @@ const [desk, roster] = Stator.reads([DeskMachine, RosterMachine])
     text-transform: uppercase;
     font-size: 0.7rem;
     letter-spacing: 0.08em;
-  }
-  p[role='status'] {
-    margin: 1rem 0 0;
-    font-size: 0.9rem;
-    color: var(--ok);
   }
   section {
     margin-top: 2.2rem;

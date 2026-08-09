@@ -104,7 +104,23 @@ starter concern.
 `value=` attrs in the HTML (wire-testable with curl, no browser needed). The
 island grew one `done` attr (navigate on committed save). No friction.
 
-## 8. read() display in the island needed nothing (2026-08-09, build) — GOOD
+## 8. Flash messages: session state outlives its moment (2026-08-09, browser) — ADJUDICATED
+
+"You're on the list, Tony." was desk session state — so it survived refresh
+indefinitely (empty form, stale success line). An acknowledgement is
+event-shaped and page-local; the durable truth is the roster row. Classic
+server-side flash (read-once state) would require mutate-on-render, which
+the model rightly forbids — so the confirmation moved into the island's
+client machine, where dying with the page is correct, not a loss. Second
+instance of the entry-6 taxonomy: classify state by consumer and lifetime,
+not by where it was convenient to put it. Bonus: the desk machine now holds
+NO context — a session machine that is pure guards + emits.
+**Open question for the log**: if real apps demand server-side flash
+(post-redirect confirmation), that's a primitive gap to evidence — nothing
+in the model supports read-once state today (guestbook fakes it with
+`?error=` query params, which is the address-shaped answer again).
+
+## 9. read() display in the island needed nothing (2026-08-09, build) — GOOD
 
 The four error lines and the refusal line are client-machine `read()` slots
 (Minor B) — declared union on the checks machine, per-field events, zero
