@@ -42,4 +42,16 @@ const { title } = Stator.props<{ title: string }>()
   it('returns null for a route page', () => {
     expect(generateDts('<div/>', { kind: 'route' })).toBe(null)
   })
+
+  it('an island with NO static attrs still accepts shell props (hydrate contract)', () => {
+    const src = `<reg-form>
+  <select>{props.tickets.map((t) => <option>{t}</option>)}</select>
+</reg-form>
+<script>
+  export class RegForm extends StatorElement {}
+</script>`
+    const dts = generateDts(src)!
+    expect(dts).toContain('(props: { [prop: string]: unknown }) => HtmlFragment')
+    expect(dts).not.toContain('Record<string, never>')
+  })
 })

@@ -43,6 +43,11 @@ export function generateDts(
       // props an island's SERVER-rendered markup may consume (they never
       // cross the attr wire, so `static attrs` can't know about them).
       propsT = `{ ${fields} } & { [prop: string]: unknown }`
+    } else {
+      // No declared attrs, but the hydrate contract still holds: an island's
+      // server shell may consume any props its markup references. A closed
+      // `Record<string, never>` here would reject every use site.
+      propsT = '{ [prop: string]: unknown }'
     }
   }
 
