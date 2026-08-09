@@ -24,7 +24,7 @@ The writeback is suppressed when the value is unchanged, so the cursor isn't res
 
 ## Typed values
 
-`bind:checked` reads `.checked`; an `<input type="number">` coerces to a number. You get the native typed value, not a string.
+`bind:checked` reads `.checked`, so booleans arrive as booleans. `bind:value` always stores the DOM's string — an `<input type="number">` does **not** coerce. When the type matters, use the eject pattern below and send the value you mean (`e.target.valueAsNumber`).
 
 ## Isomorphic validation
 
