@@ -88,7 +88,7 @@ if (result === 'PASS') {
   console.log('  final tbody:', tbody)
   process.exit(0)
 } else {
-  console.error('✗ tables real-browser acceptance: ' + result)
+  console.error(`✗ tables real-browser acceptance: ${result}`)
   console.error('  final tbody:', tbody)
   process.exit(1)
 }
