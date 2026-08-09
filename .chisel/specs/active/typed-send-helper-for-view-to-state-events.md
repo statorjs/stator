@@ -1,107 +1,106 @@
 ---
-title: Typed send helper for view to state events
+title: Typed send helper for the events-in handler
 status: draft
 created: 2026-08-07
-updated: 2026-08-07
+updated: 2026-08-08
 area: runtime
 ---
 
 ## What and Why
 
-The explicit view→state path today is honest but verbose:
+**Status: deferred, pending evidence — not scheduled.** The model spec's
+replacement for two-way is a *pattern* (`ref:` + platform constraints + one
+typed commit event — see [[isomorphic-reactive-model-read-for-display-on-for-events]]),
+not a helper; whether ergonomic sugar is ever warranted is decided by the
+proving app's paper-cut log, and this spec is revived only from that evidence.
+The lesson driving the deferral is `bind:` itself: convenience surface shipped
+ahead of evidence is exactly what a 2.0 now exists to unwind.
+
+If revived: thin sugar over the write path — **not a primitive, and not "the
+`bind:value` replacement" this spec originally claimed.** Its job is to remove
+the DOM-value ceremony from an `on:` handler, and the input-wiring design
+notes recorded in the model spec (IME guard, defer-then-reconcile, typed
+extractors) would land here:
 
 ```stator
-<input value={read(form, f => f.note)}
-       on:input={e => form.send({ type: 'SET_NOTE', text: e.target.value })} />
+<!-- the write path is on: → a typed event; send() just tidies the handler -->
+<input value={read(qty, q => q.count)}
+       on:input={e => qty.send({ type: 'SET', value: e.target.value })} />
+
+<input value={read(qty, q => q.count)} on:input={send(qty, 'SET')} />
 ```
 
-The ceremony is small but repetitive: pull `e.target.value`, package it into a
-declared event, call `send`. A typed helper collapses it to a matched pair with
-`read`:
+The original draft was symptom-level and mis-grounded. Grounding against the code
+corrected three things:
 
-```stator
-<input value={read(form, f => f.note)} on:input={send(form, 'SET_NOTE')} />
-```
-
-`read` reads state down; `send` fires a declared event up. Two reasons this
-matters now:
-
-1. **It is the ergonomic replacement for two-way `bind:`.** The deprecation of
-   two-way binding (see the companion ADR) is only palatable if the explicit
-   path is nearly as terse. `send()` closes most of that gap with *zero* magic —
-   it fires a real, declared, guarded event, never a generic `@set`.
-2. **It is strictly more type-safe than what it replaces.** `bind:value`'s
-   `@set` carries a DOM string into any context key with no compile check. A
-   typed `send()` checks the event name *and* the payload against the machine.
-
-Purely type-level — no compiler change, no runtime binding machinery. Ships in a
-minor, usable alongside everything today.
+1. It reads `e.target.value`, so it is a **client-island** handler — server `on:`
+   handlers run at render (no event object).
+2. There is no single `form.send()`. The real targets are the **client-local
+   `use().send`** (loosely typed today) and **`dispatch(Machine, event)`** (typed,
+   but a server round-trip — wrong for live client-local fields).
+3. So `send()` is downstream of the model spec's **foundation**: it only becomes
+   fully typed once `use().send` is typed to `EventOf<D>`. Until then a `send()`
+   over `dispatch` is possible but is a per-event round-trip.
 
 ## Success Criteria
 
-- `send(form, 'SET_NOTE')` autocompletes the event name from the machine's event
-  union and errors on a typo or an event the machine doesn't declare.
-- The payload value type is checked against the target event. A string→number
-  mismatch is a compile error that forces an explicit, visible coercion
-  (`send(form, 'SET_AGE', v => ({ age: Number(v) }))`), never a silent one.
-- No `@set`, no generic setter — the fired event is one the machine declares and
-  guards, so the machine definition stays the complete account of state changes.
-- Zero compiler or runtime additions; it is a typed library helper.
-- Works for `<input>` (`.value`) and checkboxes/radios (`.checked`).
+- `send(inst, 'SET')` autocompletes the event name from the machine's event union
+  and errors on a typo, once `use().send` is typed (the dependency).
+- The DOM value is checked against the target event's payload; a string→number
+  mismatch forces a visible coercion (`send(inst, 'SET_AGE', v => ({ age: Number(v) }))`),
+  never silent.
+- Fires a **declared** event — never `@set` or a generic setter.
+- Pure types + a tiny handler factory; no compiler change, no new runtime.
+- Covers `.value` and `.checked`.
 
 ## Constraints
 
-- **Must desugar to a declared event.** The defining line vs `@set`: if a helper
-  ever reaches for a generic "set this key" event, it has rebuilt two-way binding
-  and lost the completeness/guard property. Non-negotiable.
-- Pure types; no directive, no compiler pass.
-- Additive; no breaking change. (Removing `bind:` is a separate, breaking spec.)
+- **Must desugar to a declared event.** The line vs `@set`: a helper that reaches
+  for a generic "set this key" event has rebuilt two-way binding. Non-negotiable.
+- Client-island only (needs the DOM event).
+- Additive; depends on typed `use().send` for full type safety.
 
 ## Approach
 
-The event union is recoverable from the instance's `send`:
+The event union is recoverable from a machine def via `EventOf<D>`
+(`engine/types.ts:288`); passing the def infers `D` cleanly (a `use()` *instance*
+is a mapped type and does not surrender `D`, so the def is the typed handle):
 
 ```ts
-type EventOf<F>   = Parameters<F['send']>[0]                    // Events union
-type EventName<F> = EventOf<F>['type']
-type Payload<F,K> = Omit<Extract<EventOf<F>, { type: K }>, 'type'>
+type Payload<D,K> = Omit<Extract<EventOf<D>, { type: K }>, 'type'>
 
-function send<F, K extends EventName<F>>(
-  form: F,
+function send<D, K extends EventOf<D>['type']>(
+  target: D | ClientInstance<D>,
   type: K,
-  map: (value: string) => Payload<F, K>,
+  map?: (value: string) => Payload<D, K>,
 ): (e: Event) => void
 ```
 
-Two shapes for the DOM-value → payload mapping:
-
-- **Mapper (primitive):** `send(form, 'SET_NOTE', v => ({ text: v }))` — fully
-  flexible field names, `v` typed as the DOM value, return pinned to the event
-  payload. This is where the checked-coercion payoff lives.
-- **Convention (overload):** `send(form, 'SET_NOTE')` valid only for events
-  shaped `{ type; value: string }`; autocomplete narrows to those. Terser, at
-  the cost of a `value` field-name convention.
-
-Recommend shipping the mapper as the primitive with the convention as a thin
-overload. A `.checked` variant (or accessor inference) covers checkbox/radio.
+Open shape decisions in Open Questions. The mapper form is the primitive (it is
+where the checked-coercion payoff lives); a `{ value }`-convention overload is the
+terse case.
 
 ## Alternatives Considered
 
-- **Keep two-way `bind:`.** Rejected — it injects an undeclared, guard-bypassing,
-  untyped `@set`. See the companion ADR.
-- **A generic field-setter helper** (`setField(form, 'note')`). Rejected — it is
-  `@set` with extra steps: a generic transition the machine never declared.
-- **React-style callback props** (`onChange`). Rejected earlier in favor of
-  keeping `on:` directive syntax; `send()` lives in the handler, not a new prop.
+- **A `dispatch`-based `send()` as the primary.** Rejected as the default — it is
+  a server round-trip, which contradicts "DOM renders where its state lives" for a
+  client-local field draft. Fine as an explicit *commit-on-change* variant.
+- **A generic field-setter helper.** Rejected — `@set` with extra steps.
 
 ## Open Questions
 
-- Mapper vs convention as the *documented* default.
-- DOM accessor selection (`.value` vs `.checked`) — by the event's payload type,
-  by an explicit variant, or by the element? Text vs checkbox is the split.
-- Naming — `send` collides mentally with `instance.send`. `emit`/`dispatch` also
-  taken. Bikeshed.
+- Target: the typed `use().send` (once it exists) vs a def + `dispatch` (commit).
+  Likely both, as distinct helpers/overloads with honest names.
+- Mapper vs `{ value }`-convention as the documented default.
+- `.value` vs `.checked` accessor selection.
+- Naming — `send` collides with `instance.send`; `emit`/`dispatch` also taken.
+- **Reconcile mechanism** (only relevant if the controlled path is ever
+  revived): the helper has no handle on a compiled writer, so re-syncing after
+  a refused send would need a client-instance `refresh()` that re-notifies
+  subscribers without a commit, or call-site defer-then-reconcile per the
+  model spec's design notes.
 
 ## Implementation Notes
 
-<!-- not yet built -->
+<!-- not built; deferred — revive only from the proving app's paper-cut log
+     (model spec, Minor C). Depends on typed use().send either way. -->

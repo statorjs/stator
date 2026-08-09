@@ -225,6 +225,30 @@ instead of discovered by a user.
   its own. IF a major break happens for other reasons, revisit the naming
   then — likely deprecating the machine option's name in 2.0 and removing
   it in 3.0.
+- **Reactive-model regrounding — remove `bind:`/`@set`** *(2.0 track;
+  proposed, gated)*: `read()` becomes the single display primitive (server →
+  wire patch, client-local → the subscribe-and-write `bind:` generates today),
+  `on:` + typed events the sole write path, `ref:` survives; two-way `@set` —
+  the one place a machine's state changes without a declared transition,
+  bypassing guards and types — is deleted. The replacement is a *pattern*, not
+  a new primitive: the input element holds the draft under platform
+  constraints (`maxlength`/`pattern`/`beforeinput`), the commit boundary sends
+  one typed event read via `ref:`/`FormData` — the shape `weather` and the
+  checkout page already use. Prerequisites are additive 1.x minors, in order:
+  typed `use().send`, client-lowered `read()` for display, then a form-heavy
+  proving example built ONLY on that minimal surface plus a `bind:`
+  deprecation diagnostic. Only the removal itself is breaking. Any draft
+  ergonomics — a shipped reusable machine, a wiring helper, or just a docs
+  recipe — are promoted solely from the proving app's paper-cut log (the
+  `bind:` lesson: no convenience primitive ships ahead of evidence again).
+  *Decision gate*: the proving app livable + its log adjudicated — until then
+  this is a direction, not a decision. IF it ships, it is the major the `reads` naming
+  note above has been waiting for — bundle them. Design in
+  [`.chisel/specs/active/`](.chisel/specs/active/isomorphic-reactive-model-read-for-display-on-for-events.md).
+  *Motivation*: `bind:`/`@set` is the one surface that breaks "read the
+  machine, know every way its state changes" — and the measured footprint
+  (one two-way site in the whole repo; the densest island example uses none)
+  says the sugar never earned its place.
 - **Example / scaffold toolchain devDeps drift** *(found dogfooding 1.8.0)*:
   `@statorjs/stator` in scaffolded apps is version-managed (the `STATOR_RANGE`
   sync + changesets), but the *other* devDeps in the example templates —

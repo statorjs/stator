@@ -2,7 +2,7 @@
 title: Directive modifiers
 status: draft
 created: 2026-08-07
-updated: 2026-08-07
+updated: 2026-08-08
 area: compiler
 ---
 
@@ -20,13 +20,49 @@ compose, and they follow a pattern authors already know (Svelte's `|`, Vue's
 `.`). The `|` reads well precisely because `:` is already the namespace
 separator.
 
-Two reasons now: (1) it is the right extensibility axis for behavioral tweaks
+Why now: it is the right extensibility axis for behavioral tweaks
 (`preventDefault`, `stopPropagation`, …) that today force a hand-written wrapper
-in the handler; (2) with the `send()` helper, modifiers complete the ergonomics
-that make an explicit, no-two-way form model comfortable — `send()` carries the
-data, `|preventDefault` carries the behavior, neither reaches for `@set`.
+in the handler — forms need `preventDefault` on submit regardless of how the
+binding rework lands. (An earlier framing paired this with the `send()` helper
+as joint two-way-removal ergonomics; that helper is now deferred pending
+evidence, and this spec stands on its own motivation.)
 
-Additive; a bounded compiler addition; can ship in a minor.
+Independent of the binding rework, but it lands well with it: under
+[[isomorphic-reactive-model-read-for-display-on-for-events]] the directive surface
+narrows to `on:` (in) + `ref:` (identity), so modifiers concentrate on `on:` —
+exactly where they are most useful. **Decoupled from the removal gate, though:**
+the `bind:`-removal ergonomics must not depend on modifiers landing — the model
+spec's draft pattern carries them, and modifiers are additive polish on top.
+
+Additive; a bounded compiler addition; can ship in a minor — **once the syntax
+hazard below is resolved.**
+
+## Blocking: `|` does not parse as TSX
+
+"Templates must parse as TSX" is a permanent design constraint, and the repo has
+already run this experiment: TS's JSX parser rejects `|` (and `.`) in attribute
+names — verified during the `is:inline` work, recorded in
+[[client-scripts-directives-and-isomorphic-machines]] ("the `|` pipe (and `.`)
+do not parse as JSX"; Svelte/Vue/Astro accept modifiers only because they ship
+custom template parsers) and independently in
+[[editor-tooling-lsp-and-vscode]] ("only the dropped `|lazy` pipe failed to
+parse"). The Approach's step 1 — parsing `|` off the name in `lowerAttribute` —
+presumes the attribute name reaches the lowerer intact; it will not, the file
+fails TSX parse first. This spec previously did not mention the constraint.
+
+Re-entry paths, none free:
+- **A preprocessor pass** (the path the vision spec recorded) that rewrites
+  `on:click|once` to a TSX-legal spelling before parse — touches the compiler
+  front door *and* the LSP's virtual-code mapping (positions shift).
+- **A TSX-legal spelling** — e.g. `on:click$once` (`$` is legal in a JSX
+  identifier) — no parser work, but a syntax nobody else uses and `$` reads
+  poorly.
+- **Attribute-per-modifier or a wrapper helper** — no grammar change at all,
+  at the cost of the compositional one-attribute form this spec exists for.
+
+Until one is chosen and spiked against both the compiler and the language
+server, this spec is design-blocked and must not be load-bearing for anything
+else's sequencing.
 
 ## Success Criteria
 
@@ -94,7 +130,8 @@ Proposed shortlist (flag-only, DOM-standard, behavior-only):
   arg support later — not v1.
 - Do modifiers apply uniformly to server `on:` and client-island `on:`? (Intended
   yes; the flag semantics must match on both paths.)
-- Any modifiers meaningful on `bind:`/`ref:` (if those survive), or `on:` only?
+- `on:` only. (`bind:` folds into `read()` under the model spec, so it is not a
+  modifier target; `ref:` takes no value and has no event to modify.)
 
 ## Implementation Notes
 
