@@ -38,6 +38,15 @@ Shipped: `minimal`, `todomvc`, `desksmith` (the tutorial's finished app),
   tools) is a common starting point, and it only lands experientially — two
   browsers or it didn't happen. Doubles as the scout for the **presence /
   connection-lifecycle** gap.
+- **`registration`** *(planned; name open)* — event-registration desk leaning
+  hard into forms: attendee rows (keyed, inline-editable), two-tier validation
+  (shape rules as one pure function shared by client machine + server guard;
+  truth rules — duplicates, capacity — server-only via typed dispatch), blur
+  commits, populate-for-edit, reset.
+  *Motivation*: the reactive-model proving starter (see Surface hygiene) —
+  built ONLY on `ref:` + `on:` + `read()` + platform constraints, its
+  paper-cut log decides what (if any) draft ergonomics ship, and its
+  jank-free form experience is the exit bar before `bind:` is removed in 2.0.
 - **`weather`** *(in progress)* — a Metro-styled multi-location weather app on
   keyless Open-Meteo: one feature exercises entry effects, `after`
   revalidation, a transition effect, a cross-machine subscription, live client

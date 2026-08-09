@@ -22,8 +22,29 @@ import { defineMachine, type MachineDef } from '../engine/index.ts'
  * is just a label and need not be unique.
  */
 
-/** Client events are structurally loose — the terse form declares no union. */
+/** The loose client event shape — the fallback when a machine declares no
+ *  union and has no `on` map to derive one from. */
 export type ClientEvent = { type: string; [k: string]: unknown }
+
+/** Event-name union derived from an `on` map: the NAMES are typed (a `send`
+ *  typo is a compile error), payloads stay structurally open. The
+ *  zero-ceremony tier of client event typing. */
+export type DerivedEvents<O> = {
+  [K in keyof O & string]: { type: K } & Record<string, unknown>
+}[keyof O & string]
+
+/** The `on` map for a machine with a DECLARED event union: keys are the
+ *  declared event names, and each handler sees its event narrowed — no
+ *  annotations needed. Mirrors the server `defineMachine` experience. */
+export type TypedClientOnMap<C, E extends { type: string }> = {
+  [K in E['type']]?:
+    | ((ctx: C, ev: Extract<E, { type: K }>) => void)
+    | {
+        when?: (ctx: C, ev: Extract<E, { type: K }>) => boolean
+        do?: (ctx: C, ev: Extract<E, { type: K }>) => void
+        emit?: string | string[]
+      }
+}
 
 interface ClientTransitionObject<C> {
   when?: (ctx: C, ev: ClientEvent) => boolean
@@ -57,17 +78,41 @@ export interface LegacyMachineConfig {
 
 const RESERVED = new Set(['name', 'on', 'select'])
 
-// Data-only: no behavior, no selectors.
+// Data-only: no behavior. Events stay structurally LOOSE (ClientEvent) on
+// purpose: data-only machines are the `bind:value` / hand-written `@set`
+// carriers until 2.0 removes `@set` — tightening them now would break that
+// still-supported surface. Tighten to `never` when `@set` goes.
 export function machine<C extends Record<string, unknown>>(
-  context: C & { on?: never; select?: never; name?: never },
+  context: C & { on?: never; select?: never; name?: never; events?: never },
 ): MachineDef<C, ClientEvent, 'active', Record<string, never>>
-// Data + behavior: handlers and selectors typed against the context.
+// Derived union — no `events:` declared: event NAMES come from the `on` keys
+// (typo-safe send), payloads stay open. Zero authoring change. Ordered BEFORE
+// the declared overload: `events?: never` keeps declared calls falling through.
+export function machine<
+  C extends Record<string, unknown>,
+  O extends Record<string, ClientTransition<C>>,
+  S extends Record<string, (ctx: C) => unknown>,
+>(
+  context: C & { on?: never; select?: never; name?: never; events?: never },
+  behavior: { name?: string; events?: never; on: O; select?: S },
+): MachineDef<C, DerivedEvents<O>, 'active', S>
+// Declared union (`events: {} as E`) — mirrors defineMachine: full payload
+// typing on send, handlers narrowed per key, undeclared handler keys error.
+export function machine<
+  C extends Record<string, unknown>,
+  E extends { type: string },
+  S extends Record<string, (ctx: C) => unknown>,
+>(
+  context: C & { on?: never; select?: never; name?: never; events?: never },
+  behavior: { name?: string; events: E; on?: TypedClientOnMap<C, E>; select?: S },
+): MachineDef<C, E, 'active', S>
+// Behavior without `on` (selectors only): loose, as data-only.
 export function machine<
   C extends Record<string, unknown>,
   S extends Record<string, (ctx: C) => unknown>,
 >(
-  context: C & { on?: never; select?: never; name?: never },
-  behavior: ClientBehavior<C> & { select?: S },
+  context: C & { on?: never; select?: never; name?: never; events?: never },
+  behavior: { name?: string; events?: never; on?: never; select?: S },
 ): MachineDef<C, ClientEvent, 'active', S>
 /** @deprecated see LegacyMachineConfig */
 export function machine(
@@ -76,8 +121,11 @@ export function machine(
 ): MachineDef<Record<string, any>, ClientEvent, 'active', Record<string, (ctx: any) => any>>
 export function machine(
   first: Record<string, unknown>,
-  behavior?: ClientBehavior<never>,
+  // Loose impl signature: the overloads above are the contract. `events` is a
+  // type-only phantom (`{} as E`) — the runtime never reads it.
+  rawBehavior?: unknown,
 ): MachineDef {
+  const behavior = rawBehavior as (ClientBehavior<never> & { events?: unknown }) | undefined
   let context: Record<string, unknown>
   let name: string | undefined
   let on: Record<string, unknown>

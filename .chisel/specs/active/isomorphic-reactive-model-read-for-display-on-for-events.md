@@ -190,14 +190,27 @@ next:
   alongside it. Row-0 marker fix lands here. Whether `value`/`checked`
   positions lower at all is an Open Question (the focused-write doctrine says
   probably not).
-- **Minor C — the proving app + deprecation.** A form-heavy example built
-  **only** on the minimal surface (`ref:` + `on:` + `read()` + platform
-  constraints): text/number/checkbox/select, validation, blur commits, inputs
-  inside keyed rows. Its paper-cut log is the requirements document for any
-  draft ergonomics — a shipped reusable machine, a wiring helper, or a docs
-  recipe, promoted only on that evidence (per the roadmap's evidence bar).
-  Docs flip to teach the pattern; the compiler emits a `bind:` deprecation
-  diagnostic pointing at it.
+- **Minor C — the proving STARTER + deprecation.** A form-heavy scaffoldable
+  starter built **only** on the minimal surface (`ref:` + `on:` + `read()` +
+  platform constraints): text/number/checkbox/select, blur commits, inputs
+  inside keyed rows, populate-for-edit, reset. Its validation story is
+  two-tier and is the starter's teaching spine:
+  - **Shape rules run on both tiers from ONE pure function** (email format,
+    length, ranges) — imported by the client machine for instant feedback and
+    by the server machine's guard for enforcement. Isomorphic validation
+    rebuilt on the pattern: a shared function, not a bound selector, and the
+    server never trusts the client's copy.
+  - **Truth rules run server-only** (uniqueness, capacity, authorization) —
+    a typed dispatch whose refusal comes back as machine state the template
+    `read()`s. Live variants (e.g. availability-as-you-type) use the
+    debounced-event idiom weather proved.
+  **Exit bar: a demonstrably jank-free form experience** — cursor, IME,
+  focus-across-keyed-rows exercised — proven BEFORE the breaking release.
+  Its paper-cut log is the requirements document for any draft ergonomics —
+  a shipped reusable machine, a wiring helper, or a docs recipe, promoted
+  only on that evidence (per the roadmap's evidence bar). Docs flip to teach
+  the pattern; the compiler emits a `bind:` deprecation diagnostic pointing
+  at it.
 - **2.0 — the only breaking step.** Remove `bind:`, `@set`, `internalEvents`,
   `parseTwoWayPath` + the two-way tests; rewrite the forms guide around the
   pattern; migration notes in the CHANGELOG. The runtime `bind()` fn survives

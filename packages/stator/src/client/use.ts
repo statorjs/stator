@@ -2,6 +2,7 @@ import {
   type AnyActor,
   type AnyMachineDef,
   createActor,
+  type EventOf,
   type MachineDef,
   type Snapshot,
 } from '../engine/index.ts'
@@ -17,17 +18,30 @@ const CLIENT_HELPERS = {
   ),
 } as never
 
+/** Event names sendable as a bare string: only members whose shape is
+ *  satisfied by `{ type }` alone — an event with a required payload must be
+ *  sent as an object. (For the loose ClientEvent this admits any string,
+ *  preserving the untyped tier's behavior.) */
+export type BareEventTypes<E extends { type: string }> = E extends { type: infer T extends string }
+  ? { type: T } extends E
+    ? T
+    : never
+  : never
+
 /**
  * The client-side reactive handle for a machine. Returned by `use()`, held as a
  * class field (`qty = use(Qty)`). Exposes:
  *   - each selector / context key as a live property (read through the actor's
  *     current snapshot on every access — the client mirror of the server
  *     instance proxy). This is what `bind:text={qty.count}` reads.
- *   - `send(event)` to drive transitions.
+ *   - `send(event)` to drive transitions, typed to the machine's event union
+ *     (declared `events:`, derived from `on` keys, or loose for data-only).
  *   - the underlying actor (non-enumerable) for the binding loop to subscribe.
  */
-export interface ClientInstanceBase {
-  send(event: { type: string; [k: string]: unknown } | string): void
+export interface ClientInstanceBase<
+  E extends { type: string } = { type: string; [k: string]: unknown },
+> {
+  send(event: E | BareEventTypes<E>): void
   /** @internal — the actor a binding subscribes to. */
   readonly __actor: AnyActor
 }
@@ -41,7 +55,8 @@ type ClientView<D> =
       }
     : unknown
 
-export type ClientInstance<D extends MachineDef = MachineDef> = ClientInstanceBase & ClientView<D>
+export type ClientInstance<D extends MachineDef = MachineDef> = ClientInstanceBase<EventOf<D>> &
+  ClientView<D>
 
 /** An actor plus an optional deferred seed thunk — evaluated at the element's
  *  connect (when attributes are available), not at construction. */
