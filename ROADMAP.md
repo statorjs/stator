@@ -38,7 +38,8 @@ Shipped: `minimal`, `todomvc`, `desksmith` (the tutorial's finished app),
   tools) is a common starting point, and it only lands experientially — two
   browsers or it didn't happen. Doubles as the scout for the **presence /
   connection-lifecycle** gap.
-- **`registration`** *(planned; name open)* — event-registration desk leaning
+- **`registration`** *(first cut 2026-08-09; browser jank verification + docs
+  flip pending)* — event-registration desk leaning
   hard into forms: attendee rows (keyed, inline-editable), two-tier validation
   (shape rules as one pure function shared by client machine + server guard;
   truth rules — duplicates, capacity — server-only via typed dispatch), blur
@@ -258,6 +259,33 @@ instead of discovered by a user.
   machine, know every way its state changes" — and the measured footprint
   (one two-way site in the whole repo; the densest island example uses none)
   says the sugar never earned its place.
+- **Seam consolidation — one implementation per cross-tier contract** *(2.0
+  prep; ships as a 1.x minor)*: the `registration` starter surfaced three
+  framework bugs in one day and all three were SEAM DISAGREEMENTS — the same
+  contract implemented in two-plus places that drifted: the island `.d.ts`
+  emitter vs the hydrate contract, the page-runtime bundle vs the island
+  bundle on `clientId`, and static attr rendering vs the patch path on
+  boolean semantics (`checked={false}` rendered checked). The attr-value
+  contract alone has FOUR implementations (`template/html.ts`, recompute's
+  `attrWireValue`, the client-emit writer codegen, `wire/apply`). The house
+  already has the answer — `wire/` as the single shared module both sides
+  typecheck against (WIRE.md), `region-apply`'s marker constants — so apply
+  that discipline, don't invent a contract framework: (1) one shared
+  `attrValue(v): string | null` in `wire/` consumed by all four sites; (2)
+  marker-format constants shared (client-slot `s<N>` / `data-b` literals are
+  raw strings across `lower.ts`, `client-emit.ts`, `bindSlot`); (3) a
+  dual-bundle audit of `client/` module state (`clientId` was one instance;
+  the `use.ts` collectors stack is the next candidate); (4) seam TESTS: a
+  property test pinning static-render ≡ patch-apply for attribute values,
+  and a dts ≡ virtual-code island-props consistency test (the LSP calls
+  `componentPropsType` directly and may still disagree in-editor).
+  *Timing matters*: the 2.0 removal step rewires exactly these files
+  (client-emit writers, lower.ts collection) — removing against one shared
+  implementation instead of four drifting ones shrinks that break's risk.
+  *Motivation*: three seam bugs found by one example
+  ([paper-cut log](.chisel/docs/registration-paper-cuts.md), entry 9's
+  pattern note) — the framework should walk its own seams in tests instead
+  of letting starters find them.
 - **Example / scaffold toolchain devDeps drift** *(found dogfooding 1.8.0)*:
   `@statorjs/stator` in scaffolded apps is version-managed (the `STATOR_RANGE`
   sync + changesets), but the *other* devDeps in the example templates —

@@ -1,0 +1,256 @@
+<reg-form>
+  <form ref:form on:submit={submit} aria-label="Registration form">
+    <label>
+      name
+      <input name="name" type="text" required maxlength="60" autocomplete="name" value={props.name ?? ''} on:blur={checkName} />
+    </label>
+    <p role="alert">{read(checks, (c) => c.nameError)}</p>
+
+    <label>
+      email
+      <input name="email" type="email" required autocomplete="email" value={props.email ?? ''} on:blur={checkEmail} />
+    </label>
+    <p role="alert">{read(checks, (c) => c.emailError)}</p>
+
+    <label>
+      seats
+      <input name="seats" type="number" required min="1" max="6" value={props.seats ?? 1} on:change={checkSeats} />
+    </label>
+    <p role="alert">{read(checks, (c) => c.seatsError)}</p>
+
+    <label>
+      ticket
+      <select name="ticket">
+        {props.tickets.map((t) => (
+          <option value={t} selected={props.ticket === t}>{t}</option>
+        ))}
+      </select>
+    </label>
+
+    {props.mode === 'update' ? null : (
+      <label data-consent>
+        <input name="terms" type="checkbox" required />
+        I agree to the event terms — required, and the platform enforces it
+      </label>
+    )}
+    <label data-consent>
+      <input name="updates" type="checkbox" checked={props.updates ?? false} />
+      email me about schedule changes (optional)
+    </label>
+
+    <p role="alert" data-refusal>{read(checks, (c) => c.refusal)}</p>
+    <p role="status">{read(checks, (c) => c.confirmed)}</p>
+    <div>
+      <button type="submit">{props.mode === 'update' ? 'save changes' : 'register'}</button>
+      {props.mode === 'update' ? <a href="/">cancel</a> : null}
+    </div>
+  </form>
+</reg-form>
+
+<script>
+  import { emailError, nameError, seatsError } from '../lib/rules.ts'
+  import DeskMachine from '../machines/desk.ts'
+
+  // Client-local check state: the SAME shape rules the desk enforces, run
+  // per-field for instant feedback. The input elements own the draft — this
+  // machine only ever holds the answers. The confirmation lives here too:
+  // an acknowledgement of YOUR recent action is view state, and dying with
+  // the page is its correct lifetime (in session state it outlived refresh).
+  const Checks = machine(
+    {
+      nameError: null as string | null,
+      emailError: null as string | null,
+      seatsError: null as string | null,
+      refusal: null as string | null,
+      confirmed: null as string | null,
+    },
+    {
+      events: {} as
+        | { type: 'CHECK_NAME'; value: string }
+        | { type: 'CHECK_EMAIL'; value: string }
+        | { type: 'CHECK_SEATS'; value: number }
+        | { type: 'CONFIRMED'; name: string }
+        | { type: 'REFUSED' }
+        | { type: 'RESET' },
+      on: {
+        CHECK_NAME: (s, e) => {
+          s.nameError = nameError(e.value)
+          s.refusal = s.confirmed = null
+        },
+        CHECK_EMAIL: (s, e) => {
+          s.emailError = emailError(e.value)
+          s.refusal = s.confirmed = null
+        },
+        CHECK_SEATS: (s, e) => {
+          s.seatsError = seatsError(e.value)
+          s.refusal = s.confirmed = null
+        },
+        CONFIRMED: (s, e) => {
+          s.confirmed = `You're on the list, ${e.name}.`
+        },
+        REFUSED: (s) => {
+          s.refusal =
+            'The desk refused this registration — the event may be sold out, or this email is already on the roster.'
+        },
+        RESET: (s) => {
+          s.nameError = s.emailError = s.seatsError = s.refusal = null
+        },
+      },
+    },
+  )
+
+  export class RegForm extends StatorElement {
+    static attrs = { mode: String, rid: String, done: String }
+    checks = use(Checks)
+
+    field(name: string): HTMLInputElement {
+      const form = this.refs.form as HTMLFormElement
+      return form.elements.namedItem(name) as HTMLInputElement
+    }
+
+    checkName(e: Event) {
+      this.checks.send({ type: 'CHECK_NAME', value: (e.currentTarget as HTMLInputElement).value })
+    }
+    checkEmail(e: Event) {
+      this.checks.send({ type: 'CHECK_EMAIL', value: (e.currentTarget as HTMLInputElement).value })
+    }
+    checkSeats(e: Event) {
+      this.checks.send({
+        type: 'CHECK_SEATS',
+        value: (e.currentTarget as HTMLInputElement).valueAsNumber,
+      })
+    }
+
+    async submit(e: Event) {
+      e.preventDefault()
+      // The platform already gated this submit (required, type, min/max —
+      // an invalid form never fires the event). Re-run the shape rules
+      // anyway: defense in depth is one send per field.
+      const name = this.field('name').value
+      const email = this.field('email').value
+      const seats = this.field('seats').valueAsNumber
+      this.checks.send({ type: 'CHECK_NAME', value: name })
+      this.checks.send({ type: 'CHECK_EMAIL', value: email })
+      this.checks.send({ type: 'CHECK_SEATS', value: seats })
+      if (this.checks.nameError || this.checks.emailError || this.checks.seatsError) return
+
+      const fields = {
+        name,
+        email,
+        seats,
+        ticket: this.field('ticket').value,
+        updates: this.field('updates').checked,
+      }
+      const result =
+        this.attrs.mode === 'update'
+          ? await dispatch(DeskMachine, { type: 'UPDATE', id: String(this.attrs.rid), ...fields })
+          : await dispatch(DeskMachine, { type: 'REGISTER', ...fields })
+      if (result.committed) {
+        // The safe writeback moment: the commit landed. A register resets to
+        // the server-rendered defaults; a save on the edit page navigates
+        // home (`done`). The visitor's typing is only ever cleared by their
+        // own successful commit.
+        ;(this.refs.form as HTMLFormElement).reset()
+        this.checks.send('RESET')
+        this.checks.send({ type: 'CONFIRMED', name: name.trim() })
+        if (this.attrs.done) location.assign(String(this.attrs.done))
+      } else {
+        this.checks.send('REFUSED')
+      }
+    }
+
+  }
+</script>
+
+<style>
+  form {
+    display: grid;
+    gap: 0.25rem;
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 1.2rem 1.3rem 1.3rem;
+  }
+  label {
+    display: grid;
+    gap: 0.3rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  input,
+  select {
+    font: inherit;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.45rem 0.6rem;
+  }
+  input:focus-visible,
+  select:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  label[data-consent] {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-transform: none;
+    letter-spacing: normal;
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    margin-top: 0.5rem;
+  }
+  label[data-consent] input {
+    width: auto;
+  }
+  p[role='alert'] {
+    min-height: 1.1rem;
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--error);
+  }
+  p[data-refusal] {
+    margin-top: 0.4rem;
+  }
+  p[role='status'] {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--ok);
+  }
+  p[role='status']:empty {
+    display: none;
+  }
+  div {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: 0.4rem;
+  }
+  button {
+    font: inherit;
+    font-weight: 600;
+    background: var(--accent);
+    color: var(--paper);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 0.5rem 1.2rem;
+    cursor: pointer;
+  }
+  button:hover {
+    filter: brightness(1.08);
+  }
+  div a {
+    align-self: center;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+  }
+</style>

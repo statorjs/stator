@@ -19,6 +19,7 @@
     "stator-example-with-auth",
     "stator-example-guestbook",
     "stator-example-weather",
-    "stator-example-stockroom"
+    "stator-example-stockroom",
+    "stator-example-registration"
   ]
 }

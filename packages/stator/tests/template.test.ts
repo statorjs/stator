@@ -71,6 +71,28 @@ async function buildRuntime(): Promise<{
 }
 
 describe('html templating', () => {
+  it('plain attr values use boolean-absent semantics, matching the binding paths', async () => {
+    const { state, runtime } = await buildRuntime()
+    try {
+      // false/null/undefined → attribute ABSENT; true → present-and-empty.
+      // Previously `checked="${false}"` rendered `checked="false"` — a
+      // PRESENT boolean attribute, i.e. a checkbox that can never render
+      // unchecked (found by the registration starter's opt-in checkbox).
+      const out = runInRender(
+        state,
+        () =>
+          html`<input type="checkbox" checked="${false}" disabled="${null}" data-x="${undefined}" required="${true}" data-n="${3}" />`,
+      )
+      expect(out.html).not.toContain('checked')
+      expect(out.html).not.toContain('disabled')
+      expect(out.html).not.toContain('data-x')
+      expect(out.html).toMatch(/required(=""| |\/|>)/)
+      expect(out.html).toContain('data-n="3"')
+    } finally {
+      runtime.dispose()
+    }
+  })
+
   it('renders a text-position read with a slot span', async () => {
     const { cart, state, runtime } = await buildRuntime()
     try {

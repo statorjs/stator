@@ -1,0 +1,50 @@
+<row-seats>
+  <input
+    type="number"
+    min="1"
+    max="6"
+    value={props.seats}
+    aria-label="Seats for this party"
+    on:change={commit}
+  />
+</row-seats>
+
+<script>
+  import DeskMachine from '../machines/desk.ts'
+
+  // Inline seats editor for one roster row. The input owns its draft
+  // (uncontrolled, server-rendered pre-fill); `change` is the commit
+  // boundary — one typed dispatch, guarded server-side against capacity.
+  export class RowSeats extends StatorElement {
+    static attrs = { rid: String, seats: Number }
+
+    async commit(e: Event) {
+      const input = e.currentTarget as HTMLInputElement
+      const result = await dispatch(DeskMachine, {
+        type: 'SET_SEATS',
+        id: String(this.attrs.rid),
+        seats: input.valueAsNumber,
+      })
+      // Refused (over capacity, bad size): snap back to the render-time
+      // truth — the safe writeback moment, since the change already blurred.
+      if (!result.committed) input.value = String(this.attrs.seats)
+    }
+  }
+</script>
+
+<style>
+  row-seats { display: inline-flex; }
+  input {
+    font: inherit;
+    width: 3.4rem;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.25rem 0.4rem;
+  }
+  input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+</style>
