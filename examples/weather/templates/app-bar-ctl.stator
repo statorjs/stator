@@ -51,7 +51,7 @@
         dots.setAttribute('aria-expanded', expanded)
         edit.setAttribute('aria-pressed', mode === 'editing' ? 'true' : 'false')
       }
-      const send = (type: string) => {
+      const send = (type: 'TOGGLE_SETTINGS' | 'TOGGLE_EDIT' | 'DISMISS') => {
         this.view.send(type)
         project()
       }
