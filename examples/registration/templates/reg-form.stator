@@ -1,0 +1,212 @@
+<reg-form>
+  <form ref:form on:submit={submit} aria-label="Register for the event">
+    <label>
+      name
+      <input name="name" type="text" required maxlength="60" autocomplete="name" on:blur={checkName} />
+    </label>
+    <p role="alert">{read(checks, (c) => c.nameError)}</p>
+
+    <label>
+      email
+      <input name="email" type="email" required autocomplete="email" on:blur={checkEmail} />
+    </label>
+    <p role="alert">{read(checks, (c) => c.emailError)}</p>
+
+    <label>
+      seats
+      <input name="seats" type="number" required min="1" max="6" value="1" on:change={checkSeats} />
+    </label>
+    <p role="alert">{read(checks, (c) => c.seatsError)}</p>
+
+    <label>
+      ticket
+      <select name="ticket">
+        {props.tickets.map((t) => <option value={t}>{t}</option>)}
+      </select>
+    </label>
+
+    <label data-consent>
+      <input name="consent" type="checkbox" required />
+      the event may email me about schedule changes
+    </label>
+
+    <p role="alert" data-refusal>{read(checks, (c) => c.refusal)}</p>
+    <button type="submit">register</button>
+  </form>
+</reg-form>
+
+<script>
+  import { emailError, nameError, seatsError } from '../lib/rules.ts'
+  import DeskMachine from '../machines/desk.ts'
+
+  // Client-local check state: the SAME shape rules the desk enforces, run
+  // per-field for instant feedback. The input elements own the draft — this
+  // machine only ever holds the answers.
+  const Checks = machine(
+    {
+      nameError: null as string | null,
+      emailError: null as string | null,
+      seatsError: null as string | null,
+      refusal: null as string | null,
+    },
+    {
+      events: {} as
+        | { type: 'CHECK_NAME'; value: string }
+        | { type: 'CHECK_EMAIL'; value: string }
+        | { type: 'CHECK_SEATS'; value: number }
+        | { type: 'REFUSED' }
+        | { type: 'RESET' },
+      on: {
+        CHECK_NAME: (s, e) => {
+          s.nameError = nameError(e.value)
+          s.refusal = null
+        },
+        CHECK_EMAIL: (s, e) => {
+          s.emailError = emailError(e.value)
+          s.refusal = null
+        },
+        CHECK_SEATS: (s, e) => {
+          s.seatsError = seatsError(e.value)
+          s.refusal = null
+        },
+        REFUSED: (s) => {
+          s.refusal =
+            'The desk refused this registration — the event may be sold out, or this email is already on the roster.'
+        },
+        RESET: (s) => {
+          s.nameError = s.emailError = s.seatsError = s.refusal = null
+        },
+      },
+    },
+  )
+
+  export class RegForm extends StatorElement {
+    checks = use(Checks)
+
+    field(name: string): HTMLInputElement {
+      const form = this.refs.form as HTMLFormElement
+      return form.elements.namedItem(name) as HTMLInputElement
+    }
+
+    checkName(e: Event) {
+      this.checks.send({ type: 'CHECK_NAME', value: (e.currentTarget as HTMLInputElement).value })
+    }
+    checkEmail(e: Event) {
+      this.checks.send({ type: 'CHECK_EMAIL', value: (e.currentTarget as HTMLInputElement).value })
+    }
+    checkSeats(e: Event) {
+      this.checks.send({
+        type: 'CHECK_SEATS',
+        value: (e.currentTarget as HTMLInputElement).valueAsNumber,
+      })
+    }
+
+    async submit(e: Event) {
+      e.preventDefault()
+      // The platform already gated this submit (required, type, min/max —
+      // an invalid form never fires the event). Re-run the shape rules
+      // anyway: defense in depth is one send per field.
+      const name = this.field('name').value
+      const email = this.field('email').value
+      const seats = this.field('seats').valueAsNumber
+      this.checks.send({ type: 'CHECK_NAME', value: name })
+      this.checks.send({ type: 'CHECK_EMAIL', value: email })
+      this.checks.send({ type: 'CHECK_SEATS', value: seats })
+      if (this.checks.nameError || this.checks.emailError || this.checks.seatsError) return
+
+      const result = await dispatch(DeskMachine, {
+        type: 'REGISTER',
+        name,
+        email,
+        seats,
+        ticket: this.field('ticket').value,
+      })
+      if (result.committed) {
+        // The safe writeback moment: the commit landed, reset to the
+        // server-rendered defaults. The visitor's typing is only ever
+        // cleared by their own successful registration.
+        ;(this.refs.form as HTMLFormElement).reset()
+        this.checks.send('RESET')
+      } else {
+        this.checks.send('REFUSED')
+      }
+    }
+  }
+</script>
+
+<style>
+  form {
+    display: grid;
+    gap: 0.25rem;
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 1.2rem 1.3rem 1.3rem;
+  }
+  label {
+    display: grid;
+    gap: 0.3rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  input,
+  select {
+    font: inherit;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.45rem 0.6rem;
+  }
+  input:focus-visible,
+  select:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  label[data-consent] {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-transform: none;
+    letter-spacing: normal;
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    margin-top: 0.5rem;
+  }
+  label[data-consent] input {
+    width: auto;
+  }
+  p[role='alert'] {
+    min-height: 1.1rem;
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--error);
+  }
+  p[data-refusal] {
+    margin-top: 0.4rem;
+  }
+  button {
+    justify-self: start;
+    font: inherit;
+    font-weight: 600;
+    background: var(--accent);
+    color: var(--paper);
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1.2rem;
+    cursor: pointer;
+    margin-top: 0.4rem;
+  }
+  button:hover {
+    filter: brightness(1.08);
+  }
+</style>

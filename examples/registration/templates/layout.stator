@@ -1,0 +1,24 @@
+---
+const { title } = Stator.props<{ title?: string }>()
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title ?? 'The Front Desk'}</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <main>
+      <children />
+    </main>
+  </body>
+</html>
+
+<style>
+  main {
+    max-width: 42rem;
+    margin: 0 auto;
+    padding: 2.5rem 1.25rem 4rem;
+  }
+</style>

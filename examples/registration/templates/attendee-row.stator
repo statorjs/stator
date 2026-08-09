@@ -1,0 +1,75 @@
+---
+import type { InstanceOf } from '@statorjs/stator/template'
+import type DeskMachine from '../machines/desk.ts'
+import type { Attendee } from '../machines/roster.ts'
+import RowSeats from './row-seats.stator'
+
+const { attendee, desk } = Stator.props<{
+  attendee: Attendee
+  desk: InstanceOf<typeof DeskMachine>
+}>()
+---
+<li>
+  <div>
+    <strong>{attendee.name}</strong>
+    <span>{attendee.email}</span>
+  </div>
+  <small data-ticket={attendee.ticket}>{attendee.ticket}</small>
+  <RowSeats rid={attendee.id} seats={attendee.seats} />
+  <button
+    type="button"
+    aria-label={`Remove ${attendee.name}`}
+    on:click={() => desk.send({ type: 'REMOVE', id: attendee.id })}
+  >
+    ×
+  </button>
+</li>
+
+<style>
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.6rem 0.2rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  div {
+    flex: 1;
+    display: grid;
+  }
+  strong {
+    font-weight: 600;
+  }
+  span {
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+  }
+  small {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    padding: 0.15rem 0.55rem;
+  }
+  small[data-ticket='vip'] {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  button {
+    font: inherit;
+    line-height: 1;
+    color: var(--ink-faint);
+    background: none;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+  }
+  button:hover {
+    color: var(--error);
+    border-color: var(--error);
+  }
+</style>

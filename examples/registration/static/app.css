@@ -1,0 +1,28 @@
+/* Tokens + reset only — component styles live scoped in each .stator file. */
+
+:root {
+  --paper: #faf9f6;
+  --card: #ffffff;
+  --ink: #1c1b18;
+  --ink-soft: #57544c;
+  --ink-faint: #8b8779;
+  --rule: #e2dfd6;
+  --accent: #0d6e5f;
+  --ok: #0d6e5f;
+  --error: #b3382c;
+  --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+}

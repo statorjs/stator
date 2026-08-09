@@ -38,7 +38,8 @@ Shipped: `minimal`, `todomvc`, `desksmith` (the tutorial's finished app),
   tools) is a common starting point, and it only lands experientially — two
   browsers or it didn't happen. Doubles as the scout for the **presence /
   connection-lifecycle** gap.
-- **`registration`** *(planned; name open)* — event-registration desk leaning
+- **`registration`** *(first cut 2026-08-09; browser jank verification + docs
+  flip pending)* — event-registration desk leaning
   hard into forms: attendee rows (keyed, inline-editable), two-tier validation
   (shape rules as one pure function shared by client machine + server guard;
   truth rules — duplicates, capacity — server-only via typed dispatch), blur
