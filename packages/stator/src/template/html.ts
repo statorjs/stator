@@ -127,7 +127,17 @@ function processValue(builder: HtmlBuilder, state: RenderState, value: unknown):
     return
   }
   if (pos.kind === 'attr-value') {
-    builder.pushRaw(escapeAttribute(sanitizeAttrValue(pos.attrName, stringifyValue(value))))
+    // Same boolean semantics as the read-binding and item-read paths:
+    // false/null/undefined → attribute ABSENT (`checked={expr}` must be able
+    // to render unchecked; a static render must agree with what a live patch
+    // of the same attribute would do), true → present-and-empty. Previously
+    // this path stringified — `checked={false}` rendered `checked="false"`,
+    // a PRESENT (thus truthy) boolean attribute.
+    if (value === false || value === null || value === undefined) {
+      builder.omitCurrentAttribute()
+    } else if (value !== true) {
+      builder.pushRaw(escapeAttribute(sanitizeAttrValue(pos.attrName, stringifyValue(value))))
+    }
     return
   }
   throw new Error(`stator: cannot interpolate a plain value at ${pos.kind} position`)
