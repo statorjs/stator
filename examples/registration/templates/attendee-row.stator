@@ -18,6 +18,14 @@ const { attendee, desk } = Stator.props<{
   <RowSeats rid={attendee.id} seats={attendee.seats} />
   <button
     type="button"
+    aria-label={`Edit ${attendee.name}`}
+    on:click={() => desk.send({ type: 'EDIT', id: attendee.id })}
+  >
+    ✎
+  </button>
+  <button
+    type="button"
+    data-remove
     aria-label={`Remove ${attendee.name}`}
     on:click={() => desk.send({ type: 'REMOVE', id: attendee.id })}
   >
@@ -69,6 +77,10 @@ const { attendee, desk } = Stator.props<{
     cursor: pointer;
   }
   button:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  button[data-remove]:hover {
     color: var(--error);
     border-color: var(--error);
   }

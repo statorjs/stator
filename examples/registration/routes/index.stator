@@ -26,7 +26,20 @@ const [desk, roster] = Stator.reads([DeskMachine, RosterMachine])
     </p>
   </header>
 
-  <RegForm tickets={TICKETS} />
+  {when(read(desk, (d) => !d.isEditing), () => (
+    <RegForm tickets={TICKETS} />
+  ))}
+  {when(read(desk, (d) => d.isEditing), () => (
+    <RegForm
+      tickets={TICKETS}
+      mode="update"
+      rid={desk.editing?.id}
+      name={desk.editing?.name}
+      email={desk.editing?.email}
+      seats={desk.editing?.seats}
+      ticket={desk.editing?.ticket}
+    />
+  ))}
 
   {when(read(desk, (d) => d.hasRegistered), () => (
     <p role="status">

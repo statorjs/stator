@@ -1,37 +1,46 @@
 <reg-form>
-  <form ref:form on:submit={submit} aria-label="Register for the event">
+  <form ref:form on:submit={submit} aria-label="Registration form">
     <label>
       name
-      <input name="name" type="text" required maxlength="60" autocomplete="name" on:blur={checkName} />
+      <input name="name" type="text" required maxlength="60" autocomplete="name" value={props.name ?? ''} on:blur={checkName} />
     </label>
     <p role="alert">{read(checks, (c) => c.nameError)}</p>
 
     <label>
       email
-      <input name="email" type="email" required autocomplete="email" on:blur={checkEmail} />
+      <input name="email" type="email" required autocomplete="email" value={props.email ?? ''} on:blur={checkEmail} />
     </label>
     <p role="alert">{read(checks, (c) => c.emailError)}</p>
 
     <label>
       seats
-      <input name="seats" type="number" required min="1" max="6" value="1" on:change={checkSeats} />
+      <input name="seats" type="number" required min="1" max="6" value={props.seats ?? 1} on:change={checkSeats} />
     </label>
     <p role="alert">{read(checks, (c) => c.seatsError)}</p>
 
     <label>
       ticket
       <select name="ticket">
-        {props.tickets.map((t) => <option value={t}>{t}</option>)}
+        {props.tickets.map((t) => (
+          <option value={t} selected={props.ticket === t}>{t}</option>
+        ))}
       </select>
     </label>
 
-    <label data-consent>
-      <input name="consent" type="checkbox" required />
-      the event may email me about schedule changes
-    </label>
+    {props.mode === 'update' ? null : (
+      <label data-consent>
+        <input name="consent" type="checkbox" required />
+        the event may email me about schedule changes
+      </label>
+    )}
 
     <p role="alert" data-refusal>{read(checks, (c) => c.refusal)}</p>
-    <button type="submit">register</button>
+    <div>
+      <button type="submit">{props.mode === 'update' ? 'save changes' : 'register'}</button>
+      {props.mode === 'update' ? (
+        <button type="button" data-cancel on:click={cancel}>cancel</button>
+      ) : null}
+    </div>
   </form>
 </reg-form>
 
@@ -81,6 +90,7 @@
   )
 
   export class RegForm extends StatorElement {
+    static attrs = { mode: String, rid: String }
     checks = use(Checks)
 
     field(name: string): HTMLInputElement {
@@ -114,22 +124,25 @@
       this.checks.send({ type: 'CHECK_SEATS', value: seats })
       if (this.checks.nameError || this.checks.emailError || this.checks.seatsError) return
 
-      const result = await dispatch(DeskMachine, {
-        type: 'REGISTER',
-        name,
-        email,
-        seats,
-        ticket: this.field('ticket').value,
-      })
+      const fields = { name, email, seats, ticket: this.field('ticket').value }
+      const result =
+        this.attrs.mode === 'update'
+          ? await dispatch(DeskMachine, { type: 'UPDATE', id: String(this.attrs.rid), ...fields })
+          : await dispatch(DeskMachine, { type: 'REGISTER', ...fields })
       if (result.committed) {
-        // The safe writeback moment: the commit landed, reset to the
-        // server-rendered defaults. The visitor's typing is only ever
-        // cleared by their own successful registration.
+        // The safe writeback moment: the commit landed. A register resets to
+        // the server-rendered defaults; an update's whole form is replaced by
+        // the arm flip back to register mode. The visitor's typing is only
+        // ever cleared by their own successful commit.
         ;(this.refs.form as HTMLFormElement).reset()
         this.checks.send('RESET')
       } else {
         this.checks.send('REFUSED')
       }
+    }
+
+    async cancel() {
+      await dispatch(DeskMachine, { type: 'CANCEL_EDIT' })
     }
   }
 </script>
@@ -194,19 +207,27 @@
   p[data-refusal] {
     margin-top: 0.4rem;
   }
+  div {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: 0.4rem;
+  }
   button {
-    justify-self: start;
     font: inherit;
     font-weight: 600;
     background: var(--accent);
     color: var(--paper);
-    border: none;
+    border: 1px solid var(--accent);
     border-radius: 4px;
     padding: 0.5rem 1.2rem;
     cursor: pointer;
-    margin-top: 0.4rem;
   }
   button:hover {
     filter: brightness(1.08);
+  }
+  button[data-cancel] {
+    background: var(--paper);
+    color: var(--ink-soft);
+    border-color: var(--rule);
   }
 </style>

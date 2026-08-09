@@ -62,7 +62,34 @@ island with none got `Record<string, never>` — contradicting the pinned
 hydrate contract (shell props). First app to pass props to an attrs-less
 island found it. Fixed in `compiler/dts.ts` + regression test, this PR.
 
-## 5. read() display in the island needed nothing (2026-08-09, build) — GOOD
+## 5. Island dispatch double-applied keyed inserts (2026-08-09, browser) — FIXED IN-PR
+
+First browser run: a submitted registrant appeared TWICE in the roster;
+refresh fixed it. Root cause was framework-level: `clientId` (the page-load
+identity fan-out uses to skip the dispatching page's own SSE connection) was
+module-scoped — and the page runtime (prebuilt classic script) and island
+modules (Vite graph) are separate bundles, each minting their own. An island
+`dispatch()` therefore never matched the SSE connection's id, the originator
+skip never fired, and the origin page re-received the roster patches — keyed
+inserts are not idempotent. Every island dispatch on a live route had this;
+it was invisible until now because text/attr patches ARE idempotent. Fixed:
+`clientId` is a window-keyed page singleton (`client/client-id.ts`) +
+regression test.
+
+## 6. Editing: pre-fill-as-server-render held up (2026-08-09, build) — GOOD
+
+The edit flow put the "form pre-filled from the server" case on the exit
+checklist through the front door: `EDIT` snapshots the attendee into desk
+context, the route flips between two `when()` arms, and the edit-mode island
+shell renders `value=` attributes from the desk instance — the pre-filled
+form is in the HTML (wire-testable with curl, no browser needed). Notes:
+- `when()` has no else arm and passes no value — two complementary `when`s
+  plus instance-proxy access (`desk.editing?.name`) inside the arm covered it
+  cleanly, but an `unless`/else ergonomic would read better.
+- The arm flip replaces the island wholesale, so update-mode teardown is free
+  and the uncontrolled inputs never need a writeback.
+
+## 7. read() display in the island needed nothing (2026-08-09, build) — GOOD
 
 The four error lines and the refusal line are client-machine `read()` slots
 (Minor B) — declared union on the checks machine, per-field events, zero

@@ -1,15 +1,22 @@
 import { defineMachine } from '@statorjs/stator/server'
 import { cleanRegistration, seatsError } from '../lib/rules.ts'
-import RosterMachine from './roster.ts'
+import RosterMachine, { type Attendee } from './roster.ts'
 
 type DeskContext = {
   /** Name from this session's last successful registration — powers the
    *  per-session "you're on the list" line. */
   lastRegistered: string | null
+  /** Snapshot of the attendee this session is editing (null = registering).
+   *  Server state on purpose: the edit form's pre-filled inputs are rendered
+   *  FROM this, so pre-fill is an attribute at render, not a client write. */
+  editing: Attendee | null
 }
 
 type DeskEvents =
   | { type: 'REGISTER'; name: string; email: string; seats: number; ticket: string }
+  | { type: 'EDIT'; id: string }
+  | { type: 'CANCEL_EDIT' }
+  | { type: 'UPDATE'; id: string; name: string; email: string; seats: number; ticket: string }
   | { type: 'SET_SEATS'; id: string; seats: number }
   | { type: 'REMOVE'; id: string }
 
@@ -44,9 +51,15 @@ const DeskMachine = defineMachine({
     REMOVED: {
       payload: (_ctx: DeskContext, ev: { id: string }) => ({ id: ev.id }),
     },
+    UPDATED: {
+      payload: (_ctx: DeskContext, ev: { id: string; name: string; email: string; seats: number; ticket: string }) => {
+        const clean = cleanRegistration(ev)
+        return { id: ev.id, ...(clean ?? { name: '', email: '', seats: 0, ticket: 'general' }) }
+      },
+    },
   },
 
-  context: { lastRegistered: null } as DeskContext,
+  context: { lastRegistered: null, editing: null } as DeskContext,
   initial: 'open',
   states: {
     open: {
@@ -63,6 +76,34 @@ const DeskMachine = defineMachine({
             ctx.lastRegistered = ev.name.trim()
           },
           emit: 'REGISTERED',
+        },
+        EDIT: {
+          when: (_ctx, ev, helpers) =>
+            helpers.reads.RosterMachine.attendees.some((a) => a.id === ev.id),
+          do: (ctx, ev, helpers) => {
+            const found = helpers.reads.RosterMachine.attendees.find((a) => a.id === ev.id)
+            ctx.editing = found ? { ...found } : null
+          },
+        },
+        CANCEL_EDIT: (ctx) => {
+          ctx.editing = null
+        },
+        UPDATE: {
+          when: (_ctx, ev, helpers) => {
+            const clean = cleanRegistration(ev)
+            if (!clean) return false
+            const roster = helpers.reads.RosterMachine
+            const current = roster.attendees.find((a) => a.id === ev.id)
+            if (!current) return false
+            if (roster.attendees.some((a) => a.id !== ev.id && a.email === clean.email))
+              return false
+            return roster.seatsTaken - current.seats + clean.seats <= roster.capacity
+          },
+          do: (ctx, ev) => {
+            ctx.editing = null
+            ctx.lastRegistered = ev.name.trim()
+          },
+          emit: 'UPDATED',
         },
         SET_SEATS: {
           when: (_ctx, ev, helpers) => {
@@ -86,6 +127,8 @@ const DeskMachine = defineMachine({
   selectors: {
     lastRegistered: (ctx) => ctx.lastRegistered,
     hasRegistered: (ctx) => ctx.lastRegistered !== null,
+    editing: (ctx) => ctx.editing,
+    isEditing: (ctx) => ctx.editing !== null,
   },
 })
 
@@ -96,6 +139,7 @@ RosterMachine.subscribes.push(
   { from: DeskMachine, event: 'REGISTERED', dispatch: 'RECORD' },
   { from: DeskMachine, event: 'SEATS_CHANGED', dispatch: 'RESIZE' },
   { from: DeskMachine, event: 'REMOVED', dispatch: 'DROP' },
+  { from: DeskMachine, event: 'UPDATED', dispatch: 'AMEND' },
 )
 
 export default DeskMachine

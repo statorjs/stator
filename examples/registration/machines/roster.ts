@@ -13,6 +13,7 @@ type RosterContext = { attendees: Attendee[]; capacity: number }
 
 type RosterEvents =
   | { type: 'RECORD'; name: string; email: string; seats: number; ticket: string }
+  | { type: 'AMEND'; id: string; name: string; email: string; seats: number; ticket: string }
   | { type: 'RESIZE'; id: string; seats: number }
   | { type: 'DROP'; id: string }
 
@@ -56,6 +57,16 @@ export default defineMachine({
           if (ctx.attendees.some((a) => a.email === clean.email)) return
           if (seatsTaken(ctx.attendees) + clean.seats > ctx.capacity) return
           ctx.attendees.push({ id: genId(), ...clean })
+        },
+        AMEND: (ctx, ev) => {
+          const attendee = ctx.attendees.find((a) => a.id === ev.id)
+          const clean = cleanRegistration(ev)
+          if (!attendee || !clean) return
+          if (ctx.attendees.some((a) => a.id !== ev.id && a.email === clean.email)) return
+          if (seatsTaken(ctx.attendees) - attendee.seats + clean.seats > ctx.capacity) return
+          // Replace fields in place — the row keeps its id and position, so
+          // the keyed list patches the row instead of reordering it.
+          Object.assign(attendee, clean)
         },
         RESIZE: (ctx, ev) => {
           const attendee = ctx.attendees.find((a) => a.id === ev.id)
