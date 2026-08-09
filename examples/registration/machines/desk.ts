@@ -1,21 +1,22 @@
 import { defineMachine } from '@statorjs/stator/server'
 import { cleanRegistration, seatsError } from '../lib/rules.ts'
-import RosterMachine, { type Attendee } from './roster.ts'
+import RosterMachine from './roster.ts'
 
 type DeskContext = {
   /** Name from this session's last successful registration — powers the
    *  per-session "you're on the list" line. */
   lastRegistered: string | null
-  /** Snapshot of the attendee this session is editing (null = registering).
-   *  Server state on purpose: the edit form's pre-filled inputs are rendered
-   *  FROM this, so pre-fill is an attribute at render, not a client write. */
-  editing: Attendee | null
 }
+
+// Editing is NOT desk state — it's an address. An earlier cut held an
+// `editing` snapshot here so an in-page arm flip could pre-fill the form; it
+// meant the MODE survived refresh while the typing (uncontrolled inputs)
+// didn't. The rule this taught: a mode earns machine residence only when
+// guards or domain logic act on it (a checkout's states do); a mode with one
+// render-region consumer belongs to the URL — /edit/:id owns it now.
 
 type DeskEvents =
   | { type: 'REGISTER'; name: string; email: string; seats: number; ticket: string }
-  | { type: 'EDIT'; id: string }
-  | { type: 'CANCEL_EDIT' }
   | { type: 'UPDATE'; id: string; name: string; email: string; seats: number; ticket: string }
   | { type: 'SET_SEATS'; id: string; seats: number }
   | { type: 'REMOVE'; id: string }
@@ -77,17 +78,6 @@ const DeskMachine = defineMachine({
           },
           emit: 'REGISTERED',
         },
-        EDIT: {
-          when: (_ctx, ev, helpers) =>
-            helpers.reads.RosterMachine.attendees.some((a) => a.id === ev.id),
-          do: (ctx, ev, helpers) => {
-            const found = helpers.reads.RosterMachine.attendees.find((a) => a.id === ev.id)
-            ctx.editing = found ? { ...found } : null
-          },
-        },
-        CANCEL_EDIT: (ctx) => {
-          ctx.editing = null
-        },
         UPDATE: {
           when: (_ctx, ev, helpers) => {
             const clean = cleanRegistration(ev)
@@ -100,7 +90,6 @@ const DeskMachine = defineMachine({
             return roster.seatsTaken - current.seats + clean.seats <= roster.capacity
           },
           do: (ctx, ev) => {
-            ctx.editing = null
             ctx.lastRegistered = ev.name.trim()
           },
           emit: 'UPDATED',
@@ -127,8 +116,6 @@ const DeskMachine = defineMachine({
   selectors: {
     lastRegistered: (ctx) => ctx.lastRegistered,
     hasRegistered: (ctx) => ctx.lastRegistered !== null,
-    editing: (ctx) => ctx.editing,
-    isEditing: (ctx) => ctx.editing !== null,
   },
 })
 

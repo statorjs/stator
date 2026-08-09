@@ -76,27 +76,33 @@ it was invisible until now because text/attr patches ARE idempotent. Fixed:
 `clientId` is a window-keyed page singleton (`client/client-id.ts`) +
 regression test.
 
-## 6. Editing: pre-fill-as-server-render held up (2026-08-09, build) — GOOD
+## 6. Server-held edit mode: built, browser-tested, REVERTED (2026-08-09) — ADJUDICATED
 
-The edit flow put the "form pre-filled from the server" case on the exit
-checklist through the front door: `EDIT` snapshots the attendee into desk
-context, the route flips between two `when()` arms, and the edit-mode island
-shell renders `value=` attributes from the desk instance — the pre-filled
-form is in the HTML (wire-testable with curl, no browser needed). Notes:
-- `when()` has no else arm and passes no value — two complementary `when`s
-  plus instance-proxy access (`desk.editing?.name`) inside the arm covered it
-  cleanly, but an `unless`/else ergonomic would read better.
-- The arm flip replaces the island wholesale, so update-mode teardown is free
-  and the uncontrolled inputs never need a writeback.
+The first edit flow held an `editing` snapshot in the desk machine and
+flipped the in-page form via two `when()` arms. It worked (arm-rendered
+island, server pre-filled inputs, wire-tested) — and browser use immediately
+exposed the flaw: **the mode survived refresh while the draft didn't**
+(uncontrolled inputs, by doctrine). A mode without its draft is worthless
+after refresh, and needing an in-form CANCEL_EDIT event to escape a view
+state is the same smell. Replaced by `/edit/:id` alone.
 
-## 7. Pre-fill proven through BOTH render pipelines (2026-08-09, build) — GOOD
+**The doctrine line this bought** (the log's first adjudicated rule): a mode
+earns machine residence only when guards or domain logic act on it — a
+checkout's guarded states qualify; a mode whose only consumer is one render
+region is ADDRESS-shaped and belongs to the URL (shareable, back-button =
+cancel, refresh-obvious, no escape event needed).
 
-Tony's call: the arm-flip edit delivers the pre-filled form through the patch
-pipeline (recompute → `html` op → island upgrades in patched DOM), which is a
-different code path from a full page render. Added `/edit/:id` — same island,
-navigation-rendered, non-live, param → read → 404 — so both pipelines are
-pinned by wire tests. The island grew one `done` attr (navigate on committed
-save); nothing else changed. No friction found in either path.
+Side notes kept from the experiment: `when()` has no else arm (two
+complementary `when`s + instance-proxy access inside the arm covered it; an
+else ergonomic would read better), and arm-rendered ISLANDS (a #20-seam
+surface) now have no in-repo exerciser — a framework-test candidate, not a
+starter concern.
+
+## 7. Pre-fill lives on the navigation pipeline (2026-08-09, build) — GOOD
+
+`/edit/:id`: same island, navigation-rendered, non-live, param → read → 404,
+`value=` attrs in the HTML (wire-testable with curl, no browser needed). The
+island grew one `done` attr (navigate on committed save). No friction.
 
 ## 8. read() display in the island needed nothing (2026-08-09, build) — GOOD
 

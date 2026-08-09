@@ -37,9 +37,7 @@
     <p role="alert" data-refusal>{read(checks, (c) => c.refusal)}</p>
     <div>
       <button type="submit">{props.mode === 'update' ? 'save changes' : 'register'}</button>
-      {props.mode === 'update' ? (
-        <button type="button" data-cancel on:click={cancel}>cancel</button>
-      ) : null}
+      {props.mode === 'update' ? <a href="/">cancel</a> : null}
     </div>
   </form>
 </reg-form>
@@ -131,21 +129,17 @@
           : await dispatch(DeskMachine, { type: 'REGISTER', ...fields })
       if (result.committed) {
         // The safe writeback moment: the commit landed. A register resets to
-        // the server-rendered defaults; an update's whole form is replaced by
-        // the arm flip back to register mode. The visitor's typing is only
-        // ever cleared by their own successful commit.
+        // the server-rendered defaults; a save on the edit page navigates
+        // home (`done`). The visitor's typing is only ever cleared by their
+        // own successful commit.
         ;(this.refs.form as HTMLFormElement).reset()
         this.checks.send('RESET')
-        // On the standalone edit page, a committed save navigates home.
         if (this.attrs.done) location.assign(String(this.attrs.done))
       } else {
         this.checks.send('REFUSED')
       }
     }
 
-    async cancel() {
-      await dispatch(DeskMachine, { type: 'CANCEL_EDIT' })
-    }
   }
 </script>
 
@@ -227,9 +221,9 @@
   button:hover {
     filter: brightness(1.08);
   }
-  button[data-cancel] {
-    background: var(--paper);
+  div a {
+    align-self: center;
+    font-size: 0.85rem;
     color: var(--ink-soft);
-    border-color: var(--rule);
   }
 </style>

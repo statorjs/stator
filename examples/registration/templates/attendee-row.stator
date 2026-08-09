@@ -12,17 +12,10 @@ const { attendee, desk } = Stator.props<{
 <li>
   <div>
     <strong><a href={`/edit/${attendee.id}`}>{attendee.name}</a></strong>
-    <span>{attendee.email}</span>
+    <span>{attendee.email} · <code>{attendee.id}</code></span>
   </div>
   <small data-ticket={attendee.ticket}>{attendee.ticket}</small>
   <RowSeats rid={attendee.id} seats={attendee.seats} />
-  <button
-    type="button"
-    aria-label={`Edit ${attendee.name}`}
-    on:click={() => desk.send({ type: 'EDIT', id: attendee.id })}
-  >
-    ✎
-  </button>
   <button
     type="button"
     data-remove
@@ -58,6 +51,10 @@ const { attendee, desk } = Stator.props<{
   }
   span {
     font-size: 0.8rem;
+    color: var(--ink-faint);
+  }
+  code {
+    font-size: 0.7rem;
     color: var(--ink-faint);
   }
   small {

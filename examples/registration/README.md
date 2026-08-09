@@ -35,13 +35,17 @@ the form keeps your typing.
 commit (`form.reset()` — back to server-rendered defaults). The inline seats
 editor snaps back only after a refusal, on `change`, never mid-typing.
 
-**Pre-filled controls, through both doors.** Pre-fill is an attribute at
-render, never a live binding — and the starter proves it through both render
-paths on purpose. The row's ✎ flips the in-page form into edit mode (the
-pre-filled form arrives as a patch), while the row's name links to
-`/edit/:id`, a plain navigable page (the pre-filled form is a full server
-render — URL-addressable, refresh- and back-button-native, and not live).
-Same island, two delivery pipelines.
+**Pre-filled controls.** Pre-fill is an attribute at render, never a live
+binding. A row's name links to `/edit/:id` — a plain navigable page whose
+form is server-rendered with the attendee's values. URL-addressable,
+refresh- and back-button-native, and deliberately not live.
+
+**Editing is an address, not machine state.** An earlier cut held an
+"editing" snapshot in the desk machine and flipped the in-page form — which
+meant the *mode* survived refresh while the typing (uncontrolled inputs)
+didn't. The rule it taught: a mode earns machine residence only when guards
+or domain logic act on it (a checkout's states qualify); a mode with one
+render-region consumer belongs to the URL.
 
 ## Layout
 

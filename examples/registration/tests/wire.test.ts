@@ -126,32 +126,9 @@ describe('the desk over the wire', () => {
     expect(r.committed).toBe(true)
   })
 
-  it('EDIT pre-fills the form server-side — the values are in the HTML', async () => {
-    const html = await page(sid)
-    const rid = html.match(/rid="([a-z0-9]+)"/)?.[1]!
-    expect((await send(sid, { type: 'EDIT', id: rid })).committed).toBe(true)
-    const editing = await page(sid)
-    // The edit form is SERVER-RENDERED with the attendee's values: pre-fill
-    // is an attribute at render, not a client write.
-    expect(editing).toMatch(/value="Party 0"|value="Waitlist Win"|value="Ada Lovelace"/)
-    expect(editing).toContain('save changes')
-    expect(editing).toContain('cancel')
-  })
-
   it('UPDATE amends the roster; onto a taken email it refuses', async () => {
     const html = await page(sid)
     const rid = html.match(/rid="([a-z0-9]+)"/)?.[1]!
-    const bad = await send(sid, {
-      type: 'UPDATE',
-      id: rid,
-      name: 'Renamed',
-      email: 'win@x.dev', // Waitlist Win's email — taken
-      seats: 1,
-      ticket: 'general',
-    })
-    // Refused unless rid IS Waitlist Win's row (own email is allowed) —
-    // either way the roster stays consistent; assert the good path below.
-    void bad
     const ok = await send(sid, {
       type: 'UPDATE',
       id: rid,
@@ -163,8 +140,16 @@ describe('the desk over the wire', () => {
     expect(ok.committed).toBe(true)
     const after = await page(sid)
     expect(after).toContain('Renamed Party')
-    // The update also ended edit mode: the register form is back.
-    expect(after).toContain('register')
+    // Amending onto ANOTHER attendee's email refuses.
+    const bad = await send(sid, {
+      type: 'UPDATE',
+      id: rid,
+      name: 'Renamed Party',
+      email: 'win@x.dev', // Waitlist Win's email — taken
+      seats: 1,
+      ticket: 'vip',
+    })
+    expect(bad.committed).toBe(false)
   })
 
   it('the edit ROUTE renders the form pre-filled — the other door, no patches involved', async () => {
@@ -217,12 +202,11 @@ describe('the desk over the wire', () => {
     expect(await page(sid)).toContain('Edited By Route')
   })
 
-  it('CANCEL_EDIT returns to the register form', async () => {
+  it('the roster row shows the id — the visible mapping to the edit URL', async () => {
     const html = await page(sid)
     const rid = html.match(/rid="([a-z0-9]+)"/)?.[1]!
-    await send(sid, { type: 'EDIT', id: rid })
-    expect(await page(sid)).toContain('save changes')
-    expect((await send(sid, { type: 'CANCEL_EDIT' })).committed).toBe(true)
-    expect(await page(sid)).not.toContain('save changes')
+    expect(html).toContain(`<code`)
+    expect(html).toContain(`>${rid}</code>`)
+    expect(html).toContain(`href="/edit/${rid}"`)
   })
 })
