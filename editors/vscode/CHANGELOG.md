@@ -1,5 +1,13 @@
 # stator-vscode
 
+## 1.1.0
+
+### Minor Changes
+
+- bc06fb5: The extension's bundled compiler now supports `{...rest}` attribute spread in templates — `<button {...rest}>` and `<Card {...rest} />` compile instead of raising a spread-not-supported error.
+- 49ff735: The extension's bundled compiler now accepts `on:` directives on component tags (directive forwarding) instead of raising a "not valid on a component" error, and types the `Stator.forwarded()` accessor.
+- 0e6eebd: The editor now flags typos on native HTML attributes — `<button typ=…>` is underlined instead of silently accepted — and understands components that extend a native element via `HTMLAttributes<Tag>`. Custom-element islands and SVG stay unchecked.
+
 ## 1.0.8
 
 ### Patch Changes
