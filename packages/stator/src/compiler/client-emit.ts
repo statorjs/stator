@@ -14,7 +14,7 @@ import { CompileError } from './diagnostics.ts'
  */
 
 const PRIMITIVES =
-  "import { StatorElement, defineElement, use, machine, bind, effect, dispatch } from '@statorjs/stator/client'"
+  "import { StatorElement, defineElement, use, machine, bind, bindSlot, effect, dispatch } from '@statorjs/stator/client'"
 
 export interface EmitClientInput {
   /** The author's `<script>` source. */
@@ -40,9 +40,20 @@ export function emitClientModule(input: EmitClientInput): string {
   const lines: string[] = []
   let i = 0
   for (const [marker, group] of byMarker) {
+    if (group[0]?.kind === 'slot') {
+      // Text slot: the runtime finds every `<!--sN-->` comment, materializes a
+      // text node per occurrence, and binds them all to the one thunk.
+      for (const d of group) {
+        const thunk = `() => (${rewriteMembers(d.expr, members)})`
+        const deps = `[${d.deps.map((dep) => `this.${dep}`).join(', ')}]`
+        lines.push(`    this.track(bindSlot(this, ${JSON.stringify(marker)}, ${deps}, ${thunk}))`)
+      }
+      continue
+    }
+    // Element wiring: every occurrence of the marker is wired — a marked
+    // element inside a `.map()` repeats per row.
     const node = `n${i++}`
-    lines.push(`    const ${node} = this.querySelector('[data-b="${marker}"]')`)
-    lines.push(`    if (${node}) {`)
+    lines.push(`    for (const ${node} of this.querySelectorAll('[data-b="${marker}"]')) {`)
     for (const d of group) lines.push(`      ${wireDirective(node, d, members)}`)
     lines.push('    }')
   }

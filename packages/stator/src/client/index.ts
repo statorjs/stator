@@ -4,7 +4,7 @@
  * island needs; these are also the symbols an author references directly.
  */
 
-export { bind, effect } from './bind.ts'
+export { bind, bindSlot, effect } from './bind.ts'
 export type { DispatchResult } from './dispatch.ts'
 export { dispatch } from './dispatch.ts'
 export { defineElement, StatorElement } from './element.ts'

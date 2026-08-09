@@ -171,6 +171,54 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     ts.isIdentifier(n.arguments[0]) &&
     n.arguments[0].text === eachParams.item
 
+  /** `read(<useField>, selector)` in a client island — the display binding for
+   *  a CLIENT-LOCAL machine (the `bind:`-as-display fold from the reactive-model
+   *  spec). Routed to client codegen — a text slot or an attribute directive —
+   *  never to the server shell, which has no such identifier. */
+  const isClientRead = (n: ts.Node): n is ts.CallExpression =>
+    opts.client !== undefined &&
+    ts.isCallExpression(n) &&
+    ts.isIdentifier(n.expression) &&
+    n.expression.text === 'read' &&
+    n.arguments.length >= 2 &&
+    n.arguments[0] !== undefined &&
+    ts.isIdentifier(n.arguments[0]) &&
+    opts.client.useFields.has(n.arguments[0].text)
+
+  /** A client read as a plain expression: `(selector)(field)`. Client-emit's
+   *  member rewriting turns `field` (and any use-field the selector closes
+   *  over) into `this.field`. */
+  const clientReadExpr = (call: ts.CallExpression): string =>
+    `(${call.arguments[1]!.getText(sf)})(${(call.arguments[0] as ts.Identifier).text})`
+
+  /** Slot markers live in their own `s<N>` namespace (element markers are
+   *  `b<N>`); the shell renders `<!--s0-->` and the client materializes one
+   *  text node per occurrence at setup. */
+  const allocSlotMarker = (): string => {
+    const client = opts.client
+    if (!client) throw new CompileError('stator: internal — slot marker outside client mode')
+    return `s${client.directives.filter((d) => d.kind === 'slot').length}`
+  }
+
+  /** Shell expressions must not contain a client-machine read — the shell
+   *  evaluates server-side where the `use()` field doesn't exist. Whole-
+   *  expression reads are routed to client codegen before this check. */
+  const assertNoClientRead = (n: ts.Node): void => {
+    if (!opts.client) return
+    // Nested JSX is lowered by contentOfChild, which routes its own client
+    // reads — don't descend into it from here.
+    if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n) || ts.isJsxFragment(n)) return
+    if (isClientRead(n)) {
+      throw new CompileError(
+        `stator: read(${(n.arguments[0] as ts.Identifier).text}, …) on a client machine must be ` +
+          `the entire expression — text position (\`{read(m, s => …)}\`) or attribute position ` +
+          `(\`attr={read(m, s => …)}\`). Compose derived values inside the selector.`,
+        loc(n),
+      )
+    }
+    ts.forEachChild(n, assertNoClientRead)
+  }
+
   // Map a node in the wrapped template back to a location in the original
   // `.stator` source (when source-mapping context was provided).
   const loc = (node: ts.Node): DiagnosticLocation | undefined => {
@@ -336,6 +384,21 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     if (ts.isJsxText(node)) return escapeText(cleanJsxText(node.getFullText(sf)))
     if (ts.isJsxExpression(node)) {
       if (!node.expression) return '' // `{}` or `{/* comment */}`
+      // Client-machine read in text position → a comment-marker slot; the
+      // client materializes a text node there at setup and binds it. The
+      // shell renders only the marker (islands paint client state at setup —
+      // same initial-paint behavior bind:text has today).
+      if (opts.client && isClientRead(node.expression)) {
+        const marker = allocSlotMarker()
+        const expr = clientReadExpr(node.expression)
+        opts.client.directives.push({
+          marker,
+          kind: 'slot',
+          expr,
+          deps: inferDeps(expr, opts.client.useFields),
+        })
+        return `<!--${marker}-->`
+      }
       // A plain `{item.field}` renders once (per the reactivity doctrine); a
       // `read(item, …)` is the live marker and is rewritten inside lowerExprText.
       return `\${${lowerExprText(node.expression)}}`
@@ -372,6 +435,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     if (ts.isJsxElement(expr) || ts.isJsxSelfClosingElement(expr) || ts.isJsxFragment(expr)) {
       return `html\`${contentOfChild(expr as unknown as ts.JsxChild)}\``
     }
+    assertNoClientRead(expr)
     // `read(item, selector)` → `itemBind(selector)` — a per-row live binding.
     if (isItemRead(expr)) {
       return `itemBind(${lowerExprText(expr.arguments[1]!)})`
@@ -442,9 +506,10 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       }
     }
 
-    // Client mode: collect this element's on:/bind: directives under one node
-    // marker, strip them from the server shell, emit `data-b="<marker>"` once.
-    const clientMarker = opts.client ? collectClientDirectives(attrs) : undefined
+    // Client mode: collect this element's on:/bind: directives AND client-read
+    // attribute bindings under one node marker, strip them from the server
+    // shell, emit `data-b="<marker>"` once.
+    const collected = opts.client ? collectClientDirectives(attrs) : undefined
 
     let out = ''
     for (const attr of attrs.properties) {
@@ -464,58 +529,85 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       ) {
         continue
       }
-      // In client mode, on:/bind: were collected above — don't emit them.
-      if (
-        opts.client &&
-        ts.isJsxAttribute(attr) &&
-        ts.isJsxNamespacedName(attr.name) &&
-        (attr.name.namespace.text === 'on' || attr.name.namespace.text === 'bind')
-      ) {
-        continue
-      }
+      // In client mode, collected directives/bindings don't render in the shell.
+      if (collected?.consumed.has(attr as ts.JsxAttribute)) continue
       const lowered = lowerAttribute(attr)
       if (lowered) out += ` ${lowered}`
     }
-    if (clientMarker) out += ` data-b="${clientMarker}"`
+    if (collected?.marker) out += ` data-b="${collected.marker}"`
     return out
   }
 
-  // Collect on:/bind: directives on one element into `opts.client.directives`,
-  // allocating a single node marker. Returns the marker, or undefined if the
-  // element has no client directives.
-  const collectClientDirectives = (attrs: ts.JsxAttributes): string | undefined => {
+  // Collect a client element's wiring — on:/bind: directives plus plain
+  // attributes whose value is a client-machine read — into
+  // `opts.client.directives` under a single node marker. Returns the marker
+  // (if any wiring was found) and the set of consumed attribute nodes the
+  // shell must not render.
+  const collectClientDirectives = (
+    attrs: ts.JsxAttributes,
+  ): { marker?: string; consumed: Set<ts.JsxAttribute> } => {
+    const consumed = new Set<ts.JsxAttribute>()
     const client = opts.client
-    if (!client) return undefined
+    if (!client) return { consumed }
     const pending: ClientDirective[] = []
     for (const attr of attrs.properties) {
-      if (!ts.isJsxAttribute(attr) || !ts.isJsxNamespacedName(attr.name)) continue
-      const ns = attr.name.namespace.text
-      const name = attr.name.name.text
-      if (ns !== 'on' && ns !== 'bind') continue
-      const expr = attrExpr(attr)
-      if (!expr) {
-        throw new CompileError(`stator: ${ns}:${name} requires a value ({...})`, loc(attr))
+      if (!ts.isJsxAttribute(attr)) continue
+      if (ts.isJsxNamespacedName(attr.name)) {
+        const ns = attr.name.namespace.text
+        const name = attr.name.name.text
+        if (ns !== 'on' && ns !== 'bind') continue
+        const expr = attrExpr(attr)
+        if (!expr) {
+          throw new CompileError(`stator: ${ns}:${name} requires a value ({...})`, loc(attr))
+        }
+        if (ns === 'on') {
+          pending.push({ marker: '', kind: 'on', event: name, expr, deps: [] })
+        } else {
+          pending.push({
+            marker: '',
+            kind: 'bind',
+            target: name,
+            expr,
+            deps: inferDeps(expr, client.useFields),
+          })
+        }
+        consumed.add(attr)
+        continue
       }
-      if (ns === 'on') {
-        pending.push({ marker: '', kind: 'on', event: name, expr, deps: [] })
-      } else {
+      // `attr={read(clientMachine, sel)}` — attribute-position client display
+      // binding (the read()-fold of bind:<attr>).
+      const init = attr.initializer
+      if (init && ts.isJsxExpression(init) && init.expression && isClientRead(init.expression)) {
+        const target = attr.name.getText(sf)
+        if (target === 'value' || target === 'checked') {
+          throw new CompileError(
+            `stator: read() can't live-drive ${target}= from a client machine — the control owns ` +
+              `its draft. Pre-fill with a server-rendered ${target} attribute, populate/reset via ` +
+              `ref: at safe moments, and capture input with a typed commit event. See the forms ` +
+              `guide.`,
+            loc(attr),
+          )
+        }
+        const expr = clientReadExpr(init.expression)
         pending.push({
           marker: '',
           kind: 'bind',
-          target: name,
+          target,
           expr,
           deps: inferDeps(expr, client.useFields),
         })
+        consumed.add(attr)
       }
     }
-    if (pending.length === 0) return undefined
-    // One marker per element (sequential): count distinct markers so far.
-    const marker = `b${new Set(client.directives.map((d) => d.marker)).size}`
+    if (pending.length === 0) return { consumed }
+    // One marker per element (sequential over ELEMENT markers — slots have
+    // their own `s<N>` namespace).
+    const marker = `b${new Set(client.directives.filter((d) => d.kind !== 'slot').map((d) => d.marker)).size}`
     for (const d of pending) {
       d.marker = marker
       client.directives.push(d)
     }
-    return marker
+    return { marker, consumed }
   }
 
   // `<children/>` → the default child bag entry; `<children name="x"/>` → the
