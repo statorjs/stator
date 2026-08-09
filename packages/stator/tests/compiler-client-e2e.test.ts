@@ -8,12 +8,12 @@ import type { HtmlFragment } from '../src/template/types.ts'
 
 const CLIENT = `<quantity-stepper>
   <button on:click={dec}>-</button>
-  <span bind:text={qty.lineTotal}></span>
+  <span>{read(qty, (q) => q.lineTotal)}</span>
   <button on:click={inc}>+</button>
 </quantity-stepper>
 
 <script>
-  const Qty = machine({ count: 1, unitPrice: 0, on: { INC: s => s.count++, DEC: s => s.count = Math.max(1, s.count-1) }, select: { lineTotal: s => s.unitPrice * s.count } })
+  const Qty = machine({ count: 1, unitPrice: 0 }, { on: { INC: (s) => { s.count++ }, DEC: (s) => { s.count = Math.max(1, s.count-1) } }, select: { lineTotal: (s) => s.unitPrice * s.count } })
   export class QuantityStepper extends StatorElement {
     static attrs = { unitPrice: Number }
     qty = use(Qty, () => ({ unitPrice: this.attrs.unitPrice }))
@@ -45,7 +45,7 @@ describe('compiler: client component end-to-end (3b stage 6a)', () => {
     const shell = fragment.html
 
     expect(shell).toContain('<quantity-stepper unit-price="98">')
-    expect(shell).toContain('data-b="b1"') // the bound span marker
+    expect(shell).toContain('<!--s0-->') // the read() slot marker
 
     // 2. Register the client element (the generated module, minus its import).
     const body = clientCode.replace(/^import .*$/gm, '').replace(/^\s*export /gm, '')
@@ -58,7 +58,7 @@ describe('compiler: client component end-to-end (3b stage 6a)', () => {
     holder.innerHTML = shell
     document.body.appendChild(holder)
     const el = holder.querySelector('quantity-stepper')!
-    const out = el.querySelector('[data-b="b1"]')!
+    const out = el.querySelector('span')!
 
     // Seed flowed server→client: lineTotal = unitPrice(98) * count(1) = 98.
     expect(out.textContent).toBe('98')

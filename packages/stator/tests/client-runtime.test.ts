@@ -26,18 +26,18 @@ describe('client runtime (3b stage 0)', () => {
     expect(Object.keys(Qty.selectors)).toContain('atMax')
   })
 
-  it('use() exposes live context + selectors and send() drives them (legacy one-bag form)', () => {
-    // The deprecated one-bag form must keep working — loose types (the
-    // instance view is any-keyed), same runtime behavior.
-    const Qty = machine({
-      count: 1,
-      on: {
-        INC: (s) => {
-          s.count++
+  it('use() exposes live context + selectors and send() drives them', () => {
+    const Qty = machine(
+      { count: 1 },
+      {
+        on: {
+          INC: (s) => {
+            s.count++
+          },
         },
+        select: { doubled: (s) => s.count * 2 },
       },
-      select: { doubled: (s) => s.count * 2 },
-    })
+    )
     const inst = use(Qty)
     inst.__actor.start()
     expect(inst.count).toBe(1)

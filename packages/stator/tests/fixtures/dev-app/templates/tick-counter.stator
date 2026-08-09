@@ -1,10 +1,10 @@
 <tick-counter>
   <button on:click={inc}>tick</button>
-  <span bind:text={n.count}></span>
+  <span>{read(n, (x) => x.count)}</span>
 </tick-counter>
 
 <script>
-  const N = machine({ count: 0, on: { INC: s => s.count++ } })
+  const N = machine({ count: 0 }, { on: { INC: (s) => { s.count++ } } })
   export class TickCounter extends StatorElement {
     n = use(N)
     inc() { this.n.send('INC') }

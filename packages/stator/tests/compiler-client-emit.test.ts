@@ -19,7 +19,7 @@ describe('compiler: rewriteMembers', () => {
 
 describe('compiler: emitClientModule (3b stage 5)', () => {
   const script = `
-const Qty = machine({ count: 1, on: { INC: s => s.count++, DEC: s => s.count = Math.max(1, s.count-1) } })
+const Qty = machine({ count: 1 }, { on: { INC: (s) => { s.count++ }, DEC: (s) => { s.count = Math.max(1, s.count-1) } } })
 export class QuantityStepper extends StatorElement {
   qty = use(Qty)
   inc() { this.qty.send('INC') }
@@ -28,14 +28,8 @@ export class QuantityStepper extends StatorElement {
 
   const directives: ClientDirective[] = [
     { marker: 'b0', kind: 'on', event: 'click', expr: 'dec', deps: [] },
-    {
-      marker: 'b1',
-      kind: 'bind',
-      target: 'text',
-      expr: 'qty.count',
-      deps: ['qty'],
-    },
-    { marker: 'b2', kind: 'on', event: 'click', expr: 'inc', deps: [] },
+    { marker: 's0', kind: 'slot', expr: 'qty.count', deps: ['qty'] },
+    { marker: 'b1', kind: 'on', event: 'click', expr: 'inc', deps: [] },
   ]
   const members = new Set(['qty', 'inc', 'dec'])
 
@@ -53,7 +47,7 @@ export class QuantityStepper extends StatorElement {
     expect(out).toContain('class __QuantityStepperImpl extends QuantityStepper')
     expect(out).toContain('this.querySelectorAll("[data-b=\\"b0\\"]")')
     expect(out).toContain('addEventListener("click", (e) => this.dec(e))')
-    expect(out).toContain('bind([this.qty], () => (this.qty.count)')
+    expect(out).toContain('bindSlot(this, "s0", [this.qty], () => (this.qty.count))')
     expect(out).toContain('defineElement(__QuantityStepperImpl, "quantity-stepper")')
   })
 
@@ -74,14 +68,14 @@ export class QuantityStepper extends StatorElement {
 
     const holder = document.createElement('div')
     holder.innerHTML =
-      '<quantity-stepper><button data-b="b0">-</button><span data-b="b1"></span><button data-b="b2">+</button></quantity-stepper>'
+      '<quantity-stepper><button data-b="b0">-</button><span><!--s0--></span><button data-b="b1">+</button></quantity-stepper>'
     document.body.appendChild(holder)
     const el = holder.querySelector('quantity-stepper')!
-    const out1 = el.querySelector('[data-b="b1"]')!
+    const out1 = el.querySelector('span')!
 
     expect(out1.textContent).toBe('1') // initial paint on connect
-    ;(el.querySelector('[data-b="b2"]') as HTMLElement).click() // inc
-    ;(el.querySelector('[data-b="b2"]') as HTMLElement).click()
+    ;(el.querySelector('[data-b="b1"]') as HTMLElement).click() // inc
+    ;(el.querySelector('[data-b="b1"]') as HTMLElement).click()
     expect(out1.textContent).toBe('3')
     ;(el.querySelector('[data-b="b0"]') as HTMLElement).click() // dec
     expect(out1.textContent).toBe('2')

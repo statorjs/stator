@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { CompileError } from '../src/compiler/diagnostics.ts'
 import { lowerTemplate } from '../src/compiler/lower.ts'
 
 describe('compiler: component invocation (stage 1)', () => {
@@ -49,8 +48,8 @@ describe('compiler: component invocation (stage 1)', () => {
     )
   })
 
-  it('still rejects bind:/ref: forwarding to a component (on:* only, for now)', () => {
-    expect(() => lowerTemplate('<Button bind:value={v} />')).toThrow(CompileError)
+  it('still rejects ref: forwarding to a component (on:* only, for now)', () => {
+    expect(() => lowerTemplate('<Button bind:value={v} />')).toThrow(/removed in 2\.0/)
   })
 
   it('lowers spread props on a component to an object spread', () => {

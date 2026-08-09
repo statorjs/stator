@@ -61,7 +61,7 @@ describe('compiler: lowerTemplate (JSX → html`` expression)', () => {
     )
   })
 
-  it('rejects unsupported directives (bind:/ref:) until Phase 3b', () => {
+  it('rejects bind: (removed in 2.0) and unknown directives', () => {
     expect(() => lowerTemplate('<span bind:text={x}></span>')).toThrow(CompileError)
   })
 })
