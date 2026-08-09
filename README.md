@@ -88,7 +88,7 @@ root tag), not a pragma:
 
 ```
 <theme-toggle>
-  <button on:click={toggle}><span bind:text={theme.label}></span></button>
+  <button on:click={toggle}>{read(theme, (t) => t.label)}</button>
 </theme-toggle>
 
 <script>

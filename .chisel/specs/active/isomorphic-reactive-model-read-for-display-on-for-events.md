@@ -2,7 +2,7 @@
 title: "Isomorphic reactive model: read() for display, on: for events"
 status: draft
 created: 2026-08-07
-updated: 2026-08-08
+updated: 2026-08-09
 area: runtime
 ---
 
@@ -229,12 +229,25 @@ direction, not a decision — and per the roadmap's promotion convention, the
 
 ## Open Questions
 
-- Text-position `{read(clientMachine, …)}` in an island: does it lower to a
-  managed text-slot + client write cleanly, and how does it interact with the
-  server-rendered shell that hosts the island?
 - `class:list` / `style:list` are compound *display* directives — do they also
   fold toward `read()`-composed attributes, or stay as sugar?
-- Does client `read()` lower in `value`/`checked` position at all, or does the
-  compiler warn there? The focused-write doctrine argues no live writeback into
-  form controls; initial-render value may still be legitimate.
+
+### Resolved (2026-08-09, Minor B built)
+
+- **Text position lowers cleanly.** The shell renders an `<!--sN-->` comment
+  where the expression sat; at element setup the client materializes one text
+  node per occurrence and binds them all (`bindSlot`, `client/bind.ts`) — so a
+  slot inside a props-driven `.map()` updates every row. Initial paint matches
+  `bind:text` exactly (empty at SSR, painted at setup): the vision spec's
+  "static initial context drives server paint" was never implemented, so there
+  is nothing to regress. Attribute position reuses the element-marker `bind`
+  machinery. Detection: `read(x, …)` routes to client codegen iff `x` is a
+  `use()` field; embedded (non-whole-expression) client reads are a located
+  compile error pointing at selector composition.
+- **`value`/`checked`: rejected with a located CompileError** naming the
+  covered paths — pre-fill via a server-rendered attribute, populate/reset via
+  `ref:` at safe moments, capture via a typed commit event. Live client writes
+  into form controls stay non-surface (decided 2026-08-09).
+- **The row-0 marker defect is fixed in the same stroke**: element markers wire
+  every occurrence (`querySelectorAll`), not just the first.
 - Does anything but `ref:` remain a directive after this?

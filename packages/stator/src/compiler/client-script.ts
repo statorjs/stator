@@ -216,9 +216,13 @@ function loc(file?: string): DiagnosticLocation | undefined {
  * emits the wiring from this.
  */
 export interface ClientDirective {
-  /** Unique node marker, e.g. `b0`. The element gets `data-b="b0"`. */
+  /** Node marker. Element wiring (`on`/`bind`): `b<N>`, rendered as
+   *  `data-b="b<N>"` and resolved via querySelectorAll (every occurrence is
+   *  wired — a marker inside a `.map()` repeats). Text slots (`slot`): `s<N>`,
+   *  rendered as an `<!--s<N>-->` comment the client materializes a text node
+   *  after. */
   marker: string
-  kind: 'on' | 'bind'
+  kind: 'on' | 'bind' | 'slot'
   /** on: the DOM event name (`click`). */
   event?: string
   /** bind: the target (`text` / `html` / `value` / `checked` / `disabled` / attr). */

@@ -1,7 +1,7 @@
 <variant-picker>
   <div class="vp-stage" ref:stage>{props.plate}</div>
   <div class="vp-row">
-    <span class="vp-caption">Color · <span bind:text={sel.colorLabel}></span></span>
+    <span class="vp-caption">Color · <span>{read(sel, (s) => s.colorLabel)}</span></span>
     <div class="vp-swatches" ref:swatches>
       {props.colorways.map((c) => (
         <button
@@ -16,7 +16,7 @@
     </div>
   </div>
   <div class="vp-row">
-    <span class="vp-caption">Size · <span bind:text={sel.sizeLabel}></span></span>
+    <span class="vp-caption">Size · <span>{read(sel, (s) => s.sizeLabel)}</span></span>
     <div class="vp-sizes" ref:sizes>
       {props.sizes.map((sz) => (
         <button type="button" class="vp-size" data-size={sz}>
