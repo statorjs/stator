@@ -120,7 +120,21 @@ NO context — a session machine that is pure guards + emits.
 in the model supports read-once state today (guestbook fakes it with
 `?error=` query params, which is the address-shaped answer again).
 
-## 9. read() display in the island needed nothing (2026-08-09, build) — GOOD
+## 9. `checked={false}` rendered a checked checkbox (2026-08-09, browser) — FIXED IN-PR
+
+Third framework bug the starter surfaced: PLAIN attribute interpolation
+stringified booleans, so `checked={props.updates ?? false}` rendered
+`checked="false"` — a present (thus truthy) boolean attribute. Symptom: the
+opt-in "couldn't be saved" (opt-out round trips re-rendered checked). The
+read-binding and item-read paths already had boolean-absent semantics
+(`builder.omitCurrentAttribute()`); the static path simply never adopted
+them — so a static render disagreed with what a live patch of the same
+attribute would do. Fixed in `template/html.ts` + regression tests both
+tiers. Pattern note: all three framework bugs here were SEAM DISAGREEMENTS
+(d.ts vs hydrate contract, bundle A vs bundle B identity, static render vs
+patch semantics) — the starter's value is walking the seams.
+
+## 10. read() display in the island needed nothing (2026-08-09, build) — GOOD
 
 The four error lines and the refusal line are client-machine `read()` slots
 (Minor B) — declared union on the checks machine, per-field events, zero

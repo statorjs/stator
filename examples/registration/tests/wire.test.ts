@@ -155,6 +155,24 @@ describe('the desk over the wire', () => {
       )
     ).text()
     expect(editPage).toMatch(/name="updates"[^>]*checked/)
+    // And the opt-OUT round trip: saving updates:false renders the box
+    // UNCHECKED (boolean-absent attr semantics — the checked attribute must
+    // be able to disappear).
+    await send(sid, {
+      type: 'UPDATE',
+      id: rid,
+      name: 'Renamed Party',
+      email: 'renamed@x.dev',
+      seats: 1,
+      ticket: 'vip',
+      updates: false,
+    })
+    const optedOut = await (
+      await app.fetch(
+        new Request(`http://test/edit/${rid}`, { headers: { Cookie: `stator_sid=${sid}` } }),
+      )
+    ).text()
+    expect(optedOut).not.toMatch(/name="updates"[^>]*checked/)
     // Amending onto ANOTHER attendee's email refuses.
     const bad = await send(sid, {
       type: 'UPDATE',
