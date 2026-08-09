@@ -48,7 +48,7 @@ describe('ticketError', () => {
 })
 
 describe('cleanRegistration', () => {
-  it('normalizes: trimmed name, lowercased email', () => {
+  it('normalizes: trimmed name, lowercased email, updates defaulting false', () => {
     const clean = cleanRegistration({
       name: '  Ada Lovelace ',
       email: ' Ada@Lovelace.DEV ',
@@ -60,7 +60,12 @@ describe('cleanRegistration', () => {
       email: 'ada@lovelace.dev',
       seats: 2,
       ticket: 'general',
+      updates: false,
     })
+    expect(
+      cleanRegistration({ name: 'Ada', email: 'a@b.c', seats: 1, ticket: 'vip', updates: true })!
+        .updates,
+    ).toBe(true)
   })
   it('refuses when any shape rule fails', () => {
     expect(cleanRegistration({ name: 'A', email: 'a@b.c', seats: 1, ticket: 'vip' })).toBeNull()

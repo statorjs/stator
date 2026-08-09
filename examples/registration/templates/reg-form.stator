@@ -29,10 +29,14 @@
 
     {props.mode === 'update' ? null : (
       <label data-consent>
-        <input name="consent" type="checkbox" required />
-        the event may email me about schedule changes
+        <input name="terms" type="checkbox" required />
+        I agree to the event terms — required, and the platform enforces it
       </label>
     )}
+    <label data-consent>
+      <input name="updates" type="checkbox" checked={props.updates ?? false} />
+      email me about schedule changes (optional)
+    </label>
 
     <p role="alert" data-refusal>{read(checks, (c) => c.refusal)}</p>
     <p role="status">{read(checks, (c) => c.confirmed)}</p>
@@ -130,7 +134,13 @@
       this.checks.send({ type: 'CHECK_SEATS', value: seats })
       if (this.checks.nameError || this.checks.emailError || this.checks.seatsError) return
 
-      const fields = { name, email, seats, ticket: this.field('ticket').value }
+      const fields = {
+        name,
+        email,
+        seats,
+        ticket: this.field('ticket').value,
+        updates: this.field('updates').checked,
+      }
       const result =
         this.attrs.mode === 'update'
           ? await dispatch(DeskMachine, { type: 'UPDATE', id: String(this.attrs.rid), ...fields })

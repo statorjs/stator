@@ -31,7 +31,7 @@ function sidOf(res: Response): string | null {
 
 async function register(
   sid: string,
-  fields: { name: string; email: string; seats: number; ticket?: string },
+  fields: { name: string; email: string; seats: number; ticket?: string; updates?: boolean },
 ): Promise<{ committed: boolean }> {
   const res = await app.fetch(
     new Request('http://test/__events', {
@@ -80,7 +80,12 @@ describe('the desk over the wire', () => {
   })
 
   it('registers a clean party and the roster shows it', async () => {
-    const r = await register(sid, { name: 'Ada Lovelace', email: 'ada@lovelace.dev', seats: 2 })
+    const r = await register(sid, {
+      name: 'Ada Lovelace',
+      email: 'ada@lovelace.dev',
+      seats: 2,
+      updates: true,
+    })
     expect(r.committed).toBe(true)
     const html = await page(sid)
     expect(html).toContain('Ada Lovelace')
@@ -137,10 +142,19 @@ describe('the desk over the wire', () => {
       email: 'renamed@x.dev',
       seats: 1,
       ticket: 'vip',
+      updates: true,
     })
     expect(ok.committed).toBe(true)
     const after = await page(sid)
     expect(after).toContain('Renamed Party')
+    // Checkbox pre-fill is a server-rendered `checked` attribute like any
+    // other — the opt-in from the update shows on the edit page.
+    const editPage = await (
+      await app.fetch(
+        new Request(`http://test/edit/${rid}`, { headers: { Cookie: `stator_sid=${sid}` } }),
+      )
+    ).text()
+    expect(editPage).toMatch(/name="updates"[^>]*checked/)
     // Amending onto ANOTHER attendee's email refuses.
     const bad = await send(sid, {
       type: 'UPDATE',

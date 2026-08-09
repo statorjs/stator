@@ -7,13 +7,15 @@ export type Attendee = {
   email: string
   seats: number
   ticket: string
+  /** Marketing opt-in — optional, carried through the typed commit path. */
+  updates: boolean
 }
 
 type RosterContext = { attendees: Attendee[]; capacity: number }
 
 type RosterEvents =
-  | { type: 'RECORD'; name: string; email: string; seats: number; ticket: string }
-  | { type: 'AMEND'; id: string; name: string; email: string; seats: number; ticket: string }
+  | { type: 'RECORD'; name: string; email: string; seats: number; ticket: string; updates?: boolean }
+  | { type: 'AMEND'; id: string; name: string; email: string; seats: number; ticket: string; updates?: boolean }
   | { type: 'RESIZE'; id: string; seats: number }
   | { type: 'DROP'; id: string }
 

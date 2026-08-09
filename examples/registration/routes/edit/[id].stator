@@ -33,6 +33,7 @@ if (!attendee) Stator.response.status = 404
         email={attendee.email}
         seats={attendee.seats}
         ticket={attendee.ticket}
+        updates={attendee.updates}
         done="/"
       />
       <p><a href="/">← back to the desk</a></p>

@@ -41,6 +41,9 @@ export type Registration = {
   email: string
   seats: number
   ticket: Ticket
+  /** Marketing opt-in — optional by nature, so it carries no rule; it rides
+   *  the clean shape as a plain boolean (absent = false). */
+  updates: boolean
 }
 
 /** Normalize a raw submission, or refuse it: trimmed name, lowercased email,
@@ -51,6 +54,7 @@ export function cleanRegistration(raw: {
   email: string
   seats: number
   ticket: string
+  updates?: boolean
 }): Registration | null {
   if (nameError(raw.name) || emailError(raw.email) || seatsError(raw.seats)) return null
   if (ticketError(raw.ticket)) return null
@@ -59,5 +63,6 @@ export function cleanRegistration(raw: {
     email: raw.email.trim().toLowerCase(),
     seats: raw.seats,
     ticket: raw.ticket as Ticket,
+    updates: raw.updates === true,
   }
 }

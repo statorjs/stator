@@ -22,8 +22,8 @@ type DeskContext = Record<string, never>
 // render-region consumer belongs to the URL — /edit/:id owns it now.
 
 type DeskEvents =
-  | { type: 'REGISTER'; name: string; email: string; seats: number; ticket: string }
-  | { type: 'UPDATE'; id: string; name: string; email: string; seats: number; ticket: string }
+  | { type: 'REGISTER'; name: string; email: string; seats: number; ticket: string; updates?: boolean }
+  | { type: 'UPDATE'; id: string; name: string; email: string; seats: number; ticket: string; updates?: boolean }
   | { type: 'SET_SEATS'; id: string; seats: number }
   | { type: 'REMOVE'; id: string }
 
@@ -43,10 +43,10 @@ const DeskMachine = defineMachine({
 
   emits: {
     REGISTERED: {
-      payload: (_ctx: DeskContext, ev: { name: string; email: string; seats: number; ticket: string }) => {
+      payload: (_ctx: DeskContext, ev: { name: string; email: string; seats: number; ticket: string; updates?: boolean }) => {
         const clean = cleanRegistration(ev)
         // The guard already passed; clean cannot be null here.
-        return clean ?? { name: '', email: '', seats: 0, ticket: 'general' }
+        return clean ?? { name: '', email: '', seats: 0, ticket: 'general', updates: false }
       },
     },
     SEATS_CHANGED: {
@@ -59,9 +59,9 @@ const DeskMachine = defineMachine({
       payload: (_ctx: DeskContext, ev: { id: string }) => ({ id: ev.id }),
     },
     UPDATED: {
-      payload: (_ctx: DeskContext, ev: { id: string; name: string; email: string; seats: number; ticket: string }) => {
+      payload: (_ctx: DeskContext, ev: { id: string; name: string; email: string; seats: number; ticket: string; updates?: boolean }) => {
         const clean = cleanRegistration(ev)
-        return { id: ev.id, ...(clean ?? { name: '', email: '', seats: 0, ticket: 'general' }) }
+        return { id: ev.id, ...(clean ?? { name: '', email: '', seats: 0, ticket: 'general', updates: false }) }
       },
     },
   },

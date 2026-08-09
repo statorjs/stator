@@ -14,13 +14,14 @@ const record = (name: string, email: string, seats = 1, ticket = 'general') => (
 })
 
 describe('the roster', () => {
-  it('records a clean registration, normalized', () => {
+  it('records a clean registration, normalized, opt-in carried through', () => {
     const actor = createActor(RosterMachine).start()
-    actor.send(record(' Ada Lovelace ', ' Ada@Lovelace.DEV ', 2))
+    actor.send({ ...record(' Ada Lovelace ', ' Ada@Lovelace.DEV ', 2), updates: true })
     const { attendees } = actor.getSnapshot().context
     expect(attendees).toHaveLength(1)
     expect(attendees[0]!.name).toBe('Ada Lovelace')
     expect(attendees[0]!.email).toBe('ada@lovelace.dev')
+    expect(attendees[0]!.updates).toBe(true)
   })
 
   it('refuses a duplicate email, case-insensitively', () => {
