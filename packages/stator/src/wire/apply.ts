@@ -8,6 +8,7 @@
  * CustomEvent on `window` (the inspector's contract), regardless of which
  * path applied it.
  */
+import { setAttr } from './attr-value.ts'
 import type { Directive, Patch } from './index.ts'
 import {
   elementAt,
@@ -74,8 +75,7 @@ function applyPatch(
       return null
     }
     if (patch.op === 'text') element.textContent = patch.value
-    else if (patch.value === null) element.removeAttribute(patch.name)
-    else element.setAttribute(patch.name, patch.value)
+    else setAttr(element, patch.name, patch.value)
     return element
   }
 

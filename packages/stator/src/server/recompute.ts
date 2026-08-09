@@ -1,7 +1,7 @@
 import { renderBranchBody } from '../template/conditional.ts'
 import { coerceKeys, renderKeyedItem, renderListBody } from '../template/each.ts'
+import { attrValue, sanitizeAttr, textValue } from '../wire/attr-value.ts'
 import type { Patch } from '../wire/index.ts'
-import { isUrlAttribute, safeAttrUrl } from '../wire/safe-url.ts'
 import {
   type ItemBinding,
   keyedScopePrefix,
@@ -34,7 +34,7 @@ function diffItemBindings(
     ib.lastValue = nv
     if (ib.kind === 'text') {
       pending.push({
-        patch: { target: { kind: 'slot', id: ib.slotId }, op: 'text', value: stringify(nv) },
+        patch: { target: { kind: 'slot', id: ib.slotId }, op: 'text', value: textValue(nv) },
         sourceSlot: ib.slotId,
       })
     } else {
@@ -43,7 +43,7 @@ function diffItemBindings(
           target: { kind: 'element', id: ib.parentId },
           op: 'attr',
           name: ib.attrName,
-          value: sanitizeAttrWire(ib.attrName, attrWireValue(nv)),
+          value: sanitizeAttr(ib.attrName, attrValue(nv)),
         },
         sourceSlot: ib.parentId,
       })
@@ -104,7 +104,7 @@ function recomputeInner(state: RenderState, machineName: string, runtime: Sessio
           patch: {
             target: { kind: 'slot', id: slotId },
             op: 'text',
-            value: stringify(newValue),
+            value: textValue(newValue),
           },
           sourceSlot: slotId,
         })
@@ -117,7 +117,7 @@ function recomputeInner(state: RenderState, machineName: string, runtime: Sessio
             target: { kind: 'element', id: binding.parentId },
             op: 'attr',
             name: binding.attrName,
-            value: sanitizeAttrWire(binding.attrName, attrWireValue(newValue)),
+            value: sanitizeAttr(binding.attrName, attrValue(newValue)),
           },
           sourceSlot: slotId,
         })
@@ -297,12 +297,6 @@ function arrayShallowEqual(a: readonly unknown[], b: readonly unknown[]): boolea
   return true
 }
 
-function stringify(v: unknown): string {
-  if (v == null) return ''
-  if (typeof v === 'string') return v
-  return String(v)
-}
-
 /** Baseline invalidation marker — never equal to any real value or key. */
 const NEVER_SYNCED = Symbol('stator.never-synced')
 
@@ -368,17 +362,3 @@ export function initialSyncPatches(state: RenderState, runtime: SessionRuntime):
 /** Attr-binding wire semantics, mirroring the render side: false/null/
  *  undefined → null (attribute removed), true → '' (present, empty),
  *  anything else stringified. */
-function attrWireValue(v: unknown): string | null {
-  if (v === false || v === null || v === undefined) return null
-  if (v === true) return ''
-  return stringify(v)
-}
-
-/** Mirror of html.ts `sanitizeAttrValue` for the live-update path: strip a
- *  javascript:/vbscript: value from a url-bearing attribute patch so a binding
- *  that was safe at first render can't turn dangerous via a diff. Null
- *  (attribute-absent) passes through. */
-function sanitizeAttrWire(attrName: string, value: string | null): string | null {
-  if (value === null) return null
-  return isUrlAttribute(attrName) ? safeAttrUrl(value) : value
-}

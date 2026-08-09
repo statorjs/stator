@@ -20,7 +20,7 @@
 
 import ts from 'typescript'
 import { analyzeScriptClasses } from './client-script.ts'
-import { componentPropsType, extractFrontmatterTypes } from './dts.ts'
+import { statorPropsType } from './dts.ts'
 import { type ScannedRegions, scanRegions } from './split.ts'
 
 /** A contiguous run mapping generated code back to source, 1:1 over its length. */
@@ -174,7 +174,14 @@ function buildServerTsx(regions: ScannedRegions): VirtualFile {
   // is typed from `Stator.props<P>()` (same extraction as the .d.ts generator),
   // so `<Component bad={...}/>` in OTHER .stator files is checked in-editor.
   // Named prop types resolve because their type/interface decls hoisted above.
-  const propsT = componentPropsType(extractFrontmatterTypes(fm).propsType, regions.template.content)
+  const { propsT, needsReadResult } = statorPropsType(
+    fm,
+    regions.template.content,
+    regions.scripts.map((s) => s.content),
+  )
+  if (needsReadResult) {
+    code += "type __SReadResult<T> = import('@statorjs/stator/template').ReadResult<T>\n"
+  }
   code += `export default function (_props: ${propsT}) {\n`
   for (const seg of body) {
     code += '  '

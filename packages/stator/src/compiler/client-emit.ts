@@ -1,4 +1,5 @@
 import ts from 'typescript'
+import { elementMarkerSelector } from '../wire/island-markers.ts'
 import type { ClientDirective, ClientElement } from './client-script.ts'
 import { CompileError } from './diagnostics.ts'
 
@@ -14,7 +15,7 @@ import { CompileError } from './diagnostics.ts'
  */
 
 const PRIMITIVES =
-  "import { StatorElement, defineElement, use, machine, bind, bindSlot, effect, dispatch } from '@statorjs/stator/client'"
+  "import { StatorElement, defineElement, use, machine, bind, bindSlot, effect, dispatch, attrValue, setAttr } from '@statorjs/stator/client'"
 
 export interface EmitClientInput {
   /** The author's `<script>` source. */
@@ -53,7 +54,9 @@ export function emitClientModule(input: EmitClientInput): string {
     // Element wiring: every occurrence of the marker is wired — a marked
     // element inside a `.map()` repeats per row.
     const node = `n${i++}`
-    lines.push(`    for (const ${node} of this.querySelectorAll('[data-b="${marker}"]')) {`)
+    lines.push(
+      `    for (const ${node} of this.querySelectorAll(${JSON.stringify(elementMarkerSelector(marker))})) {`,
+    )
     for (const d of group) lines.push(`      ${wireDirective(node, d, members)}`)
     lines.push('    }')
   }
@@ -139,8 +142,8 @@ function emitWriter(node: string, target: string): string {
     case 'checked':
       return `(v) => { if (${node}.${target} !== !!v) ${node}.${target} = !!v }`
     default:
-      // arbitrary attribute
-      return `(v) => { if (v == null || v === false) ${node}.removeAttribute(${JSON.stringify(target)}); else ${node}.setAttribute(${JSON.stringify(target)}, v === true ? '' : String(v)) }`
+      // arbitrary attribute — the shared attr contract (wire/attr-value.ts)
+      return `(v) => setAttr(${node}, ${JSON.stringify(target)}, attrValue(v))`
   }
 }
 
