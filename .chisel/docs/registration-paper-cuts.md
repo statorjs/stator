@@ -89,7 +89,16 @@ form is in the HTML (wire-testable with curl, no browser needed). Notes:
 - The arm flip replaces the island wholesale, so update-mode teardown is free
   and the uncontrolled inputs never need a writeback.
 
-## 7. read() display in the island needed nothing (2026-08-09, build) — GOOD
+## 7. Pre-fill proven through BOTH render pipelines (2026-08-09, build) — GOOD
+
+Tony's call: the arm-flip edit delivers the pre-filled form through the patch
+pipeline (recompute → `html` op → island upgrades in patched DOM), which is a
+different code path from a full page render. Added `/edit/:id` — same island,
+navigation-rendered, non-live, param → read → 404 — so both pipelines are
+pinned by wire tests. The island grew one `done` attr (navigate on committed
+save); nothing else changed. No friction found in either path.
+
+## 8. read() display in the island needed nothing (2026-08-09, build) — GOOD
 
 The four error lines and the refusal line are client-machine `read()` slots
 (Minor B) — declared union on the checks machine, per-field events, zero

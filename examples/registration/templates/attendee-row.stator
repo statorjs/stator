@@ -11,7 +11,7 @@ const { attendee, desk } = Stator.props<{
 ---
 <li>
   <div>
-    <strong>{attendee.name}</strong>
+    <strong><a href={`/edit/${attendee.id}`}>{attendee.name}</a></strong>
     <span>{attendee.email}</span>
   </div>
   <small data-ticket={attendee.ticket}>{attendee.ticket}</small>
@@ -47,6 +47,14 @@ const { attendee, desk } = Stator.props<{
   }
   strong {
     font-weight: 600;
+  }
+  strong a {
+    color: var(--ink);
+    text-decoration: none;
+  }
+  strong a:hover {
+    color: var(--accent);
+    text-decoration: underline;
   }
   span {
     font-size: 0.8rem;

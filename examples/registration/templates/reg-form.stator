@@ -90,7 +90,7 @@
   )
 
   export class RegForm extends StatorElement {
-    static attrs = { mode: String, rid: String }
+    static attrs = { mode: String, rid: String, done: String }
     checks = use(Checks)
 
     field(name: string): HTMLInputElement {
@@ -136,6 +136,8 @@
         // ever cleared by their own successful commit.
         ;(this.refs.form as HTMLFormElement).reset()
         this.checks.send('RESET')
+        // On the standalone edit page, a committed save navigates home.
+        if (this.attrs.done) location.assign(String(this.attrs.done))
       } else {
         this.checks.send('REFUSED')
       }

@@ -167,6 +167,56 @@ describe('the desk over the wire', () => {
     expect(after).toContain('register')
   })
 
+  it('the edit ROUTE renders the form pre-filled — the other door, no patches involved', async () => {
+    const html = await page(sid)
+    const rid = html.match(/rid="([a-z0-9]+)"/)?.[1]!
+    const res = await app.fetch(
+      new Request(`http://test/edit/${rid}`, { headers: { Cookie: `stator_sid=${sid}` } }),
+    )
+    expect(res.status).toBe(200)
+    const editPage = await res.text()
+    expect(editPage).toContain('Edit registration')
+    expect(editPage).toMatch(/value="[^"]+"/) // server-rendered pre-fill
+    expect(editPage).toContain('save changes')
+    expect(editPage).toContain(`rid="${rid}"`)
+  })
+
+  it('the edit route 404s for an unknown id', async () => {
+    const res = await app.fetch(
+      new Request('http://test/edit/nope', { headers: { Cookie: `stator_sid=${sid}` } }),
+    )
+    expect(res.status).toBe(404)
+    expect(await res.text()).toContain('No such registration')
+  })
+
+  it('UPDATE dispatched from the edit route commits', async () => {
+    const html = await page(sid)
+    const rid = html.match(/rid="([a-z0-9]+)"/)?.[1]!
+    const res = await app.fetch(
+      new Request('http://test/__events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Stator-Route': `GET /edit/${rid}`,
+          Cookie: `stator_sid=${sid}`,
+        },
+        body: JSON.stringify({
+          machine: 'DeskMachine',
+          event: {
+            type: 'UPDATE',
+            id: rid,
+            name: 'Edited By Route',
+            email: 'edited-by-route@x.dev',
+            seats: 1,
+            ticket: 'student',
+          },
+        }),
+      }),
+    )
+    expect(((await res.json()) as { committed: boolean }).committed).toBe(true)
+    expect(await page(sid)).toContain('Edited By Route')
+  })
+
   it('CANCEL_EDIT returns to the register form', async () => {
     const html = await page(sid)
     const rid = html.match(/rid="([a-z0-9]+)"/)?.[1]!

@@ -35,8 +35,13 @@ the form keeps your typing.
 commit (`form.reset()` — back to server-rendered defaults). The inline seats
 editor snaps back only after a refusal, on `change`, never mid-typing.
 
-**Pre-filled controls.** Each roster row's seats input is server-rendered with
-its value — pre-fill is an attribute at render, not a live binding.
+**Pre-filled controls, through both doors.** Pre-fill is an attribute at
+render, never a live binding — and the starter proves it through both render
+paths on purpose. The row's ✎ flips the in-page form into edit mode (the
+pre-filled form arrives as a patch), while the row's name links to
+`/edit/:id`, a plain navigable page (the pre-filled form is a full server
+render — URL-addressable, refresh- and back-button-native, and not live).
+Same island, two delivery pipelines.
 
 ## Layout
 
@@ -48,5 +53,6 @@ templates/reg-form.stator      the form island (client checks, typed commit)
 templates/row-seats.stator     inline seats editor (uncontrolled, commit on change)
 templates/attendee-row.stator  one roster row
 routes/index.stator   the live desk page
+routes/edit/[id].stator  the standalone edit page (full server render, not live)
 tests/                rules, roster, and the full wire arc
 ```

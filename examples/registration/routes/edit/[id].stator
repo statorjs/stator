@@ -1,0 +1,67 @@
+---
+import { TICKETS } from '../../lib/rules.ts'
+import RosterMachine from '../../machines/roster.ts'
+import Layout from '../../templates/layout.stator'
+import RegForm from '../../templates/reg-form.stator'
+
+// The OTHER edit door: a plain navigable page. The in-page ✎ flip delivers
+// the pre-filled form through the patch pipeline; this route delivers it
+// through a full server render — URL-addressable, refresh- and back-button-
+// native, and deliberately NOT live: pre-fill is an attribute at render
+// either way, and the starter should prove both paths.
+const [roster] = Stator.reads([RosterMachine])
+const { params } = Stator.request
+
+const attendee = roster.attendees.find((a) => a.id === String(params.id)) ?? null
+if (!attendee) Stator.response.status = 404
+---
+<Layout title="Edit registration">
+  {attendee ? (
+    <>
+      <header>
+        <h1>Edit registration</h1>
+        <p>
+          Fix a name, move seats, switch the ticket — the desk re-checks
+          everything before the roster changes.
+        </p>
+      </header>
+      <RegForm
+        tickets={TICKETS}
+        mode="update"
+        rid={attendee.id}
+        name={attendee.name}
+        email={attendee.email}
+        seats={attendee.seats}
+        ticket={attendee.ticket}
+        done="/"
+      />
+      <p><a href="/">← back to the desk</a></p>
+    </>
+  ) : (
+    <>
+      <h1>No such registration</h1>
+      <p>That party isn't on the roster — it may have been removed. <a href="/">Back to the desk.</a></p>
+    </>
+  )}
+</Layout>
+
+<style>
+  header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.4rem;
+  }
+  header p {
+    margin: 0 0 1.4rem;
+    color: var(--ink-soft);
+    max-width: 32rem;
+  }
+  a {
+    color: var(--ink-soft);
+  }
+  p {
+    margin-top: 1.2rem;
+    font-size: 0.85rem;
+  }
+</style>
