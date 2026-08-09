@@ -230,15 +230,19 @@ instead of discovered by a user.
   wire patch, client-local → the subscribe-and-write `bind:` generates today),
   `on:` + typed events the sole write path, `ref:` survives; two-way `@set` —
   the one place a machine's state changes without a declared transition,
-  bypassing guards and types — is deleted. The prerequisites are all additive
-  1.x minors, in order: typed `use().send`, client-lowered `read()` carrying a
-  no-jank writer (selection preservation, composition safety — `bind:`
-  re-implemented on the same writer so it benefits before removal), the input
-  helper (IME guard, typed extractors, reconcile-after-send), then a
-  form-heavy proving example + jank test matrix and a `bind:` deprecation
-  diagnostic. Only the removal itself is breaking. *Decision gate*: the
-  proving app and jank matrix, per the evidence bar above — until then this is
-  a direction, not a decision. IF it ships, it is the major the `reads` naming
+  bypassing guards and types — is deleted. The replacement is a *pattern*, not
+  a new primitive: the input element holds the draft under platform
+  constraints (`maxlength`/`pattern`/`beforeinput`), the commit boundary sends
+  one typed event read via `ref:`/`FormData` — the shape `weather` and the
+  checkout page already use. Prerequisites are additive 1.x minors, in order:
+  typed `use().send`, client-lowered `read()` for display, then a form-heavy
+  proving example built ONLY on that minimal surface plus a `bind:`
+  deprecation diagnostic. Only the removal itself is breaking. Any draft
+  ergonomics — a shipped reusable machine, a wiring helper, or just a docs
+  recipe — are promoted solely from the proving app's paper-cut log (the
+  `bind:` lesson: no convenience primitive ships ahead of evidence again).
+  *Decision gate*: the proving app livable + its log adjudicated — until then
+  this is a direction, not a decision. IF it ships, it is the major the `reads` naming
   note above has been waiting for — bundle them. Design in
   [`.chisel/specs/active/`](.chisel/specs/active/isomorphic-reactive-model-read-for-display-on-for-events.md).
   *Motivation*: `bind:`/`@set` is the one surface that breaks "read the

@@ -20,18 +20,19 @@ compose, and they follow a pattern authors already know (Svelte's `|`, Vue's
 `.`). The `|` reads well precisely because `:` is already the namespace
 separator.
 
-Two reasons now: (1) it is the right extensibility axis for behavioral tweaks
+Why now: it is the right extensibility axis for behavioral tweaks
 (`preventDefault`, `stopPropagation`, …) that today force a hand-written wrapper
-in the handler; (2) with the `send()` helper, modifiers complete the ergonomics
-that make an explicit, no-two-way form model comfortable — `send()` carries the
-data, `|preventDefault` carries the behavior, neither reaches for `@set`.
+in the handler — forms need `preventDefault` on submit regardless of how the
+binding rework lands. (An earlier framing paired this with the `send()` helper
+as joint two-way-removal ergonomics; that helper is now deferred pending
+evidence, and this spec stands on its own motivation.)
 
 Independent of the binding rework, but it lands well with it: under
 [[isomorphic-reactive-model-read-for-display-on-for-events]] the directive surface
 narrows to `on:` (in) + `ref:` (identity), so modifiers concentrate on `on:` —
 exactly where they are most useful. **Decoupled from the removal gate, though:**
-the `bind:`-removal ergonomics must not depend on modifiers landing — the
-`send()` helper alone carries them, and modifiers are additive polish on top.
+the `bind:`-removal ergonomics must not depend on modifiers landing — the model
+spec's draft pattern carries them, and modifiers are additive polish on top.
 
 Additive; a bounded compiler addition; can ship in a minor — **once the syntax
 hazard below is resolved.**
