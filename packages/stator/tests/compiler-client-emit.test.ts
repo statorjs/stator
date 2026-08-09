@@ -47,11 +47,11 @@ export class QuantityStepper extends StatorElement {
       members,
     })
     expect(out).toContain(
-      'import { StatorElement, defineElement, use, machine, bind, bindSlot, effect, dispatch }',
+      'import { StatorElement, defineElement, use, machine, bind, bindSlot, effect, dispatch, attrValue, setAttr }',
     )
     expect(out).toContain('export class QuantityStepper extends StatorElement')
     expect(out).toContain('class __QuantityStepperImpl extends QuantityStepper')
-    expect(out).toContain('this.querySelectorAll(\'[data-b="b0"]\')')
+    expect(out).toContain('this.querySelectorAll("[data-b=\\"b0\\"]")')
     expect(out).toContain('addEventListener("click", (e) => this.dec(e))')
     expect(out).toContain('bind([this.qty], () => (this.qty.count)')
     expect(out).toContain('defineElement(__QuantityStepperImpl, "quantity-stepper")')

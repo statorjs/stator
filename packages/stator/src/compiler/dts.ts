@@ -21,7 +21,32 @@ export function generateDts(
   if ((opts.kind ?? 'component') === 'route') return null
 
   const { frontmatter, template, scripts } = splitStator(source)
-  const { hoisted, propsType } = extractFrontmatterTypes(frontmatter)
+  const { hoisted } = extractFrontmatterTypes(frontmatter)
+  const { propsT, needsReadResult } = statorPropsType(frontmatter, template, scripts)
+
+  const lines = ["import type { HtmlFragment } from '@statorjs/stator/template'"]
+  if (needsReadResult) {
+    lines.push("import type { ReadResult as __SReadResult } from '@statorjs/stator/template'")
+  }
+  if (hoisted) lines.push(hoisted)
+  lines.push('')
+  lines.push(`declare const _default: (props: ${propsT}) => HtmlFragment`)
+  lines.push('export default _default')
+  return `${lines.join('\n')}\n`
+}
+
+/**
+ * The component's props type — THE shared computation for the `.d.ts`
+ * generator (tsc) and the language-server virtual emit (editor), islands
+ * included, so the two can't disagree. `needsReadResult` means the type
+ * references `__SReadResult<T>`, which the caller must bring into scope.
+ */
+export function statorPropsType(
+  frontmatter: string,
+  template: string,
+  scripts: string[],
+): { propsT: string; needsReadResult: boolean } {
+  const { propsType } = extractFrontmatterTypes(frontmatter)
   let propsT = componentPropsType(propsType, template)
   let needsReadResult = false
 
@@ -29,9 +54,10 @@ export function generateDts(
   // `Stator.props`. Each attr accepts its coerced kind OR a live `read()`
   // binding — the compiler lowers read() island props to live attr bindings,
   // so the type surface must admit both.
-  if (!propsType && scripts.length > 0) {
+  const classes = scripts.length > 0 ? analyzeScriptClasses(scripts.join('\n')) : []
+  if (!propsType && classes.length > 0) {
     const attrs = new Map<string, string>()
-    for (const cls of analyzeScriptClasses(scripts.join('\n'))) {
+    for (const cls of classes) {
       for (const [key, kind] of cls.staticAttrs) attrs.set(key, kind)
     }
     if (attrs.size > 0) {
@@ -50,16 +76,7 @@ export function generateDts(
       propsT = '{ [prop: string]: unknown }'
     }
   }
-
-  const lines = ["import type { HtmlFragment } from '@statorjs/stator/template'"]
-  if (needsReadResult) {
-    lines.push("import type { ReadResult as __SReadResult } from '@statorjs/stator/template'")
-  }
-  if (hoisted) lines.push(hoisted)
-  lines.push('')
-  lines.push(`declare const _default: (props: ${propsT}) => HtmlFragment`)
-  lines.push('export default _default')
-  return `${lines.join('\n')}\n`
+  return { propsT, needsReadResult }
 }
 
 /**

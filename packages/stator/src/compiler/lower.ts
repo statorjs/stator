@@ -1,4 +1,5 @@
 import ts from 'typescript'
+import { elementMarker, ISLAND_MARKER_ATTR, slotMarker } from '../wire/island-markers.ts'
 import { type ClientDirective, inferDeps } from './client-script.ts'
 import { CompileError, type DiagnosticLocation, locAt } from './diagnostics.ts'
 
@@ -197,7 +198,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
   const allocSlotMarker = (): string => {
     const client = opts.client
     if (!client) throw new CompileError('stator: internal — slot marker outside client mode')
-    return `s${client.directives.filter((d) => d.kind === 'slot').length}`
+    return slotMarker(client.directives.filter((d) => d.kind === 'slot').length)
   }
 
   /** Shell expressions must not contain a client-machine read — the shell
@@ -534,7 +535,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       const lowered = lowerAttribute(attr)
       if (lowered) out += ` ${lowered}`
     }
-    if (collected?.marker) out += ` data-b="${collected.marker}"`
+    if (collected?.marker) out += ` ${ISLAND_MARKER_ATTR}="${collected.marker}"`
     return out
   }
 
@@ -602,7 +603,9 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     if (pending.length === 0) return { consumed }
     // One marker per element (sequential over ELEMENT markers — slots have
     // their own `s<N>` namespace).
-    const marker = `b${new Set(client.directives.filter((d) => d.kind !== 'slot').map((d) => d.marker)).size}`
+    const marker = elementMarker(
+      new Set(client.directives.filter((d) => d.kind !== 'slot').map((d) => d.marker)).size,
+    )
     for (const d of pending) {
       d.marker = marker
       client.directives.push(d)

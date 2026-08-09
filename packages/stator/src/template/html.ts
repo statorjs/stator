@@ -4,7 +4,7 @@ import {
   registerBinding,
   requireCurrentRenderState,
 } from '../server/render-context.ts'
-import { isUrlAttribute, safeAttrUrl } from '../wire/safe-url.ts'
+import { attrValue, sanitizeAttr, textValue } from '../wire/attr-value.ts'
 import { escapeAttribute, escapeText, HtmlBuilder, type ValuePosition } from './parser.ts'
 import { createHtmlFragment, type HtmlFragment, isHtmlFragment } from './types.ts'
 
@@ -44,14 +44,6 @@ export function html(strings: TemplateStringsArray, ...values: unknown[]): HtmlF
   }
 
   return createHtmlFragment(builder.toString())
-}
-
-/** URL-scheme guard for attribute interpolation: on url-bearing attributes
- *  (href/src/…), strip a javascript:/vbscript: value; other attributes pass
- *  through unchanged. Mirrored on the live-update path (server/recompute.ts) so
- *  a value that's safe at first render can't turn dangerous via a patch. */
-function sanitizeAttrValue(attrName: string, value: string): string {
-  return isUrlAttribute(attrName) ? safeAttrUrl(value) : value
 }
 
 function processValue(builder: HtmlBuilder, state: RenderState, value: unknown): void {
@@ -123,21 +115,14 @@ function processValue(builder: HtmlBuilder, state: RenderState, value: unknown):
   }
 
   if (pos.kind === 'text') {
-    builder.pushRaw(escapeText(stringifyValue(value)))
+    builder.pushRaw(escapeText(textValue(value)))
     return
   }
   if (pos.kind === 'attr-value') {
-    // Same boolean semantics as the read-binding and item-read paths:
-    // false/null/undefined → attribute ABSENT (`checked={expr}` must be able
-    // to render unchecked; a static render must agree with what a live patch
-    // of the same attribute would do), true → present-and-empty. Previously
-    // this path stringified — `checked={false}` rendered `checked="false"`,
-    // a PRESENT (thus truthy) boolean attribute.
-    if (value === false || value === null || value === undefined) {
-      builder.omitCurrentAttribute()
-    } else if (value !== true) {
-      builder.pushRaw(escapeAttribute(sanitizeAttrValue(pos.attrName, stringifyValue(value))))
-    }
+    // The shared attr contract (wire/attr-value.ts): null → attribute ABSENT.
+    const av = attrValue(value)
+    if (av === null) builder.omitCurrentAttribute()
+    else builder.pushRaw(escapeAttribute(sanitizeAttr(pos.attrName, av)))
     return
   }
   throw new Error(`stator: cannot interpolate a plain value at ${pos.kind} position`)
@@ -172,7 +157,7 @@ function handleRead(
       lastValue: r.value,
       kind: 'text',
     })
-    builder.pushRaw(`<span data-slot="${r.slotId}">${escapeText(stringifyValue(r.value))}</span>`)
+    builder.pushRaw(`<span data-slot="${r.slotId}">${escapeText(textValue(r.value))}</span>`)
     return
   }
   if (pos.kind === 'attr-value') {
@@ -193,14 +178,12 @@ function handleRead(
       attrName: pos.attrName,
       parentId: pos.elementId,
     })
-    // Boolean semantics: false/null/undefined mean the attribute is ABSENT
-    // (`disabled={read(...)}` must be able to un-disable), true means
-    // present-and-empty. Everything else stringifies as before. The patch
-    // side mirrors this: see recompute's attrWireValue.
-    if (r.value === false || r.value === null || r.value === undefined) {
-      builder.omitCurrentAttribute()
-    } else if (r.value !== true) {
-      builder.pushRaw(escapeAttribute(sanitizeAttrValue(pos.attrName, stringifyValue(r.value))))
+    // The shared attr contract (wire/attr-value.ts) — the same function the
+    // patch side (recompute) normalizes with, so render and diff can't drift.
+    {
+      const av = attrValue(r.value)
+      if (av === null) builder.omitCurrentAttribute()
+      else builder.pushRaw(escapeAttribute(sanitizeAttr(pos.attrName, av)))
     }
     return
   }
@@ -226,7 +209,7 @@ function handleItemRead(
   if (pos.kind === 'text') {
     const slotId = allocSlotId(state)
     row.push({ kind: 'text', slotId, selector: r.selector, lastValue: r.value })
-    builder.pushRaw(`<span data-slot="${slotId}">${escapeText(stringifyValue(r.value))}</span>`)
+    builder.pushRaw(`<span data-slot="${slotId}">${escapeText(textValue(r.value))}</span>`)
     return
   }
   if (pos.kind === 'attr-value') {
@@ -243,21 +226,13 @@ function handleItemRead(
       selector: r.selector,
       lastValue: r.value,
     })
-    // Same boolean semantics as a machine attr read (see handleRead).
-    if (r.value === false || r.value === null || r.value === undefined) {
-      builder.omitCurrentAttribute()
-    } else if (r.value !== true) {
-      builder.pushRaw(escapeAttribute(sanitizeAttrValue(pos.attrName, stringifyValue(r.value))))
+    // Same shared attr contract as every other attr writer.
+    {
+      const av = attrValue(r.value)
+      if (av === null) builder.omitCurrentAttribute()
+      else builder.pushRaw(escapeAttribute(sanitizeAttr(pos.attrName, av)))
     }
     return
   }
   throw new Error(`stator: read(item, …) cannot be interpolated at ${pos.kind} position`)
-}
-
-function stringifyValue(v: unknown): string {
-  if (v == null) return ''
-  if (typeof v === 'string') return v
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
-  if (Array.isArray(v)) return v.map(stringifyValue).join('')
-  return String(v)
 }

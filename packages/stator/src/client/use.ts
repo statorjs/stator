@@ -67,7 +67,14 @@ export interface CollectedActor {
 
 /** Active collector: `use()` registers its actor here during element
  *  construction, so `StatorElement` can start/seed/stop them on connect/disconnect.
- *  A stack supports nested construction (rare, but correct). */
+ *  A stack supports nested construction (rare, but correct).
+ *
+ *  Dual-bundle note (the clientId lesson): module state is PER BUNDLE, and
+ *  the page runtime and island modules are separate bundles. This stack is
+ *  safe because it is construction-scoped and both its writer (`use()`) and
+ *  its reader (`StatorElement`) always come from the SAME bundle as the
+ *  island class using them. State that must be PAGE-scoped (one value across
+ *  all bundles) must live on `window` — see client-id.ts. */
 const collectors: CollectedActor[][] = []
 
 export function pushCollector(): CollectedActor[] {

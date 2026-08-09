@@ -4,6 +4,7 @@
  * island needs; these are also the symbols an author references directly.
  */
 
+export { attrValue, setAttr } from '../wire/attr-value.ts'
 export { bind, bindSlot, effect } from './bind.ts'
 export type { DispatchResult } from './dispatch.ts'
 export { dispatch } from './dispatch.ts'
