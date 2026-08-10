@@ -47,6 +47,7 @@ Automatically managed by Chisel.
 
 ### RECIPES
 - [authentication](recipes/authentication)
+- [collections-of-workflows](recipes/collections-of-workflows)
 - [defer-vs-machine](recipes/defer-vs-machine)
 - [gated-routes-and-redirects](recipes/gated-routes-and-redirects)
 - [updating-from-a-template](recipes/updating-from-a-template)
