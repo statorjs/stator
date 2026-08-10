@@ -1,0 +1,47 @@
+---
+// @stator live
+import { listPosts } from '../lib/db.ts'
+import { AUTHOR_NAME, SITE_NAME } from '../lib/site.ts'
+import MentionsMachine from '../machines/mentions.ts'
+import Layout from '../templates/layout.stator'
+import PostCard from '../templates/post-card.stator'
+
+const [mentions] = Stator.reads([MentionsMachine])
+const posts = listPosts()
+---
+<Layout>
+  <header>
+    <h1>{SITE_NAME}</h1>
+    <p>
+      {AUTHOR_NAME}'s corner of the web. Every post here accepts webmentions,
+      and the conversation shows up live while you read.
+    </p>
+  </header>
+
+  <div class="h-feed">
+    {posts.length === 0 ? (
+      <p data-empty>Nothing published yet. The owner signs in at /admin.</p>
+    ) : null}
+    {each(
+      posts,
+      (post) => <PostCard post={post} mentions={mentions} />,
+      { key: (post) => post.id },
+    )}
+  </div>
+</Layout>
+
+<style>
+  header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.4rem;
+  }
+  header p {
+    margin: 0 0 1.2rem;
+    color: var(--ink-soft);
+  }
+  p[data-empty] {
+    color: var(--ink-faint);
+  }
+</style>

@@ -1,0 +1,207 @@
+---
+// @stator live
+import { AUTHOR_NAME } from '../lib/site.ts'
+import MentionsMachine from '../machines/mentions.ts'
+import OutboxMachine from '../machines/outbox.ts'
+import OwnerMachine from '../machines/owner.ts'
+import Layout from '../templates/layout.stator'
+
+const [owner, mentions, outbox] = Stator.reads([OwnerMachine, MentionsMachine, OutboxMachine])
+const { query } = Stator.request
+
+const error =
+  query.error === 'bad-password'
+    ? 'Wrong password.'
+    : query.error === 'not-signed-in'
+      ? 'Sign in first.'
+      : query.error === 'content'
+        ? 'A post needs content, under 20,000 characters.'
+        : null
+---
+<Layout title="Admin">
+  {when(read(owner, (o) => !o.authed), () => (
+    <section aria-label="Sign in">
+      <h1>The desk</h1>
+      {error ? <p role="alert">{error}</p> : null}
+      <form method="post" action="/admin/login">
+        <input type="password" name="password" placeholder="Owner password" aria-label="Owner password" required />
+        <button type="submit">sign in</button>
+      </form>
+    </section>
+  ))}
+
+  {when(read(owner, (o) => o.authed), () => (
+    <section aria-label="Admin">
+      <header>
+        <h1>Hello, {AUTHOR_NAME}</h1>
+        <form method="post" action="/admin/logout">
+          <button type="submit">sign out</button>
+        </form>
+      </header>
+      {error ? <p role="alert">{error}</p> : null}
+
+      <h2>compose</h2>
+      <form method="post" action="/admin/publish" data-compose>
+        <input type="text" name="title" placeholder="Title (leave empty for a note)" aria-label="Title" maxlength="120" />
+        <textarea name="content" placeholder="Write. Links you include get webmentions on publish." aria-label="Content" required maxlength="20000"></textarea>
+        <button type="submit">publish</button>
+      </form>
+
+      <h2>mentions awaiting review · {read(mentions, (m) => m.pendingCount)}</h2>
+      <ul>
+        {each(
+          read(mentions, (m) => m.pending),
+          (mention) => (
+            <li>
+              <div>
+                <strong>{mention.authorName}</strong>
+                <span>{mention.kind} · <a href={mention.source}>{mention.source}</a></span>
+                {mention.excerpt ? <q>{mention.excerpt}</q> : null}
+              </div>
+              <button
+                type="button"
+                on:click={() => owner.send({ type: 'APPROVE_MENTION', id: mention.id })}
+              >
+                approve
+              </button>
+              <button
+                type="button"
+                data-reject
+                on:click={() => owner.send({ type: 'REJECT_MENTION', id: mention.id })}
+              >
+                reject
+              </button>
+            </li>
+          ),
+          { key: (mention) => mention.id },
+        )}
+      </ul>
+
+      <h2>outbox</h2>
+      <ul data-outbox>
+        {each(
+          read(outbox, (o) => o.entries),
+          (entry) => (
+            <li>
+              <span data-status={entry.status}>{entry.status}</span>
+              <code>{entry.key}</code>
+              {entry.status === 'failed' ? (
+                <button
+                  type="button"
+                  on:click={() => owner.send({ type: 'RETRY_TARGET', key: entry.key })}
+                >
+                  retry
+                </button>
+              ) : null}
+            </li>
+          ),
+          { key: (entry) => entry.key },
+        )}
+      </ul>
+    </section>
+  ))}
+</Layout>
+
+<style>
+  h1 {
+    font-size: 1.6rem;
+    margin: 0;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.2rem;
+  }
+  h2 {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.68rem;
+    font-weight: normal;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 1.8rem 0 0.5rem;
+  }
+  form[data-compose] {
+    display: grid;
+    gap: 0.6rem;
+  }
+  input,
+  textarea {
+    font: inherit;
+    color: var(--ink);
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.5rem 0.65rem;
+    width: 100%;
+  }
+  textarea {
+    min-height: 7rem;
+    resize: vertical;
+  }
+  input:focus-visible,
+  textarea:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  button {
+    font: inherit;
+    font-weight: 600;
+    background: var(--accent);
+    color: var(--paper);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 0.4rem 0.9rem;
+    cursor: pointer;
+    justify-self: start;
+  }
+  button[data-reject] {
+    background: var(--paper);
+    color: var(--ink-soft);
+    border-color: var(--rule);
+  }
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.9rem;
+  }
+  li div {
+    flex: 1;
+    display: grid;
+    gap: 0.15rem;
+  }
+  li span {
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+  }
+  li q {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+  [role='alert'] {
+    color: var(--error);
+    font-size: 0.85rem;
+  }
+  ul[data-outbox] code {
+    flex: 1;
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+  }
+  span[data-status='sent'] {
+    color: var(--ok);
+  }
+  span[data-status='failed'] {
+    color: var(--error);
+  }
+</style>

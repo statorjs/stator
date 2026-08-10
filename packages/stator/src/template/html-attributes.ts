@@ -62,6 +62,7 @@ export interface GlobalHTMLAttributes {
 
 /** Per-element extra attributes. Extend as components need them. */
 export interface ElementSpecificAttributes {
+  time: { datetime?: string }
   a: { href?: string; target?: string; rel?: string; download?: string | boolean }
   button: {
     type?: 'submit' | 'reset' | 'button'

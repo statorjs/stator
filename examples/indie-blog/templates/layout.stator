@@ -1,0 +1,50 @@
+---
+import { AUTHOR_NAME, SITE_NAME, SITE_ORIGIN } from '../lib/site.ts'
+
+const { title } = Stator.props<{ title?: string }>()
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title ? `${title} · ${SITE_NAME}` : SITE_NAME}</title>
+    <link rel="stylesheet" href="/static/app.css" />
+    <link rel="webmention" href={`${SITE_ORIGIN}/webmention`} />
+    <link rel="alternate" type="application/rss+xml" href="/feed.xml" />
+    <link rel="alternate" type="application/atom+xml" href="/atom.xml" />
+    <link rel="alternate" type="application/feed+json" href="/feed.json" />
+  </head>
+  <body>
+    <main>
+      <children />
+    </main>
+    <footer>
+      <p class="h-card">
+        <a class="p-name u-url" rel="me" href={`${SITE_ORIGIN}/`}>{AUTHOR_NAME}</a>
+        · <a href="/feed.xml">rss</a> · <a href="/admin">admin</a>
+      </p>
+    </footer>
+  </body>
+</html>
+
+<style>
+  main {
+    max-width: 38rem;
+    margin: 0 auto;
+    padding: 2.5rem 1.25rem 3rem;
+  }
+  footer {
+    max-width: 38rem;
+    margin: 0 auto;
+    padding: 1rem 1.25rem 3rem;
+    border-top: 1px solid var(--rule);
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+  }
+  footer p {
+    margin: 0;
+  }
+  footer a {
+    color: var(--ink-soft);
+  }
+</style>
