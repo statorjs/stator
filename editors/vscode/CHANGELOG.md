@@ -1,5 +1,15 @@
 # stator-vscode
 
+## 1.2.0
+
+### Minor Changes
+
+- 7adbfa8: The bundled compiler follows Stator 2.0: `bind:` is a located error with migration guidance, client-machine `read()` is the display path, and the one-bag `machine()` form is gone.
+
+### Patch Changes
+
+- 65b70dd: The bundled compiler shares the component props-type computation with the `.d.ts` generator (one implementation, seam-tested), and inherits the consolidated attribute/text value contracts.
+
 ## 1.1.0
 
 ### Minor Changes
