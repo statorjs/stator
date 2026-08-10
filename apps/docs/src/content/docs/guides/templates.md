@@ -5,7 +5,7 @@ sidebar:
   order: 1
 ---
 
-A template body is JSX-flavored markup. This page covers the body itself; [directives](/guides/directives/) (`on:`, `bind:`, `class:list`) have their own page.
+A template body is JSX-flavored markup. This page covers the body itself; [directives](/guides/directives/) (`on:`, `ref:`, `class:list`) have their own page.
 
 ## Static text vs reactive state
 
@@ -24,7 +24,7 @@ Attribute bindings understand **boolean semantics**: a selector returning `false
 <button disabled={read(cart, (c) => c.count === 0)}>Begin checkout</button>
 ```
 
-One platform caveat: `checked`, `value`, and `selected` as *attributes* set defaults only — a form control the user has touched ignores them. Live form state is [`bind:`](/guides/forms-and-binding/) territory.
+One platform caveat that is also the design: `checked`, `value`, and `selected` as *attributes* set defaults only — a form control the user has touched ignores them. That is precisely what pre-fill wants (state provides the start, the visitor owns the draft), and commits flow back as typed events. See [Forms and inputs](/guides/forms-and-binding/).
 
 ## Conditionals: when and match
 
@@ -100,3 +100,43 @@ A capitalized tag invokes a component; lowercase is HTML. Pass machines and data
 ```
 
 Layouts and named children (`<children>`) are covered in [Routing](/guides/routing/#layouts-via-composition).
+
+### Attribute spread
+
+`{...rest}` spreads a bag of attributes onto an element or a component — the
+usual shape for a wrapper that forwards native attributes it doesn't handle:
+
+```astro
+---
+const { label, ...rest } = Stator.props<{ label: string } & HTMLAttributes<'button'>>()
+---
+<button {...rest}>{label}</button>
+```
+
+Machine reads inside the bag become live attribute bindings. Directives can't
+ride a spread — `on:`/`ref:` stay explicit attributes.
+
+### Typed native attributes
+
+`HTMLAttributes<Tag>` types a component's pass-through surface with the real
+per-element attribute set, so `<Button type="sbumit">` is a compile error at
+the call site. Per-element typing also backs plain elements: every intrinsic
+tag checks its own attributes.
+
+### Forwarding events to a component
+
+`on:*` on a component tag doesn't attach anywhere by itself — the component
+chooses the element that receives it with `Stator.forwarded()`:
+
+```astro
+<Button on:click={() => cart.send({ type: 'CLEAR' })}>Reset</Button>
+```
+
+```astro
+---
+const { children } = Stator.props<{ children?: unknown }>()
+---
+<button {...Stator.forwarded()}>{children}</button>
+```
+
+Only `on:*` forwards. `ref:` applies to elements directly.

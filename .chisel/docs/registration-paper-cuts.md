@@ -140,3 +140,15 @@ The four error lines and the refusal line are client-machine `read()` slots
 (Minor B) — declared union on the checks machine, per-field events, zero
 hand-wired DOM. The pattern held with no paper cut: this is the evidence FOR
 the fold.
+
+---
+
+## GATE ADJUDICATED — 2026-08-09, Stator 2.0 cut
+
+Read in full at the decision gate. Outcome: **no draft primitive** — the
+pattern held (entries 5, 7, 9-good), both doctrine rules stand (6, 8), three
+framework seam bugs were found and fixed (4, 5, 9), and the one open gap
+(entry 1, refused-dispatch reasons) is promoted to the primitive-gap analysis
+under the origin-trust thread, not to draft sugar. `bind:`/`@set` removed in
+2.0 the same day. This log stays as the worked example of the evidence
+doctrine: content generated the proof, the proof made the call.

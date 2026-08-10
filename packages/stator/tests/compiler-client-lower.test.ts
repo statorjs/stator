@@ -33,15 +33,20 @@ describe('compiler: inferDeps', () => {
 })
 
 describe('compiler: client-component lowering', () => {
-  it('collects bind: with inferred deps, strips it, injects a node marker', () => {
-    const { shell, directives } = lowerClient('<span bind:text={qty.count}></span>', ['qty'])
-    expect(shell).toBe('html`<span data-b="b0"></span>`')
+  it('bind: is a located removal error pointing at read()', () => {
+    expect(() => lowerClient('<span bind:text={qty.count}></span>', ['qty'])).toThrow(
+      /bind:text was removed in 2\.0.*read\(\)/s,
+    )
+  })
+
+  it('a client-machine read() in text position lowers to a slot marker', () => {
+    const { shell, directives } = lowerClient('<span>{read(qty, (q) => q.count)}</span>', ['qty'])
+    expect(shell).toBe('html`<span><!--s0--></span>`')
     expect(directives).toEqual([
       {
-        marker: 'b0',
-        kind: 'bind',
-        target: 'text',
-        expr: 'qty.count',
+        marker: 's0',
+        kind: 'slot',
+        expr: '((q) => q.count)(qty)',
         deps: ['qty'],
       },
     ])
@@ -55,9 +60,9 @@ describe('compiler: client-component lowering', () => {
     ])
   })
 
-  it('groups multiple directives on one element under one marker', () => {
+  it('groups multiple wirings on one element under one marker', () => {
     const { shell, directives } = lowerClient(
-      '<button on:click={inc} bind:disabled={qty.atMax}>+</button>',
+      '<button on:click={inc} disabled={read(qty, (q) => q.atMax)}>+</button>',
       ['qty'],
     )
     expect(shell).toBe('html`<button data-b="b0">+</button>`')
@@ -69,25 +74,21 @@ describe('compiler: client-component lowering', () => {
     })
   })
 
-  it('assigns sequential markers across elements', () => {
+  it('assigns sequential element markers, with slots in their own namespace', () => {
     const { shell, directives } = lowerClient(
-      '<div><button on:click={dec}>-</button><span bind:text={qty.count}></span><button on:click={inc}>+</button></div>',
+      '<div><button on:click={dec}>-</button><span>{read(qty, (q) => q.count)}</span><button on:click={inc}>+</button></div>',
       ['qty'],
     )
     expect(shell).toBe(
-      'html`<div><button data-b="b0">-</button><span data-b="b1"></span><button data-b="b2">+</button></div>`',
+      'html`<div><button data-b="b0">-</button><span><!--s0--></span><button data-b="b1">+</button></div>`',
     )
-    expect(directives.map((d) => d.marker)).toEqual(['b0', 'b1', 'b2'])
+    expect(directives.map((d) => d.marker)).toEqual(['b0', 's0', 'b1'])
   })
 
-  it('keeps ref: (data-ref) alongside collected client directives', () => {
-    const { shell, directives } = lowerClient('<input ref:field bind:value={draft.q} />', ['draft'])
+  it('keeps ref: (data-ref) alongside collected client wiring', () => {
+    const { shell, directives } = lowerClient('<input ref:field on:change={commit} />', ['draft'])
     expect(shell).toBe('html`<input data-ref="field" data-b="b0" />`')
-    expect(directives[0]).toMatchObject({
-      kind: 'bind',
-      target: 'value',
-      deps: ['draft'],
-    })
+    expect(directives[0]).toMatchObject({ kind: 'on', event: 'change' })
   })
 
   it('leaves plain attributes and text untouched', () => {

@@ -1,7 +1,6 @@
 import ts from 'typescript'
 import { elementMarkerSelector } from '../wire/island-markers.ts'
 import type { ClientDirective, ClientElement } from './client-script.ts'
-import { CompileError } from './diagnostics.ts'
 
 /**
  * Phase 3b stage 5 — emit the client entry module for a client component: the
@@ -81,40 +80,12 @@ function wireDirective(node: string, d: ClientDirective, members: Set<string>): 
     const handler = emitHandler(d.expr, members)
     return `${node}.addEventListener(${JSON.stringify(d.event)}, ${handler})`
   }
-  // bind:
+  // kind 'bind': an attribute-position client read() — one-way display.
   const target = d.target ?? 'text'
   const thunk = `() => (${rewriteMembers(d.expr, members)})`
   const deps = `[${d.deps.map((dep) => `this.${dep}`).join(', ')}]`
-
-  // value / checked are TWO-WAY: state→DOM (below) PLUS a DOM→state listener
-  // that `@set`s the bound context key. The expression must be a settable
-  // `<actor>.<key>` path (a derived selector can't be assigned).
-  if (target === 'value' || target === 'checked') {
-    const path = parseTwoWayPath(d.expr)
-    if (!path) {
-      throw new CompileError(
-        `stator: bind:${target}={${d.expr}} must bind to a settable context path ` +
-          `like \`actor.key\` (a derived value can't be two-way bound).`,
-      )
-    }
-    const writer = emitWriter(node, target)
-    const read = target === 'checked' ? `${node}.checked` : `${node}.value`
-    const guard = target === 'value' ? `if (e.isComposing) return; ` : ''
-    const setter =
-      `${node}.addEventListener(${JSON.stringify(target === 'value' ? 'input' : 'change')}, (e) => { ` +
-      `${guard}this.${path.actor}.send({ type: '@set', key: ${JSON.stringify(path.key)}, value: ${read} }) })`
-    return `this.track(bind(${deps}, ${thunk}, ${writer}));\n      ${setter}`
-  }
-
   const writer = emitWriter(node, target)
   return `this.track(bind(${deps}, ${thunk}, ${writer}))`
-}
-
-/** Parse a two-way bind expression `actor.key` into its parts; null if it isn't
- *  a simple single-level member access (not assignable). */
-function parseTwoWayPath(expr: string): { actor: string; key: string } | null {
-  const m = expr.trim().match(/^([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)$/)
-  return m ? { actor: m[1]!, key: m[2]! } : null
 }
 
 /** on: handler — a bare method reference becomes `(e) => this.m(e)`; any other
@@ -129,17 +100,9 @@ function emitHandler(expr: string, members: Set<string>): string {
 
 function emitWriter(node: string, target: string): string {
   switch (target) {
-    case 'text':
-      return `(v) => { ${node}.textContent = v == null ? '' : String(v) }`
-    case 'html':
-      return `(v) => { ${node}.innerHTML = v == null ? '' : String(v) }`
-    case 'value':
-      // Loop-break: only write when the DOM differs, so the echo from the user's
-      // own keystroke no-ops and the caret is preserved.
-      return `(v) => { const s = v == null ? '' : String(v); if (${node}.value !== s) ${node}.value = s }`
     case 'disabled':
     case 'hidden':
-    case 'checked':
+      // Boolean IDL properties write as properties, not attributes.
       return `(v) => { if (${node}.${target} !== !!v) ${node}.${target} = !!v }`
     default:
       // arbitrary attribute — the shared attr contract (wire/attr-value.ts)

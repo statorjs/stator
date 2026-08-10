@@ -51,6 +51,27 @@ The whole shape is declarative and statically analyzable — there's no imperati
 Nested and parallel statecharts (and history/invoke) are not in 1.0. The state model is deliberately built so they can layer in later without changing the surface — flat today, extensible tomorrow.
 :::
 
+### Machine-level on:
+
+A top-level `on:` declares handlers that apply in ANY state, consulted only
+when the current state doesn't declare the event — a state-scoped handler
+always wins. It's the home for a completion event whose handling must not
+depend on an unrelated machine-wide state: a per-record save settling while
+the machine is busy reloading a collection would otherwise be silently
+dropped.
+
+```ts
+defineMachine({
+  // …
+  states: { loading: { /* … */ }, ready: { /* … */ } },
+  on: {
+    SAVE_SETTLED: (ctx, ev) => {
+      ctx.saves[ev.id] = ev.result
+    },
+  },
+})
+```
+
 ## Typed events and transitions
 
 You declare a machine's event surface as a discriminated union and hand it over as a phantom value:
@@ -85,7 +106,7 @@ on: {
 
 ## Selectors
 
-`selectors` are pure derived views over `context`. They're the read surface: templates call `read(machine, sel)` and client components `bind:` against them. A selector that takes an argument returns a function (`contains: (ctx) => (id) => …`).
+`selectors` are pure derived views over `context`. They're the read surface: templates call `read(machine, sel)` against them, on server and client machines alike. A selector that takes an argument returns a function (`contains: (ctx) => (id) => …`).
 
 Selectors receive the same helpers actions and guards get, so a machine that declares `reads:` can **project a cross-machine verdict as display state**:
 

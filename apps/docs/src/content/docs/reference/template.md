@@ -94,14 +94,6 @@ function styleList(spec: StyleListSpec): DirectiveInvocation
 
 Compound-attribute directives that own the whole `class` / `style` attribute. A spec mixes static strings, arrays, and `{ name: condition }` objects, where any condition (or entry) may be a `read()` — the directive registers one binding per machine in the spec, and any change re-emits the **full** composed attribute value in a single patch. Spec types: `ClassListSpec`, `StyleListSpec`.
 
-## defineDirective
-
-```ts
-function defineDirective<TArg>(def: { name: string; apply(ctx: DirectiveContext<TArg>): void }): Directive<TArg>
-```
-
-Defines a custom template directive. `apply` runs at render time with `{ elementId, modifier, arg, addAttribute, registerCleanup }` — most directives compose down to attributes the client runtime interprets. Pair with `invoke(directive, modifier, arg)` to produce the invocation you interpolate. Related types: `Directive`, `DirectiveContext`, `DirectiveDefinition`, `DirectiveInvocation`.
-
 ## Lower-level exports
 
 What the compiler's output and the recompute pass run on — **Toolchain** tier per the [stability policy](/reference/overview/#stability-policy): these may change in a minor. (`HtmlFragment`, `ReadResult`, and `InstanceOf` are the exceptions your own render functions legitimately type against; they're Stable.)
@@ -114,4 +106,4 @@ What the compiler's output and the recompute pass run on — **Toolchain** tier 
 - `itemBind` — per-row item-binding plumbing the compiler lowers `read(item, …)` to inside keyed lists.
 - `invoke` / `isDirectiveInvocation` — directive invocation plumbing.
 - `clientShellAttrs` — attributes the compiler puts on a client island's server-rendered shell.
-- `InstanceOf` — re-exported machine instance type (what `read`'s first parameter is).
+- `InstanceOf` — re-exported machine instance type (what `read`'s first parameter is). An instance's `state` is typed to the machine's state-name union and its `send()` to the event union, so a typo in a state comparison, an event name, or a payload is a compile error.

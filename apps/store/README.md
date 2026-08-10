@@ -1,7 +1,7 @@
 # Plimsoll — the Stator reference app
 
 The live demo at [demo.statorjs.dev](https://demo.statorjs.dev): a
-storefront exercising the full 1.0 surface — keyed lists with `bind:`,
+storefront exercising the full 1.0 surface — keyed lists with live item reads,
 session effects (fake payments with declines + idempotency), persisted
 shared inventory with app-plane restock effects, live stock over SSE, a
 gateway-guarded admin, and the production build/deploy path (`DEPLOY.md`).

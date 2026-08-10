@@ -12,6 +12,29 @@ validates the API without breaking changes**. Subpaths `server`, `machine`,
 `template`, `client`, `dev`, `build`, and `components` are treated as stable
 from 0.9.0; `compiler` and `vite` are internal and may change in minors.
 
+## @statorjs/stator 2.0.0 — 2026-08-09
+
+The removal release. Two-way binding was the one place a Stator machine
+changed state without a declared transition — the compiler-made `@set` event
+skipped guards, skipped types, and could not be seen in the machine's own
+definition. 2.0 deletes it, and with it the split personality of the display
+layer: `read()` is now the single display primitive on both sides of the
+boundary, lowered by the machine's location, and `on:` with typed events is
+the only way state changes. The directive surface ends at `on:` and `ref:`.
+
+Forms follow a pattern instead of a primitive. The input owns its draft with
+the platform as its guard, a typed event commits it at a real boundary, and
+pre-fill is a server-rendered attribute. The `registration` starter earned
+this release — built to prove the pattern, it found three framework bugs in
+its first day (all seam disagreements, all fixed), settled two doctrine
+questions, and its paper-cut log made the final call: no replacement sugar
+needed. The measured case for removal was never subtle — one real two-way
+binding existed in the entire codebase.
+
+Also gone: the deprecated one-bag `machine()` form. Also kept, deliberately:
+the wire's rejection of `@`-prefixed events, so the reserved namespace stays
+unreachable from untrusted input forever.
+
 ## @statorjs/stator 1.7.0 — 2026-07-29
 
 The dogfooding release: a real app was rebuilt on Stator, every point of

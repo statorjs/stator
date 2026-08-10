@@ -235,8 +235,9 @@ instead of discovered by a user.
   its own. IF a major break happens for other reasons, revisit the naming
   then — likely deprecating the machine option's name in 2.0 and removing
   it in 3.0.
-- **Reactive-model regrounding — remove `bind:`/`@set`** *(2.0 track;
-  proposed, gated)*: `read()` becomes the single display primitive (server →
+- **Reactive-model regrounding — remove `bind:`/`@set`** *(SHIPPED as 2.0,
+  2026-08-09 — gate adjudicated against the registration paper-cut log: no
+  draft primitive, the pattern is the answer)*: `read()` becomes the single display primitive (server →
   wire patch, client-local → the subscribe-and-write `bind:` generates today),
   `on:` + typed events the sole write path, `ref:` survives; two-way `@set` —
   the one place a machine's state changes without a declared transition,

@@ -63,28 +63,12 @@ export interface ClientBehavior<C> {
   select?: Record<string, (ctx: C) => unknown>
 }
 
-/** @deprecated One-bag form: context keys mixed with `on`/`select`. Kept for
- *  compatibility, but handlers see `any` — TypeScript cannot infer a
- *  context from the same object the handlers live in. Prefer
- *  `machine(context, behavior)`. */
-export interface LegacyMachineConfig {
-  name?: string
-  // biome-ignore lint/suspicious/noExplicitAny: the one-bag form is untypeable by construction — that is exactly why the two-arg form exists
-  on?: Record<string, ((ctx: any, ev: ClientEvent) => void) | ClientTransitionObject<any>>
-  // biome-ignore lint/suspicious/noExplicitAny: same
-  select?: Record<string, (ctx: any) => unknown>
-  [key: string]: unknown
-}
-
-const RESERVED = new Set(['name', 'on', 'select'])
-
-// Data-only: no behavior. Events stay structurally LOOSE (ClientEvent) on
-// purpose: data-only machines are the `bind:value` / hand-written `@set`
-// carriers until 2.0 removes `@set` — tightening them now would break that
-// still-supported surface. Tighten to `never` when `@set` goes.
+// Data-only: no behavior, no events. With `@set` gone (2.0) a machine with
+// no `on` map accepts NOTHING — its state is set at construction (a seed)
+// and read for display; `send` is a type error by construction.
 export function machine<C extends Record<string, unknown>>(
   context: C & { on?: never; select?: never; name?: never; events?: never },
-): MachineDef<C, ClientEvent, 'active', Record<string, never>>
+): MachineDef<C, never, 'active', Record<string, never>>
 // Derived union — no `events:` declared: event NAMES come from the `on` keys
 // (typo-safe send), payloads stay open. Zero authoring change. Ordered BEFORE
 // the declared overload: `events?: never` keeps declared calls falling through.
@@ -106,19 +90,15 @@ export function machine<
   context: C & { on?: never; select?: never; name?: never; events?: never },
   behavior: { name?: string; events: E; on?: TypedClientOnMap<C, E>; select?: S },
 ): MachineDef<C, E, 'active', S>
-// Behavior without `on` (selectors only): loose, as data-only.
+// Behavior without `on` (selectors only): derived state, still nothing to
+// send — events are `never`, as data-only.
 export function machine<
   C extends Record<string, unknown>,
   S extends Record<string, (ctx: C) => unknown>,
 >(
   context: C & { on?: never; select?: never; name?: never; events?: never },
   behavior: { name?: string; events?: never; on?: never; select?: S },
-): MachineDef<C, ClientEvent, 'active', S>
-/** @deprecated see LegacyMachineConfig */
-export function machine(
-  config: LegacyMachineConfig,
-  // biome-ignore lint/suspicious/noExplicitAny: legacy view is deliberately loose
-): MachineDef<Record<string, any>, ClientEvent, 'active', Record<string, (ctx: any) => any>>
+): MachineDef<C, never, 'active', S>
 export function machine(
   first: Record<string, unknown>,
   // Loose impl signature: the overloads above are the contract. `events` is a
@@ -126,23 +106,10 @@ export function machine(
   rawBehavior?: unknown,
 ): MachineDef {
   const behavior = rawBehavior as (ClientBehavior<never> & { events?: unknown }) | undefined
-  let context: Record<string, unknown>
-  let name: string | undefined
-  let on: Record<string, unknown>
-  let select: Record<string, unknown>
-  if (behavior !== undefined || !Object.keys(first).some((k) => RESERVED.has(k))) {
-    context = first
-    name = behavior?.name
-    on = (behavior?.on ?? {}) as Record<string, unknown>
-    select = (behavior?.select ?? {}) as Record<string, unknown>
-  } else {
-    // Legacy one-bag: context is every non-reserved key.
-    const { name: n, on: o = {}, select: s = {}, ...rest } = first as LegacyMachineConfig
-    context = rest
-    name = n
-    on = o as Record<string, unknown>
-    select = s as Record<string, unknown>
-  }
+  const context = first
+  const name = behavior?.name
+  const on = (behavior?.on ?? {}) as Record<string, unknown>
+  const select = (behavior?.select ?? {}) as Record<string, unknown>
   return defineMachine({
     name: name ?? 'ClientMachine',
     lifecycle: 'session',

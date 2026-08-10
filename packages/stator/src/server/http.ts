@@ -324,12 +324,12 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       return c.json({ error: 'invalid event payload', detail: String(e) }, 400)
     }
 
-    // Reserved `@`-prefixed events (e.g. the engine's built-in `@set`) are
-    // framework-internal and only ever originate in-browser for client-island
-    // binds. They must never reach a server machine from the wire, where `@set`
-    // would be a guard-bypassing arbitrary-context write. Server actors also
-    // ignore them (createActor without `internalEvents`); this is the clean
-    // 400 at the boundary rather than a silent no-op.
+    // The `@` event-name prefix is RESERVED for the framework. Nothing uses
+    // it today (2.0 removed the engine's `@set`), and keeping the wire fence
+    // means any future internal event is unreachable from untrusted input by
+    // construction — a clean 400 at the boundary rather than a silent no-op.
+    // History: `@set` (two-way bind:'s desugaring) was once wire-reachable —
+    // a guard-bypassing arbitrary-context write, fixed as a security patch.
     if (body.event.type.startsWith('@')) {
       return c.json({ error: `event type "${body.event.type}" is reserved` }, 400)
     }

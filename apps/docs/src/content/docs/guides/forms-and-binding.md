@@ -1,52 +1,92 @@
 ---
-title: Forms and two-way binding
-description: "Two-way bind:value/checked, the @set built-in, and isomorphic validation."
+title: Forms and inputs
+description: "The forms pattern: the input owns the draft, the platform guards it, a typed event commits it, and pre-fill is an attribute at render."
 sidebar:
   order: 5
 ---
 
-Two-way binding keeps an input and a client machine in sync. It's a [client component](/guides/client-components/) feature — bind to **client** state, never server state (you don't want the network in the typing loop).
+Stator has no two-way binding. Forms follow one pattern with four moves, and
+the `registration` starter (`pnpm create stator --template registration`) is
+the worked example of all of them.
 
-## Bind an input
+## The input owns the draft
 
-```astro
-<input bind:value={draft.query} />
-<input type="checkbox" bind:checked={draft.agree} />
-```
-
-## How it desugars
-
-`bind:value` is two halves: a state→DOM write (keeps the input current) and a DOM→state update via the engine's built-in `@set` event (assigns one context key on input). You get both directions from one directive.
-
-## Loop-break and IME safety
-
-The writeback is suppressed when the value is unchanged, so the cursor isn't reset mid-edit, and no update fires while an IME composition is in progress (`isComposing`). Composed input (CJK, accents) works correctly.
-
-## Typed values
-
-`bind:checked` reads `.checked`, so booleans arrive as booleans. `bind:value` always stores the DOM's string — an `<input type="number">` does **not** coerce. When the type matters, use the eject pattern below and send the value you mean (`e.target.valueAsNumber`).
-
-## Isomorphic validation
-
-A validation selector is a plain function of context, so the **same** selector runs server- and client-side. Bind its result back into the form:
-
-```js
-select: { error: (s) => s.email.includes('@') ? null : 'Invalid email' }
-```
+Uncommitted typing is not machine state — nothing else needs to read it, and
+the browser already gives the draft a home with cursor, IME, and undo handled
+natively. Guard it with platform constraints, not events:
 
 ```astro
-<span bind:text={form.error}></span>
+<input name="email" type="email" required maxlength="60" />
+<input name="seats" type="number" min="1" max="6" value="1" />
 ```
 
-## Custom commit timing
+A constraint prevents bad input outright. A prevented character never needs
+correcting, so there is nothing to jank.
 
-For commit-on-blur, debounce, or transform-before-store, drop `bind:value` and wire the two halves yourself:
+## A typed event commits it
+
+The commit boundary — submit, Enter, `change` — reads the draft once and
+sends one event the machine declares:
 
 ```astro
-<input value={read(draft, d => d.query)}
-       on:change={(e) => draft.send({ type: '@set', key: 'query', value: e.target.value })} />
+<form ref:form on:submit={submit}>…</form>
 ```
 
-:::caution[Deferred]
-A `bind:value|lazy` modifier is **not** available — the `|` pipe doesn't parse as JSX. Use the eject pattern above for non-default commit timing.
-:::
+```ts
+async submit(e: Event) {
+  e.preventDefault()
+  const form = this.refs.form as HTMLFormElement
+  const result = await dispatch(DeskMachine, {
+    type: 'REGISTER',
+    name: (form.elements.namedItem('name') as HTMLInputElement).value,
+    seats: (form.elements.namedItem('seats') as HTMLInputElement).valueAsNumber,
+  })
+  if (result.committed) form.reset()
+}
+```
+
+The machine's guards run server-side and a refusal comes back
+`committed: false` — the form keeps the visitor's typing. Only your own
+successful commit clears the field, and `form.reset()` returns it to the
+server-rendered defaults. That is the safe writeback moment: the framework
+never writes into a control you are typing in.
+
+## Pre-fill is an attribute at render
+
+An edit form's values are server state, so they arrive as server-rendered
+attributes — `value` for text and numbers, `checked` for booleans,
+`selected` for options:
+
+```astro
+<input name="name" value={attendee.name} />
+<input name="updates" type="checkbox" checked={attendee.updates} />
+```
+
+Attributes set a control's *default*, which is exactly right for pre-fill:
+the state provides the starting point, then the visitor owns the draft.
+`false`/`null` render the attribute absent, so a checkbox can pre-fill
+unchecked.
+
+## Live validation is one-way
+
+Per-field feedback is a client machine fed by events and displayed with
+`read()` — state flows *out* to messages and counters, never back into the
+control:
+
+```astro
+<input name="email" type="email" required on:blur={checkEmail} />
+<p role="alert">{read(checks, (c) => c.emailError)}</p>
+```
+
+Run the same pure rule functions in the browser for instant feedback and in
+the machine's guard for enforcement — the server never trusts the client's
+copy. Truth rules the browser can't answer (duplicates, capacity) live only
+in the guard. The [registration starter](https://github.com/statorjs/stator/tree/main/examples/registration)
+shows the full two-tier arrangement.
+
+## What about live input masks?
+
+Formatting-as-you-type (phone masks, currency) is caret-math territory that
+belongs to a dedicated mask library wired through `ref:`. Machine-side, store
+the normalized value and format it with a selector wherever it *displays* —
+the input itself formats on commit, not per keystroke.

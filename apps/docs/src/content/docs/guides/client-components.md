@@ -13,7 +13,7 @@ The root is a custom element; the `<script>` exports a name-matched `StatorEleme
 
 ```astro
 <theme-toggle>
-  <button on:click={toggle}><span bind:text={theme.label}></span></button>
+  <button on:click={toggle}>{read(theme, (t) => t.label)}</button>
 </theme-toggle>
 
 <script>
@@ -36,7 +36,26 @@ The root is a custom element; the `<script>` exports a name-matched `StatorEleme
 
 ## machine() and use()
 
-`machine(context, behavior?)` defines a small client machine inline — plain data first, then `on` (events) and `select` (derived values). The split is what makes the types work: handlers and selectors see the context fully typed (`s.mode` above is a `string`), and `use(Def, seed?)` returns an instance whose context keys and selector results are real typed properties — `this.theme.mode` and `this.theme.label` type-check like anything else. (A single combined bag is still accepted for compatibility, but its handlers see `any` — TypeScript cannot infer a context from the same object the handlers live in.)
+`machine(context, behavior?)` defines a small client machine inline — plain data first, then `on` (events) and `select` (derived values). The split is what makes the types work: handlers and selectors see the context fully typed (`s.mode` above is a `string`), and `use(Def, seed?)` returns an instance whose context keys and selector results are real typed properties — `this.theme.mode` and `this.theme.label` type-check like anything else. (2.0 removed the old single-bag form.)
+
+Events are typed in three tiers:
+
+- **No `on` map** — a data-only machine accepts nothing: its context is set at construction and read for display, and `send` is a compile error.
+- **An `on` map** — the event NAMES derive from its keys, so `send('TOGLE')` is a compile error. Payloads stay open.
+- **A declared union** — `events: {} as E` mirrors `defineMachine` for full payload typing, with each handler narrowed to its own event:
+
+```ts
+const Checks = machine(
+  { emailError: null as string | null },
+  {
+    events: {} as { type: 'CHECK'; value: string } | { type: 'RESET' },
+    on: {
+      CHECK: (s, e) => { s.emailError = emailError(e.value) }, // e.value: string
+      RESET: (s) => { s.emailError = null },
+    },
+  },
+)
+```
 
 ### Eager vs deferred seeds
 
@@ -61,7 +80,7 @@ Elements marked [`ref:name`](/guides/directives/#ref--element-handles) are reach
 
 ## Lifecycle
 
-Machine [actors](/concepts/state-machines/#definition-actor-instance) start on `connectedCallback` and stop on disconnect. `bind:` directives and `effect()` subscribe to state and write the DOM natively — no client re-render.
+Machine [actors](/concepts/state-machines/#definition-actor-instance) start on `connectedCallback` and stop on disconnect. Client-machine `read()`s and `effect()` subscribe to state and write the DOM natively — no client re-render.
 
 ## Islands are leaves
 
@@ -111,7 +130,7 @@ composition with the server:
    }
    ```
 
-   Note: `on:`/`bind:` directives don't reach inside these server sections —
+   Note: `on:` directives and client-machine `read()`s don't reach inside these server sections —
    wiring happens in the class, which is the point of the pattern.
 
 ## Committing to the server

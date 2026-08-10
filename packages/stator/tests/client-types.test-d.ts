@@ -6,7 +6,7 @@ import { bind, effect, machine, use } from '../src/client/index.ts'
  *
  * Three event-typing tiers (the Minor A foundation of the reactive-model
  * regrounding spec):
- *   1. data-only / no `on`      → loose ClientEvent (compat: @set carriers)
+ *   1. data-only / no `on`      → `never` (seed-and-display, nothing sendable)
  *   2. `on` map, no `events:`   → DERIVED names union (typo-safe send)
  *   3. `events: {} as E`        → DECLARED union (full payload typing)
  */
@@ -138,33 +138,23 @@ machine(
 )
 
 // ---------------------------------------------------------------------------
-// Tier 1: data-only stays LOOSE — the @set / bind:value carrier until 2.0.
+// Tier 1: data-only accepts NOTHING — with @set gone (2.0), a machine with no
+// `on` map has no events; its state is seed-and-display.
 // ---------------------------------------------------------------------------
 const Bag = machine({ text: '' })
 const bag = use(Bag)
-bag.send({ type: '@set', key: 'text', value: '' }) // hand-written eject pattern
-bag.send('ANYTHING') // loose by design until @set is removed
+// @ts-expect-error the hand-written @set eject pattern died with 2.0
+bag.send({ type: '@set', key: 'text', value: '' })
+// @ts-expect-error nothing is sendable to a data-only machine
+bag.send('ANYTHING')
 
-// behavior with selectors but no `on` is also loose:
+// behavior with selectors but no `on`: derived display, still nothing to send
 const SelOnly = machine({ n: 0 }, { select: { double: (s) => s.n * 2 } })
 const selOnly = use(SelOnly)
 const _double: typeof selOnly.double extends number ? true : false = true
+// @ts-expect-error no `on`, no events
 selOnly.send('ANYTHING')
-
-// legacy one-bag keeps compiling, loosely:
-const Legacy = machine({
-  mode: 'light',
-  on: {
-    T: (s) => {
-      s.mode = 'dark'
-    },
-  },
-})
-const legacy = use(Legacy)
-legacy.send('T')
-const _legacyLoose: typeof legacy.mode = 'anything types as any'
 void _color
 void _label
 void _big
 void _double
-void _legacyLoose

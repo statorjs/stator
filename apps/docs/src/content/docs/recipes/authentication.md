@@ -133,7 +133,7 @@ Never give a session machine a bare identity-granting event like
 browser devtools via `/__events` — that would be instant privilege
 escalation. An event must either **prove itself** (`LOGIN` carries
 credentials) or **grant nothing**. The framework blocks its *own* generic
-writes — reserved `@`-prefixed events (like the engine's built-in `@set`) are
+writes — reserved `@`-prefixed events (a framework-internal namespace) are
 rejected at `/__events` — but it can't stop you from *authoring* a forgeable
 event, so this rule is yours to keep.
 :::

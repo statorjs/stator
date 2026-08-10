@@ -146,11 +146,11 @@ const { cart } = Stator.props<{ cart: number }>()
 
 describe('toVirtualCode — client component', () => {
   const src = `<theme-toggle>
-  <button on:click={toggle}><span bind:text={theme.label}></span></button>
+  <button on:click={toggle}><span>{read(theme, (t) => t.label)}</span></button>
 </theme-toggle>
 
 <script>
-  const Theme = machine({ mode: 'light', on: { TOGGLE: (s) => {} } })
+  const Theme = machine({ mode: 'light' }, { on: { TOGGLE: (_s) => {} } })
   export class ThemeToggle extends StatorElement {
     theme = use(Theme)
     toggle() { this.theme.send('TOGGLE') }
@@ -199,7 +199,7 @@ import { read } from '@statorjs/stator/template'
   })
 
   it('client scripts: user client-module imports suppress injected duplicates', () => {
-    const src = `<probe-x><p bind:text={m.v}></p></probe-x>
+    const src = `<probe-x><p>{read(m, (x) => x.v)}</p></probe-x>
 <script>
   import { dispatch } from '@statorjs/stator/client'
   const M = machine({ v: 1 })

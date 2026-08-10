@@ -71,7 +71,7 @@
     </a>
 
     <nav class="nav">
-      <span class="nav__meta">REV 1.7</span>
+      <span class="nav__meta">REV 2.0</span>
       <a href="https://docs.statorjs.dev" class="nav__link">Docs</a>
       <a href="https://demo.statorjs.dev" class="nav__link">Demo</a>
       <a href="https://github.com/statorjs/stator" class="nav__link">Source</a>
@@ -103,7 +103,7 @@
 
     <!-- HERO -->
     <section class="hero">
-      <p class="hero__spec">DOC-002 · v1.7 · released</p>
+      <p class="hero__spec">DOC-002 · v2.0 · released</p>
       <h1 class="hero__title">
         <span class="hero__title-line">Render HTML</span>
         <span class="hero__title-line">where your</span>
@@ -129,7 +129,7 @@
       <div class="poc">
         <p class="poc__label">/* RELEASED */</p>
         <p class="poc__text">
-          What this is: released, v1 software — on npm today via
+          What this is: released software, now at 2.0 — on npm today via
           <code class="inline">pnpm create stator</code>, with docs at
           <a href="https://docs.statorjs.dev" class="link">docs.statorjs.dev</a>
           and a deployed reference demo at
@@ -226,9 +226,9 @@
   <span class="c-c">&lt;!-- server-rendered, updated by slot patches over the wire --&gt;</span>
   <span class="c-t">&lt;p&gt;</span>Results: {<span class="c-f">read</span>(SearchMachine, s =&gt; s.summary)}<span class="c-t">&lt;/p&gt;</span>
 
-  <span class="c-t">&lt;input</span> <span class="c-a">bind:value</span>={query}<span class="c-t">&gt;</span>
-  <span class="c-t">&lt;button</span> <span class="c-a">on:click</span>={run} <span class="c-a">bind:disabled</span>={notReady}<span class="c-t">&gt;</span>Search<span class="c-t">&lt;/button&gt;</span>
-  <span class="c-t">&lt;p</span> <span class="c-a">bind:text</span>={error}<span class="c-t">&gt;&lt;/p&gt;</span>
+  <span class="c-t">&lt;input</span> <span class="c-a">ref:query</span> <span class="c-a">on:input</span>={run}<span class="c-t">&gt;</span>
+  <span class="c-t">&lt;button</span> <span class="c-a">on:click</span>={run} disabled={<span class="c-f">read</span>(search, s =&gt; s.notReady)}<span class="c-t">&gt;</span>Search<span class="c-t">&lt;/button&gt;</span>
+  <span class="c-t">&lt;p&gt;</span>{<span class="c-f">read</span>(search, s =&gt; s.error)}<span class="c-t">&lt;/p&gt;</span>
 <span class="c-t">&lt;/search-box&gt;</span>
 
 <span class="c-t">&lt;script&gt;</span>  <span class="c-c">// this region runs in the BROWSER</span>
@@ -272,8 +272,8 @@
         <div class="boundary__half boundary__half--client">
           <p class="boundary__tag">▞ Client</p>
           <p class="boundary__desc">
-            Everything in <code>&lt;script&gt;</code> is browser code. The draft
-            machine runs locally; <code>bind:</code> writes to the DOM with no
+            Everything in <code>&lt;script&gt;</code> is browser code. The local
+            machine runs here; <code>read()</code> writes to the DOM with no
             re-render; <code>SearchMachine.dispatch()</code> is the visible hop
             to the server.
           </p>
@@ -310,9 +310,9 @@
         <ul class="status__list" style="margin: 0 0 1.5rem;">
           <li><code class="inline">on:click={handler}</code> — events in. Sends to a local machine, or
             <code class="inline">.dispatch()</code> to a server one.</li>
-          <li><code class="inline">bind:text</code> / <code class="inline">bind:value</code> /
-            <code class="inline">bind:disabled</code> — state out. Two-way on form controls,
-            one-way everywhere else.</li>
+          <li><code class="inline">read(machine, selector)</code> — state out. One
+            spelling on both sides of the boundary; the input itself owns its
+            draft and commits by typed event.</li>
           <li><code class="inline">ref:name</code> — a typed handle to a server-rendered node,
             for the rare imperative case (focus, a third-party widget). No
             <code class="inline">querySelector</code> strings.</li>
@@ -479,7 +479,7 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
       <div class="prose">
         <p>
           The fastest way to evaluate a framework is to know its edges. Here are
-          ours, plainly: what's shipped as of 1.7, what's planned next, and what
+          ours, plainly: what's shipped as of 2.0, what's planned next, and what
           Stator is deliberately <em>not</em> going to do.
         </p>
       </div>
@@ -492,11 +492,16 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
             <li><code class="inline">.stator</code> SFC: frontmatter, template, client <code class="inline">&lt;script&gt;</code>, scoped styles</li>
             <li>Import-location server/client boundary, compiler-enforced</li>
             <li>State machines with typed events, guards, actions, selectors</li>
-            <li>Client machines + custom elements; <code class="inline">on:</code> / <code class="inline">bind:</code> / <code class="inline">ref:</code></li>
-            <li>Two-way form binding and isomorphic validation</li>
+            <li>Client machines + custom elements; <code class="inline">read()</code> / <code class="inline">on:</code> / <code class="inline">ref:</code></li>
+            <li>The forms pattern — platform-guarded drafts, typed commit events, server-rendered pre-fill, two-tier validation (2.0)</li>
             <li>Typed machine-mediated <code class="inline">dispatch</code></li>
             <li>File routing, path params, API routes, response directives</li>
             <li>Per-route opt-in SSE for cross-session live views</li>
+            <li>One display primitive — <code class="inline">read()</code> on server and client machines alike, lowered by import location; every state change is a declared, typed event (2.0)</li>
+            <li>Typed client events — unions derived from <code class="inline">on</code> keys or declared like <code class="inline">defineMachine</code>; typos are compile errors (1.9)</li>
+            <li>Typed component surfaces — per-element <code class="inline">HTMLAttributes</code>, attribute spread, <code class="inline">on:</code> forwarding (1.9)</li>
+            <li>Comment-marker regions — reactive lists and branches work inside tables and selects, no injected wrapper nodes (1.8)</li>
+            <li>Machine-level <code class="inline">on:</code> — any-state handlers for completion events (1.8)</li>
             <li>Data GET routes — JSON, RSS, and text endpoints reading the same machines pages render, extension URLs like <code class="inline">rss.xml.ts</code>, ETag/304 conditional GETs (1.7)</li>
             <li>Flaky-network resilience — pending and connection signals, idempotent retried events, reconnects resync in place (1.6)</li>
             <li>Async data via <code class="inline">defer</code> — parallel awaits in synchronous routes (1.4)</li>
@@ -649,7 +654,7 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
 
   <footer class="footer">
     <div class="footer__row">
-      <span class="footer__cell">STATOR · v1.7.0</span>
+      <span class="footer__cell">STATOR · v2.0.0</span>
       <span class="footer__cell">DOC-002</span>
       <span class="footer__cell">REV. 2026.07</span>
     </div>

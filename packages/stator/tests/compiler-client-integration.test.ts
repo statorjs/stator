@@ -4,12 +4,12 @@ import { CompileError } from '../src/compiler/diagnostics.ts'
 
 const CLIENT = `<quantity-stepper>
   <button on:click={dec}>-</button>
-  <span bind:text={qty.lineTotal}></span>
+  <span>{read(qty, (q) => q.lineTotal)}</span>
   <button on:click={inc}>+</button>
 </quantity-stepper>
 
 <script>
-  const Qty = machine({ count: 1, unitPrice: 0, on: { INC: s => s.count++, DEC: s => s.count-- }, select: { lineTotal: s => s.unitPrice * s.count } })
+  const Qty = machine({ count: 1, unitPrice: 0 }, { on: { INC: (s) => { s.count++ }, DEC: (s) => { s.count-- } }, select: { lineTotal: (s) => s.unitPrice * s.count } })
   export class QuantityStepper extends StatorElement {
     static attrs = { unitPrice: Number }
     qty = use(Qty, () => ({ unitPrice: this.attrs.unitPrice }))
@@ -38,7 +38,7 @@ describe('compiler: client-component integration (3b stage 6a)', () => {
     expect(r.serverCode).toContain('data-b="b0"')
     expect(r.serverCode).toContain('data-b="b1"')
     expect(r.serverCode).not.toContain('on:click')
-    expect(r.serverCode).not.toContain('bind:text')
+    expect(r.serverCode).not.toContain('read(qty')
   })
 
   it('a component with no inline <script> stays on the server path', () => {

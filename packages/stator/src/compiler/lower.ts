@@ -91,10 +91,11 @@ export interface LowerOptions {
    *  validation is skipped for that component. Supplied by the Vite plugin /
    *  build, which can read sibling `.stator` files. */
   resolveRegions?: (componentName: string) => Set<string> | null
-  /** Client-component mode (Phase 3b). When set, `on:`/`bind:` directives are
-   *  *collected* (with a node marker injected) instead of emitted as server
-   *  directives — the generated client class wires them. `useFields` is the set
-   *  of `use()` actor names (for dep inference); `directives` is the out-list. */
+  /** Client-component mode. When set, `on:` directives and client-machine
+   *  `read()`s are *collected* (with node/slot markers injected) instead of
+   *  emitted as server directives — the generated client class wires them.
+   *  `useFields` is the set of `use()` actor names (for dep inference);
+   *  `directives` is the out-list. */
   client?: {
     useFields: Set<string>
     directives: ClientDirective[]
@@ -185,6 +186,17 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     n.arguments[0] !== undefined &&
     ts.isIdentifier(n.arguments[0]) &&
     opts.client.useFields.has(n.arguments[0].text)
+
+  /** `bind:` was removed in 2.0 — display folds into `read()`, input capture
+   *  is a typed commit event. One error, both compile modes. */
+  const bindRemoved = (name: string, at: DiagnosticLocation | undefined): CompileError =>
+    new CompileError(
+      `stator: bind:${name} was removed in 2.0. Display state with read() — ` +
+        `\`{read(m, (s) => s.value)}\` in text position, \`attr={read(m, …)}\` on an ` +
+        `attribute — and capture input at a commit boundary with a typed event ` +
+        `(ref:/FormData + send/dispatch). See the forms guide.`,
+      at,
+    )
 
   /** A client read as a plain expression: `(selector)(field)`. Client-emit's
    *  member rewriting turns `field` (and any use-field the selector closes
@@ -539,11 +551,10 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     return out
   }
 
-  // Collect a client element's wiring — on:/bind: directives plus plain
-  // attributes whose value is a client-machine read — into
-  // `opts.client.directives` under a single node marker. Returns the marker
-  // (if any wiring was found) and the set of consumed attribute nodes the
-  // shell must not render.
+  // Collect a client element's wiring — on: directives plus plain attributes
+  // whose value is a client-machine read — into `opts.client.directives`
+  // under a single node marker. Returns the marker (if any wiring was found)
+  // and the set of consumed attribute nodes the shell must not render.
   const collectClientDirectives = (
     attrs: ts.JsxAttributes,
   ): { marker?: string; consumed: Set<ts.JsxAttribute> } => {
@@ -556,22 +567,13 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       if (ts.isJsxNamespacedName(attr.name)) {
         const ns = attr.name.namespace.text
         const name = attr.name.name.text
-        if (ns !== 'on' && ns !== 'bind') continue
+        if (ns === 'bind') throw bindRemoved(name, loc(attr))
+        if (ns !== 'on') continue
         const expr = attrExpr(attr)
         if (!expr) {
-          throw new CompileError(`stator: ${ns}:${name} requires a value ({...})`, loc(attr))
+          throw new CompileError(`stator: on:${name} requires a handler ({...})`, loc(attr))
         }
-        if (ns === 'on') {
-          pending.push({ marker: '', kind: 'on', event: name, expr, deps: [] })
-        } else {
-          pending.push({
-            marker: '',
-            kind: 'bind',
-            target: name,
-            expr,
-            deps: inferDeps(expr, client.useFields),
-          })
-        }
+        pending.push({ marker: '', kind: 'on', event: name, expr, deps: [] })
         consumed.add(attr)
         continue
       }
@@ -689,10 +691,8 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
         if (meta) meta.refs.add(name)
         return `data-ref=${JSON.stringify(name)}`
       }
-      throw new CompileError(
-        `stator: directive "${ns}:${name}" is not supported yet (Phase 3b)`,
-        loc(attr),
-      )
+      if (ns === 'bind') throw bindRemoved(name, loc(attr))
+      throw new CompileError(`stator: directive "${ns}:${name}" is not supported`, loc(attr))
     }
 
     const name = attr.name.getText(sf)
@@ -735,10 +735,11 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       if (ts.isJsxNamespacedName(attr.name)) {
         const ns = attr.name.namespace.text
         const dirName = attr.name.name.text
+        if (ns === 'bind') throw bindRemoved(dirName, loc(attr))
         if (ns !== 'on') {
           throw new CompileError(
             `stator: forwarding "${ns}:${dirName}" to a component isn't supported yet — only ` +
-              `on:* event directives forward. Apply bind:/ref: on an element directly.`,
+              `on:* event directives forward. Apply ref: on an element directly.`,
             loc(attr),
           )
         }

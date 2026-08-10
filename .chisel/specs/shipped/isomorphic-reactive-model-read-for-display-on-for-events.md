@@ -1,6 +1,6 @@
 ---
 title: "Isomorphic reactive model: read() for display, on: for events"
-status: draft
+status: shipped
 created: 2026-08-07
 updated: 2026-08-09
 area: runtime
@@ -219,13 +219,18 @@ next:
 
 ## Status and decision gate
 
-**Proposed, gated — not committed.** (The superseded ADR carried "proposed, not
-committed" and a decision gate; both were lost in the rewrite and are restored
-here.) The 2.0 removal proceeds only after Minor C's app proves the minimal
-pattern livable **and** its paper-cut log has been adjudicated — draft
-ergonomics promoted from it, or explicitly none. Until then this spec is a
-direction, not a decision — and per the roadmap's promotion convention, the
-2.0 track is recorded there under surface hygiene.
+**DECIDED AND SHIPPED — 2.0, 2026-08-09.** The gate was evaluated against the
+registration starter and its paper-cut log (10 entries): the minimal pattern
+proved livable with zero friction on its three core moves, and the log's one
+real gap (refused-dispatch reasons) is a primitive question independent of
+drafts. Adjudication: **no draft primitive ships — the pattern + the forms
+guide + the registration starter are the answer.** The deprecation-cycle
+minor was deliberately waived (near-zero external users, Tony's call);
+`bind:` anywhere is a located compile error with migration guidance. Also
+removed with the major: the engine's `@set` + `internalEvents`, and the
+deprecated one-bag `machine()` form. The wire's `@`-prefix fence stays as
+reserved-namespace defense. The typed `send()` helper spec is archived
+un-built — revivable only if future evidence demands it.
 
 ## Open Questions
 

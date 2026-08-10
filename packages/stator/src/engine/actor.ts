@@ -18,9 +18,9 @@ export interface Actor<C, E extends EventObject> {
    *  the element's connect). No-op after start. */
   seed(partial: Partial<C>): void
   getSnapshot(): Snapshot<C>
-  /** Monotonic count of HANDLED events (a matching transition fired or an
-   *  `@set` applied). Guard-dropped and unhandled events don't count — this
-   *  is how the server distinguishes "committed" from "silently dropped". */
+  /** Monotonic count of HANDLED events (a matching transition fired).
+   *  Guard-dropped and unhandled events don't count — this is how the server
+   *  distinguishes "committed" from "silently dropped". */
   getCommitCount(): number
   subscribe(listener: (snapshot: Snapshot<C>) => void): { unsubscribe(): void }
   /** Listen for a declared emit. Returns a remover. Used by cross-machine
@@ -63,12 +63,6 @@ export interface CreateActorOptions<C> {
    *  effect locally on a microtask and sends its completion event to itself —
    *  the client-plane (and unit-test) behavior. */
   onEffect?: (invocation: EffectInvocation) => void
-  /** Honor framework-internal events (currently `@set`, which powers two-way
-   *  `bind:value`). Enabled ONLY for client-island actors, whose `@set` events
-   *  originate from their own compiled bind code. Server actors leave this off:
-   *  they take events straight from the untrusted wire (`/__events`), where a
-   *  `@set` would be an arbitrary-context-write that bypasses every guard. */
-  internalEvents?: boolean
   /** Host hook: a state was ENTERED (fresh start or a value-changing transition —
    *  never hydration). The server uses it to arm `after` timers from the state's
    *  config; `ctx` is the current context (for context-dependent delays). */
@@ -224,19 +218,6 @@ export function createActor<C extends object, E extends EventObject, S extends s
     },
 
     send(event: E) {
-      // Framework-internal `@set`: assign one context key. Powers two-way
-      // `bind:value` (DOM → state) on client islands without a per-field
-      // transition. Honored ONLY when the host opted in (`internalEvents`) —
-      // server actors never do, so a wire-delivered `@set` falls through to
-      // ordinary (unhandled) resolution and mutates nothing. Without this gate
-      // `@set` is a guard-bypassing arbitrary-context write over `/__events`.
-      if (opts.internalEvents && (event as { type: string }).type === '@set') {
-        const e = event as unknown as { key: string; value: unknown }
-        context = { ...context, [e.key]: e.value }
-        commits += 1
-        notify()
-        return
-      }
       // Resolve the current leaf state (depth-1 today: value[0]).
       const stateKey = value[value.length - 1]!
       const node = def.states[stateKey]

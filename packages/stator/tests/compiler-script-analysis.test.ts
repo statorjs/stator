@@ -5,7 +5,7 @@ describe('compiler: script class analysis (3b stage 3)', () => {
   it('extracts use() fields (field → machine) and methods', () => {
     const script = `
       import { machine, use } from '@statorjs/stator/client'
-      const Qty = machine({ count: 1, on: { INC: s => s.count++ } })
+      const Qty = machine({ count: 1 }, { on: { INC: (s) => { s.count++ } } })
       export class QuantityStepper extends StatorElement {
         qty = use(Qty)
         cached = 0

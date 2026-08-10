@@ -72,7 +72,7 @@ function bind(deps: ClientInstanceBase[], compute: () => unknown, apply: (value)
 function effect(deps: ClientInstanceBase[], fn: () => void): () => void
 ```
 
-The one client binding mechanism — the client mirror of the server's recompute loop. `bind` subscribes to the dep actors and, on any change, re-evaluates `compute`, diffs against the last value with `Object.is`, and calls `apply` only when it changed. The compiler emits one `bind()` per `bind:` directive; you rarely write it by hand. `effect` is the imperative escape hatch: run `fn` now and on every dep change, no diffing — `fn` owns its own DOM writes. Both return a disposer.
+The one client binding mechanism — the client mirror of the server's recompute loop. `bind` subscribes to the dep actors and, on any change, re-evaluates `compute`, diffs against the last value with `Object.is`, and calls `apply` only when it changed. The compiler emits one `bind()` per client-machine `read()`; you rarely write it by hand. `effect` is the imperative escape hatch: run `fn` now and on every dep change, no diffing — `fn` owns its own DOM writes. Both return a disposer.
 
 ## dispatch
 

@@ -1,3 +1,13 @@
+/**
+ * `/server` carries two tiers (see the docs' stability policy): the STABLE
+ * app surface (createApp, defineMachine, defineApiRoute, the stores, logger,
+ * dispatchToApp, rotateSession) and the TOOLCHAIN plumbing the compiler/Vite
+ * module graph needs importable (recompute, renderRoute, buildHonoApp,
+ * SessionRuntime, render-context internals, …). The Toolchain tier is not
+ * covered by semver and is RESERVED to move to a dedicated subpath
+ * (`@statorjs/stator/server/runtime`) in a 2.x minor — import it expecting
+ * that move.
+ */
 export type {
   ElementTarget,
   Patch,

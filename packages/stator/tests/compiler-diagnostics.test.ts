@@ -20,7 +20,7 @@ describe('compiler: diagnostics', () => {
   })
 
   it('locates an unsupported directive at the right line/column in the original .stator', () => {
-    // bind:text isn't supported until 3b — it should throw a located error.
+    // bind: was removed in 2.0 — it should throw a LOCATED error with guidance.
     const src = `---
 const x = 1
 ---

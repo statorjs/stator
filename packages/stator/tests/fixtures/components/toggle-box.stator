@@ -1,10 +1,10 @@
 <toggle-box>
   <button on:click={toggle}>toggle</button>
-  <span bind:text={state.label}></span>
+  <span>{read(state, (s) => s.label)}</span>
 </toggle-box>
 
 <script>
-  const S = machine({ open: false, on: { TOGGLE: s => s.open = !s.open }, select: { label: s => s.open ? 'open' : 'closed' } })
+  const S = machine({ open: false }, { on: { TOGGLE: (s) => { s.open = !s.open } }, select: { label: (s) => s.open ? 'open' : 'closed' } })
   export class ToggleBox extends StatorElement {
     state = use(S)
     toggle() { this.state.send('TOGGLE') }
