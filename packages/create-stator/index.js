@@ -47,6 +47,11 @@ const TEMPLATES = [
     label: 'Weather',
     hint: 'live forecasts over SSE, entry-effect data loading, a canvas island',
   },
+  {
+    value: 'registration',
+    label: 'Registration',
+    hint: 'the forms pattern — two-tier validation, live roster, pre-filled editing',
+  },
 ]
 
 /** First-party templates resolve into the monorepo's examples/. */

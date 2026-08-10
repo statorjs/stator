@@ -5,7 +5,7 @@ sidebar:
   order: 1
 ---
 
-A template body is JSX-flavored markup. This page covers the body itself; [directives](/guides/directives/) (`on:`, `bind:`, `class:list`) have their own page.
+A template body is JSX-flavored markup. This page covers the body itself; [directives](/guides/directives/) (`on:`, `ref:`, `class:list`) have their own page.
 
 ## Static text vs reactive state
 
@@ -24,7 +24,7 @@ Attribute bindings understand **boolean semantics**: a selector returning `false
 <button disabled={read(cart, (c) => c.count === 0)}>Begin checkout</button>
 ```
 
-One platform caveat: `checked`, `value`, and `selected` as *attributes* set defaults only — a form control the user has touched ignores them. Live form state is [`bind:`](/guides/forms-and-binding/) territory.
+One platform caveat that is also the design: `checked`, `value`, and `selected` as *attributes* set defaults only — a form control the user has touched ignores them. That is precisely what pre-fill wants (state provides the start, the visitor owns the draft), and commits flow back as typed events. See [Forms and inputs](/guides/forms-and-binding/).
 
 ## Conditionals: when and match
 

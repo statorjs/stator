@@ -39,7 +39,7 @@ These are the things that make the React Server Components boundary hard to hold
 
 ## The definition is location-agnostic
 
-A machine definition has no inherent side. The same `defineMachine(...)` can run on the server in one place and in the browser in another; nothing about the definition changes. This is what makes a machine's selectors **isomorphic** — the `total` selector you `read()` on the server is the same function a client island would `bind:` against. You author the logic once and place it where each use needs it.
+A machine definition has no inherent side. The same `defineMachine(...)` can run on the server in one place and in the browser in another; nothing about the definition changes. This is what makes a machine's selectors **isomorphic** — the `total` selector you `read()` on the server is the same function a client island `read()`s locally. You author the logic once and place it where each use needs it.
 
 ## Portable vs server-pinned at the use site
 
@@ -53,7 +53,7 @@ There's a runtime backstop too: a machine running client-side that somehow deref
 
 ## One reactivity model across the line
 
-The boundary doesn't fork the programming model. Server `read(machine, selector)` and client `bind:` are two faces of the same primitive — *declare on a node what state it shows*. The difference is only the transport: the server diffs bindings and sends patches; the client subscribes locally and writes the DOM. Learn it once, apply it on both sides. See [Reactivity and reads](/concepts/reactivity-and-reads/).
+The boundary doesn't fork the programming model. `read(machine, selector)` is the same primitive on both sides — *declare on a node what state it shows*. The difference is only the transport: a server machine's binding updates by diff-and-patch; a client machine's by a local subscription writing the DOM. Learn it once, apply it on both sides. See [Reactivity and reads](/concepts/reactivity-and-reads/).
 
 ## No JSX on the client
 

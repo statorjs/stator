@@ -49,9 +49,9 @@ Equality is pragmatic: `Object.is` first, then a shallow type check, then a `JSO
 
 A binding produced by `when`/`match` reduces to a **key**: the branch re-renders only when the chosen branch changes, not every time the underlying value is merely truthy in a different way.
 
-## The bind: mirror on the client
+## read() on client machines
 
-Inside a [client island](/guides/client-components/), the same idea runs without a server. `bind:text={theme.label}` subscribes to the island's local [actor](/concepts/state-machines/#definition-actor-instance) and writes the DOM when the selector's value changes — a local subscribe-and-write with no recompute pass and no wire. `read()` and `bind:` are the two faces of one primitive: *declare on a node what state it shows.* The server diffs and patches; the client subscribes and writes. The mental model is identical on both sides of the [boundary](/concepts/server-client-boundary/).
+Inside a [client island](/guides/client-components/), the same spelling runs without a server. `{read(theme, (t) => t.label)}` subscribes to the island's local [actor](/concepts/state-machines/#definition-actor-instance) and writes the DOM when the selector's value changes — a local subscribe-and-write with no recompute pass and no wire. The compiler lowers `read()` by the machine's location, so the primitive is ONE: *declare on a node what state it shows.* A server machine's node updates by patch; a client machine's by subscription. The mental model is identical on both sides of the [boundary](/concepts/server-client-boundary/).
 
 ## One word, four altitudes: the reads family
 

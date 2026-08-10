@@ -69,7 +69,7 @@ There is no `"use client"`, no file coloring, no viral transitivity. The import 
 
 ### One reactivity model both sides
 
-The server's `read(machine, selector)` and a client island's `bind:` directive are two faces of the same primitive: *declare on a node what state it shows.* You learn one model and apply it on both sides of the boundary.
+`read(machine, selector)` is the one display primitive on both sides of the boundary: *declare on a node what state it shows.* The compiler lowers it by the machine's location — a server machine updates by wire patch, a client machine by a local subscription — and the spelling never changes.
 
 ### Portability is checked, not inferred
 

@@ -13,7 +13,7 @@ The root is a custom element; the `<script>` exports a name-matched `StatorEleme
 
 ```astro
 <theme-toggle>
-  <button on:click={toggle}><span bind:text={theme.label}></span></button>
+  <button on:click={toggle}>{read(theme, (t) => t.label)}</button>
 </theme-toggle>
 
 <script>
@@ -61,7 +61,7 @@ Elements marked [`ref:name`](/guides/directives/#ref--element-handles) are reach
 
 ## Lifecycle
 
-Machine [actors](/concepts/state-machines/#definition-actor-instance) start on `connectedCallback` and stop on disconnect. `bind:` directives and `effect()` subscribe to state and write the DOM natively — no client re-render.
+Machine [actors](/concepts/state-machines/#definition-actor-instance) start on `connectedCallback` and stop on disconnect. Client-machine `read()`s and `effect()` subscribe to state and write the DOM natively — no client re-render.
 
 ## Islands are leaves
 
@@ -111,7 +111,7 @@ composition with the server:
    }
    ```
 
-   Note: `on:`/`bind:` directives don't reach inside these server sections —
+   Note: `on:` directives and client-machine `read()`s don't reach inside these server sections —
    wiring happens in the class, which is the point of the pattern.
 
 ## Committing to the server

@@ -226,9 +226,9 @@
   <span class="c-c">&lt;!-- server-rendered, updated by slot patches over the wire --&gt;</span>
   <span class="c-t">&lt;p&gt;</span>Results: {<span class="c-f">read</span>(SearchMachine, s =&gt; s.summary)}<span class="c-t">&lt;/p&gt;</span>
 
-  <span class="c-t">&lt;input</span> <span class="c-a">bind:value</span>={query}<span class="c-t">&gt;</span>
-  <span class="c-t">&lt;button</span> <span class="c-a">on:click</span>={run} <span class="c-a">bind:disabled</span>={notReady}<span class="c-t">&gt;</span>Search<span class="c-t">&lt;/button&gt;</span>
-  <span class="c-t">&lt;p</span> <span class="c-a">bind:text</span>={error}<span class="c-t">&gt;&lt;/p&gt;</span>
+  <span class="c-t">&lt;input</span> <span class="c-a">ref:query</span> <span class="c-a">on:input</span>={run}<span class="c-t">&gt;</span>
+  <span class="c-t">&lt;button</span> <span class="c-a">on:click</span>={run} disabled={<span class="c-f">read</span>(search, s =&gt; s.notReady)}<span class="c-t">&gt;</span>Search<span class="c-t">&lt;/button&gt;</span>
+  <span class="c-t">&lt;p&gt;</span>{<span class="c-f">read</span>(search, s =&gt; s.error)}<span class="c-t">&lt;/p&gt;</span>
 <span class="c-t">&lt;/search-box&gt;</span>
 
 <span class="c-t">&lt;script&gt;</span>  <span class="c-c">// this region runs in the BROWSER</span>
@@ -272,8 +272,8 @@
         <div class="boundary__half boundary__half--client">
           <p class="boundary__tag">▞ Client</p>
           <p class="boundary__desc">
-            Everything in <code>&lt;script&gt;</code> is browser code. The draft
-            machine runs locally; <code>bind:</code> writes to the DOM with no
+            Everything in <code>&lt;script&gt;</code> is browser code. The local
+            machine runs here; <code>read()</code> writes to the DOM with no
             re-render; <code>SearchMachine.dispatch()</code> is the visible hop
             to the server.
           </p>
@@ -310,9 +310,9 @@
         <ul class="status__list" style="margin: 0 0 1.5rem;">
           <li><code class="inline">on:click={handler}</code> — events in. Sends to a local machine, or
             <code class="inline">.dispatch()</code> to a server one.</li>
-          <li><code class="inline">bind:text</code> / <code class="inline">bind:value</code> /
-            <code class="inline">bind:disabled</code> — state out. Two-way on form controls,
-            one-way everywhere else.</li>
+          <li><code class="inline">read(machine, selector)</code> — state out. One
+            spelling on both sides of the boundary; the input itself owns its
+            draft and commits by typed event.</li>
           <li><code class="inline">ref:name</code> — a typed handle to a server-rendered node,
             for the rare imperative case (focus, a third-party widget). No
             <code class="inline">querySelector</code> strings.</li>
@@ -492,7 +492,7 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
             <li><code class="inline">.stator</code> SFC: frontmatter, template, client <code class="inline">&lt;script&gt;</code>, scoped styles</li>
             <li>Import-location server/client boundary, compiler-enforced</li>
             <li>State machines with typed events, guards, actions, selectors</li>
-            <li>Client machines + custom elements; <code class="inline">on:</code> / <code class="inline">bind:</code> / <code class="inline">ref:</code></li>
+            <li>Client machines + custom elements; <code class="inline">read()</code> / <code class="inline">on:</code> / <code class="inline">ref:</code></li>
             <li>Two-way form binding and isomorphic validation</li>
             <li>Typed machine-mediated <code class="inline">dispatch</code></li>
             <li>File routing, path params, API routes, response directives</li>

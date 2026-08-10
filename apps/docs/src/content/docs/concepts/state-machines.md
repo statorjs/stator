@@ -85,7 +85,7 @@ on: {
 
 ## Selectors
 
-`selectors` are pure derived views over `context`. They're the read surface: templates call `read(machine, sel)` and client components `bind:` against them. A selector that takes an argument returns a function (`contains: (ctx) => (id) => …`).
+`selectors` are pure derived views over `context`. They're the read surface: templates call `read(machine, sel)` against them, on server and client machines alike. A selector that takes an argument returns a function (`contains: (ctx) => (id) => …`).
 
 Selectors receive the same helpers actions and guards get, so a machine that declares `reads:` can **project a cross-machine verdict as display state**:
 

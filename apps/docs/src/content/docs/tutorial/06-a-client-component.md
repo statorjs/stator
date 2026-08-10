@@ -18,7 +18,7 @@ Create `templates/theme-toggle.stator`. Unlike a server component, its root is a
 ```astro
 <theme-toggle>
   <button class="theme-toggle-btn" type="button" on:click={toggle} aria-label="Toggle theme">
-    <span bind:text={theme.label}></span>
+    <span>{read(theme, (t) => t.label)}</span>
   </button>
 </theme-toggle>
 
@@ -78,12 +78,12 @@ theme = use(Theme, () => ({ mode: readStoredTheme() }))
 
 The second argument to `use()` is the **seed** — the machine's initial context. It's a thunk (`() => ({ ... })`) here, not a plain object, for a specific reason: it reads from `localStorage` (and could read `this.attrs`), neither of which is available when the class field is first constructed. A thunk seed is deferred until the element connects to the DOM, by which point attributes and the browser environment are ready. **Use a thunk whenever the seed depends on `this.attrs` or the browser.**
 
-## bind: and on: in a component
+## read() and on: in a component
 
 Inside a client component, the directives mirror the server:
 
 - `on:click={toggle}` calls the component's `toggle()` method on click.
-- `bind:text={theme.label}` keeps the `<span>`'s text in sync with the `label` selector — the client-side twin of `read()`. When `mode` flips, `label` recomputes and the span updates, with no server involvement.
+- `{read(theme, (t) => t.label)}` keeps the `<span>`'s text in sync with the `label` selector — the same `read()` you used on server machines, now against a client machine. When `mode` flips, `label` recomputes and the span updates, with no server involvement.
 
 Drop `<ThemeToggle />` into the layout header you built in [step 4](/tutorial/04-layouts/), so it appears on every page. In `templates/customer-layout.stator`:
 

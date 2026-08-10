@@ -1,11 +1,13 @@
 ---
 title: Directives
-description: "Colon-namespaced directives: on:, class:list, style:list, bind:, ref:, and is:inline."
+description: "Colon-namespaced directives: on:, class:list, style:list, ref:, and is:inline."
 sidebar:
   order: 2
 ---
 
-Directives are colon-namespaced attributes (`name:arg`) the compiler lowers to runtime calls. Each one owns its whole attribute.
+Directives are colon-namespaced attributes (`name:arg`) the compiler lowers to runtime calls. Each one owns its whole attribute. Display is not a directive — `read()` is an expression, in text or attribute position, on server and client machines alike.
+
+(2.0 removed `bind:` — display folds into `read()` and input capture is a typed commit event. See [Forms and inputs](/guides/forms-and-binding/).)
 
 ## on: — events
 
@@ -29,15 +31,6 @@ Same model for inline styles:
 
 ```astro
 <div style:list={{ color: read(theme, t => t.fg) }}>
-```
-
-## bind: — DOM ↔ state
-
-One-way (`bind:text`, `bind:html`, `bind:disabled`) and two-way (`bind:value`, `bind:checked`, client-only) bindings. Full treatment in [Forms and binding](/guides/forms-and-binding/):
-
-```astro
-<span bind:text={theme.label}></span>
-<input bind:value={draft.name} />
 ```
 
 ## ref: — element handles
