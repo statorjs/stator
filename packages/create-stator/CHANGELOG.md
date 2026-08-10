@@ -1,5 +1,11 @@
 # create-stator
 
+## 1.5.2
+
+### Patch Changes
+
+- 7adbfa8: The template picker offers `registration` — the forms-pattern starter (two-tier validation, live roster, pre-filled editing).
+
 ## 1.5.1
 
 ### Patch Changes
