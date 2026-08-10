@@ -34,8 +34,6 @@ export interface StatorDirectiveAttributes {
   'style:list'?: unknown
   [key: `on:${string}`]: unknown
   [key: `ref:${string}`]: unknown
-  [key: `class:${string}`]: unknown
-  [key: `style:${string}`]: unknown
 }
 
 /** ARIA — `role` plus the open-ended `aria-*` family. */

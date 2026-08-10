@@ -8,17 +8,12 @@ export {
 } from './conditional.ts'
 export type { DeferArms, DeferResult } from './defer.ts'
 export { defer, isDeferResult } from './defer.ts'
-export type {
-  Directive,
-  DirectiveContext,
-  DirectiveDefinition,
-  DirectiveInvocation,
-} from './directives/core.ts'
-export {
-  defineDirective,
-  invoke,
-  isDirectiveInvocation,
-} from './directives/core.ts'
+// The custom-directive surface (defineDirective/invoke) was removed from the
+// public barrel in 2.0: it was documented but unusable from `.stator` files
+// (the compiler owns the closed directive namespace), and a future custom-
+// directive system would be global configuration, not per-template calls.
+// The runtime pieces live on in ./directives/core.ts as internals.
+export { isDirectiveInvocation } from './directives/core.ts'
 export type { ClassListSpec, StyleListSpec } from './directives/list-attr.ts'
 export { classList, styleList } from './directives/list-attr.ts'
 export { on } from './directives/on.ts'
