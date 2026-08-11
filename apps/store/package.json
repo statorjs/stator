@@ -9,17 +9,19 @@
     "dev": "tsx watch server.ts",
     "build": "tsx build.ts",
     "start": "tsx start.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:browser": "node tests/picker.browser.mjs"
   },
   "dependencies": {
     "@statorjs/stator": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",
+    "esbuild": "^0.24.2",
+    "pino-pretty": "^13.1.3",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vite": "^6.0.0",
-    "pino-pretty": "^13.1.3",
     "vitest": "^3.0.0"
   }
 }

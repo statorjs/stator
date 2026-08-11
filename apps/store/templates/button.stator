@@ -17,7 +17,7 @@ type Props =
 const VARIANT_CLASS: Record<Variant, string> = {
   primary: 'btn-primary',
   ghost: 'btn-ghost',
-  quiet: 'cart-clear',
+  quiet: 'btn-quiet',
 }
 
 const { href, variant, class: className, ...rest } = Stator.props<Props>()

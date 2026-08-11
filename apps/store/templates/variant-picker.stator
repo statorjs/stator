@@ -2,31 +2,36 @@
   <div class="vp-stage" ref:stage>{props.plate}</div>
   <div class="vp-row">
     <span class="vp-caption">Color · <span>{read(sel, (s) => s.colorLabel)}</span></span>
-    <div class="vp-swatches" ref:swatches>
+    <div class="vp-swatches" role="radiogroup" aria-label="Colorway" on:change={pickColor}>
       {props.colorways.map((c) => (
-        <button
-          type="button"
-          class="vp-swatch"
-          data-color={c.value}
-          data-label={c.label}
-          title={c.label}
-          style={`background:${c.swatch}`}
-        ></button>
+        <label class="vp-swatch" title={c.label} style={`background:${c.swatch}`}>
+          <input
+            type="radio"
+            name="vp-color"
+            value={c.value}
+            data-label={c.label}
+            checked={c.value === props.initialColor}
+          />
+        </label>
       ))}
     </div>
   </div>
   <div class="vp-row">
     <span class="vp-caption">Size · <span>{read(sel, (s) => s.sizeLabel)}</span></span>
-    <div class="vp-sizes" ref:sizes>
+    <div class="vp-sizes" role="radiogroup" aria-label="Size" on:change={pickSize}>
       {props.sizes.map((sz) => (
-        <button type="button" class="vp-size" data-size={sz}>
+        <label class="vp-size">
+          <input type="radio" name="vp-size" value={sz} checked={sz === props.initialSize} />
           {sz === 'one-size' ? 'One size' : sz}
-        </button>
+        </label>
       ))}
     </div>
   </div>
   <div class="vp-row">
-    <button class="btn-primary vp-add" type="button" ref:addbtn on:click={add}>Add to cart</button>
+    <button class="btn-primary vp-add" type="button" on:click={add} disabled={read(sel, (s) => s.out)}>
+      Add to cart
+    </button>
+    <p class="vp-status" role="status">{read(sel, (s) => s.status)}</p>
   </div>
 </variant-picker>
 
@@ -34,21 +39,69 @@
   import { plateStyleOf } from '../lib/colorways.ts'
   import CartMachine from '../machines/cart.ts'
 
+  /** The sku grammar this island shares with the server (lib/sku.ts parses it back). */
+  const skuFor = (s: { slug: string; color: string; size: string }) =>
+    `${s.slug}--${s.color}--${s.size}`
+
   // Which variant is the shopper looking at — ephemeral, client-owned.
-  // The option buttons and the plate are SERVER-RENDERED from props (the
-  // hydrate pattern): this class only wires and reflects.
+  // The option radios and the plate are SERVER-RENDERED from props (the
+  // hydrate pattern): the radios' :checked state carries the selection in
+  // the DOM, this machine mirrors it for display and the add commit. The
+  // ack is view state — it lives here and dies with the page.
   const Sel = machine(
-    { color: '', colorLabel: '', size: '' },
     {
+      slug: '',
+      color: '',
+      colorLabel: '',
+      size: '',
+      stock: {} as Record<string, number>,
+      ack: null as 'added' | 'refused' | 'failed' | null,
+    },
+    {
+      events: {} as
+        | { type: 'PICK_COLOR'; color: string; label: string }
+        | { type: 'PICK_SIZE'; size: string }
+        | { type: 'STOCK'; stock: Record<string, number> }
+        | { type: 'ADDED' }
+        | { type: 'REFUSED' }
+        | { type: 'FAILED' }
+        | { type: 'CLEAR_ACK' },
       on: {
         PICK_COLOR: (s, ev) => {
-          s.color = String(ev.color)
-          s.colorLabel = String(ev.label)
+          s.color = ev.color
+          s.colorLabel = ev.label
+          s.ack = null
         },
-        PICK_SIZE: (s, ev) => { s.size = String(ev.size) },
+        PICK_SIZE: (s, ev) => {
+          s.size = ev.size
+          s.ack = null
+        },
+        STOCK: (s, ev) => {
+          s.stock = ev.stock
+        },
+        ADDED: (s) => {
+          s.ack = 'added'
+        },
+        REFUSED: (s) => {
+          s.ack = 'refused'
+        },
+        FAILED: (s) => {
+          s.ack = 'failed'
+        },
+        CLEAR_ACK: (s) => {
+          s.ack = null
+        },
       },
       select: {
+        sku: (s) => skuFor(s),
         sizeLabel: (s) => (s.size === 'one-size' ? 'One size' : `EU ${s.size}`),
+        out: (s) => (s.stock[skuFor(s)] ?? -1) === 0,
+        status: (s) => {
+          if (s.ack === 'added') return 'Added ✓'
+          if (s.ack === 'refused') return 'No more in stock'
+          if (s.ack === 'failed') return 'Something slipped — try again'
+          return (s.stock[skuFor(s)] ?? -1) === 0 ? 'Out of stock' : ''
+        },
       },
     },
   )
@@ -56,96 +109,63 @@
   export class VariantPicker extends StatorElement {
     static attrs = {
       slug: String,
-      stock: String, // live JSON map sku→qty, server-bound (see the PDP route)
+      /** Live JSON map sku→qty, server-bound on the PDP route — every patch
+       *  re-parses through this coercer and lands in stockChanged(). */
+      stock: (raw: string) => JSON.parse(raw) as Record<string, number>,
       initialColor: String,
       initialColorLabel: String,
       initialSize: String,
     }
 
     sel = use(Sel, () => ({
-      color: this.attr('initial-color') ?? '',
-      colorLabel: this.attr('initial-color-label') ?? '',
-      size: this.attr('initial-size') ?? '',
+      slug: String(this.attrs.slug ?? ''),
+      color: String(this.attrs.initialColor ?? ''),
+      colorLabel: String(this.attrs.initialColorLabel ?? ''),
+      size: String(this.attrs.initialSize ?? ''),
+      stock: (this.attrs.stock ?? {}) as Record<string, number>,
     }))
 
     connectedCallback() {
       super.connectedCallback()
-      this.hydrateOptions()
-      this.track(effect([this.sel], () => this.reflect()))
+      this.track(effect([this.sel], () => this.reflectSelection()))
     }
 
-    /** Live server state arriving through the declared-attr channel: the
-     *  `stock` attr is a server binding; every patch lands here. */
-    stockChanged() {
-      this.reflect()
+    /** Live server state arriving through the declared-attr channel, forwarded
+     *  into the client machine as a typed event — display follows via read(). */
+    stockChanged(next?: Record<string, number>) {
+      this.sel.send({ type: 'STOCK', stock: next ?? {} })
     }
 
-    /** The options are already in the DOM (server-rendered from props) —
-     *  hydration is just listeners. */
-    hydrateOptions() {
-      for (const b of this.querySelectorAll('.vp-swatch')) {
-        const el = b as HTMLElement
-        el.addEventListener('click', () =>
-          this.sel.send({ type: 'PICK_COLOR', color: el.dataset.color, label: el.dataset.label }),
-        )
-      }
-      for (const b of this.querySelectorAll('.vp-size')) {
-        const el = b as HTMLElement
-        el.addEventListener('click', () => this.sel.send({ type: 'PICK_SIZE', size: el.dataset.size }))
-      }
+    pickColor(e: Event) {
+      const input = e.target as HTMLInputElement
+      this.sel.send({ type: 'PICK_COLOR', color: input.value, label: input.dataset.label ?? '' })
     }
 
-    stockFor(sku: string): number {
-      try {
-        const map = JSON.parse(this.attr('stock') ?? '{}') as Record<string, number>
-        return map[sku] ?? -1
-      } catch {
-        return -1
-      }
+    pickSize(e: Event) {
+      const input = e.target as HTMLInputElement
+      this.sel.send({ type: 'PICK_SIZE', size: input.value })
     }
 
     /** Commit the chosen variant to the SERVER cart — the one visible
      *  boundary crossing in this island. */
     async add() {
-      const sku = `${this.attr('slug')}--${this.sel.color}--${this.sel.size}`
-      const btn = this.refs.addbtn
-      const result = await dispatch(CartMachine, { type: 'ADD', sku })
-      if (btn) {
-        // Three different facts: transport, commit, patches. The label
-        // follows COMMIT — a guard-dropped add must not claim success.
-        btn.textContent = result.committed
-          ? 'Added ✓'
-          : result.ok
-            ? 'No more in stock'
-            : 'Something slipped — try again'
-        setTimeout(() => this.reflect(), 1400)
-      }
+      const result = await dispatch(CartMachine, { type: 'ADD', sku: this.sel.sku })
+      // Three different facts: transport, commit, patches. The ack follows
+      // COMMIT — a guard-dropped add must not claim success.
+      this.sel.send({ type: result.committed ? 'ADDED' : result.ok ? 'REFUSED' : 'FAILED' })
+      setTimeout(() => this.sel.send({ type: 'CLEAR_ACK' }), 1800)
     }
 
-    /** State → DOM: recolor the plate via CSS variables, mark selections,
-     *  reveal the matching badge, follow the stock verdict. */
-    reflect() {
-      const sku = `${this.attr('slug')}--${this.sel.color}--${this.sel.size}`
-      const stock = this.stockFor(sku)
-      // The server-rendered Plate carries its own inline variables for the
-      // initial colorway — recolor THAT element, not the wrapper, or the
-      // inline style shadows ours.
+    /** The two writes still outside read()'s reach, in one tracked effect: the
+     *  server-rendered Plate carries its own inline color variables (which
+     *  shadow any ancestor's), and the badge strip belongs to the route,
+     *  outside this island. Per-element class marking across mapped markup
+     *  has no declarative form yet. */
+    reflectSelection() {
       const plate = this.refs.stage?.querySelector('.plate') as HTMLElement | null
-      if (plate) plate.style.cssText = plateStyleOf(this.sel.color as string)
+      if (plate) plate.style.cssText = plateStyleOf(this.sel.color)
       for (const b of document.querySelectorAll('[data-stock-badges] .stock-badge')) {
-        b.classList.toggle('is-shown', (b as HTMLElement).dataset.sku === sku)
-      }
-      for (const b of this.querySelectorAll('.vp-swatch')) {
-        b.classList.toggle('is-on', (b as HTMLElement).dataset.color === this.sel.color)
-      }
-      for (const b of this.querySelectorAll('.vp-size')) {
-        b.classList.toggle('is-on', (b as HTMLElement).dataset.size === this.sel.size)
-      }
-      const btn = this.refs.addbtn as HTMLButtonElement | null
-      if (btn) {
-        const out = stock === 0
-        btn.disabled = out
-        btn.textContent = out ? 'Out of stock' : 'Add to cart'
+        b.classList.toggle('is-shown', (b as HTMLElement).dataset.sku === this.sel.sku)
       }
     }
   }
@@ -167,31 +187,49 @@
   }
   .vp-swatches { display: flex; flex-wrap: wrap; gap: 10px; }
   .vp-sizes { display: flex; flex-wrap: wrap; gap: 6px; }
+  .vp-swatch input,
+  .vp-size input {
+    position: absolute;
+    opacity: 0;
+    margin: 0;
+    pointer-events: none;
+  }
   .vp-swatch {
+    position: relative;
     width: 32px; height: 32px; border-radius: 50%;
-    border: none; padding: 0; cursor: pointer;
+    cursor: pointer;
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
     transition: transform 0.12s ease;
   }
   .vp-swatch:hover { transform: scale(1.1); }
-  .vp-swatch:focus-visible { outline: 2px solid var(--harbor); outline-offset: 2px; }
-  .vp-swatch.is-on {
+  .vp-swatch:has(input:focus-visible) { outline: 2px solid var(--harbor); outline-offset: 2px; }
+  .vp-swatch:has(input:checked) {
     box-shadow:
       inset 0 0 0 1px rgba(0, 0, 0, 0.12),
       0 0 0 2px var(--card),
       0 0 0 4px var(--harbor);
   }
   .vp-size {
-    font: inherit;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-family: var(--mono); font-size: 12.5px;
-    min-width: 40px; padding: 8px 0; text-align: center;
-    border: none; border-radius: 4px; cursor: pointer;
+    min-width: 40px; padding: 8px 6px;
+    border-radius: 4px; cursor: pointer;
     background: var(--canvas); color: var(--body);
   }
-  .vp-size:hover:not(.is-on) { background: var(--line); color: var(--ink); }
-  .vp-size:focus-visible { outline: 2px solid var(--harbor); outline-offset: 1px; }
-  .vp-size.is-on { background: var(--ink); color: var(--card); }
+  .vp-size:hover:not(:has(input:checked)) { background: var(--line); color: var(--ink); }
+  .vp-size:has(input:focus-visible) { outline: 2px solid var(--harbor); outline-offset: 1px; }
+  .vp-size:has(input:checked) { background: var(--ink); color: var(--card); }
   .vp-add { width: 100%; }
+  .vp-status {
+    margin: 8px 0 0;
+    min-height: 18px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--harbor);
+  }
   @media (prefers-reduced-motion: reduce) {
     .vp-swatch { transition: none; }
     .vp-swatch:hover { transform: none; }

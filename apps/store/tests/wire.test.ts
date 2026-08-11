@@ -81,17 +81,23 @@ describe('the wire contract', () => {
     await post(cookie, 'GET /cart', 'CartMachine', { type: 'ADD', sku: 'mudlark--kelp--40' })
     await post(cookie, 'GET /cart', 'CartMachine', { type: 'BEGIN_CHECKOUT' })
     const form = new URLSearchParams({ name: 'W', email: 'not-an-email' })
-    await app.fetch(
+    const submit = await app.fetch(
       new Request('http://test/checkout/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
         body: form,
       }),
     )
-    // Guard blocked the bad email: still on step 1.
+    // The refused dispatch names the bounced step in the redirect…
+    const directives = (await submit.json()) as { directives: Array<{ to: string }> }
+    expect(directives.directives[0]?.to).toBe('/checkout?refused=contact')
+    // …the guard kept the flow on step 1, and the page says why.
     const page = await (
-      await app.fetch(new Request('http://test/checkout', { headers: { Cookie: cookie } }))
+      await app.fetch(
+        new Request('http://test/checkout?refused=contact', { headers: { Cookie: cookie } }),
+      )
     ).text()
     expect(page).toContain("Who's it for?")
+    expect(page).toContain("That didn't clear")
   })
 })

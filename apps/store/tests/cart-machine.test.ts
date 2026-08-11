@@ -37,6 +37,37 @@ describe('cart line rules', () => {
     actor.send({ type: 'DECREMENT', sku: KELP42 })
     expect(actor.getSnapshot().context.lines).toEqual([])
   })
+
+  it('line ops reach every checkout step via the machine-level fallback', () => {
+    const actor = createActor(CartMachine, withStock({ [KELP42]: 5 })).start()
+    actor.send({ type: 'ADD', sku: KELP42 })
+    actor.send({ type: 'BEGIN_CHECKOUT' })
+    actor.send({ type: 'ADD', sku: KELP42 }) // in 'contact' — no state-scoped handler
+    expect(actor.getSnapshot().value).toEqual(['contact'])
+    expect(actor.getSnapshot().context.lines).toEqual([{ sku: KELP42, qty: 2 }])
+  })
+
+  it('the manifest is frozen while the charge settles', () => {
+    const actor = createActor(CartMachine, {
+      ...withStock({ [KELP42]: 5 }),
+      snapshot: {
+        value: ['submitting'],
+        context: {
+          lines: [{ sku: KELP42, qty: 1 }],
+          name: 'W',
+          email: 'w@example.harbor',
+          address: '3 Quay Lane',
+          port: 'Gullhaven',
+          error: '',
+          lastOrder: null,
+        },
+      },
+    }).start()
+    actor.send({ type: 'ADD', sku: KELP42 }) // shadowed: never-guard drops it
+    actor.send({ type: 'CLEAR' })
+    expect(actor.getSnapshot().value).toEqual(['submitting'])
+    expect(actor.getSnapshot().context.lines).toEqual([{ sku: KELP42, qty: 1 }])
+  })
 })
 
 describe('checkout flow', () => {

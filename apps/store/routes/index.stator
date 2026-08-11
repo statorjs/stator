@@ -20,7 +20,9 @@ const [catalog, cart] = Stator.reads([CatalogMachine, CartMachine])
   <section class="band">
     <h2 class="band-title">The standing four</h2>
     <div class="grid">
-      {each(read(catalog, (c) => c.featured), (p) => <ProductCard product={p} />)}
+      {each(read(catalog, (c) => c.featured), (p) => <ProductCard product={p} />, {
+        key: (p) => p.slug,
+      })}
     </div>
   </section>
 

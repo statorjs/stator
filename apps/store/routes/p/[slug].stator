@@ -1,5 +1,6 @@
 ---
 // @stator live
+import { JsonLd } from '@statorjs/stator/components'
 import { CATEGORIES, formatPrice, MATERIALS, type Product, skuOf } from '../../lib/catalog-data.ts'
 import { stockLabel } from '../../lib/stock.ts'
 import { COLORWAYS } from '../../lib/colorways.ts'
@@ -31,6 +32,21 @@ const skus = variants.map((v) => v.sku)
   ))}
 
   {when(!!found, () => (
+    <JsonLd
+      json={{
+        '@type': 'Product',
+        name: p.name,
+        description: p.description,
+        offers: {
+          '@type': 'Offer',
+          price: (p.price / 100).toFixed(2),
+          priceCurrency: 'USD',
+        },
+      }}
+    />
+  ))}
+
+  {when(!!found, () => (
     <article class="pdp">
       <div>
         <VariantPicker
@@ -55,7 +71,7 @@ const skus = variants.map((v) => v.sku)
             variants,
             (v) => (
               <span
-                class={v.sku === defaultSku ? 'stock-badge is-shown' : 'stock-badge'}
+                class:list={['stock-badge', { 'is-shown': v.sku === defaultSku }]}
                 data-sku={v.sku}
               >
                 {read(inventory, (i) => stockLabel(i.stock[v.sku]))}

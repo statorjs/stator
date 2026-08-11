@@ -75,8 +75,7 @@ const CONTEXT = {
 type CartContext = typeof CONTEXT
 
 /**
- * Line operations shared by every pre-payment state — a shopper edits the
- * manifest from a product page or the cart at any point before SUBMIT.
+ * Line-op guards and actions, backing the machine-level `on:` map below.
  */
 // Client-supplied SKUs are hostile input; this guard is the gate.
 const validSku = (_ctx: CartContext, ev: { sku: string }) => productForSku(ev.sku) !== null
@@ -113,6 +112,10 @@ const removeLine = (ctx: CartContext, ev: { sku: string }) => {
 const clearLines = (ctx: CartContext) => {
   ctx.lines.length = 0
 }
+/** Shadow for the machine-level line ops in states that must refuse them:
+ *  a state that declares an event owns it (no fall-through to machine level),
+ *  and the never-guard drops the dispatch — `committed: false` on the wire. */
+const frozen = { when: () => false }
 
 const CartMachineDef = defineMachine({
   name: 'CartMachine',
@@ -142,18 +145,6 @@ const CartMachineDef = defineMachine({
   states: {
     open: {
       on: {
-        ADD: {
-          when: (ctx, ev, { reads }) =>
-            validSku(ctx, ev) && canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
-          do: (ctx, ev) => addLine(ctx, ev),
-        },
-        INCREMENT: {
-          when: (ctx, ev, { reads }) => canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
-          do: (ctx, ev) => incLine(ctx, ev),
-        },
-        DECREMENT: { do: (ctx, ev) => decLine(ctx, ev) },
-        REMOVE: { do: (ctx, ev) => removeLine(ctx, ev) },
-        CLEAR: { do: (ctx) => clearLines(ctx) },
         BEGIN_CHECKOUT: {
           when: (ctx) => ctx.lines.length > 0,
           to: 'contact',
@@ -162,18 +153,6 @@ const CartMachineDef = defineMachine({
     },
     contact: {
       on: {
-        ADD: {
-          when: (ctx, ev, { reads }) =>
-            validSku(ctx, ev) && canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
-          do: (ctx, ev) => addLine(ctx, ev),
-        },
-        INCREMENT: {
-          when: (ctx, ev, { reads }) => canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
-          do: (ctx, ev) => incLine(ctx, ev),
-        },
-        DECREMENT: { do: (ctx, ev) => decLine(ctx, ev) },
-        REMOVE: { do: (ctx, ev) => removeLine(ctx, ev) },
-        CLEAR: { do: (ctx) => clearLines(ctx) },
         SET_CONTACT: {
           when: (_ctx, ev) => ev.name.trim().length > 0 && /^\S+@\S+\.\S+$/.test(ev.email),
           do: (ctx, ev) => {
@@ -187,18 +166,6 @@ const CartMachineDef = defineMachine({
     },
     shipping: {
       on: {
-        ADD: {
-          when: (ctx, ev, { reads }) =>
-            validSku(ctx, ev) && canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
-          do: (ctx, ev) => addLine(ctx, ev),
-        },
-        INCREMENT: {
-          when: (ctx, ev, { reads }) => canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
-          do: (ctx, ev) => incLine(ctx, ev),
-        },
-        DECREMENT: { do: (ctx, ev) => decLine(ctx, ev) },
-        REMOVE: { do: (ctx, ev) => removeLine(ctx, ev) },
-        CLEAR: { do: (ctx) => clearLines(ctx) },
         SET_SHIPPING: {
           when: (_ctx, ev) => ev.address.trim().length > 0 && ev.port.trim().length > 0,
           do: (ctx, ev) => {
@@ -212,18 +179,6 @@ const CartMachineDef = defineMachine({
     },
     review: {
       on: {
-        ADD: {
-          when: (ctx, ev, { reads }) =>
-            validSku(ctx, ev) && canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
-          do: (ctx, ev) => addLine(ctx, ev),
-        },
-        INCREMENT: {
-          when: (ctx, ev, { reads }) => canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
-          do: (ctx, ev) => incLine(ctx, ev),
-        },
-        DECREMENT: { do: (ctx, ev) => decLine(ctx, ev) },
-        REMOVE: { do: (ctx, ev) => removeLine(ctx, ev) },
-        CLEAR: { do: (ctx) => clearLines(ctx) },
         SUBMIT: [
           {
             when: (ctx, _ev, { reads }) =>
@@ -288,6 +243,14 @@ const CartMachineDef = defineMachine({
             ctx.error = ev.reason
           },
         },
+        // The manifest is frozen while the charge settles — the effect reads
+        // ctx.lines, so an edit landing mid-flight would change what was paid
+        // for. Declaring the ops here shadows the machine-level fallback.
+        ADD: frozen,
+        INCREMENT: frozen,
+        DECREMENT: frozen,
+        REMOVE: frozen,
+        CLEAR: frozen,
       },
     },
     confirmed: {
@@ -304,8 +267,35 @@ const CartMachineDef = defineMachine({
             addLine(ctx, ev)
           },
         },
+        // The receipt has no manifest to edit — refuse the rest instead of
+        // letting them fall through to the machine-level ops.
+        INCREMENT: frozen,
+        DECREMENT: frozen,
+        REMOVE: frozen,
+        CLEAR: frozen,
       },
     },
+  },
+  /**
+   * Line operations, declared ONCE for every state that doesn't claim them —
+   * the shopper edits the manifest from a product page or the cart at any
+   * point before payment. The engine consults this map only when the current
+   * state does not declare the event; `submitting` and `confirmed` shadow
+   * these with refusals above.
+   */
+  on: {
+    ADD: {
+      when: (ctx, ev, { reads }) =>
+        validSku(ctx, ev) && canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
+      do: (ctx, ev) => addLine(ctx, ev),
+    },
+    INCREMENT: {
+      when: (ctx, ev, { reads }) => canTakeOneMore(ctx, ev.sku, reads.InventoryMachine.stock),
+      do: (ctx, ev) => incLine(ctx, ev),
+    },
+    DECREMENT: { do: (ctx, ev) => decLine(ctx, ev) },
+    REMOVE: { do: (ctx, ev) => removeLine(ctx, ev) },
+    CLEAR: { do: (ctx) => clearLines(ctx) },
   },
   selectors: {
     count: (ctx) => ctx.lines.reduce((n, l) => n + l.qty, 0),
