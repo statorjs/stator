@@ -2,7 +2,7 @@
 title: Receiving webhooks
 description: "A webhook is a signed, session-less, at-least-once POST. Verify it, dispatch it to an app machine, and let a guard make duplicate delivery a no-op."
 sidebar:
-  order: 6
+  order: 7
 ---
 
 A webhook — Stripe telling you a payment cleared, GitHub telling you a branch

@@ -32,9 +32,7 @@ export default defineMachine({
 
 ### App-machine persistence caveat
 
-:::caution[1.x]
-App-lifecycle machines live in process memory and are **not** persisted across restarts in 1.0, and there is no durable server→session delivery yet. Both are part of the deferred [inbox](/introduction/why-stator/#the-10--1x-boundary) work.
-:::
+App-lifecycle machines live in process memory and by default re-seed on boot; a machine that must survive restarts opts in with `persist: true` and an [`AppStore`](/guides/app-machines/#surviving-restarts-persist-true). Durable server→session delivery does not exist yet — that's the deferred [inbox](/introduction/why-stator/#the-10--1x-boundary) work.
 
 ## Events are the only way state changes
 

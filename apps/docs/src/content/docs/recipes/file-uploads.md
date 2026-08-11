@@ -2,7 +2,7 @@
 title: File uploads
 description: "Uploads are standard web FormData and File. The only framework rule is that the bytes go to storage and only a key goes in a machine."
 sidebar:
-  order: 7
+  order: 8
 ---
 
 There is no Stator upload API, and that's the recipe. A file upload is a
@@ -53,7 +53,7 @@ AVATAR_SET: { do: (ctx, ev) => { ctx.avatarKey = ev.key } },
 
 ```jsx
 {when(read(profile, (p) => p.avatarKey), () => (
-  <img src={`/uploads/${read(profile, (p) => p.avatarKey)}`} alt="avatar" />
+  <img src={read(profile, (p) => `/uploads/${p.avatarKey}`)} alt="avatar" />
 ))}
 ```
 

@@ -19,6 +19,9 @@ function defineMachine(config: DefineMachineConfig): MachineDef
   context: C                    // initial context
   initial: S                    // initial state name
   states: Record<S, { on?: OnMap; entry?: EntryEffect; after?: AfterEntry[] }>
+  on?: OnMap                    // machine-level transitions: apply in ANY state, consulted only
+                                // when the current state doesn't declare the event (a state-
+                                // scoped handler always wins, even if its guard drops)
   events?: E                    // typed event surface — pass `{} as MyEvents`
   selectors?: Record<string, (ctx: C, helpers?) => unknown>  // helpers.reads for cross-machine views
   reads?: MachineDef[]          // machines this one reads (typed helpers.reads)

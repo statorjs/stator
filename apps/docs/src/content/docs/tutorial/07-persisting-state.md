@@ -66,10 +66,10 @@ Nothing in your machines or templates changes — the store is a pure infrastruc
 ### What persists vs not
 
 - **Session machines** (the cart) — persisted to the store, survive restarts on Redis.
-- **App machines** (the catalog) — live in process memory; re-seeded on boot.
+- **App machines** (the catalog) — live in process memory; re-seeded on boot by default. A machine whose shared state must survive restarts opts in with `persist: true` and an `AppStore` — see [App machines](/guides/app-machines/#surviving-restarts-persist-true). For a seeded catalog, re-seeding is exactly right.
 
-:::caution[1.0]
-App-machine state is **not** persisted across restarts in 1.0. For a seeded catalog that's fine (it re-seeds), but durable app state and cross-replica sharing are part of the deferred [1.x work](/introduction/why-stator/#the-10--1x-boundary).
+:::caution
+Persisted app state assumes a single writer — cross-replica sharing is part of the deferred [1.x work](/introduction/why-stator/#the-10--1x-boundary).
 :::
 
 ## What you built · next

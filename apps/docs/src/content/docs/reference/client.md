@@ -33,25 +33,33 @@ function use(
 ): ClientInstance
 ```
 
-Instantiates a client machine as a class field (`qty = use(Qty)`), owned by the element's lifecycle. The returned `ClientInstance<D>` exposes every selector and context key as a live **typed** property (read through the actor's current snapshot on each access) plus `send(event)` — `qty.count` is a `number`, and a typo'd property is a compile error.
+Instantiates a client machine as a class field (`qty = use(Qty)`), owned by the element's lifecycle. The returned `ClientInstance<D>` exposes every selector and context key as a live **typed** property (read through the actor's current snapshot on each access) plus `send(event)` typed against the machine's event union — `qty.count` is a `number`, a typo'd property is a compile error, and on a data-only machine (no `on` map) `send` itself is a compile error. Events whose payload is just `{ type }` may be sent as a bare string (`send('TOGGLE')`); an event with required payload fields must be sent as an object.
 
 The optional seed sets initial context. A plain object applies eagerly; pass a **thunk** — `use(Qty, () => ({ max: this.attrs.max }))` — when the seed reads `this.attrs`, because attributes aren't available during construction (the custom-element upgrade-timing rule). The thunk is deferred to connect.
 
 ## machine
 
 ```ts
-function machine<C, S>(context: C, behavior?: ClientBehavior<C> & { select?: S }): MachineDef<C, ClientEvent, 'active', S>
+// Data-only: nothing to send — `send` is a compile error by construction.
+function machine<C>(context: C): MachineDef<C, never, 'active'>
 
-// context: plain data (typed; handlers and selectors see it)
+// Derived union: event NAMES come from the `on` keys (a `send` typo is a
+// compile error), payloads stay structurally open.
+function machine<C, O, S>(context: C, behavior: { name?; on: O; select?: S }): MachineDef<C, DerivedEvents<O>, 'active', S>
+
+// Declared union: full payload typing — each handler sees its event narrowed.
+function machine<C, E, S>(context: C, behavior: { name?; events: E; on?; select?: S }): MachineDef<C, E, 'active', S>
+
 // behavior:
 {
   name?: string                          // label only; defaults to "ClientMachine"
+  events?: E                             // type-only phantom: `events: {} as MyEvents`
   on?: Record<string, Transition>        // bare fn = action; object = { when?, do?, emit? }
   select?: Record<string, (ctx: C) => unknown>  // exposed as typed instance properties
 }
 ```
 
-Terse sugar for component-local state — desugars to a single-state `defineMachine`:
+Terse sugar for component-local state — desugars to a single-state `defineMachine`. Context and behavior are separate arguments so the context infers first and types every handler and selector. The three typing tiers are the client half of typed events (see the [client components guide](/guides/client-components/)):
 
 ```ts
 const Counter = machine(
@@ -110,5 +118,7 @@ html[data-stator-connection="disconnected"] .offline-banner { display: block; }
 
 - `defineElement(UserClass, tag)` — registers an island class against its custom-element tag; the compiler emits this call.
 - `ClientInstance` — the reactive handle `use()` returns; `ClientInstanceBase` — the untyped base `bind`/`effect` accept as deps.
-- `ClientBehavior<C>` — the `machine()` behavior shape (`name` / `on` / `select`); `LegacyMachineConfig` — the deprecated one-bag form.
+- `ClientBehavior<C>` — the `machine()` behavior shape (`name` / `events` / `on` / `select`).
+- `bindSlot(root, marker, deps, compute)` — text-slot binding a client-machine `read()` in text position lowers to; finds every `<!--sN-->` marker under `root` and binds a materialized text node per occurrence.
+- `attrValue` / `setAttr` — the shared attribute-value contract the generated attribute writers use.
 - `DispatchResult` / `DispatchError` — the result and error shapes `dispatch` resolves with.

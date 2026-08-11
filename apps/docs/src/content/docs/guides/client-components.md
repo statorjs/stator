@@ -86,7 +86,7 @@ Machine [actors](/concepts/state-machines/#definition-actor-instance) start on `
 
 An island's markup is its own template — server-rendered content does not
 flow *through* it, and that's a deliberate v1 boundary (like early Astro
-shipping without SSR: a known edge, owned). Three sanctioned channels cover
+shipping without SSR: a known edge, owned). Four sanctioned channels cover
 composition with the server:
 
 1. **Live attrs in.** Pass a `read()` as an island prop and the attribute

@@ -98,10 +98,11 @@ interface Store {
   set(sessionId, machineName, snapshot, opts?: { ttlSeconds?: number }): Promise<void>
   has(sessionId: string, machineName: string): Promise<boolean>
   deleteSession(sessionId: string): Promise<void>
+  renameSession?(oldSessionId: string, newSessionId: string): Promise<void>
 }
 ```
 
-The persistence boundary for session-scoped machine state. TTL is **per-session, not per-entry**: any `set` refreshes the whole session's expiry, so an active checkout keeps the cart alive too. Implementations:
+The persistence boundary for session-scoped machine state. TTL is **per-session, not per-entry**: any `set` refreshes the whole session's expiry, so an active checkout keeps the cart alive too. `renameSession` is optional on custom adapters, but `rotateSession` throws without it (and `CachedStore` requires it on its backing store to expose it). Implementations:
 
 - **`InMemoryStore`** — the default. Lazy expiry, gone on restart. Fine for dev.
 - **`RedisStore`** — one Redis hash per session, machine names as fields; `HSET` + `EXPIRE` pipelined so the session TTL refreshes atomically. Takes a `redis://`/`rediss://` URL or ioredis options. Exposes `close()` and the raw client.

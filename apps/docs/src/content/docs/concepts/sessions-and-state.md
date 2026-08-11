@@ -31,7 +31,7 @@ The runtime never talks to Redis or a `Map` directly; it talks to the `Store` in
 
 ## App machines
 
-`lifecycle: 'app'` machines are the exception to all of the above. They live in process memory for the server's lifetime, shared by every session, and are **not** persisted on touch — a seeded catalog re-seeds on boot. They're loaded once at startup rather than per request.
+`lifecycle: 'app'` machines are the exception to all of the above. They live in process memory for the server's lifetime, shared by every session, and by default are **not** persisted — a seeded catalog re-seeds on boot. They're loaded once at startup rather than per request. A machine whose state must survive restarts (shared inventory, an order log) opts in with `persist: true` and an `AppStore` — see [App machines](/guides/app-machines/).
 
 ## The single-replica boundary
 

@@ -33,7 +33,7 @@ function each<T>(
 ): EachResult
 ```
 
-Renders a list inside an invisible (`display: contents`) marker span. Pass a `ReadResult` and the list is reactive; without `key`, any list change re-renders the whole body.
+Renders a list delimited by HTML comment markers — no wrapper element is injected, so the rows are real children of their parent (`each` works inside `<tbody>`, `<select>`, and `<ul>`, and sibling selectors like `.a + .b` or `:nth-child` match what you wrote). Pass a `ReadResult` and the list is reactive; without `key`, any list change re-renders the whole body.
 
 With `key`, list changes emit per-item `insert`/`remove`/`move` patches instead — inner state like focus and CSS transitions survives reorders. Keyed lists have two hard rules, both enforced with thrown errors: keys must be unique strings or finite numbers (duplicates are a data bug, not something to be polite about), and each keyed item must render **exactly one root element** — the patch ops address list children by index, so a multi-root item would corrupt every sibling index after it.
 
@@ -104,6 +104,7 @@ What the compiler's output and the recompute pass run on — **Toolchain** tier 
 - `BranchResult` / `isBranchResult` / `renderBranchBody` — the `when`/`match` equivalents.
 - `DeferResult` / `isDeferResult` — the `defer` result shape (no body renderer — defer regions never re-render).
 - `itemBind` — per-row item-binding plumbing the compiler lowers `read(item, …)` to inside keyed lists.
-- `invoke` / `isDirectiveInvocation` — directive invocation plumbing.
+- `isDirectiveInvocation` — directive invocation plumbing.
+- `spreadAttrs` — the attribute-bag renderer `{...rest}` lowers to.
 - `clientShellAttrs` — attributes the compiler puts on a client island's server-rendered shell.
 - `InstanceOf` — re-exported machine instance type (what `read`'s first parameter is). An instance's `state` is typed to the machine's state-name union and its `send()` to the event union, so a typo in a state comparison, an event name, or a payload is a compile error.

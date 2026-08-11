@@ -23,11 +23,13 @@ Create `templates/theme-toggle.stator`. Unlike a server component, its root is a
 </theme-toggle>
 
 <script>
-  const Theme = machine({
-    mode: 'light',
-    on: { TOGGLE: (s) => { s.mode = s.mode === 'light' ? 'dark' : 'light' } },
-    select: { label: (s) => (s.mode === 'dark' ? '☾ Dark' : '☀ Light') },
-  })
+  const Theme = machine(
+    { mode: 'light' },
+    {
+      on: { TOGGLE: (s) => { s.mode = s.mode === 'light' ? 'dark' : 'light' } },
+      select: { label: (s) => (s.mode === 'dark' ? '☾ Dark' : '☀ Light') },
+    },
+  )
 
   export class ThemeToggle extends StatorElement {
     theme = use(Theme, () => ({ mode: readStoredTheme() }))
@@ -60,9 +62,9 @@ Create `templates/theme-toggle.stator`. Unlike a server component, its root is a
 
 A client component can carry a scoped `<style>` just like a server one — same four-region `.stator` file, scoped the same way. That `<script>` is what makes this a client component. Its contents run in the browser — the machine imported (or defined) here is a **client** machine, decided entirely by the fact that it lives in the `<script>` rather than the frontmatter. The exported class name (`ThemeToggle`) must match the root tag (`<theme-toggle>`).
 
-## machine({...})
+## machine(context, behavior)
 
-`machine({...})` is the terse, in-`<script>` way to define a small client machine: an initial state shape, an `on` map of events, and `select` for derived values. Here `Theme` holds a `mode`, toggles it, and derives a `label`. It's the same machine model as the server's `defineMachine`, sized for a component.
+`machine(context, behavior)` is the terse, in-`<script>` way to define a small client machine: the context (just data) first, then a behavior bag with an `on` map of events and `select` for derived values. The two are separate arguments so TypeScript can infer the context and type every handler and selector against it. Here `Theme` holds a `mode`, toggles it, and derives a `label`. It's the same machine model as the server's `defineMachine`, sized for a component. Event names are typed from the `on` keys — a `send` typo is a compile error — and a machine can declare a full payload-typed union with `events: {} as MyEvents` when it needs one (see the [client components guide](/guides/client-components/)).
 
 ## extends StatorElement + use()
 
