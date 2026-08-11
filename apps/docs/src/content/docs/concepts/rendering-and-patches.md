@@ -37,7 +37,7 @@ Targets and ops are independent dimensions, which is what keeps the format small
 
 `insert` / `remove` / `move` on slot targets are the [keyed-list](/guides/keyed-lists/) ops: emitted from a server-side diff, applied sequentially against the list's element children by index. An unkeyed list still re-renders its body via one `html` patch.
 
-:::note[1.x]
+:::note[Reserved]
 `attr-add` / `attr-remove` and `prop` on element targets are reserved in the format but not yet emitted.
 :::
 

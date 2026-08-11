@@ -78,6 +78,19 @@ Defines a non-page endpoint. Without `method`, it is a **command** route (`POST`
 
 With `method: 'GET'`, it is a **data route**: the handler receives `helpers.machines` (read proxies keyed by machine name, the same shape a page render context uses) and no `dispatch`. A plain return value is served as JSON; a string takes its `Content-Type` from the URL's extension; a raw `Response` passes through verbatim. Synthesized responses carry a strong `ETag` and answer `If-None-Match` with 304. See the [API routes guide](/guides/api-routes/#data-get-routes).
 
+Command helpers also carry **`rotateSession(opts?: { clear?: boolean })`** — the session-fixation defense for privilege changes. Call it on login (state moves to a fresh session id; a captured old id becomes worthless) and on logout with `{ clear: true }` (the old session's state is deleted and the browser starts anonymous). It applies after the handler returns: state persists under the new id and the response carries the new cookie. Requires a store with `renameSession` — all built-in stores have it. See the [authentication recipe](/recipes/authentication/).
+
+```ts
+type Directive =
+  | { type: 'navigate'; to: string }
+  | { type: 'reload' }
+  | { type: 'push-url'; to: string }
+  | { type: 'replace-url'; to: string }
+  | { type: 'focus'; target: { kind: 'slot' | 'element'; id: string } }
+  | { type: 'scroll'; target: { kind: 'slot' | 'element'; id: string }; behavior?: 'smooth' | 'auto' }
+  | { type: 'event'; name: string; detail?: unknown }
+```
+
 Related exports: `ApiRouteDefinition`, `ApiRouteHelpers`, `ApiRouteResult`, `ApiRouteEnvelope`, `QueryRouteDefinition`, `QueryRouteHelpers`, `QueryRouteResult`, `Directive`.
 
 ## dispatchToApp
@@ -98,10 +111,11 @@ interface Store {
   set(sessionId, machineName, snapshot, opts?: { ttlSeconds?: number }): Promise<void>
   has(sessionId: string, machineName: string): Promise<boolean>
   deleteSession(sessionId: string): Promise<void>
+  renameSession?(oldSessionId: string, newSessionId: string): Promise<void>
 }
 ```
 
-The persistence boundary for session-scoped machine state. TTL is **per-session, not per-entry**: any `set` refreshes the whole session's expiry, so an active checkout keeps the cart alive too. Implementations:
+The persistence boundary for session-scoped machine state. TTL is **per-session, not per-entry**: any `set` refreshes the whole session's expiry, so an active checkout keeps the cart alive too. `renameSession` is optional on custom adapters, but `rotateSession` throws without it (and `CachedStore` requires it on its backing store to expose it). Implementations:
 
 - **`InMemoryStore`** — the default. Lazy expiry, gone on restart. Fine for dev.
 - **`RedisStore`** — one Redis hash per session, machine names as fields; `HSET` + `EXPIRE` pipelined so the session TTL refreshes atomically. Takes a `redis://`/`rediss://` URL or ioredis options. Exposes `close()` and the raw client.
@@ -116,7 +130,7 @@ interface AppStore {
 }
 ```
 
-The sibling boundary for **app-lifecycle** machines that opt in with `persist: true`: one blob per machine name, no TTL, no session key. `InMemoryAppStore` is the restart-wipe default; `RedisAppStore` makes app state durable. Two replicas persisting the same app machine will drift — single-writer is assumed in 1.x.
+The sibling boundary for **app-lifecycle** machines that opt in with `persist: true`: one blob per machine name, no TTL, no session key. `InMemoryAppStore` is the restart-wipe default; `RedisAppStore` makes app state durable. Two replicas persisting the same app machine will drift — single-writer is assumed.
 
 ## Wire types
 
@@ -147,6 +161,7 @@ The framework's pino logger, exported for application use. Pretty colored output
 Plumbing the framework itself runs on. Exported because the dev server and tests load the runtime through Vite, not because your app should need them — and held to the **Toolchain** tier of the [stability policy](/reference/overview/#stability-policy): these may change in a minor.
 
 - `MachineStore` — the machine registry + actor manager behind `StatorApp.store`.
+- `findPollLoops` (+ `PollLoopFinding`) — the dev-plane lint that detects self-rescheduling poll loops on session machines (an `after` timer whose event cycles back and re-arms it); the dev server runs it at boot and logs findings.
 - `discoverMachines` / `discoverRoutes` (+ `DiscoveryResult`, `DiscoveredRoute`) — filesystem discovery `createApp` runs.
 - `buildHonoApp` (+ `HttpConfig`) — assembles the Hono app from routes and a store.
 - `renderRoute` (+ `RenderResult`) — renders one route for one session.

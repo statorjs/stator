@@ -9,18 +9,21 @@ Session-lifecycle state is persisted to a **store** between requests. Swapping s
 
 ## The Store interface
 
-Any store implements four methods over opaque JSON snapshots:
+Any store implements four required methods over opaque JSON snapshots, plus one optional method that session rotation depends on:
 
 ```ts
 interface Store {
   get(sessionId: string, machineName: string): Promise<unknown | null>
-  set(sessionId: string, machineName: string, snapshot: unknown, ttlSeconds: number): Promise<void>
+  set(sessionId: string, machineName: string, snapshot: unknown, opts?: { ttlSeconds?: number }): Promise<void>
   has(sessionId: string, machineName: string): Promise<boolean>
   deleteSession(sessionId: string): Promise<void>
+  renameSession?(oldSessionId: string, newSessionId: string): Promise<void>
 }
 ```
 
 TTL is **per session**, not per machine — a whole session expires together, so a cart never loses individual lines mid-checkout.
+
+`renameSession` moves every snapshot from one session id to another. It's optional for a custom adapter, but [`rotateSession`](/recipes/authentication/) — the login/logout session-fixation defense — **fails loudly without it**, so a custom store that will ever sit under authentication should implement it. The built-in stores all do.
 
 ## In-memory (default)
 

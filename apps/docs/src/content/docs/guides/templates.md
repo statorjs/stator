@@ -24,7 +24,7 @@ Attribute bindings understand **boolean semantics**: a selector returning `false
 <button disabled={read(cart, (c) => c.count === 0)}>Begin checkout</button>
 ```
 
-One platform caveat that is also the design: `checked`, `value`, and `selected` as *attributes* set defaults only — a form control the user has touched ignores them. That is precisely what pre-fill wants (state provides the start, the visitor owns the draft), and commits flow back as typed events. See [Forms and inputs](/guides/forms-and-binding/).
+One platform caveat that is also the design: `checked`, `value`, and `selected` as *attributes* set defaults only — a form control the user has touched ignores them. That is precisely what pre-fill wants (state provides the start, the visitor owns the draft), and commits flow back as typed events. See [Forms and inputs](/guides/forms-and-inputs/).
 
 ## Conditionals: when and match
 
@@ -126,7 +126,9 @@ tag checks its own attributes.
 ### Forwarding events to a component
 
 `on:*` on a component tag doesn't attach anywhere by itself — the component
-chooses the element that receives it with `Stator.forwarded()`:
+chooses the element that receives it with `Stator.forwarded(name)`, which
+returns that one directive's handler (or `undefined` when the caller didn't
+pass it — an absent handler renders no binding):
 
 ```astro
 <Button on:click={() => cart.send({ type: 'CLEAR' })}>Reset</Button>
@@ -135,8 +137,17 @@ chooses the element that receives it with `Stator.forwarded()`:
 ```astro
 ---
 const { children } = Stator.props<{ children?: unknown }>()
+const onClick = Stator.forwarded('on:click')
 ---
-<button {...Stator.forwarded()}>{children}</button>
+<button on:click={onClick}>{children}</button>
 ```
 
-Only `on:*` forwards. `ref:` applies to elements directly.
+Only `on:*` forwards, and only in a server component — a route has no parent
+to forward from, and client islands wire their own handlers. `ref:` applies
+to elements directly.
+
+The worked example of spread + forwarding together is the reference store's
+[`<Button>`](https://github.com/statorjs/stator/tree/main/apps/store) — one
+component rendering `<a>` or `<button>` off a discriminated union, native
+attributes through `{...rest}`, caller `class` folded into `class:list`, and
+`on:click` forwarded to the real element.

@@ -31,12 +31,12 @@ The runtime never talks to Redis or a `Map` directly; it talks to the `Store` in
 
 ## App machines
 
-`lifecycle: 'app'` machines are the exception to all of the above. They live in process memory for the server's lifetime, shared by every session, and are **not** persisted on touch — a seeded catalog re-seeds on boot. They're loaded once at startup rather than per request.
+`lifecycle: 'app'` machines are the exception to all of the above. They live in process memory for the server's lifetime, shared by every session, and by default are **not** persisted — a seeded catalog re-seeds on boot. They're loaded once at startup rather than per request. A machine whose state must survive restarts (shared inventory, an order log) opts in with `persist: true` and an `AppStore` — see [App machines](/guides/app-machines/).
 
 ## The single-replica boundary
 
 Within one replica, concurrent events to the same session are **serialized by a per-session async lock**, so transitions never interleave and corrupt state. This is correct and sufficient on a single replica.
 
-:::caution[1.x]
-Scaling past one replica needs a Redis pub/sub backplane over the existing fan-out choke point, and reaching idle or non-connected sessions needs the durable inbox. Both are deferred to [1.x](/introduction/why-stator/#the-10--1x-boundary). The stateless-between-requests shape is specifically what makes that future swap localized rather than a rewrite.
+:::caution[Single replica]
+Scaling past one replica needs a Redis pub/sub backplane over the existing fan-out choke point, and reaching idle or non-connected sessions needs the durable inbox. Both are [deferred](/introduction/why-stator/#what-ships-and-whats-deferred). The stateless-between-requests shape is specifically what makes that future swap localized rather than a rewrite.
 :::

@@ -106,12 +106,19 @@ tab, no ticks), and the machine keeps the policy — a staleness guard decides
 whether any tick actually causes work. Server-side machine activity does not
 refresh the session's TTL; only real user requests do.
 
+The dev server enforces the steer: at boot it runs a lint over the machine
+graph (`findPollLoops`) and warns about self-rescheduling poll loops on
+session machines — a state whose `after` timer sends an event that cycles
+back and re-arms it, i.e. server-side polling that would run for sessions
+nobody is watching. One-shot `after` rescues and app-machine housekeeping
+clocks are deliberately not flagged.
+
 ## What effects are not
 
-Non-durable in 1.0: if the process dies mid-effect, a transition effect is
+Non-durable today: if the process dies mid-effect, a transition effect is
 lost (the machine stays in its pending state — design those states so a human
 or a webhook can resolve them), and an entry effect recovers by re-invoke on
-the next restore. Durable, retried effects are 1.x work.
+the next restore. Durable, retried effects are deferred work.
 
 Effects work identically on [client islands](/guides/client-components/)
 (the effect runs in the browser, the completion feeds the local actor) and on

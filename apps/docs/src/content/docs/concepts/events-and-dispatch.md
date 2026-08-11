@@ -59,10 +59,10 @@ Same addressing, same typing, same commit semantics — the sender's location is
 
 ## Where typing lives
 
-One deliberate boundary: **keystrokes are not events.** Putting the network in the typing loop would be absurd, so a draft belongs to the input element itself — uncontrolled, guarded by platform constraints (see [Forms and inputs](/guides/forms-and-binding/)). What crosses to a server machine is the *committed fact*: a typed event sent on change or submit, or a native form POST handled by an [API route](/guides/api-routes/) that dispatches. A template handler's payload is fixed at render time — it can carry this row's product id, never "whatever the input says now" — which is the compiler enforcing the same boundary.
+One deliberate boundary: **keystrokes are not events.** Putting the network in the typing loop would be absurd, so a draft belongs to the input element itself — uncontrolled, guarded by platform constraints (see [Forms and inputs](/guides/forms-and-inputs/)). What crosses to a server machine is the *committed fact*: a typed event sent on change or submit, or a native form POST handled by an [API route](/guides/api-routes/) that dispatches. A template handler's payload is fixed at render time — it can carry this row's product id, never "whatever the input says now" — which is the compiler enforcing the same boundary.
 
 ## Where to go next
 
 - [Dispatching events](/guides/dispatching-events/) — each dispatch surface, with the failure contract.
-- [Forms and inputs](/guides/forms-and-binding/) — the draft, validation, commit timing.
+- [Forms and inputs](/guides/forms-and-inputs/) — the draft, validation, commit timing.
 - [Rendering and patches](/concepts/rendering-and-patches/) — what happens to the response.

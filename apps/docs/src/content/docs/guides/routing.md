@@ -82,7 +82,7 @@ Add a pragma to opt the route into [SSE](/guides/realtime-sse/):
 ## Missing things: the `when()` 404 idiom
 
 Dynamic routes validate their params in the frontmatter and branch — there is
-no first-class 404 API in 1.0:
+no first-class 404 API:
 
 ```astro
 ---

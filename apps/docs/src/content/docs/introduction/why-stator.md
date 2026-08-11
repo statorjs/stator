@@ -50,25 +50,20 @@ Stator is a strong fit when:
 ## When not to (yet)
 
 :::caution[Not a fit today]
-Reach for something else if you need heavy **offline / local-first** behavior, must run **multi-replica from day one**, or depend on **deep statechart features** (nested/parallel states, history, invoked actors). These are 1.x considerations or out of scope.
+Reach for something else if you need heavy **offline / local-first** behavior, must run **multi-replica from day one**, or depend on **deep statechart features** (nested/parallel states, history, invoked actors). These are deferred or out of scope.
 :::
 
-## The 1.0 / 1.x boundary
+## What ships and what's deferred
 
-What ships in 1.0:
+Stator ships today:
 
 - The custom isomorphic engine (with [async effects](/guides/effects/)), typed machine-mediated dispatch, the `.stator` compiler, server rendering with slot patches, [keyed lists](/guides/keyed-lists/), client islands with a [production build](/guides/production/), file-based routing, API routes, per-session persistence (in-memory or Redis), [opt-in app-machine persistence](/guides/app-machines/), server-originated dispatch for webhooks and cron, and **opt-in SSE with cross-session fan-out on a single replica**.
 
-What is deferred to 1.x:
+Deferred, each with a designed path:
 
 - **The durable inbox** — app→session delivery and reaching sessions with no open connection.
 - **Horizontal scaling** — a Redis pub/sub backplane over the existing fan-out choke point.
-- **Statechart richness** — nested/parallel/history/invoke; 1.0 ships flat machines with extension points.
-
-Delivered by 1.x so far: session rotation (1.2), async effects and `after`
-timeouts (1.3–1.5), `defer` (1.4), template typechecking (1.5), connectivity
-resilience (1.6), and [data GET routes](/guides/api-routes/#data-get-routes)
-(1.7).
+- **Statechart richness** — nested/parallel/history/invoke; machines are flat today, with extension points where depth would land.
 
 ## Where to go next
 

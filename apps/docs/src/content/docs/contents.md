@@ -27,7 +27,7 @@ Automatically managed by Chisel.
 - [dispatching-events](guides/dispatching-events)
 - [editor-setup](guides/editor-setup)
 - [effects](guides/effects)
-- [forms-and-binding](guides/forms-and-binding)
+- [forms-and-inputs](guides/forms-and-inputs)
 - [keyed-lists](guides/keyed-lists)
 - [persistence](guides/persistence)
 - [production](guides/production)
@@ -49,8 +49,11 @@ Automatically managed by Chisel.
 - [authentication](recipes/authentication)
 - [collections-of-workflows](recipes/collections-of-workflows)
 - [defer-vs-machine](recipes/defer-vs-machine)
+- [file-uploads](recipes/file-uploads)
 - [gated-routes-and-redirects](recipes/gated-routes-and-redirects)
+- [receiving-webhooks](recipes/receiving-webhooks)
 - [updating-from-a-template](recipes/updating-from-a-template)
+- [where-data-lives](recipes/where-data-lives)
 
 ### REFERENCE
 - [client](reference/client)

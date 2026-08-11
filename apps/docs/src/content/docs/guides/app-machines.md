@@ -91,7 +91,7 @@ subscribes: [{ from: Admin, event: 'restockRequested', dispatch: 'REQUEST_RESTOC
 The button sends to the gateway (its own session state — always legal), the
 guard authorizes, the emit crosses lifecycles with `sourceSessionId`
 attached, and persistence, effects, and SSE fan-out all behave normally from
-there. A more convenient route-gated form is a 1.x candidate; this pattern is
+there. A more convenient route-gated form is a design candidate; this pattern is
 the supported path today and will keep working.
 
 :::caution[Gateways don't launder authority]
@@ -105,6 +105,32 @@ event itself, make the event prove itself: sign the claims server-side (an
 HMAC with a server secret) and verify in the guard — guards are synchronous,
 and so is `node:crypto`.
 :::
+
+## Effects and timers on app machines
+
+[Entry effects and `after` timers](/guides/effects/) work on app machines
+exactly as on session machines, with one difference in *when*: they fire on
+wall clock, with no session attached — an app machine's clock is process
+housekeeping, not work done on behalf of a viewer. That makes app machines
+the legitimate home for a self-revalidating cache or a circuit breaker:
+
+```ts
+states: {
+  fresh: {
+    after: [{ delay: CACHE_TTL_MS, send: { type: 'EXPIRE' } }],
+    on: { EXPIRE: { to: 'stale' } },
+  },
+  stale: {
+    entry: async (): Promise<Events> => ({ type: 'REFRESHED', data: await fetchUpstream() }),
+    on: { REFRESHED: { to: 'fresh', do: (ctx, ev) => { ctx.data = ev.data } } },
+  },
+},
+```
+
+Completions dispatch back into the machine and fan out to live routes like
+any other app-machine change. The dev server's poll-loop lint deliberately
+skips app machines — a non-durable server clock belongs here, not on a
+session machine.
 
 ## Surviving restarts: `persist: true`
 
@@ -141,7 +167,7 @@ session machines always persist through the session store.
 
 App machines are in-process singletons. Two replicas would each run their own
 copy and drift; the AppStore assumes a single writer. Multi-replica app state
-is a 1.x problem with a designed path (leader/backplane) — don't scale out
+is deferred with a designed path (leader/backplane) — don't scale out
 with persisted app machines until it lands.
 
 ## Mutual machine relationships
@@ -169,5 +195,5 @@ export default CartMachine
 ```
 
 The store still validates the emit name at construction, so the wiring stays
-checked. First-class support (lazy refs or name-based subscribe) is a 1.x
+checked. First-class support (lazy refs or name-based subscribe) is a design
 candidate.

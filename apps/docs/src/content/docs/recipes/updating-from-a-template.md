@@ -24,7 +24,7 @@ Apps scaffolded with a recent `create-stator` carry it in `package.json`:
 }
 ```
 
-Older apps can use the release tag closest to when they were scaffolded — tags look like `@statorjs/stator@1.3.0` in the Stator repository.
+Older apps can use the release tag closest to when they were scaffolded — tags look like `@statorjs/stator@2.0.0` in the Stator repository.
 
 ## Recipe 1: cherry-pick with a subtree shift
 
@@ -62,5 +62,5 @@ The `-p3` strips the `examples/weather/` prefix. Add `--reject` to turn conflict
 - **Cherry-picks want template-scoped commits.** The subtree shift aligns whole trees, so pick commits that only touch the template's directory. For mixed commits, use the patch recipe with the `-- examples/weather` path filter instead.
 - **Generated files regenerate.** `.stator/` and `stator-env.d.ts` come from `sync`, so they never need updating from upstream.
 - **Files you deleted conflict as modify/delete.** Removing template extras (the design notes, FINDINGS) is normal — an update that touches them surfaces as a `deleted by us` conflict. `git rm` the path to keep your deletion and continue.
-- **Your lockfile can pin you below what the new template needs.** The framework range (`^1.4.0`) may already cover the required version while your lockfile stays on the old one — a plain install changes nothing. Run `pnpm update @statorjs/stator` (or your package manager's equivalent) so the update actually lands.
+- **Your lockfile can pin you below what the new template needs.** The framework range in `package.json` (e.g. `^2.0.0`) may already cover the required version while your lockfile stays on the old one — a plain install changes nothing. Run `pnpm update @statorjs/stator` (or your package manager's equivalent) so the update actually lands.
 - **Afterwards**, run `typecheck` and a visual pass — a template update is a code change like any other.

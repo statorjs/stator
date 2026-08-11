@@ -40,8 +40,8 @@ When a piece of state should never touch the server, a `.stator` file can *be* a
 
 ## What Stator is not (today)
 
-:::caution[1.0 scope]
-Stator 1.0 targets a **single-replica** deployment. Durable app→session delivery (the inbox), horizontal scaling across replicas, and nested/parallel statecharts are explicitly deferred to 1.x. See [Why Stator](/introduction/why-stator/#the-10--1x-boundary) for the full boundary.
+:::caution[Scope]
+Stator targets a **single-replica** deployment today. Durable app→session delivery (the inbox), horizontal scaling across replicas, and nested/parallel statecharts are explicitly deferred. See [Why Stator](/introduction/why-stator/#what-ships-and-whats-deferred) for the full boundary.
 :::
 
 ## Where to go next

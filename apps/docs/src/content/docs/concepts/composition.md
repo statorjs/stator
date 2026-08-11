@@ -49,8 +49,8 @@ A machine's [lifecycle](/concepts/state-machines/#lifecycle-is-not-placement) sh
 - **session→app** delivery works (an admin/app machine can subscribe to a session machine's emits; the runtime injects the originating `sourceSessionId`).
 - **app→app** is wired at app boot.
 
-:::caution[1.x]
-**app→session** delivery — a process-lifetime machine pushing to a specific session — needs the durable inbox and is deferred to [1.x](/introduction/why-stator/#the-10--1x-boundary). On a single replica, app-state *display* updates still reach connected sessions via [SSE fan-out](/guides/realtime-sse/), because that recomputes reads rather than delivering a targeted event.
+:::caution[Deferred]
+**app→session** delivery — a process-lifetime machine pushing to a specific session — needs the durable inbox and is [deferred](/introduction/why-stator/#what-ships-and-whats-deferred). On a single replica, app-state *display* updates still reach connected sessions via [SSE fan-out](/guides/realtime-sse/), because that recomputes reads rather than delivering a targeted event.
 :::
 
 ## Component invocation

@@ -36,7 +36,7 @@ Wrap a selector (or part of one) in `:global(...)` to opt out of scoping — use
 
 ## With class:list
 
-Scoped rules match classes composed at runtime by [`class:list`](/guides/directives/#classlist--reactive-classes), since the scope attribute is on the element, not the class. A reactively-toggled class picks up its scoped rule exactly like a static one.
+Scoped rules match classes composed at runtime by [`class:list`](/guides/directives/#classlist), since the scope attribute is on the element, not the class. A reactively-toggled class picks up its scoped rule exactly like a static one.
 
 ## The `stator-inspector` layer (dev only)
 
