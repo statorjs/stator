@@ -1,0 +1,75 @@
+---
+import type { InstanceOf } from '@statorjs/stator/template'
+import type MentionsMachine from '../machines/mentions.ts'
+
+const { mentions, slug } = Stator.props<{
+  mentions: InstanceOf<typeof MentionsMachine>
+  slug: string
+}>()
+
+const badge = (kind: string) =>
+  kind === 'like' ? '★' : kind === 'repost' ? '↻' : kind === 'reply' ? '↩' : '¶'
+---
+<section aria-label="Mentions">
+  <h3>mentions · {read(mentions, (m) => m.approvedCountFor(slug))}</h3>
+  <ul>
+    {each(
+      read(mentions, (m) => m.approvedFor(slug)),
+      (mention) => (
+        <li>
+          <span data-kind={mention.kind}>{badge(mention.kind)}</span>
+          <a href={mention.authorUrl ?? mention.source}>{mention.authorName}</a>
+          {mention.excerpt ? <q>{mention.excerpt}</q> : null}
+          <a data-source href={mention.source}>source</a>
+        </li>
+      ),
+      { key: (mention) => mention.id },
+    )}
+  </ul>
+</section>
+
+<style>
+  section {
+    margin-top: 2.5rem;
+  }
+  h3 {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.68rem;
+    font-weight: normal;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 0.5rem;
+  }
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  li {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.9rem;
+  }
+  span {
+    color: var(--accent);
+  }
+  span[data-kind='like'] {
+    color: var(--like);
+  }
+  a {
+    color: var(--ink);
+  }
+  q {
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+  a[data-source] {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--ink-faint);
+  }
+</style>

@@ -1,0 +1,61 @@
+---
+import { raw } from '@statorjs/stator/template'
+import type { InstanceOf } from '@statorjs/stator/template'
+import { renderContent } from '../lib/content.ts'
+import type { PostRow } from '../lib/db.ts'
+import type MentionsMachine from '../machines/mentions.ts'
+
+const { post, mentions } = Stator.props<{
+  post: PostRow
+  mentions: InstanceOf<typeof MentionsMachine>
+}>()
+---
+<article class="h-entry">
+  {post.title ? (
+    <h2 class="p-name"><a class="u-url" href={`/posts/${post.slug}`}>{post.title}</a></h2>
+  ) : null}
+  <div class="e-content">{raw(renderContent(post.content))}</div>
+  <p>
+    <a class="u-url" href={`/posts/${post.slug}`}>
+      <time class="dt-published" datetime={new Date(post.published_at).toISOString()}>
+        {new Date(post.published_at).toDateString()}
+      </time>
+    </a>
+    <span>{read(mentions, (m) => m.approvedCountFor(post.slug))} mentions</span>
+  </p>
+</article>
+
+<style>
+  article {
+    padding: 1.4rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  h2 {
+    font-size: 1.3rem;
+    margin: 0 0 0.5rem;
+  }
+  h2 a {
+    color: var(--ink);
+    text-decoration: none;
+  }
+  h2 a:hover {
+    color: var(--accent);
+  }
+  div :global(p) {
+    margin: 0 0 0.7rem;
+  }
+  p {
+    margin: 0.4rem 0 0;
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+    display: flex;
+    gap: 0.9rem;
+  }
+  p a {
+    color: var(--ink-faint);
+    text-decoration: none;
+  }
+  p a:hover {
+    color: var(--accent);
+  }
+</style>

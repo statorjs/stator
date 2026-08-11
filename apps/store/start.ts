@@ -2,14 +2,7 @@ import { stat } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadProductionHead } from '@statorjs/stator/build'
-import {
-  CachedStore,
-  createApp,
-  dispatchToApp,
-  logger,
-  RedisAppStore,
-  RedisStore,
-} from '@statorjs/stator/server'
+import { CachedStore, createApp, logger, RedisAppStore, RedisStore } from '@statorjs/stator/server'
 import InventoryMachine from './machines/inventory.ts'
 import OrdersMachine from './machines/orders.ts'
 
@@ -53,8 +46,8 @@ const app = await createApp({
 const TIDE_MS = 24 * 60 * 60 * 1000
 setInterval(() => {
   void (async () => {
-    await dispatchToApp(app.store, InventoryMachine, { type: 'TIDE_RESET' })
-    await dispatchToApp(app.store, OrdersMachine, { type: 'TIDE_RESET' })
+    await app.dispatchToApp(InventoryMachine, { type: 'TIDE_RESET' })
+    await app.dispatchToApp(OrdersMachine, { type: 'TIDE_RESET' })
     logger.info({}, 'tide reset: stock reseeded, orders cleared')
   })().catch((err) => logger.error({ err: String(err) }, 'tide reset failed'))
 }, TIDE_MS)

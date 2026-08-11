@@ -1,0 +1,27 @@
+/* Tokens + reset only — component styles live scoped in each .stator file. */
+
+:root {
+  --paper: #fdfcf8;
+  --card: #ffffff;
+  --ink: #24211a;
+  --ink-soft: #5c5749;
+  --ink-faint: #948f7e;
+  --rule: #e7e3d7;
+  --accent: #7c3aed;
+  --ok: #166f4d;
+  --like: #c2503d;
+  --error: #b3382c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--paper);
+}

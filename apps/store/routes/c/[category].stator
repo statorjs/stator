@@ -57,7 +57,7 @@ const hasFilters = Boolean(q.material || q.color || q.size)
             <h3>Material</h3>
             {each(facets.materials, (o) => (
               <a
-                class={q.material === o.value ? 'facet is-on' : 'facet'}
+                class:list={['facet', { 'is-on': q.material === o.value }]}
                 href={catalogHref(base, q, { material: q.material === o.value ? null : o.value })}
               >
                 {o.label} <span class="facet-count">{o.count}</span>
@@ -68,7 +68,7 @@ const hasFilters = Boolean(q.material || q.color || q.size)
             <h3>Color</h3>
             {each(facets.colors, (o) => (
               <a
-                class={q.color === o.value ? 'facet is-on' : 'facet'}
+                class:list={['facet', { 'is-on': q.color === o.value }]}
                 href={catalogHref(base, q, { color: q.color === o.value ? null : o.value })}
               >
                 {o.label} <span class="facet-count">{o.count}</span>
@@ -80,7 +80,7 @@ const hasFilters = Boolean(q.material || q.color || q.size)
             <div class="facet-sizes">
               {each(facets.sizes, (o) => (
                 <a
-                  class={q.size === o.value ? 'size is-on' : 'size'}
+                  class:list={['size', { 'is-on': q.size === o.value }]}
                   href={catalogHref(base, q, { size: q.size === o.value ? null : o.value })}
                 >
                   {o.label}

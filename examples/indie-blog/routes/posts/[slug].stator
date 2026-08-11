@@ -1,0 +1,76 @@
+---
+// @stator live
+import { raw } from '@statorjs/stator/template'
+import { renderContent } from '../../lib/content.ts'
+import { postBySlug } from '../../lib/db.ts'
+import { AUTHOR_NAME, SITE_ORIGIN, postUrl } from '../../lib/site.ts'
+import MentionsMachine from '../../machines/mentions.ts'
+import Layout from '../../templates/layout.stator'
+import MentionList from '../../templates/mention-list.stator'
+
+const [mentions] = Stator.reads([MentionsMachine])
+const { params } = Stator.request
+
+const post = postBySlug(String(params.slug)) ?? null
+if (!post) Stator.response.status = 404
+---
+<Layout title={post?.title ?? 'Post'}>
+  {post ? (
+    <article class="h-entry">
+      {post.title ? <h1 class="p-name">{post.title}</h1> : null}
+      <div class="e-content">{raw(renderContent(post.content))}</div>
+      <p>
+        <a class="p-author h-card" href={`${SITE_ORIGIN}/`}>{AUTHOR_NAME}</a>
+        <a class="u-url" href={postUrl(post.slug)}>
+          <time class="dt-published" datetime={new Date(post.published_at).toISOString()}>
+            {new Date(post.published_at).toDateString()}
+          </time>
+        </a>
+      </p>
+      <MentionList mentions={mentions} slug={post.slug} />
+      <aside>
+        This post accepts <a href="https://indieweb.org/Webmention">webmentions</a> —
+        link to it from your site and your reply appears here once approved.
+      </aside>
+    </article>
+  ) : (
+    <>
+      <h1>Not found</h1>
+      <p>No such post. <a href="/">Back to the front page.</a></p>
+    </>
+  )}
+</Layout>
+
+<style>
+  h1 {
+    font-size: 1.7rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.8rem;
+  }
+  div :global(p) {
+    margin: 0 0 0.8rem;
+    line-height: 1.6;
+  }
+  article > p {
+    display: flex;
+    gap: 0.9rem;
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+    margin: 0.6rem 0 0;
+  }
+  article > p a {
+    color: var(--ink-faint);
+    text-decoration: none;
+  }
+  aside {
+    margin-top: 2rem;
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+    border-top: 1px solid var(--rule);
+    padding-top: 0.8rem;
+  }
+  aside a {
+    color: var(--ink-soft);
+  }
+</style>

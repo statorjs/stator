@@ -3,12 +3,18 @@
 import { formatPrice } from '../lib/catalog-data.ts'
 import { productForSku } from '../lib/sku.ts'
 import AdminMachine from '../machines/admin.ts'
+import CartMachine from '../machines/cart.ts'
 import InventoryMachine from '../machines/inventory.ts'
 import OrdersMachine from '../machines/orders.ts'
 import Button from '../templates/button.stator'
 import Layout from '../templates/layout.stator'
 
-const [admin, orders, inventory] = Stator.reads([AdminMachine, OrdersMachine, InventoryMachine])
+const [admin, orders, inventory, cart] = Stator.reads([
+  AdminMachine,
+  OrdersMachine,
+  InventoryMachine,
+  CartMachine,
+])
 
 // Off by default in production deploys; on for the launch-gate validation
 // and local dev. (STORE_ADMIN=1 opts a deploy in.)
@@ -20,7 +26,7 @@ const skuLabel = (sku: string): string => {
   return `${hit.product.name} — ${hit.parts.colorway}/${hit.parts.size}`
 }
 ---
-<Layout>
+<Layout cart={cart}>
   {when(!adminEnabled, () => (
     <section class="page-pad">
       <h1>Nothing to see here.</h1>

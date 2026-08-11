@@ -33,15 +33,22 @@ export interface DefineMachineConfig<
   emits?: EmitsConfig<C, E>
   context: C
   initial: NoInfer<S>
-  /** Transitions see `helpers.reads` typed as `ReadsMap<TReads>`. */
-  states: Record<S, StateNode<C, E, S, ReadsMap<TReads>>>
+  /** Transitions see `helpers.reads` typed as `ReadsMap<TReads>`.
+   *
+   *  The state union S is inferred from this map's KEYS and nowhere else —
+   *  every interior S position (`to:`, the machine-level `on:`) is NoInfer.
+   *  Without that, `to:` string literals become competing inference
+   *  candidates, and whenever they don't happen to cover every state the
+   *  union silently collapses to the covered subset (surfaced by the store's
+   *  cart machine when its line ops moved to machine-level `on:`). */
+  states: Record<S, StateNode<C, E, NoInfer<S>, ReadsMap<TReads>>>
   /** Machine-level transitions: handlers that apply in ANY state, consulted only
    *  when the current state does not declare the event (a state-scoped handler
    *  always wins). The home for a completion event whose handling must not depend
    *  on an unrelated machine-wide state — e.g. a per-record save completing while
    *  the machine is busy reloading the collection. Without this, such a
    *  completion is dropped wherever the current state has no handler for it. */
-  on?: OnMap<C, E, S, ReadsMap<TReads>>
+  on?: OnMap<C, E, NoInfer<S>, ReadsMap<TReads>>
   selectors?: Sel
   /** APP machines only: persist this machine's snapshot through the AppStore
    *  so its state survives restarts. Opt-in — caches and other

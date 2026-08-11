@@ -2,8 +2,8 @@
 import { formatPrice } from '../lib/catalog-data.ts'
 import CartMachine from '../machines/cart.ts'
 import Button from '../templates/button.stator'
-import CartLine from '../templates/cart-line.stator'
 import Layout from '../templates/layout.stator'
+import Plate from '../templates/plate.stator'
 
 const [cart] = Stator.reads([CartMachine])
 ---
@@ -18,10 +18,35 @@ const [cart] = Stator.reads([CartMachine])
       <p class="empty">Nothing aboard yet. <a class="link" href="/c/all">Browse the chandlery.</a></p>
     ))}
 
+    {/* Item reads — read(line, …) — bind a row's live cells to ITS array
+        entry, no re-lookup through the machine. An item read only works
+        inline in its each, which is why the row lives here and not in a
+        child component. */}
     <ul>
       {each(
         read(cart, (c) => c.display),
-        (line) => <CartLine line={line} cart={cart} />,
+        (line) => (
+          <li>
+            <a href={`/p/${line.slug}`}>
+              <Plate silhouette={line.silhouette} colorway={line.colorway} />
+            </a>
+            <div class="info">
+              <p class="name">{line.name}</p>
+              <p class="variant">{line.colorwayLabel} · {line.size === 'one-size' ? 'One size' : `EU ${line.size}`}</p>
+              <button type="button" on:click={() => cart.send({ type: 'REMOVE', sku: line.sku })}>Remove</button>
+            </div>
+            <div class="qty">
+              <button type="button" on:click={() => cart.send({ type: 'DECREMENT', sku: line.sku })}>−</button>
+              <span>{read(line, (l) => l.qty)}</span>
+              <button
+                type="button"
+                disabled={read(cart, (c) => c.atCeiling(line.sku))}
+                on:click={() => cart.send({ type: 'INCREMENT', sku: line.sku })}
+              >+</button>
+            </div>
+            <p class="total">{read(line, (l) => formatPrice(l.lineTotal))}</p>
+          </li>
+        ),
         { key: (line) => line.sku },
       )}
     </ul>
@@ -50,6 +75,72 @@ const [cart] = Stator.reads([CartMachine])
     flex-direction: column;
     gap: 12px;
   }
+  li {
+    display: grid;
+    grid-template-columns: 130px 1fr auto auto;
+    gap: 20px;
+    align-items: center;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px 18px;
+  }
+  .name {
+    font-weight: 600;
+    margin: 0;
+  }
+  .variant {
+    font-size: 13px;
+    color: var(--body);
+    margin: 2px 0 6px;
+  }
+  /* the remove control — the only button in the info column */
+  .info button {
+    font: inherit;
+    font-size: 12px;
+    color: var(--buoy);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .qty {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .qty button {
+    font: inherit;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--canvas);
+    cursor: pointer;
+    line-height: 1;
+  }
+  .qty button:hover:not(:disabled) {
+    border-color: var(--harbor);
+  }
+  .qty button:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .qty span {
+    font-family: var(--mono);
+    font-size: 14px;
+    min-width: 2ch;
+    text-align: center;
+  }
+  .total {
+    font-family: var(--mono);
+    font-size: 14px;
+    margin: 0;
+    min-width: 8ch;
+    text-align: right;
+  }
   footer {
     display: flex;
     justify-content: space-between;
@@ -70,5 +161,15 @@ const [cart] = Stator.reads([CartMachine])
   .cart-sub-amount {
     font-family: var(--mono);
     font-size: 20px;
+  }
+  @media (max-width: 640px) {
+    li {
+      grid-template-columns: 90px 1fr;
+    }
+    .qty,
+    .total {
+      grid-column: 2;
+      justify-self: end;
+    }
   }
 </style>

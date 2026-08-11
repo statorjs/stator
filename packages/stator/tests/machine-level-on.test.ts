@@ -75,3 +75,38 @@ describe('machine-level on:', () => {
     expect(a.getSnapshot().context).toEqual(before)
   })
 })
+
+describe('state-union inference', () => {
+  // Regression: S is inferred from the states-map KEYS alone (interior `to:` /
+  // machine-level `on:` positions are NoInfer). Before the fix, `to:` string
+  // literals were competing inference candidates — whenever they didn't happen
+  // to cover every state (as here: nothing targets 'c' or 'a'), the union
+  // collapsed to the covered subset and this valid def failed to typecheck.
+  // Surfaced by the store's cart machine when its line ops moved to
+  // machine-level `on:`.
+  it('infers the state union from keys even when to: targets do not cover every state', () => {
+    const def = defineMachine({
+      name: 'MLO-keys',
+      lifecycle: 'session',
+      events: {} as Events,
+      context: { pings: 0 },
+      initial: 'c', // never a `to:` target — key inference must still admit it
+      states: {
+        a: { on: { GO: { to: 'b' } } },
+        b: {},
+        c: { on: { GO: { to: 'b' } } },
+      },
+      on: {
+        PING: {
+          do: (ctx) => {
+            ctx.pings += 1
+          },
+        },
+      },
+    })
+    const actor = createActor(def).start()
+    actor.send({ type: 'PING' })
+    expect(actor.getSnapshot().value).toEqual(['c'])
+    expect(actor.getSnapshot().context.pings).toBe(1)
+  })
+})
