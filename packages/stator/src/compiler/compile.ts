@@ -81,6 +81,19 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
   const script = scripts.join('\n')
   if (script.trim()) {
     if (analyzeScriptClasses(script).length > 0) {
+      // An island's shell renders from props — there is no frontmatter
+      // execution on this path, and silently discarding the fence produced
+      // either a dangling-identifier crash at render or dead code that
+      // looked alive. Surface it instead.
+      if (frontmatter.trim()) {
+        throw new CompileError(
+          `stator: an island file (a template with a StatorElement <script>) can't have ` +
+            `frontmatter — the fence would never run: the island's shell renders from props. ` +
+            `Move the server work into the route or component that renders this island and ` +
+            `pass the results as props.`,
+          locAt(source, 0, opts.id),
+        )
+      }
       return compileClient(template, script, {
         hash,
         scopeAttr,
