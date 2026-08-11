@@ -1,5 +1,12 @@
 # @statorjs/stator
 
+## 2.0.1
+
+### Patch Changes
+
+- cd06c4e: `defineMachine`'s state union is inferred from the `states` map's keys alone — every interior `S` position (`to:` targets, the machine-level `on:` map) is now `NoInfer`. Previously `to:` string literals were competing inference candidates, so whenever the transition graph didn't happen to target every state the union silently collapsed to the covered subset: valid definitions failed to typecheck (`initial` rejected, selector maps degraded to their default) as soon as duplicated per-state handlers moved to machine-level `on:`. Surfaced by the store's cart machine; regression-pinned in the machine-level `on:` tests.
+- cd06c4e: `<time datetime={…}>` typechecks — the per-element attribute set was missing `time`'s `datetime`, so microformats `dt-published` markup was a compile error.
+
 ## 2.0.0
 
 ### Major Changes

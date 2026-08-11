@@ -1,5 +1,11 @@
 # stator-vscode
 
+## 1.2.1
+
+### Patch Changes
+
+- cd06c4e: The bundled per-element attribute types learn `<time datetime>`.
+
 ## 1.2.0
 
 ### Minor Changes
