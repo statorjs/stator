@@ -75,7 +75,7 @@ does.
 One platform caveat on form controls: `checked`/`value` are **attributes**,
 and once the user has touched the control the browser keeps its own state —
 a patched `checked` attribute won't visibly re-toggle a touched checkbox.
-That's the [forms model](/guides/forms-and-binding/): the control owns its
+That's the [forms model](/guides/forms-and-inputs/): the control owns its
 draft, the machine owns the commit. Use attribute reads on form controls for
 render-time truth, not as a live writeback channel.
 
@@ -143,3 +143,8 @@ If rows are pure display — no inputs, no transitions, no client state, no
 element-id'd nodes (`on:`, bound attrs, islands) — *and* the list is short or its
 machine rarely changes, the unkeyed full-body re-render is simpler. Otherwise,
 reach for `key`.
+
+For a worked example of a keyed, live `<tbody>` full of item reads and
+per-row workflows, see the
+[`stockroom` example](https://github.com/statorjs/stator/tree/main/examples/stockroom)
+and the [collections of workflows recipe](/recipes/collections-of-workflows/).

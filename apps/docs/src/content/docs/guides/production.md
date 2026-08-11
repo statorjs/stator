@@ -54,7 +54,7 @@ A [`create-stator`](/introduction/installation/) project ships this wiring as
 
 - **Always-on, single instance.** SSE connections need the process running —
   disable scale-to-zero, and don't scale out (fan-out and app machines are
-  in-process; multi-replica is 1.x).
+  in-process; multi-replica is deferred).
 - **`REDIS_URL`** for session state that survives deploys (`RedisStore`,
   optionally wrapped in `CachedStore`), and `RedisAppStore` if you use
   [persisted app machines](/guides/app-machines/).

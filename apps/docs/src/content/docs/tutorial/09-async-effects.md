@@ -181,8 +181,8 @@ Two notes:
 - **The buttons stand in for form fields** so the demo collects no personal
   data — the finished example does the same, and splits this markup into a
   `templates/checkout-page.stator` component. The machine wouldn't change
-  with real inputs; live field binding is the
-  [forms guide](/guides/forms-and-binding/).
+  with real inputs; capturing them is the
+  [forms guide](/guides/forms-and-inputs/).
 
 **Checkpoint**: run the dev server and open `/checkout`. Walk the flow: set
 name and address, continue, set the card, place the order. The state label

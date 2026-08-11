@@ -37,6 +37,6 @@ The runtime never talks to Redis or a `Map` directly; it talks to the `Store` in
 
 Within one replica, concurrent events to the same session are **serialized by a per-session async lock**, so transitions never interleave and corrupt state. This is correct and sufficient on a single replica.
 
-:::caution[1.x]
-Scaling past one replica needs a Redis pub/sub backplane over the existing fan-out choke point, and reaching idle or non-connected sessions needs the durable inbox. Both are deferred to [1.x](/introduction/why-stator/#the-10--1x-boundary). The stateless-between-requests shape is specifically what makes that future swap localized rather than a rewrite.
+:::caution[Single replica]
+Scaling past one replica needs a Redis pub/sub backplane over the existing fan-out choke point, and reaching idle or non-connected sessions needs the durable inbox. Both are [deferred](/introduction/why-stator/#what-ships-and-whats-deferred). The stateless-between-requests shape is specifically what makes that future swap localized rather than a rewrite.
 :::

@@ -45,10 +45,10 @@ The whole shape is declarative and statically analyzable — there's no imperati
 
 ### states + initial
 
-`states` is the state graph and `initial` names the entry state. In 1.0 the state path is **flat** (depth-1): a machine is in exactly one named state, and transitions move between them.
+`states` is the state graph and `initial` names the entry state. The state path is **flat** (depth-1): a machine is in exactly one named state, and transitions move between them.
 
 :::note[Extension point]
-Nested and parallel statecharts (and history/invoke) are not in 1.0. The state model is deliberately built so they can layer in later without changing the surface — flat today, extensible tomorrow.
+Nested and parallel statecharts (and history/invoke) are not shipped. The state model is deliberately built so they can layer in later without changing the surface — flat today, extensible tomorrow.
 :::
 
 ### Machine-level on:
@@ -125,8 +125,8 @@ Purity is over the machine's **declared dependency graph**, not just its own con
 
 Some machines can only run on the server. A machine that **reads** another machine is **server-pinned**, because cross-machine reads resolve server-side; a machine with no such dependency is **portable** and can run in a client island. The classification is computed from the definition (`computeCapabilities` in `engine/define-machine.ts`) and carries the *reasons*, so when you place a server-pinned machine on the client, the [compile error](/concepts/server-client-boundary/#the-enforcing-compile-errors) can name exactly why.
 
-:::note[1.x]
-Secret access and cross-session emit are intended future inputs to capability classification; 1.0 keys off cross-machine reads. The mechanism is in place; the additional inputs are deferred.
+:::note[Deferred]
+Secret access and cross-session emit are intended future inputs to capability classification; today it keys off cross-machine reads. The mechanism is in place; the additional inputs are deferred.
 :::
 
 ## Lifecycle is not placement

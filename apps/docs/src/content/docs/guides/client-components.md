@@ -36,7 +36,7 @@ The root is a custom element; the `<script>` exports a name-matched `StatorEleme
 
 ## machine() and use()
 
-`machine(context, behavior?)` defines a small client machine inline — plain data first, then `on` (events) and `select` (derived values). The split is what makes the types work: handlers and selectors see the context fully typed (`s.mode` above is a `string`), and `use(Def, seed?)` returns an instance whose context keys and selector results are real typed properties — `this.theme.mode` and `this.theme.label` type-check like anything else. (2.0 removed the old single-bag form.)
+`machine(context, behavior?)` defines a small client machine inline — plain data first, then `on` (events) and `select` (derived values). The split is what makes the types work: handlers and selectors see the context fully typed (`s.mode` above is a `string`), and `use(Def, seed?)` returns an instance whose context keys and selector results are real typed properties — `this.theme.mode` and `this.theme.label` type-check like anything else.
 
 Events are typed in three tiers:
 
@@ -85,7 +85,7 @@ Machine [actors](/concepts/state-machines/#definition-actor-instance) start on `
 ## Islands are leaves
 
 An island's markup is its own template — server-rendered content does not
-flow *through* it, and that's a deliberate v1 boundary (like early Astro
+flow *through* it, and that's a deliberate boundary (like early Astro
 shipping without SSR: a known edge, owned). Four sanctioned channels cover
 composition with the server:
 

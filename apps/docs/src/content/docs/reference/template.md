@@ -75,7 +75,7 @@ Unlike `each`/`when`/`match` results, a `DeferResult` registers **no binding**: 
 function raw(html: string): HtmlFragment
 ```
 
-The one documented unsafe seam: wraps a trusted HTML string so it's emitted **verbatim**, bypassing auto-escaping — the server analog of `set:html`. Only pass markup you constructed or fully trust, never unsanitized user input. Typical use is an already-escaped serialized block; for JSON-LD specifically, reach for [`JsonLd`](/reference/components/#jsonld) instead.
+The one documented unsafe seam: wraps a trusted HTML string so it's emitted **verbatim**, bypassing auto-escaping — the server analog of React's `dangerouslySetInnerHTML`. Only pass markup you constructed or fully trust, never unsanitized user input. Typical use is an already-escaped serialized block; for JSON-LD specifically, reach for [`JsonLd`](/reference/components/#jsonld) instead.
 
 ## on
 
@@ -108,3 +108,4 @@ What the compiler's output and the recompute pass run on — **Toolchain** tier 
 - `spreadAttrs` — the attribute-bag renderer `{...rest}` lowers to.
 - `clientShellAttrs` — attributes the compiler puts on a client island's server-rendered shell.
 - `InstanceOf` — re-exported machine instance type (what `read`'s first parameter is). An instance's `state` is typed to the machine's state-name union and its `send()` to the event union, so a typo in a state comparison, an event name, or a payload is a compile error.
+- Attribute types: `HTMLAttributes<Tag>` (a component's typed pass-through surface — see [attribute spread](/guides/templates/#attribute-spread)), `GlobalHTMLAttributes`, `AriaAttributes`, `ElementSpecificAttributes`, `StatorIntrinsicElements`, `StatorDirectiveAttributes`, and `Reactive` (the wrapper admitting a `ReadResult` where a plain value is expected). `SpreadAttrs` types the `{...rest}` bag.

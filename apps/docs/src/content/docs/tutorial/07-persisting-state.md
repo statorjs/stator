@@ -69,7 +69,7 @@ Nothing in your machines or templates changes — the store is a pure infrastruc
 - **App machines** (the catalog) — live in process memory; re-seeded on boot by default. A machine whose shared state must survive restarts opts in with `persist: true` and an `AppStore` — see [App machines](/guides/app-machines/#surviving-restarts-persist-true). For a seeded catalog, re-seeding is exactly right.
 
 :::caution
-Persisted app state assumes a single writer — cross-replica sharing is part of the deferred [1.x work](/introduction/why-stator/#the-10--1x-boundary).
+Persisted app state assumes a single writer — cross-replica sharing is [deferred](/introduction/why-stator/#what-ships-and-whats-deferred).
 :::
 
 ## What you built · next

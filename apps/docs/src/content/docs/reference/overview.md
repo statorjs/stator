@@ -14,7 +14,7 @@ Everything you import from `@statorjs/stator` comes through an explicit subpath 
 | [`/server`](/reference/server/) | App assembly, routing, dispatch, stores | Stable + Toolchain |
 | [`/machine`](/reference/machine/) | The isomorphic state-machine engine (browser-safe) | Stable |
 | [`/template`](/reference/template/) | `html`, `read`, control flow, directives | Stable + Toolchain |
-| [`/client`](/reference/client/) | Island authoring: `StatorElement`, `use`, `bind`, `dispatch` | Stable |
+| [`/client`](/reference/client/) | Island authoring: `StatorElement`, `use`, `machine`, `dispatch` | Stable |
 | [`/dev`](/reference/dev-and-build/#createdevapp) | The Vite-embedded dev server | Stable |
 | [`/build`](/reference/dev-and-build/#buildapp) | Production build + type sync | Stable |
 | [`/components`](/reference/components/) | Built-in server components (`JsonLd`) | Stable |

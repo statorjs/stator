@@ -50,7 +50,7 @@ read machine state; a data GET handler can **read** but not dispatch. The
 split is structural, not policy: a handler that cannot dispatch has nothing
 to interleave with effect completions or other sessions' commits, which is
 exactly what makes its reads safe. Command handlers that need
-state-dependent *responses* (redirect-to-created-id) remain a 1.x design;
+state-dependent *responses* (redirect-to-created-id) remain a deferred design;
 the safe shape is settled (a read atomic with the dispatch), but a general
 "read anywhere in an async handler" can deadlock against effect completions
 and race shared state, so it will not exist in any version. Today's idioms:
@@ -110,12 +110,14 @@ return new Response(...)           // full control
 
 Side effects applied after patches:
 
-| Directive | Effect |
-|---|---|
-| `navigate` / `reload` | navigate or reload |
-| `push-url` / `replace-url` | update history without navigating |
-| `focus` / `scroll` | move focus / scroll to a target |
-| `event` | dispatch a `CustomEvent` |
+| Directive | Shape | Effect |
+|---|---|---|
+| `navigate` | `{ type: 'navigate', to }` | client-side navigation to `to` |
+| `reload` | `{ type: 'reload' }` | full page reload |
+| `push-url` / `replace-url` | `{ type: 'push-url', to }` | update history without navigating |
+| `focus` | `{ type: 'focus', target: { kind: 'slot' \| 'element', id } }` | move focus to a target |
+| `scroll` | `{ type: 'scroll', target, behavior?: 'smooth' \| 'auto' }` | scroll a target into view |
+| `event` | `{ type: 'event', name, detail? }` | dispatch a `CustomEvent(name, { detail })` on `window` |
 
 ## Content negotiation
 

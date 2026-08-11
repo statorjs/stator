@@ -34,7 +34,11 @@ interface DevApp {
 
 The dev server. Embeds Vite in middleware mode so `.stator` and TS modules compile on the way in, loads machines, routes, and the framework runtime itself through `vite.ssrLoadModule` (one shared module instance — the same pattern Astro and SvelteKit use), and injects each route's scoped component CSS and island scripts into `<head>` at render time.
 
-On a relevant source change it re-discovers, rebuilds, and tells the browser to reload. A template or route edit keeps the store — and your session state, cart contents and all — intact; only a machine edit resets it, since route `reads` bind to machine defs by identity. The inspector toolbar is injected by default; set `inspector: false` to disable.
+On a relevant source change it re-discovers, rebuilds, and tells the browser to reload. A template or route edit keeps the store — and your session state, cart contents and all — intact; only a machine edit resets it, since route `reads` bind to machine defs by identity.
+
+The **inspector toolbar** is injected by default (`inspector: false` disables it): a drawer that shows the wire itself — one row per outgoing event (↑) and incoming patch envelope (↓), including patches arriving over a live route's SSE channel with their apply time. It's the fastest way to see exactly which slots a dispatch touched. Production apps can opt in with `inspector: true` on [`createApp`](/reference/server/#createapp) — demo sites want the wire visible.
+
+If the requested port is taken, the dev server shifts to the next free one (and probes a free HMR websocket port) instead of failing — two Stator apps run side by side without ceremony. Production `listen` fails with a one-line message instead; an operator wants the collision, not a silent shift.
 
 `dispatchToApp` is the dev counterpart of [`StatorApp.dispatchToApp`](/reference/server/#dispatchtoapp): it follows the current store across rebuilds and runs through the Vite-loaded runtime, so SSE fan-out reaches live connections. Don't import the standalone `dispatchToApp` in dev server code — that's a second module instance whose connection registry is empty, so the dispatch commits but the fan-out reaches nobody.
 

@@ -78,7 +78,7 @@ loading  COMMIT_FAILED(A)     dropped?! A's effect fired on schedule
 If `COMMIT_FAILED` is declared only under `ready`, record A is stranded in
 "committing" forever — transition effects run at most once and nothing
 replays the event. Declaring completions in the machine-level `on:` map
-(shipped in 1.8 for exactly this case) makes them deliverable in ANY state a
+(built for exactly this case) makes them deliverable in ANY state a
 state doesn't override: the freshness axis can churn freely and no record's
 workflow gets lost.
 
@@ -101,7 +101,9 @@ The chart shows the freshness axis. The per-record workflow — the more
 interesting one — lives in a map and is legible only by reading the actions
 that move it, which costs you some of "audit the machine by reading the
 chart". That is a known tension with a designed future (per-record statechart
-shapes are on the books for a 2.x minor), and hitting it painfully in a real
+shapes are on the books), and hitting it painfully in a real
 app is exactly the evidence that design is waiting for. Until then: keep the
 map's phases a closed union, move it only in declared events, and put every
 completion in machine-level `on:`.
+
+The worked example is the [`stockroom` example](https://github.com/statorjs/stator/tree/main/examples/stockroom) — a live inventory table built on exactly this pattern: freshness axis in the chart, per-row saves in a context map, completions in machine-level `on:`, and optimistic-concurrency conflicts surfaced per row.

@@ -27,7 +27,7 @@ Automatically managed by Chisel.
 - [dispatching-events](guides/dispatching-events)
 - [editor-setup](guides/editor-setup)
 - [effects](guides/effects)
-- [forms-and-binding](guides/forms-and-binding)
+- [forms-and-inputs](guides/forms-and-inputs)
 - [keyed-lists](guides/keyed-lists)
 - [persistence](guides/persistence)
 - [production](guides/production)

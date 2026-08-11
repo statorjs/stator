@@ -5,9 +5,7 @@ sidebar:
   order: 2
 ---
 
-Directives are colon-namespaced attributes (`name:arg`) the compiler lowers to runtime calls. Each one owns its whole attribute. Display is not a directive — `read()` is an expression, in text or attribute position, on server and client machines alike.
-
-(2.0 removed `bind:` — display folds into `read()` and input capture is a typed commit event. See [Forms and inputs](/guides/forms-and-binding/).)
+Directives are colon-namespaced attributes (`name:arg`) the compiler lowers to runtime calls. Each one owns its whole attribute. Display is not a directive — `read()` is an expression, in text or attribute position, on server and client machines alike. Input capture is not a directive either: the control owns its draft, and a typed commit event crosses the boundary at `change`/`submit` — see [Forms and inputs](/guides/forms-and-inputs/).
 
 ## on: — events
 
@@ -17,7 +15,7 @@ The handler must be a single `machine.send(...)`:
 <button on:click={() => cart.send({ type: 'ADD_ITEM', productId: id })}>Add</button>
 ```
 
-## class:list — reactive classes
+## class:list
 
 Strings, conditional records, or `read()` entries compose into one class attribute:
 

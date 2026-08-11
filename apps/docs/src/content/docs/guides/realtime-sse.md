@@ -29,6 +29,6 @@ When any session changes a machine the route reads, the server recomputes the af
 - **Reconnect = resync** — a dropped or stale connection reopens and the initial sync converges the page in place (`data-stator-connection` on `<html>` tracks the transitions). There's no missed-frame replay; directives fired during the outage (e.g. a `navigate`) are not re-delivered.
 - **Single-replica** — fan-out is in-process.
 
-:::caution[1.x]
-Multi-replica fan-out (a Redis pub/sub backplane) and the durable inbox (reaching idle/non-connected sessions, server-originated transitions) are deferred to [1.x](/introduction/why-stator/#the-10--1x-boundary). On one replica, live cross-session display updates work today.
+:::caution[Single replica]
+Multi-replica fan-out (a Redis pub/sub backplane) and the durable inbox (reaching idle/non-connected sessions, server-originated transitions) are [deferred](/introduction/why-stator/#what-ships-and-whats-deferred). On one replica, live cross-session display updates work today.
 :::

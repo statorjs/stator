@@ -24,7 +24,7 @@ Apps scaffolded with a recent `create-stator` carry it in `package.json`:
 }
 ```
 
-Older apps can use the release tag closest to when they were scaffolded — tags look like `@statorjs/stator@1.3.0` in the Stator repository.
+Older apps can use the release tag closest to when they were scaffolded — tags look like `@statorjs/stator@2.0.0` in the Stator repository.
 
 ## Recipe 1: cherry-pick with a subtree shift
 
