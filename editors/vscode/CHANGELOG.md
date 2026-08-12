@@ -1,5 +1,11 @@
 # stator-vscode
 
+## 1.3.0
+
+### Minor Changes
+
+- 424ea40: The bundled compiler and language server understand island server fences: the fence typechecks in-editor with its imports deduped against the script's, and the capability and name-collision errors surface as located diagnostics.
+
 ## 1.2.2
 
 ### Patch Changes
