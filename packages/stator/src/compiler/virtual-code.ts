@@ -367,6 +367,28 @@ function buildClientTsx(regions: ScannedRegions): VirtualFile {
     AMBIENT_TYPE_IMPORTS +
     STATOR_AMBIENT
 
+  // The island's SERVER FENCE (2.1): typed here so the editor checks it, but
+  // wrapped so its bindings don't leak into the <script>'s scope (at runtime
+  // the two never meet). Hoisted imports that also appear verbatim in the
+  // script are skipped — same module, one binding.
+  const fm = regions.frontmatter?.content ?? ''
+  if (fm.trim()) {
+    const fmOffset = regions.frontmatter?.contentOffset ?? 0
+    const { hoisted, body } = splitFrontmatter(fm, fmOffset)
+    for (const seg of hoisted) {
+      if (userScript.includes(seg.text.trim())) continue
+      push(mappings, seg.sourceOffset, code.length, seg.text.length)
+      code += `${seg.text}\n`
+    }
+    code += 'function __statorFence(props: Record<string, unknown>) {\n'
+    for (const seg of body) {
+      code += '  '
+      push(mappings, seg.sourceOffset, code.length, seg.text.length)
+      code += `${seg.text}\n`
+    }
+    code += '}\nvoid __statorFence\n'
+  }
+
   for (const script of regions.scripts) {
     push(mappings, script.contentOffset, code.length, script.content.length)
     code += `${script.content}\n`

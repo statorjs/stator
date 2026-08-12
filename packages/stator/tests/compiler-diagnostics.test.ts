@@ -86,27 +86,4 @@ describe('compiler: defer/machine boundary (build-time gate)', () => {
 </main>`
     expect(() => compile(src, { id: 'p.stator' })).not.toThrow()
   })
-
-  it('an island file with frontmatter is a located error, not a silent drop', () => {
-    const src = `---
-const greeting = 'hello'
----
-<probe-x>
-  <p>{greeting}</p>
-</probe-x>
-
-<script>
-  export class ProbeX extends StatorElement {}
-</script>`
-    let err: CompileError | null = null
-    try {
-      compile(src, { id: 'probe-x.stator' })
-    } catch (e) {
-      err = e as CompileError
-    }
-    expect(err).toBeInstanceOf(CompileError)
-    expect(String(err)).toMatch(/can't have\s+frontmatter/)
-    expect(String(err)).toContain('pass the results as props')
-    expect(err!.loc?.line).toBe(1)
-  })
 })

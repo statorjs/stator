@@ -81,24 +81,17 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
   const script = scripts.join('\n')
   if (script.trim()) {
     if (analyzeScriptClasses(script).length > 0) {
-      // An island's shell renders from props — there is no frontmatter
-      // execution on this path, and silently discarding the fence produced
-      // either a dangling-identifier crash at render or dead code that
-      // looked alive. Surface it instead.
-      if (frontmatter.trim()) {
-        throw new CompileError(
-          `stator: an island file (a template with a StatorElement <script>) can't have ` +
-            `frontmatter — the fence would never run: the island's shell renders from props. ` +
-            `Move the server work into the route or component that renders this island and ` +
-            `pass the results as props.`,
-          locAt(source, 0, opts.id),
-        )
-      }
+      // The island's SERVER FENCE (2.1): runs per shell render, on the
+      // server only, with its bindings in template scope. The <script>
+      // never sees it, in either direction.
+      const fm = processFrontmatter(frontmatter, 'island', source, opts.id)
       return compileClient(template, script, {
         hash,
         scopeAttr,
         styles,
         file: opts.id,
+        fm,
+        source,
       })
     }
     throw new CompileError(
@@ -152,7 +145,16 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
 function compileClient(
   template: string,
   script: string,
-  ctx: { hash: string; scopeAttr?: string; styles: string[]; file?: string },
+  ctx: {
+    hash: string
+    scopeAttr?: string
+    styles: string[]
+    file?: string
+    /** The island's processed server fence (2.1) — empty parts when absent. */
+    fm?: FrontmatterParts
+    /** Original source, for located collision diagnostics. */
+    source?: string
+  },
 ): CompileResult {
   const classes = analyzeScriptClasses(script)
   const root = extractClientRoot(template, ctx.file)
@@ -162,6 +164,22 @@ function compileClient(
   analyzeClient(script, tags, { file: ctx.file })
 
   const cls = classes.find((c) => pascalToKebab(c.name) === root.tag)
+
+  // A fence binding sharing a name with a `use()` field is ambiguous by
+  // construction (client wiring keys template identifiers on the use-field
+  // set) — a located error, not a precedence rule.
+  if (ctx.fm && cls) {
+    const fenceNames = fenceBindingNames(ctx.fm)
+    for (const field of cls.useFields.keys()) {
+      if (fenceNames.has(field)) {
+        throw new CompileError(
+          `stator: "${field}" is both a fence binding and a use() field — the template ` +
+            `couldn't tell the server value from the client machine. Rename one.`,
+          ctx.source ? locAt(ctx.source, 0, ctx.file) : undefined,
+        )
+      }
+    }
+  }
   if (!cls) {
     // analyzeClient validated the tag↔class match just above; reaching here is a bug.
     throw new CompileError(
@@ -200,8 +218,12 @@ function compileClient(
   const rootScope = ctx.scopeAttr ? ` data-s-${ctx.hash}` : ''
   const serverCode = [
     "import { html, read, each, when, match, defer, on, classList, styleList, spreadAttrs, createHtmlFragment, clientShellAttrs } from '@statorjs/stator/template'",
+    ...(ctx.fm?.hoisted ? [ctx.fm.hoisted] : []),
     '',
     `export default function (props = {}) {`,
+    // The fence body runs here — per shell render, server only, ahead of
+    // the template so its bindings are in scope for the interpolations.
+    ...(ctx.fm?.body ? [ctx.fm.body] : []),
     `  const __inner = ${innerExpr}`,
     `  const __attrs = clientShellAttrs(props, ${attrDecl}, ${JSON.stringify(root.rootAttrs)})`,
     `  return createHtmlFragment(\`<${root.tag}\${__attrs}${rootScope}>\` + __inner.html + \`</${root.tag}>\`)`,
@@ -324,7 +346,7 @@ const VALID_PRAGMAS = new Set(['live'])
  */
 function processFrontmatter(
   fm: string,
-  kind: 'route' | 'component',
+  kind: 'route' | 'component' | 'island',
   source: string,
   file?: string,
 ): FrontmatterParts {
@@ -355,6 +377,14 @@ function processFrontmatter(
     const repls: Array<[start: number, end: number, replacement: string]> = []
     const visit = (n: ts.Node): void => {
       if (ts.isCallExpression(n) && isStatorCall(n, 'props')) {
+        if (kind === 'island') {
+          throw new CompileError(
+            "stator: Stator.props() is not available in an island's fence — island props are " +
+              'declared by `static attrs` on the element class, and richer values arrive ' +
+              'through the hydrate pattern (the shell renders with the props of its use site).',
+            locInFm(n),
+          )
+        }
         if (kind === 'route') {
           throw new CompileError(
             'stator: Stator.props() is not available in a route page (a route has no parent props). ' +
@@ -387,6 +417,12 @@ function processFrontmatter(
         return
       }
       if (ts.isCallExpression(n) && isStatorCall(n, 'forwarded')) {
+        if (kind === 'island') {
+          throw new CompileError(
+            "stator: Stator.forwarded() is not available in an island's fence.",
+            locInFm(n),
+          )
+        }
         if (kind === 'route') {
           throw new CompileError(
             'stator: Stator.forwarded() is only available in a component — it reads a directive ' +
@@ -435,6 +471,41 @@ function processFrontmatter(
   }
 }
 
+/** Top-level names a fence declares — imports (default/named/namespace),
+ *  consts/lets, functions, classes — for the fence-vs-use()-field collision
+ *  check. Parsed from the processed parts (hoisted + body). */
+function fenceBindingNames(fm: FrontmatterParts): Set<string> {
+  const names = new Set<string>()
+  const sf = ts.createSourceFile(
+    'fence.ts',
+    `${fm.hoisted}\n${fm.body}`,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  )
+  const bind = (n: ts.BindingName): void => {
+    if (ts.isIdentifier(n)) names.add(n.text)
+    else for (const el of n.elements) if (ts.isBindingElement(el)) bind(el.name)
+  }
+  for (const stmt of sf.statements) {
+    if (ts.isImportDeclaration(stmt) && stmt.importClause) {
+      const c = stmt.importClause
+      if (c.name) names.add(c.name.text)
+      if (c.namedBindings) {
+        if (ts.isNamespaceImport(c.namedBindings)) names.add(c.namedBindings.name.text)
+        else for (const s of c.namedBindings.elements) names.add(s.name.text)
+      }
+    } else if (ts.isVariableStatement(stmt)) {
+      for (const d of stmt.declarationList.declarations) bind(d.name)
+    } else if (ts.isFunctionDeclaration(stmt) && stmt.name) {
+      names.add(stmt.name.text)
+    } else if (ts.isClassDeclaration(stmt) && stmt.name) {
+      names.add(stmt.name.text)
+    }
+  }
+  return names
+}
+
 function emitComponent(fm: FrontmatterParts, htmlExpr: string, meta: LowerMeta): string {
   let param = ''
   if (fm.propsType && meta.usesChildren) param = `props: ${fm.propsType} & { children?: any }`
@@ -469,7 +540,7 @@ function emitRoute(fm: FrontmatterParts, htmlExpr: string, _meta: LowerMeta): st
 /** Parse `// @stator <flag>` comment pragmas from the frontmatter text. */
 function parsePragmas(
   fm: string,
-  kind: 'route' | 'component',
+  kind: 'route' | 'component' | 'island',
   source: string,
   file?: string,
 ): Set<string> {
@@ -494,7 +565,11 @@ function parsePragmas(
   return out
 }
 
-function requireRoute(what: string, kind: 'route' | 'component', loc: DiagnosticLocation): void {
+function requireRoute(
+  what: string,
+  kind: 'route' | 'component' | 'island',
+  loc: DiagnosticLocation,
+): void {
   if (kind !== 'route') {
     throw new CompileError(
       `stator: ${what} is only available in a route page, not a component. ` +

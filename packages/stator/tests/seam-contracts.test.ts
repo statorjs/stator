@@ -70,6 +70,22 @@ describe('seam: .d.ts props ≡ language-server virtual props', () => {
 </script>`,
     ],
     [
+      'island with a server fence (fence must not perturb the props contract)',
+      `---
+import { TICKETS } from './rules.ts'
+const first = TICKETS[0]
+---
+<fenced-form>
+  <p>{first}</p>
+  <input value={props.seats} />
+</fenced-form>
+<script>
+  export class FencedForm extends StatorElement {
+    static attrs = { seats: Number }
+  }
+</script>`,
+    ],
+    [
       'server component with Stator.props',
       `---
 const { title } = Stator.props<{ title: string }>()
@@ -91,7 +107,7 @@ const { title } = Stator.props<{ title: string }>()
   })
 
   it('SERVER-component virtual code types its export with the same props type', () => {
-    const source = CASES[2]![1]
+    const source = CASES[3]![1]
     const { frontmatter, template, scripts } = splitSource(source)
     const { propsT } = statorPropsType(frontmatter, template, scripts)
     expect(toVirtualCode(source).tsx.code).toContain(`(_props: ${propsT})`)
@@ -100,6 +116,24 @@ const { title } = Stator.props<{ title: string }>()
   it('an attrs-less island accepts arbitrary shell props', () => {
     const source = CASES[1]![1]
     expect(generateDts(source, { kind: 'component' })).toContain('{ [prop: string]: unknown }')
+  })
+
+  it("an island's fence is typed in the client virtual code, deduped against script imports", () => {
+    const source = `---
+import { TICKETS } from './rules.ts'
+import { helper } from './shared.ts'
+const first = TICKETS[0]
+---
+<fenced-form><p>{first}</p></fenced-form>
+<script>
+  import { helper } from './shared.ts'
+  export class FencedForm extends StatorElement {}
+</script>`
+    const { code } = toVirtualCode(source).tsx
+    expect(code).toContain("import { TICKETS } from './rules.ts'")
+    expect(code).toContain('const first = TICKETS[0]')
+    // The shared import appears once — the script's copy wins.
+    expect(code.match(/import \{ helper \} from '\.\/shared\.ts'/g)).toHaveLength(1)
   })
 
   it('a server component with an inline script does NOT take the island branch', () => {
