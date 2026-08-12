@@ -1,5 +1,11 @@
 # stator-vscode
 
+## 1.2.2
+
+### Patch Changes
+
+- a568762: The bundled compiler surfaces the island-frontmatter error in-editor instead of silently discarding the fence.
+
 ## 1.2.1
 
 ### Patch Changes
