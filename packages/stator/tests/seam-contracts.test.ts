@@ -1,10 +1,19 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
+import * as clientApi from '../src/client/index.ts'
 import { generateDts, statorPropsType } from '../src/compiler/dts.ts'
+import {
+  CLIENT_AUTHOR_GLOBALS,
+  CLIENT_LOWERING_TARGETS,
+  ISLAND_SHELL_EXTRAS,
+  TEMPLATE_AUTHOR_GLOBALS,
+  TEMPLATE_LOWERING_TARGETS,
+} from '../src/compiler/emit-names.ts'
 import { splitStator } from '../src/compiler/split.ts'
 import { toVirtualCode } from '../src/compiler/virtual-code.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import { html } from '../src/template/html.ts'
+import * as templateApi from '../src/template/index.ts'
 import { attrValue, setAttr, textValue } from '../src/wire/attr-value.ts'
 
 /**
@@ -139,6 +148,27 @@ const first = TICKETS[0]
   it('a server component with an inline script does NOT take the island branch', () => {
     const { propsT } = statorPropsType('', '<p>static</p>', ['console.log("inline")'])
     expect(propsT).toBe('Record<string, never>')
+  })
+})
+
+describe('seam: emitted import names ≡ runtime module exports', () => {
+  // The emitters and the LSP now share one name list (emit-names.ts); this
+  // pins the remaining seam — every name they inject must actually exist on
+  // the runtime module the emitted import resolves to.
+  it('every template name the compiler injects is a real template export', () => {
+    for (const n of [
+      ...TEMPLATE_AUTHOR_GLOBALS,
+      ...TEMPLATE_LOWERING_TARGETS,
+      ...ISLAND_SHELL_EXTRAS,
+    ]) {
+      expect(templateApi, n).toHaveProperty(n)
+    }
+  })
+
+  it('every client name the compiler injects is a real client export', () => {
+    for (const n of [...CLIENT_AUTHOR_GLOBALS, ...CLIENT_LOWERING_TARGETS]) {
+      expect(clientApi, n).toHaveProperty(n)
+    }
   })
 })
 

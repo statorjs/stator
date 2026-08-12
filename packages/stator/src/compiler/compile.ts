@@ -8,6 +8,12 @@ import {
   pascalToKebab,
 } from './client-script.ts'
 import { CompileError, type DiagnosticLocation, locAt } from './diagnostics.ts'
+import {
+  ISLAND_SHELL_EXTRAS,
+  importLine,
+  TEMPLATE_AUTHOR_GLOBALS,
+  TEMPLATE_LOWERING_TARGETS,
+} from './emit-names.ts'
 import { scopeHash } from './hash.ts'
 import { type LowerMeta, lowerTemplate } from './lower.ts'
 import { splitStator } from './split.ts'
@@ -47,8 +53,19 @@ export interface CompileResult {
   clientTag?: string
 }
 
-const PRIMITIVES_IMPORT =
-  "import { html, read, each, itemBind, when, match, defer, on, classList, styleList, spreadAttrs } from '@statorjs/stator/template'"
+const PRIMITIVES_IMPORT = importLine(
+  [...TEMPLATE_AUTHOR_GLOBALS, ...TEMPLATE_LOWERING_TARGETS],
+  '@statorjs/stator/template',
+)
+
+const SHELL_PRIMITIVES_IMPORT = importLine(
+  [
+    ...TEMPLATE_AUTHOR_GLOBALS,
+    ...TEMPLATE_LOWERING_TARGETS.filter((n) => n !== 'itemBind'),
+    ...ISLAND_SHELL_EXTRAS,
+  ],
+  '@statorjs/stator/template',
+)
 
 export interface CompileOptions {
   /** Stable id for the component (file path). Used for the scope hash so the
@@ -217,7 +234,7 @@ function compileClient(
   const attrDecl = `{ ${[...cls.staticAttrs].map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(', ')} }`
   const rootScope = ctx.scopeAttr ? ` data-s-${ctx.hash}` : ''
   const serverCode = [
-    "import { html, read, each, when, match, defer, on, classList, styleList, spreadAttrs, createHtmlFragment, clientShellAttrs } from '@statorjs/stator/template'",
+    SHELL_PRIMITIVES_IMPORT,
     ...(ctx.fm?.hoisted ? [ctx.fm.hoisted] : []),
     '',
     `export default function (props = {}) {`,
