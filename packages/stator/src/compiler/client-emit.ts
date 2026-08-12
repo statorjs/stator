@@ -1,6 +1,7 @@
 import ts from 'typescript'
 import { elementMarkerSelector } from '../wire/island-markers.ts'
 import type { ClientDirective, ClientElement } from './client-script.ts'
+import { CLIENT_AUTHOR_GLOBALS, CLIENT_LOWERING_TARGETS, importLine } from './emit-names.ts'
 
 /**
  * Phase 3b stage 5 — emit the client entry module for a client component: the
@@ -13,8 +14,10 @@ import type { ClientDirective, ClientElement } from './client-script.ts'
  * class as written; the subclass overrides `setup()`.
  */
 
-const PRIMITIVES =
-  "import { StatorElement, defineElement, use, machine, bind, bindSlot, effect, dispatch, attrValue, setAttr } from '@statorjs/stator/client'"
+const PRIMITIVES = importLine(
+  [...CLIENT_AUTHOR_GLOBALS, ...CLIENT_LOWERING_TARGETS],
+  '@statorjs/stator/client',
+)
 
 export interface EmitClientInput {
   /** The author's `<script>` source. */

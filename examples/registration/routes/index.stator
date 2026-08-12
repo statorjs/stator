@@ -1,6 +1,5 @@
 ---
 // @stator live
-import { TICKETS } from '../lib/rules.ts'
 import DeskMachine from '../machines/desk.ts'
 import RosterMachine from '../machines/roster.ts'
 import AttendeeRow from '../templates/attendee-row.stator'
@@ -26,7 +25,7 @@ const [desk, roster] = Stator.reads([DeskMachine, RosterMachine])
     </p>
   </header>
 
-  <RegForm tickets={TICKETS} />
+  <RegForm />
 
   <section aria-label="Roster">
     <h2>on the roster · {read(roster, (r) => r.count)}</h2>

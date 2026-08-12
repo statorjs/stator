@@ -93,6 +93,16 @@ describe('the desk over the wire', () => {
     // (an island flash that correctly dies with the page).
   })
 
+  it("renders the ticket catalog from the form's own fence, not a prop", async () => {
+    // <RegForm /> takes no tickets prop: the options come from the island's
+    // server fence importing TICKETS itself.
+    const html = await page(sid)
+    for (const t of ['general', 'student', 'vip']) {
+      expect(html).toContain(`value="${t}"`)
+      expect(html).toContain(`>${t}</option>`)
+    }
+  })
+
   it('refuses a duplicate email — committed: false, roster unchanged', async () => {
     const r = await register(sid, { name: 'Also Ada', email: 'ADA@lovelace.dev', seats: 1 })
     expect(r.committed).toBe(false)

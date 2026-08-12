@@ -21,6 +21,7 @@
 import ts from 'typescript'
 import { analyzeScriptClasses } from './client-script.ts'
 import { statorPropsType } from './dts.ts'
+import { CLIENT_AUTHOR_GLOBALS, TEMPLATE_AUTHOR_GLOBALS } from './emit-names.ts'
 import { type ScannedRegions, scanRegions } from './split.ts'
 
 /** A contiguous run mapping generated code back to source, 1:1 over its length. */
@@ -44,21 +45,11 @@ export interface VirtualCodeResult {
   styles: VirtualFile[]
 }
 
-// Must mirror the RUNTIME's auto-injected globals exactly (compile.ts
-// PRIMITIVES_IMPORT / client-emit.ts): a name injected here but not at
-// runtime hides a missing-import bug; a name in both collides with the
-// author's legitimate import (`raw` is NOT a runtime global — authors
-// import it — which is why it must not be in this list).
-const TEMPLATE_GLOBALS = ['read', 'each', 'when', 'match', 'defer', 'on', 'classList', 'styleList']
-const CLIENT_GLOBALS = [
-  'StatorElement',
-  'use',
-  'machine',
-  'defineElement',
-  'bind',
-  'effect',
-  'dispatch',
-]
+// The editor injects the AUTHOR-visible subsets only — lowering targets are
+// names authors never write, so injecting them here would shadow nothing and
+// pollute completions. Shared with the emitters via emit-names.ts.
+const TEMPLATE_GLOBALS = TEMPLATE_AUTHOR_GLOBALS
+const CLIENT_GLOBALS = CLIENT_AUTHOR_GLOBALS
 
 /** Local names the user's code already binds from `modulePath` imports —
  *  the runtime strips such habit-imports; the virtual emit (which must keep
@@ -79,7 +70,7 @@ function userImportedLocals(code: string, modulePath: string): Set<string> {
   return locals
 }
 
-function injectImports(globals: string[], modulePath: string, userCode: string): string {
+function injectImports(globals: readonly string[], modulePath: string, userCode: string): string {
   const bound = userImportedLocals(userCode, modulePath)
   const missing = globals.filter((g) => !bound.has(g))
   return missing.length > 0 ? `import { ${missing.join(', ')} } from '${modulePath}';\n` : ''
@@ -366,6 +357,28 @@ function buildClientTsx(regions: ScannedRegions): VirtualFile {
     injectImports(CLIENT_GLOBALS, '@statorjs/stator/client', userScript) +
     AMBIENT_TYPE_IMPORTS +
     STATOR_AMBIENT
+
+  // The island's SERVER FENCE (2.1): typed here so the editor checks it, but
+  // wrapped so its bindings don't leak into the <script>'s scope (at runtime
+  // the two never meet). Hoisted imports that also appear verbatim in the
+  // script are skipped — same module, one binding.
+  const fm = regions.frontmatter?.content ?? ''
+  if (fm.trim()) {
+    const fmOffset = regions.frontmatter?.contentOffset ?? 0
+    const { hoisted, body } = splitFrontmatter(fm, fmOffset)
+    for (const seg of hoisted) {
+      if (userScript.includes(seg.text.trim())) continue
+      push(mappings, seg.sourceOffset, code.length, seg.text.length)
+      code += `${seg.text}\n`
+    }
+    code += 'function __statorFence(props: Record<string, unknown>) {\n'
+    for (const seg of body) {
+      code += '  '
+      push(mappings, seg.sourceOffset, code.length, seg.text.length)
+      code += `${seg.text}\n`
+    }
+    code += '}\nvoid __statorFence\n'
+  }
 
   for (const script of regions.scripts) {
     push(mappings, script.contentOffset, code.length, script.content.length)

@@ -1,5 +1,4 @@
 ---
-import { TICKETS } from '../../lib/rules.ts'
 import RosterMachine from '../../machines/roster.ts'
 import Layout from '../../templates/layout.stator'
 import RegForm from '../../templates/reg-form.stator'
@@ -26,7 +25,6 @@ if (!attendee) Stator.response.status = 404
         </p>
       </header>
       <RegForm
-        tickets={TICKETS}
         mode="update"
         rid={attendee.id}
         name={attendee.name}

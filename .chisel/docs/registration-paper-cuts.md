@@ -42,7 +42,13 @@ untouched case arguably COULD be written safely.
 in (the model spec's design notes describe exactly this) — a candidate for
 promotion if more apps hit it.
 
-## 3. Island templates can't see module constants (2026-08-09, build)
+## 3. Island templates can't see module constants (2026-08-09, build) — CLOSED BY 2.1
+
+**Resolution (2026-08-11)**: island server fences shipped
+([[island-frontmatter-server-fences]]) — the shell renders with the fence's
+bindings in scope, so `reg-form.stator` now imports `TICKETS` itself and the
+smuggling prop is deleted from both routes. This cut was one of the two
+pieces of evidence that promoted the feature.
 
 The ticket `<select>` wants its options from `TICKETS` in `lib/rules.ts` —
 single source of truth — but an island template's server shell only sees

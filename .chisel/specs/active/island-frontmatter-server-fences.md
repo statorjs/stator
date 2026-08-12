@@ -116,8 +116,13 @@ Changesets: `@statorjs/stator` minor + `stator-vscode` minor.
 
 - Does the 2.0.1 error message grow a "since 2.1: …" pointer once this
   ships, or simply invert into the capability-row errors?
+  **Resolved (2026-08-11): inverted.** The blanket error is gone; what
+  remains are the capability-row errors, each of which explains the model
+  at the point of misuse.
 - Fence + `<style>` ordering constraints in `splitStator` — believed
   order-independent already; verify with a test rather than assuming.
+  **Resolved (2026-08-11): order-independent, pinned by a test**
+  (`compiler-island-fence.test.ts`, region ordering).
 - Should `defer()` be allowed in island shells once fences make async-ish
   data patterns attractive there? (Today's answer is whatever components
   do; keep parity, don't special-case.)

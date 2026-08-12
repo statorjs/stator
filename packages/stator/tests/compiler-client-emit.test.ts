@@ -41,7 +41,7 @@ export class QuantityStepper extends StatorElement {
       members,
     })
     expect(out).toContain(
-      'import { StatorElement, defineElement, use, machine, bind, bindSlot, effect, dispatch, attrValue, setAttr }',
+      'import { StatorElement, use, machine, defineElement, bind, effect, dispatch, bindSlot, attrValue, setAttr }',
     )
     expect(out).toContain('export class QuantityStepper extends StatorElement')
     expect(out).toContain('class __QuantityStepperImpl extends QuantityStepper')

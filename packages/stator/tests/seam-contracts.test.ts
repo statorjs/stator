@@ -1,10 +1,19 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
+import * as clientApi from '../src/client/index.ts'
 import { generateDts, statorPropsType } from '../src/compiler/dts.ts'
+import {
+  CLIENT_AUTHOR_GLOBALS,
+  CLIENT_LOWERING_TARGETS,
+  ISLAND_SHELL_EXTRAS,
+  TEMPLATE_AUTHOR_GLOBALS,
+  TEMPLATE_LOWERING_TARGETS,
+} from '../src/compiler/emit-names.ts'
 import { splitStator } from '../src/compiler/split.ts'
 import { toVirtualCode } from '../src/compiler/virtual-code.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import { html } from '../src/template/html.ts'
+import * as templateApi from '../src/template/index.ts'
 import { attrValue, setAttr, textValue } from '../src/wire/attr-value.ts'
 
 /**
@@ -70,6 +79,22 @@ describe('seam: .d.ts props ≡ language-server virtual props', () => {
 </script>`,
     ],
     [
+      'island with a server fence (fence must not perturb the props contract)',
+      `---
+import { TICKETS } from './rules.ts'
+const first = TICKETS[0]
+---
+<fenced-form>
+  <p>{first}</p>
+  <input value={props.seats} />
+</fenced-form>
+<script>
+  export class FencedForm extends StatorElement {
+    static attrs = { seats: Number }
+  }
+</script>`,
+    ],
+    [
       'server component with Stator.props',
       `---
 const { title } = Stator.props<{ title: string }>()
@@ -91,7 +116,7 @@ const { title } = Stator.props<{ title: string }>()
   })
 
   it('SERVER-component virtual code types its export with the same props type', () => {
-    const source = CASES[2]![1]
+    const source = CASES[3]![1]
     const { frontmatter, template, scripts } = splitSource(source)
     const { propsT } = statorPropsType(frontmatter, template, scripts)
     expect(toVirtualCode(source).tsx.code).toContain(`(_props: ${propsT})`)
@@ -102,9 +127,48 @@ const { title } = Stator.props<{ title: string }>()
     expect(generateDts(source, { kind: 'component' })).toContain('{ [prop: string]: unknown }')
   })
 
+  it("an island's fence is typed in the client virtual code, deduped against script imports", () => {
+    const source = `---
+import { TICKETS } from './rules.ts'
+import { helper } from './shared.ts'
+const first = TICKETS[0]
+---
+<fenced-form><p>{first}</p></fenced-form>
+<script>
+  import { helper } from './shared.ts'
+  export class FencedForm extends StatorElement {}
+</script>`
+    const { code } = toVirtualCode(source).tsx
+    expect(code).toContain("import { TICKETS } from './rules.ts'")
+    expect(code).toContain('const first = TICKETS[0]')
+    // The shared import appears once — the script's copy wins.
+    expect(code.match(/import \{ helper \} from '\.\/shared\.ts'/g)).toHaveLength(1)
+  })
+
   it('a server component with an inline script does NOT take the island branch', () => {
     const { propsT } = statorPropsType('', '<p>static</p>', ['console.log("inline")'])
     expect(propsT).toBe('Record<string, never>')
+  })
+})
+
+describe('seam: emitted import names ≡ runtime module exports', () => {
+  // The emitters and the LSP now share one name list (emit-names.ts); this
+  // pins the remaining seam — every name they inject must actually exist on
+  // the runtime module the emitted import resolves to.
+  it('every template name the compiler injects is a real template export', () => {
+    for (const n of [
+      ...TEMPLATE_AUTHOR_GLOBALS,
+      ...TEMPLATE_LOWERING_TARGETS,
+      ...ISLAND_SHELL_EXTRAS,
+    ]) {
+      expect(templateApi, n).toHaveProperty(n)
+    }
+  })
+
+  it('every client name the compiler injects is a real client export', () => {
+    for (const n of [...CLIENT_AUTHOR_GLOBALS, ...CLIENT_LOWERING_TARGETS]) {
+      expect(clientApi, n).toHaveProperty(n)
+    }
   })
 })
 

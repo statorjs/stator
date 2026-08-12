@@ -20,7 +20,7 @@ A `.stator` file is Stator's single-file component. It has up to four regions, e
 <script>/* 4. client component code */</script>
 ```
 
-Only the body is required. A pure presentational component is just a body; a route adds frontmatter; an interactive island adds a `<script>`. The regions are independent — frontmatter runs on the server, the `<script>` runs in the browser, and the split between them *is* the [server/client boundary](/concepts/server-client-boundary/).
+Only the body is required. A pure presentational component is just a body; a route adds frontmatter; an interactive island adds a `<script>` — and may keep a frontmatter fence too. The regions are independent — frontmatter runs on the server, the `<script>` runs in the browser, and the split between them *is* the [server/client boundary](/concepts/server-client-boundary/). Three regions, two worlds: in a file that has both, the fence and the `<script>` never see each other's bindings, in either direction.
 
 ## The frontmatter fence
 
@@ -31,6 +31,8 @@ The `---` fences hold server-side setup: imports (machines are imported **type-o
 - **`Stator.request` / `Stator.response`** — a route's request context and response surface (status, headers, cookies). Routes only.
 
 The compiler enforces which markers are legal in which kind of file: `Stator.props` in a component, the route markers in a route, and it errors if you cross them.
+
+An **island** file may carry a fence as well. It runs on the server, per shell render — exactly a server component's contract — and its bindings are in scope for the template. No `Stator.*` markers are legal there: island props are declared by `static attrs`, and richer values arrive through the shell's use-site props. What a fence is for is server work the island owns — imports, computed constants, queries — see [the server fence](/guides/client-components/#the-server-fence) in the client-components guide.
 
 ## The template body
 

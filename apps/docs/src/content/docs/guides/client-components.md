@@ -34,6 +34,39 @@ The root is a custom element; the `<script>` exports a name-matched `StatorEleme
 
 `<theme-toggle>` ↔ `ThemeToggle` must match.
 
+## The server fence
+
+An island file may open with a `---` fence, just like a server component — and it behaves exactly like one: it runs **on the server, per shell render**, and its bindings are in scope for the template. The `<script>` never sees it, in either direction — fence bindings are not client globals, and script members are not fence scope. Three regions, two worlds, one file:
+
+```astro
+---
+// server: runs per shell render, never ships to the browser
+import { TICKETS } from '../lib/rules.ts'
+---
+<reg-form>
+  <select name="ticket">
+    {TICKETS.map((t) => <option value={t}>{t}</option>)}
+  </select>
+  <button on:click={submit}>register</button>
+</reg-form>
+
+<script>
+  // browser: hydrates onto the server-rendered shell
+  export class RegForm extends StatorElement {
+    submit() { /* … */ }
+  }
+</script>
+```
+
+The rule of thumb: **fences are for server work the island owns; per-use data stays props.** A catalog the form always renders, a computed constant, a DB query — fence. A per-visitor pre-fill value or a parent's `read()` — prop, because it varies by use site.
+
+Because the fence runs per shell render, an island placed three times runs its fence three times, and a server re-render containing the island re-runs it — identical to a server component's frontmatter.
+
+Two guardrails, both compile errors:
+
+- **No `Stator.*` markers.** Island props are declared by `static attrs` (plus the open use-site tail), so `Stator.props` is rejected; `Stator.reads`, `Stator.request`, and `Stator.response` are route-only, as everywhere else.
+- **No name collisions with `use()` fields.** A fence `const theme = …` alongside a `theme = use(Theme)` field is ambiguous by construction — the template couldn't tell the server value from the client machine — so the compiler makes you rename one.
+
 ## machine() and use()
 
 `machine(context, behavior?)` defines a small client machine inline — plain data first, then `on` (events) and `select` (derived values). The split is what makes the types work: handlers and selectors see the context fully typed (`s.mode` above is a `string`), and `use(Def, seed?)` returns an instance whose context keys and selector results are real typed properties — `this.theme.mode` and `this.theme.label` type-check like anything else.

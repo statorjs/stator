@@ -1,3 +1,10 @@
+---
+// The ticket catalog is server knowledge the form itself owns, so it lives
+// in the island's fence — not smuggled through a prop at every use site.
+// Per-visitor pre-fill (name, ticket, updates) stays props: that's per-use
+// data, and the boundary between the two is exactly fence vs props.
+import { TICKETS } from '../lib/rules.ts'
+---
 <reg-form>
   <form ref:form on:submit={submit} aria-label="Registration form">
     <label>
@@ -21,7 +28,7 @@
     <label>
       ticket
       <select name="ticket">
-        {props.tickets.map((t) => (
+        {TICKETS.map((t) => (
           <option value={t} selected={props.ticket === t}>{t}</option>
         ))}
       </select>
