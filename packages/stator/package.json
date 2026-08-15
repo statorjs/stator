@@ -24,6 +24,9 @@
     "src",
     "README.md"
   ],
+  "bin": {
+    "stator": "./src/cli/stator.js"
+  },
   "exports": {
     "./server": {
       "types": "./src/server/index.ts",
