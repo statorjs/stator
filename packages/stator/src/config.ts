@@ -1,0 +1,57 @@
+import type { AppStore, Store } from './server/index.ts'
+
+/**
+ * Stator app configuration — the home for what previously forced a hand-written
+ * `server.ts`/`start.ts`: the persistence adapters, session/realtime policy, and
+ * dev port.
+ *
+ * Loaded from `stator.config.{ts,mts,js,mjs}` at the app root by the `stator`
+ * CLI (`dev`/`start`). Grouped by concern so the config principle is visible in
+ * the shape: `persistence` holds the swappable adapters (infra); `sessions` /
+ * `realtime` / `dev` hold policy. Config owns *how it runs*, never *what it does*
+ * (behavior — e.g. a route's `live` flag — stays in code).
+ *
+ * Every field is optional; omit the file entirely to accept defaults (in-memory
+ * persistence, 24h session TTL, port 3000). There is no required machine-graph
+ * entry point — machines are file-discovered from `machines/`.
+ */
+export interface StatorConfig {
+  /** Listen port for `dev`/`start`. Precedence: `--port` flag > `$PORT` > this > 3000. */
+  port?: number
+  /** The swappable persistence adapters, grouped by concern. Both optional —
+   *  default to in-memory (restart-wipe). Neither is a machine-graph entry
+   *  point (machines are file-discovered). */
+  persistence?: {
+    /** Session-lifecycle machine state. Default: `InMemoryStore`. Pass a
+     *  `RedisStore`/`CachedStore` for durability — the adapter seam. */
+    session?: Store
+    /** App-lifecycle machine state for `persist: true` machines (no TTL, one
+     *  blob per machine). Advanced — most apps never set it. Default:
+     *  in-memory (restart-wipe). Pass a `RedisAppStore` for durable app state. */
+    app?: AppStore
+  }
+  /** Session policy (no adapter here — that lives in `persistence.session`). */
+  sessions?: {
+    /** Per-session idle TTL in seconds. Default: 86400 (24h). */
+    ttlSeconds?: number
+    // cookieName?, rotation? — reserved policy siblings (not wired yet).
+  }
+  /** Realtime / push policy. Protocol-neutral so a future WS transport doesn't
+   *  make the key a lie. */
+  realtime?: {
+    /** SSE heartbeat interval in ms (`start` only). Default: 25000. */
+    pingMs?: number
+    // transport? — reserved INTERNAL seam (not user-facing).
+  }
+  /** Dev-only tooling. */
+  dev?: {
+    /** Dev inspector toolbar (`dev` only). Default: on. */
+    inspector?: boolean
+  }
+  // observers?: Observer[] — top-level when the observability spec lands.
+}
+
+/** Identity helper for a typed config: `export default defineConfig({ … })`. */
+export function defineConfig(config: StatorConfig): StatorConfig {
+  return config
+}

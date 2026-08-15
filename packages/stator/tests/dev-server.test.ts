@@ -145,7 +145,7 @@ describe('dev server: .stator end to end', () => {
       root,
       machinesDir: resolve(root, 'machines'),
       routesDir: resolve(root, 'routes'),
-      inspector: false,
+      dev: { inspector: false },
     })
     try {
       const html = await (await noInspector.fetch(new Request('http://localhost/'))).text()

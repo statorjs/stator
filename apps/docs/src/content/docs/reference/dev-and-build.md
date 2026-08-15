@@ -17,10 +17,12 @@ interface DevAppConfig {
   machinesDir: string
   routesDir: string
   staticDir?: string
-  store?: Store
-  appStore?: AppStore      // persistence for `persist: true` app machines
-  sessionTtlSeconds?: number
-  inspector?: boolean      // dev inspector toolbar; default true
+  persistence?: {
+    session?: Store
+    app?: AppStore         // persistence for `persist: true` app machines
+  }
+  sessions?: { ttlSeconds?: number }
+  dev?: { inspector?: boolean }  // dev inspector toolbar; default true
 }
 
 interface DevApp {
@@ -36,7 +38,7 @@ The dev server. Embeds Vite in middleware mode so `.stator` and TS modules compi
 
 On a relevant source change it re-discovers, rebuilds, and tells the browser to reload. A template or route edit keeps the store — and your session state, cart contents and all — intact; only a machine edit resets it, since route `reads` bind to machine defs by identity.
 
-The **inspector toolbar** is injected by default (`inspector: false` disables it): a drawer that shows the wire itself — one row per outgoing event (↑) and incoming patch envelope (↓), including patches arriving over a live route's SSE channel with their apply time. It's the fastest way to see exactly which slots a dispatch touched. Production apps can opt in with `inspector: true` on [`createApp`](/reference/server/#createapp) — demo sites want the wire visible.
+The **inspector toolbar** is injected by default (`dev: { inspector: false }` disables it): a drawer that shows the wire itself — one row per outgoing event (↑) and incoming patch envelope (↓), including patches arriving over a live route's SSE channel with their apply time. It's the fastest way to see exactly which slots a dispatch touched. Production apps can opt in with `dev: { inspector: true }` on [`createApp`](/reference/server/#createapp) — demo sites want the wire visible.
 
 If the requested port is taken, the dev server shifts to the next free one (and probes a free HMR websocket port) instead of failing — two Stator apps run side by side without ceremony. Production `listen` fails with a one-line message instead; an operator wants the collision, not a silent shift.
 

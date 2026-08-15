@@ -10,6 +10,7 @@ import type { AnyMachineDef, EventOf } from '../engine/index.ts'
 import { machineStub, stator } from '../vite/index.ts'
 import type { AppStore } from './app-store.ts'
 import { findFreePort, installGracefulShutdown, printDevBanner } from './banner.ts'
+import { resolveAppConfig } from './config-compat.ts'
 import { logger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
@@ -39,11 +40,34 @@ export interface DevAppConfig {
   machinesDir: string
   routesDir: string
   staticDir?: string
+  /** Swappable persistence adapters, grouped by concern. Both optional —
+   *  default to in-memory. Mirrors `StatorConfig.persistence`. */
+  persistence?: {
+    /** Session-lifecycle machine state. Defaults to InMemoryStore. */
+    session?: Store
+    /** App-lifecycle machine state for `persist: true` machines. Defaults to
+     *  in-memory. */
+    app?: AppStore
+  }
+  /** Session policy. */
+  sessions?: {
+    /** Per-session TTL in seconds. Defaults to 24h (86400). */
+    ttlSeconds?: number
+  }
+  /** Dev-only tooling. */
+  dev?: {
+    /** Auto-inject the dev inspector toolbar. On by default; set false to disable. */
+    inspector?: boolean
+  }
+  // Deprecated flat keys — accepted (typed) so 2.1.0 callers don't break; nested
+  // wins. `createDevApp` never shipped `ssePingMs`, so it's not accepted here.
+  /** @deprecated use `persistence.session` */
   store?: Store
-  /** Persistence for `persist: true` app machines. Defaults to in-memory. */
+  /** @deprecated use `persistence.app` */
   appStore?: AppStore
+  /** @deprecated use `sessions.ttlSeconds` */
   sessionTtlSeconds?: number
-  /** Auto-inject the dev inspector toolbar. On by default; set false to disable. */
+  /** @deprecated use `dev.inspector` */
   inspector?: boolean
 }
 
@@ -92,7 +116,8 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   const root = resolve(config.root)
   const machinesDir = resolve(config.machinesDir)
   const routesDir = resolve(config.routesDir)
-  const inspectorOn = config.inspector ?? true
+  const resolved = resolveAppConfig(config)
+  const inspectorOn = resolved.inspector ?? true
 
   const resultCache = new Map<string, ReturnType<typeof compile>>()
   const compiledFor = async (file: string) => {
@@ -144,9 +169,9 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   const rebuildStore = async (): Promise<void> => {
     const { defs } = await runtime.discoverMachines(machinesDir, loader)
     machineCount = defs.length
-    store = new runtime.MachineStore(defs, config.store ?? new runtime.InMemoryStore(), {
-      sessionTtlSeconds: config.sessionTtlSeconds,
-      appStore: config.appStore,
+    store = new runtime.MachineStore(defs, resolved.session ?? new runtime.InMemoryStore(), {
+      sessionTtlSeconds: resolved.sessionTtlSeconds,
+      appStore: resolved.app,
     })
     // Wire the effect scheduler before booting — a fresh app machine's
     // initial-state entry effect fires during boot and needs a live scheduler.

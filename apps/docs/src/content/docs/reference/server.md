@@ -16,12 +16,14 @@ interface CreateAppConfig {
   machinesDir: string
   routesDir: string
   staticDir?: string
-  store?: Store            // session persistence; default InMemoryStore
-  appStore?: AppStore      // persistence for `persist: true` app machines; default in-memory
-  sessionTtlSeconds?: number // per-session TTL; default 86400 (24h)
-  ssePingMs?: number         // SSE heartbeat interval; default 25s
+  persistence?: {
+    session?: Store          // session persistence; default InMemoryStore
+    app?: AppStore           // persistence for `persist: true` app machines; default in-memory
+  }
+  sessions?: { ttlSeconds?: number }  // per-session TTL; default 86400 (24h)
+  realtime?: { pingMs?: number }      // SSE heartbeat interval; default 25s
+  dev?: { inspector?: boolean }       // serve + inject the wire inspector toolbar
   headExtras?: (filePath: string) => string | Promise<string>
-  inspector?: boolean        // serve + inject the wire inspector toolbar
 }
 
 interface StatorApp {
@@ -32,7 +34,7 @@ interface StatorApp {
 }
 ```
 
-The production entry point. Discovers machines and routes from the given directories, boots app-lifecycle machines, wires cross-machine effects, and serves over Hono. `fetch` is the raw handler for tests; `store` is what you hand to [`dispatchToApp`](#dispatchtoapp) for server-originated events. In production, pass [`loadProductionHead`](/reference/dev-and-build/#loadproductionhead)'s result as `headExtras`. The dev server serves the wire inspector toolbar by default; `inspector: true` opts a production app in (demo sites want the wire visible).
+The production entry point. Discovers machines and routes from the given directories, boots app-lifecycle machines, wires cross-machine effects, and serves over Hono. `fetch` is the raw handler for tests; `store` is what you hand to [`dispatchToApp`](#dispatchtoapp) for server-originated events. In production, pass [`loadProductionHead`](/reference/dev-and-build/#loadproductionhead)'s result as `headExtras`. The dev server serves the wire inspector toolbar by default; `dev: { inspector: true }` opts a production app in (demo sites want the wire visible).
 
 ## defineMachine
 

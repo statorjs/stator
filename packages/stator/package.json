@@ -24,6 +24,9 @@
     "src",
     "README.md"
   ],
+  "bin": {
+    "stator": "./src/cli/stator.js"
+  },
   "exports": {
     "./server": {
       "types": "./src/server/index.ts",
@@ -40,6 +43,10 @@
     "./build": {
       "types": "./src/build/index.ts",
       "default": "./src/build/index.ts"
+    },
+    "./config": {
+      "types": "./src/config.ts",
+      "default": "./src/config.ts"
     },
     "./template": {
       "types": "./src/template/index.ts",

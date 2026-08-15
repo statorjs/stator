@@ -1,3 +1,4 @@
 dist/
 .stator/
 node_modules/
+indie-blog.db

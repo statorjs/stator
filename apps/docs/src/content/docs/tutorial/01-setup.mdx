@@ -124,7 +124,7 @@ const app = await createDevApp({
   machinesDir: resolve(here, 'machines'),
   routesDir: resolve(here, 'routes'),
   staticDir: resolve(here, 'static'),
-  store: new InMemoryStore(),
+  persistence: { session: new InMemoryStore() },
 })
 
 await app.listen(Number(process.env.PORT ?? 3000))

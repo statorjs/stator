@@ -147,6 +147,35 @@ promotes it.
   [`.chisel/specs/active/ambient-by-def-machine-reads-with-a-typed-requirement-channel.md`](.chisel/specs/active/ambient-by-def-machine-reads-with-a-typed-requirement-channel.md).
   *Motivation*: prop-drilling shared state is the first DX wall a component tree
   hits at scale; the fix is inversion of control done with types.
+- **Long-lived inbound sources — clock + subscription** *(evidence-gated;
+  userland pattern is complete today, so NOT committed)*: external inputs that
+  drive machines over the process lifetime — a recurring poll, a push
+  subscription (Firestore `onSnapshot`, an upstream stream). They decompose into
+  two mechanisms, and today **both live cleanly in userland**: create the app,
+  then call your own `clock(app, …)` / `watch(app, …)` helpers dispatching via
+  the bound `dispatchToApp` (reachable and store-current in dev *and* prod). No
+  lifecycle hook is required — `createApp` returns after `bootAppMachines()`, so
+  ordering alone guarantees the source can't start before the graph is up, and a
+  `server.ts` helper survives dev rebuilds (it isn't in the Vite-reloaded graph).
+  Decomposition: **poll = a recurring clock → an effect → events** (the clock
+  carries no I/O; the query stays in the effect, results re-enter — needs no new
+  inbound primitive, *except* a recurring clock isn't expressible via a
+  self-looping `after`, which won't re-arm — `config.to !== stateKey`,
+  `engine/actor.ts`); **push = a subscription source** (owns a connection, emits
+  data-bearing events, the genuine inbound dual of an effect). If either ever
+  becomes first-class, the push form is per-key under the family track (source
+  bound to instance materialize→passivate, reusing the entry-effect abort
+  signal). *Why it waits*: the userland pattern is the evidence vehicle and it
+  works — pre-building a declarative `clock`/`source` seam now is exactly the
+  bind-family over-commitment we don't repeat. *Promotion trigger*: shutdown-
+  cleanup pain in a real app — the framework's graceful-shutdown installs its own
+  SIGTERM/SIGINT handler that `process.exit(0)`s after closing the server
+  (`server/banner.ts`), additively, so a push subscription's async unsubscribe
+  can race the exit (harmless for a `setInterval` clock). If that bites, the
+  minimal fix is a cleanup-registration seam (`app.onStop(fn)` riding the
+  existing shutdown), not a full source primitive. Evidence so far: the Mayday
+  spike (one poll clock + per-robot `onSnapshot`), both proven working via the
+  userland path.
 
 ## Developer tooling
 
@@ -211,6 +240,23 @@ Stator. Held to the same evidence bar (a spike proves it before it ships).
   would have caught. Worked examples (a dead-event catch and a false-negative
   boundary) in
   [`.chisel/docs/introspection-manifest-and-checks.md`](.chisel/docs/introspection-manifest-and-checks.md).
+- **Own the dev/build pipeline — the Vite exit** *(decided; spike-gated
+  endpoint)*: the dev toolchain has a two-layer split (`tsx` outer + embedded Vite
+  inner) whose module-graph fence causes the dual-instance trap, the missing
+  `.env` story, and the restart-without-reload gap. The decision is to **exit
+  Vite** behind a toolchain-adapter seam (`compileAndServe`/`bundleIslands`/
+  `emitProd`, core stays Vite-agnostic), via Option D (server runs native like
+  prod — fence dead, raw-TS kept, dev==prod) then E (esbuild bundles islands too,
+  Vite dep dropped). The `stator` CLI + `stator check` are Phase 0 of the seam.
+  Two locks: the seam at pipeline-work start, dropping Vite at its tail — the swap
+  is one impl, so the endpoint never blocks the start. *Spike-gated*: esbuild
+  `splitting` island bundles must measure acceptable vs Vite. Design + the 2.2→2.6
+  release sequencing in
+  [`.chisel/specs/active/toolchain-adapter-seam-and-the-vite-exit.md`](.chisel/specs/active/toolchain-adapter-seam-and-the-vite-exit.md).
+  *Motivation*: Vite is the odd bought-in exception to Stator's own-the-pipeline
+  identity, optimizing for the client-heavy/HMR world the architecture avoids;
+  platform maturity (Node native TS + watch) and the no-HMR server-canonical shape
+  shrink the owned surface that once argued for keeping it.
 
 ## Surface hygiene
 
@@ -218,6 +264,30 @@ Stator. Held to the same evidence bar (a spike proves it before it ships).
 surface the vision promises, recorded here so they're paid deliberately
 instead of discovered by a user.
 
+- **Major-cutover pairing** *(semver policy, not a task)*: when a change
+  *could* be shaped as breaking but a non-breaking shaping exists, ship the
+  non-breaking shaping now and record the deferred cutover here — so the next
+  major that lands for other reasons carries the cleanup. *Minor today, ride a
+  major later.* This keeps every intervening release non-breaking by
+  construction and makes each major pay for itself instead of spending a whole
+  version bump on one removal. Live instances: the `reads`-family rename below
+  (waiting for its major); and the **`/__events` declared-event allowlist** —
+  the engine rejects phantom prototype-collision events now (own-property
+  handler lookup; see Runtime correctness), and the boundary is shaped to
+  preserve today's silent-drop for legitimately-unhandled events while
+  hard-rejecting only phantom collisions and server-only-flagged events (rides
+  the server-only-events / introspection-manifest track for its accepted-event
+  substrate). The *blanket* reject-unknown-with-400 — the shaping that would
+  force a major — is the deferred cutover: parked here to ride the next major,
+  not shipped as its own break. *Motivation*: a major that removes one thing
+  wastes the break; batching deferred cutovers is how the "flat machines with
+  extension points" shape keeps its promise that richness arrives without a
+  churn tax. Newest instance: the **flat `createApp`/`createDevApp` config keys**
+  (`store`/`appStore`/`sessionTtlSeconds`/`ssePingMs`/`inspector`, shipped 2.1.0)
+  — nesting them under `persistence`/`sessions`/`realtime`/`dev` (the config-file
+  shape, [`config-api-and-the-extensibility-boundary`](.chisel/specs/active/config-api-and-the-extensibility-boundary.md))
+  ships non-breaking in 2.2: the flat keys stay typed-and-`@deprecated`, resolved
+  by `server/config-compat.ts` with a warning. Removing them is the parked cutover.
 - **`/server` runtime-tier split (structural)**: the docs now draw a
   Stable-vs-Toolchain line through `/server` and `/template` (the ~45
   plumbing symbols the Vite module graph needs importable), but the split
@@ -304,6 +374,18 @@ instead of discovered by a user.
   `latest`-ref scaffolds, scaffold-smoke CI). *Motivation*: the scaffold is the
   first-run experience; stale tooling is a silent, compounding papercut on every
   new app.
+- **Log-level control + a quieter prod default** *(dogfooding papercut)*: the
+  server logs aggressively — `info` plus a line per connection event — which is
+  right for debugging but far too noisy for production. Two parts: (1) a **log
+  level** as config *data* (`logging.level`, fits "config owns how it runs"; with a
+  `LOG_LEVEL` env override once env support lands), quieter in prod by default
+  (warn+error) and verbose in dev; (2) **level hygiene** — demote per-connection /
+  per-event chatter from `info` to `debug` so `info` is production-usable, keeping
+  `info` for genuinely lifecycle-worthy events. Already pino under the hood
+  (`server/logger.ts`), so this is threading a level through + reclassifying call
+  sites, not new infra. *Motivation*: found dogfooding the examples — a production
+  app drowns in per-connection `info` lines. Pairs with the env work (`LOG_LEVEL`),
+  and `logging.level` is an additive config bag (non-breaking on the 2.2 shape).
 
 ## Runtime correctness
 
