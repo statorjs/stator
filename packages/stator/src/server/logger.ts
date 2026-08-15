@@ -3,8 +3,10 @@ import pino, { type Logger } from 'pino'
 
 /**
  * Framework logger. Pretty colored output in dev (auto-detected via
- * NODE_ENV), JSON in production for log aggregators. Level controlled by
- * LOG_LEVEL env (default 'info').
+ * NODE_ENV), JSON in production for log aggregators. Level defaults to `warn`
+ * in production (quiet — errors and warnings only) and `info` in dev; the
+ * `LOG_LEVEL` env overrides both, and `stator.config.ts`'s `logging.level`
+ * overrides the default when `LOG_LEVEL` is unset (applied at app construction).
  *
  * Application code can use this module-level logger or call `child()` for
  * scoped context. The framework uses scoped children for SSE events,
@@ -23,8 +25,8 @@ function hasPinoPretty(): boolean {
 }
 
 function buildLogger(): Logger {
-  const level = process.env.LOG_LEVEL ?? 'info'
   const isProd = process.env.NODE_ENV === 'production'
+  const level = process.env.LOG_LEVEL ?? (isProd ? 'warn' : 'info')
 
   if (isProd || !hasPinoPretty()) {
     return pino({ level })
@@ -46,7 +48,25 @@ function buildLogger(): Logger {
 
 export const logger: Logger = buildLogger()
 
+// Pino children capture the parent level at CREATION and do not follow later
+// changes to it. The framework's scoped loggers (http, sse, effect, …) are all
+// created at module load, so `logger.level = …` alone would never quiet them.
+// Track them and set the level on each explicitly in `setLogLevel`.
+const scopedChildren: Logger[] = []
+
 /** Child logger with a `scope` tag for filtering. */
 export function scopedLogger(scope: string): Logger {
-  return logger.child({ scope })
+  const child = logger.child({ scope })
+  scopedChildren.push(child)
+  return child
+}
+
+/**
+ * Set the level on the root logger AND every scoped child. Children created
+ * after this call inherit the new root level, so this is complete regardless of
+ * import order. Called once at app construction from the resolved config.
+ */
+export function setLogLevel(level: string): void {
+  logger.level = level
+  for (const child of scopedChildren) child.level = level
 }

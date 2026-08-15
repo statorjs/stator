@@ -6,12 +6,13 @@ import { getRequestListener } from '@hono/node-server'
 import type { Hono } from 'hono'
 import { createServer as createViteServer, type ViteDevServer } from 'vite'
 import { compile } from '../compiler/index.ts'
+import type { LogLevel } from '../config.ts'
 import type { AnyMachineDef, EventOf } from '../engine/index.ts'
 import { machineStub, stator } from '../vite/index.ts'
 import type { AppStore } from './app-store.ts'
 import { findFreePort, installGracefulShutdown, printDevBanner } from './banner.ts'
 import { resolveAppConfig } from './config-compat.ts'
-import { logger } from './logger.ts'
+import { logger, setLogLevel } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
 import { isStatorQueryRoute } from './routing.ts'
@@ -58,6 +59,11 @@ export interface DevAppConfig {
   dev?: {
     /** Auto-inject the dev inspector toolbar. On by default; set false to disable. */
     inspector?: boolean
+  }
+  /** Logging policy. */
+  logging?: {
+    /** Minimum level to emit. Default: `info` in dev. `LOG_LEVEL` env wins. */
+    level?: LogLevel
   }
   // Deprecated flat keys — accepted (typed) so 2.1.0 callers don't break; nested
   // wins. `createDevApp` never shipped `ssePingMs`, so it's not accepted here.
@@ -117,6 +123,12 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   const machinesDir = resolve(config.machinesDir)
   const routesDir = resolve(config.routesDir)
   const resolved = resolveAppConfig(config)
+  // Level precedence: LOG_LEVEL env > config > dev default (info). Apply to this
+  // module's logger AND the Vite-loaded runtime instance — SSE/http/effects log
+  // through the latter — via setLogLevel, which also covers the scoped children.
+  const logLevel = process.env.LOG_LEVEL ?? resolved.logLevel ?? 'info'
+  setLogLevel(logLevel)
+  runtime.setLogLevel(logLevel)
   const inspectorOn = resolved.inspector ?? true
 
   const resultCache = new Map<string, ReturnType<typeof compile>>()

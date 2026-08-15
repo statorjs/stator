@@ -1,5 +1,10 @@
 import type { AppStore, Store } from './server/index.ts'
 
+/** Log verbosity, from most to least severe. Setting a level emits it and
+ *  everything above it — `warn` shows `warn`+`error`+`fatal`, hiding
+ *  `info`/`debug`. Pino's levels. */
+export type LogLevel = 'silent' | 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace'
+
 /**
  * Stator app configuration — the home for what previously forced a hand-written
  * `server.ts`/`start.ts`: the persistence adapters, session/realtime policy, and
@@ -47,6 +52,12 @@ export interface StatorConfig {
   dev?: {
     /** Dev inspector toolbar (`dev` only). Default: on. */
     inspector?: boolean
+  }
+  /** Logging policy. */
+  logging?: {
+    /** Minimum level to emit. Default: `warn` in production, `info` in dev.
+     *  Precedence: `LOG_LEVEL` env > this > default. */
+    level?: LogLevel
   }
   // observers?: Observer[] — top-level when the observability spec lands.
 }

@@ -23,6 +23,7 @@ interface CreateAppConfig {
   sessions?: { ttlSeconds?: number }  // per-session TTL; default 86400 (24h)
   realtime?: { pingMs?: number }      // SSE heartbeat interval; default 25s
   dev?: { inspector?: boolean }       // serve + inject the wire inspector toolbar
+  logging?: { level?: LogLevel }      // default warn in prod, info in dev; LOG_LEVEL wins
   headExtras?: (filePath: string) => string | Promise<string>
 }
 
@@ -156,7 +157,7 @@ const logger: Logger                       // pino
 function scopedLogger(scope: string): Logger
 ```
 
-The framework's pino logger, exported for application use. Pretty colored output in dev (when `pino-pretty` is installed), JSON in production; level via `LOG_LEVEL` (default `info`). `scopedLogger('checkout')` returns a child tagged with a `scope` field for filtering.
+The framework's pino logger, exported for application use. Pretty colored output in dev (when `pino-pretty` is installed), JSON in production. Level defaults to `warn` from `createApp`/production (errors and warnings only — successful per-request and per-connection lines log at `debug`) and `info` from the dev server; precedence is `LOG_LEVEL` env > `stator.config.ts`'s `logging.level` > default. `scopedLogger('checkout')` returns a child tagged with a `scope` field for filtering.
 
 ## Lower-level exports
 

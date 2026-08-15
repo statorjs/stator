@@ -1,3 +1,4 @@
+import type { LogLevel } from '../config.ts'
 import type { AppStore } from './app-store.ts'
 import type { Store } from './store.ts'
 
@@ -27,6 +28,7 @@ interface NestedReads {
   sessions?: { ttlSeconds?: number }
   realtime?: { pingMs?: number }
   dev?: { inspector?: boolean }
+  logging?: { level?: LogLevel }
 }
 
 /** The flat internal values `createApp`/`createDevApp` actually consume. */
@@ -36,6 +38,7 @@ export interface ResolvedAppConfig {
   sessionTtlSeconds?: number
   ssePingMs?: number
   inspector?: boolean
+  logLevel?: LogLevel
 }
 
 /**
@@ -65,5 +68,6 @@ export function resolveAppConfig(config: NestedReads & DeprecatedFlatConfig): Re
     sessionTtlSeconds: config.sessions?.ttlSeconds ?? config.sessionTtlSeconds,
     ssePingMs: config.realtime?.pingMs ?? config.ssePingMs,
     inspector: config.dev?.inspector ?? config.inspector,
+    logLevel: config.logging?.level,
   }
 }

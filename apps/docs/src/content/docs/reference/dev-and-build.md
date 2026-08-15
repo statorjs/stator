@@ -23,6 +23,7 @@ interface DevAppConfig {
   }
   sessions?: { ttlSeconds?: number }
   dev?: { inspector?: boolean }  // dev inspector toolbar; default true
+  logging?: { level?: LogLevel } // default info in dev; LOG_LEVEL wins
 }
 
 interface DevApp {

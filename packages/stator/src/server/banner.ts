@@ -71,6 +71,24 @@ export function printDevBanner(info: {
 }
 
 /**
+ * One-line production startup notice. Printed to stdout directly — NOT through
+ * the leveled logger — so it always shows, even at the quiet `warn` default:
+ * "did it start, and where" is the one thing an operator always wants, distinct
+ * from the per-request logs that `warn` intentionally suppresses.
+ */
+export function printStartupNotice(info: { port: number; machines: number; routes: number }): void {
+  const v = statorVersion()
+  const inv = `${info.machines} machine${info.machines === 1 ? '' : 's'} · ${info.routes} route${
+    info.routes === 1 ? '' : 's'
+  }`
+  process.stdout.write(
+    `  ${c.copper(c.bold('stator'))}${v ? c.dim(` v${v}`) : ''} ${c.dim('·')} ${c.cyan(
+      `http://localhost:${info.port}/`,
+    )} ${c.dim(`· ${inv}`)}\n`,
+  )
+}
+
+/**
  * Exit a server process like a well-mannered CLI: first signal closes
  * cleanly and exits 0 (Ctrl+C is a normal action, not a failure — without
  * this, the process dies 130 and pnpm prints an ELIFECYCLE error banner);
