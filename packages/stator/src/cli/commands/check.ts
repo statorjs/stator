@@ -49,8 +49,21 @@ export async function checkStack(root: string): Promise<void> {
     throw new Error(`typecheck failed with ${n} error${n === 1 ? '' : 's'}`)
   }
 
+  // Split the program into the app's own files vs. framework/lib overhead so the
+  // count reads honestly: most of the program is @statorjs/stator's shipped source
+  // (raw TS — typechecked, not `skipLibCheck`-skipped) plus TS libs, not your code.
+  // App files = under the app root and outside node_modules; the rest is framework
+  // + libs. The same split holds for an installed app (framework source lives under
+  // `root/node_modules`, which the node_modules test excludes).
+  const rootPrefix = `${root.replace(/\\/g, '/').replace(/\/+$/, '')}/`
+  const sourceFiles = program.getSourceFiles()
+  const appFiles = sourceFiles.filter(
+    (sf) => sf.fileName.startsWith(rootPrefix) && !sf.fileName.includes('/node_modules/'),
+  ).length
+  const frameworkFiles = sourceFiles.length - appFiles
+
   process.stdout.write(
-    `stator check: ok — ${written} .stator.d.ts, ${program.getSourceFiles().length} files typechecked\n`,
+    `stator check: ok — ${written} .stator.d.ts, ${appFiles} app files (${frameworkFiles} framework files)\n`,
   )
 }
 
