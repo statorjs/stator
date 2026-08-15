@@ -53,6 +53,11 @@ export interface StatorConfig {
     /** Dev inspector toolbar (`dev` only). Default: on. */
     inspector?: boolean
   }
+  /** Origins allowed to make cross-site writes despite the CSRF guard — exact
+   *  (`https://app.example.com`) or wildcard-subdomain (`https://*.example.com`).
+   *  Same-origin and same-site writes are already allowed; this is for decoupled
+   *  frontends or partner domains. */
+  trustedOrigins?: string[]
   /** Logging policy. */
   logging?: {
     /** Minimum level to emit. Default: `warn` in production, `info` in dev.

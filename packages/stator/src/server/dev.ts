@@ -65,6 +65,9 @@ export interface DevAppConfig {
     /** Minimum level to emit. Default: `info` in dev. `LOG_LEVEL` env wins. */
     level?: LogLevel
   }
+  /** Origins allowed to make cross-site writes despite the CSRF guard (exact or
+   *  wildcard-subdomain). Mirrors `StatorConfig.trustedOrigins`. */
+  trustedOrigins?: readonly string[]
   // Deprecated flat keys — accepted (typed) so 2.1.0 callers don't break; nested
   // wins. `createDevApp` never shipped `ssePingMs`, so it's not accepted here.
   /** @deprecated use `persistence.session` */
@@ -224,6 +227,7 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
       staticDir: config.staticDir,
       headExtras,
       inspector: inspectorOn,
+      trustedOrigins: resolved.trustedOrigins,
     })
   }
 

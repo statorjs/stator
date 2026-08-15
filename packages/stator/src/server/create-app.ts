@@ -52,6 +52,9 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
      *  `LOG_LEVEL` env takes precedence over this. */
     level?: LogLevel
   }
+  /** Origins allowed to make cross-site writes despite the CSRF guard (exact or
+   *  wildcard-subdomain). Mirrors `StatorConfig.trustedOrigins`. */
+  trustedOrigins?: readonly string[]
   /** Extra `<head>` HTML per GET route. A production build uses this to link the
    *  prebuilt `components.css`; ignored if omitted. */
   headExtras?: (filePath: string) => string | Promise<string>
@@ -108,6 +111,7 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
       : config.headExtras,
     inspector,
     ssePingMs: resolved.ssePingMs,
+    trustedOrigins: resolved.trustedOrigins,
   })
 
   return {
