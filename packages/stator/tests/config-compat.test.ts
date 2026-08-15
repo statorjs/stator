@@ -44,6 +44,7 @@ describe('resolveAppConfig (createApp/createDevApp flat-key compat)', () => {
       sessions: { ttlSeconds: 100 },
       realtime: { pingMs: 10 },
       dev: { inspector: true },
+      logging: { level: 'warn' },
     })
 
     expect(resolved).toEqual({
@@ -52,6 +53,7 @@ describe('resolveAppConfig (createApp/createDevApp flat-key compat)', () => {
       sessionTtlSeconds: 100,
       ssePingMs: 10,
       inspector: true,
+      logLevel: 'warn',
     })
     expect(warn).not.toHaveBeenCalled()
   })

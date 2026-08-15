@@ -45,7 +45,7 @@ export function registerConnection(init: Omit<Connection, 'id' | 'closed'>): Con
   const id = `sse${nextId++}`
   const conn: Connection = { ...init, id, closed: false }
   connections.set(id, conn)
-  sseLog.info(
+  sseLog.debug(
     { id, sid: conn.sessionId, route: conn.routeKey, total: connections.size },
     'connection opened',
   )
@@ -58,7 +58,7 @@ export function unregisterConnection(id: string): void {
   conn.closed = true
   conn.runtime.dispose()
   connections.delete(id)
-  sseLog.info(
+  sseLog.debug(
     { id, sid: conn.sessionId, route: conn.routeKey, total: connections.size },
     'connection closed',
   )
@@ -158,9 +158,9 @@ export async function fanOut(
     }
   }
 
-  // Log every fan-out at info so the user can see touched-machines flow and
-  // correlate against client-side inspector entries.
-  sseLog.info(
+  // Log every fan-out at debug so the user can see touched-machines flow and
+  // correlate against client-side inspector entries — noisy for prod, so debug.
+  sseLog.debug(
     {
       touched: [...touched],
       total: connections.size,

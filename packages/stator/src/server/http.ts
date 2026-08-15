@@ -137,7 +137,9 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     const ms = Math.round(performance.now() - start)
     const status = c.res.status
     const isLive = c.req.path === '/__sse'
-    httpLog[status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info'](
+    // Successful requests log at debug (one line per asset is prod noise); 4xx
+    // warns and 5xx errors stay visible at the default level.
+    httpLog[status >= 500 ? 'error' : status >= 400 ? 'warn' : 'debug'](
       {
         method: c.req.method,
         path: c.req.path,

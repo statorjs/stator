@@ -1,14 +1,15 @@
 import { resolve } from 'node:path'
 import { serve } from '@hono/node-server'
+import type { LogLevel } from '../config.ts'
 import type { AnyMachineDef, EventOf } from '../engine/index.ts'
 import { dispatchToApp } from './app-dispatch.ts'
 import type { AppStore } from './app-store.ts'
-import { installGracefulShutdown } from './banner.ts'
+import { installGracefulShutdown, printStartupNotice } from './banner.ts'
 import { type DeprecatedFlatConfig, resolveAppConfig } from './config-compat.ts'
 import { discoverMachines } from './discovery.ts'
 import { wireAppEffects } from './effects.ts'
 import { buildHonoApp } from './http.ts'
-import { logger } from './logger.ts'
+import { logger, setLogLevel } from './logger.ts'
 import { MachineStore } from './machine-store.ts'
 import { discoverRoutes } from './route-discovery.ts'
 import { InMemoryStore, type Store } from './store.ts'
@@ -45,6 +46,12 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
      *  default; production opts in — demo sites want the wire visible). */
     inspector?: boolean
   }
+  /** Logging policy. */
+  logging?: {
+    /** Minimum level to emit. Default: `warn` in production, `info` in dev.
+     *  `LOG_LEVEL` env takes precedence over this. */
+    level?: LogLevel
+  }
   /** Extra `<head>` HTML per GET route. A production build uses this to link the
    *  prebuilt `components.css`; ignored if omitted. */
   headExtras?: (filePath: string) => string | Promise<string>
@@ -72,6 +79,10 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
   const staticDir = config.staticDir ? resolve(config.staticDir) : undefined
 
   const resolved = resolveAppConfig(config)
+  // Level precedence: LOG_LEVEL env > config > the production default (createApp
+  // is the production entry point, so it defaults quiet). setLogLevel also covers
+  // the scoped children (http/sse/…), which a bare `logger.level =` would miss.
+  setLogLevel(process.env.LOG_LEVEL ?? resolved.logLevel ?? 'warn')
   const { defs } = await discoverMachines(machinesDir)
   const sessionStore = resolved.session ?? new InMemoryStore()
   const store = new MachineStore(defs, sessionStore, {
@@ -103,7 +114,8 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     listen(port: number): Promise<void> {
       return new Promise((resolveFn) => {
         const server = serve({ fetch: app.fetch, port }, () => {
-          logger.info({ port, machines: defs.length, routes: routes.length }, 'listening')
+          // Always-on (level-independent) so `warn` prod still confirms boot.
+          printStartupNotice({ port, machines: defs.length, routes: routes.length })
           resolveFn()
         })
         // Production is strict about its port (a collision is a deploy
