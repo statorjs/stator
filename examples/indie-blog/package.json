@@ -4,9 +4,9 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "stator dev --port 3007",
+    "dev": "stator dev",
     "build": "stator build",
-    "start": "stator start --port 3007",
+    "start": "stator start",
     "check": "stator check",
     "test": "stator test"
   },

@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "stator dev --port 3001",
+    "dev": "stator dev",
     "build": "stator build",
-    "start": "stator start --port 3001",
+    "start": "stator start",
     "check": "stator check",
     "test": "stator test"
   },
