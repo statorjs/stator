@@ -374,6 +374,18 @@ instead of discovered by a user.
   `latest`-ref scaffolds, scaffold-smoke CI). *Motivation*: the scaffold is the
   first-run experience; stale tooling is a silent, compounding papercut on every
   new app.
+- **Log-level control + a quieter prod default** *(dogfooding papercut)*: the
+  server logs aggressively — `info` plus a line per connection event — which is
+  right for debugging but far too noisy for production. Two parts: (1) a **log
+  level** as config *data* (`logging.level`, fits "config owns how it runs"; with a
+  `LOG_LEVEL` env override once env support lands), quieter in prod by default
+  (warn+error) and verbose in dev; (2) **level hygiene** — demote per-connection /
+  per-event chatter from `info` to `debug` so `info` is production-usable, keeping
+  `info` for genuinely lifecycle-worthy events. Already pino under the hood
+  (`server/logger.ts`), so this is threading a level through + reclassifying call
+  sites, not new infra. *Motivation*: found dogfooding the examples — a production
+  app drowns in per-connection `info` lines. Pairs with the env work (`LOG_LEVEL`),
+  and `logging.level` is an additive config bag (non-breaking on the 2.2 shape).
 
 ## Runtime correctness
 
