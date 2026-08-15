@@ -411,7 +411,7 @@ describe('SSE heartbeat', () => {
     const app = await createApp({
       machinesDir: resolve(fixtures, 'machines'),
       routesDir: resolve(fixtures, 'routes'),
-      ssePingMs: 40,
+      realtime: { pingMs: 40 },
     })
     const cookie = await cookieFor(app, '/board')
     const sse = await openSse(app, 'GET /board', cookie)

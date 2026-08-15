@@ -4,12 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "sync": "tsx sync.ts",
-    "typecheck": "tsx sync.ts && tsc --noEmit",
-    "dev": "tsx watch server.ts",
-    "test": "vitest run",
-    "build": "tsx build.ts",
-    "start": "tsx start.ts"
+    "dev": "stator dev --port 3001",
+    "build": "stator build",
+    "start": "stator start --port 3001",
+    "check": "stator check",
+    "test": "stator test"
   },
   "dependencies": {
     "@statorjs/stator": "workspace:*"

@@ -56,8 +56,8 @@ if (process.env.REDIS_URL) {
 
 const app = await createDevApp({
   // …root, dirs…
-  store,
-  sessionTtlSeconds: 86_400, // 24h idle window, refreshed on each cart action
+  persistence: { session: store },
+  sessions: { ttlSeconds: 86_400 }, // 24h idle window, refreshed on each cart action
 })
 ```
 

@@ -44,6 +44,10 @@
       "types": "./src/build/index.ts",
       "default": "./src/build/index.ts"
     },
+    "./config": {
+      "types": "./src/config.ts",
+      "default": "./src/config.ts"
+    },
     "./template": {
       "types": "./src/template/index.ts",
       "default": "./src/template/index.ts"

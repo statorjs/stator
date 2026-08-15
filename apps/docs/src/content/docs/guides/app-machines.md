@@ -151,7 +151,7 @@ import { RedisAppStore } from '@statorjs/stator/server'
 
 const app = await createApp({
   // …
-  appStore: new RedisAppStore(process.env.REDIS_URL!),
+  persistence: { app: new RedisAppStore(process.env.REDIS_URL!) },
 })
 ```
 

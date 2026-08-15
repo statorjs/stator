@@ -81,8 +81,8 @@ const app = await createDevApp({
   machinesDir: resolve(here, 'machines'),
   routesDir: resolve(here, 'routes'),
   staticDir: resolve(here, 'static'),
-  store: new InMemoryStore(),
-  sessionTtlSeconds: 86_400,
+  persistence: { session: new InMemoryStore() },
+  sessions: { ttlSeconds: 86_400 },
 })
 
 await app.listen(Number(process.env.PORT ?? 3000))

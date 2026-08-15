@@ -4,6 +4,7 @@ import type { AnyMachineDef, EventOf } from '../engine/index.ts'
 import { dispatchToApp } from './app-dispatch.ts'
 import type { AppStore } from './app-store.ts'
 import { installGracefulShutdown } from './banner.ts'
+import { type DeprecatedFlatConfig, resolveAppConfig } from './config-compat.ts'
 import { discoverMachines } from './discovery.ts'
 import { wireAppEffects } from './effects.ts'
 import { buildHonoApp } from './http.ts'
@@ -12,28 +13,41 @@ import { MachineStore } from './machine-store.ts'
 import { discoverRoutes } from './route-discovery.ts'
 import { InMemoryStore, type Store } from './store.ts'
 
-export interface CreateAppConfig {
+export interface CreateAppConfig extends DeprecatedFlatConfig {
   machinesDir: string
   routesDir: string
   staticDir?: string
-  /** Persistence adapter for session-lifecycle machine state. Defaults to
-   *  InMemoryStore — fine for dev, V1 adapters swap in here. */
-  store?: Store
-  /** Persistence for `persist: true` app-lifecycle machines (no TTL, one
-   *  blob per machine). Defaults to in-memory (restart-wipe); pass
-   *  RedisAppStore for durable app state. */
-  appStore?: AppStore
-  /** Per-session TTL in seconds. Every set to any of the session's
-   *  machines refreshes this expiry. Defaults to 24h (86400). */
-  sessionTtlSeconds?: number
-  /** SSE heartbeat interval in ms (default 25s). Tests shorten it. */
-  ssePingMs?: number
+  /** Swappable persistence adapters, grouped by concern. Both optional —
+   *  default to in-memory (restart-wipe). Mirrors `StatorConfig.persistence`. */
+  persistence?: {
+    /** Session-lifecycle machine state. Defaults to InMemoryStore — fine for
+     *  dev, V1 adapters swap in here. */
+    session?: Store
+    /** App-lifecycle machine state for `persist: true` machines (no TTL, one
+     *  blob per machine). Defaults to in-memory (restart-wipe); pass
+     *  RedisAppStore for durable app state. */
+    app?: AppStore
+  }
+  /** Session policy. */
+  sessions?: {
+    /** Per-session TTL in seconds. Every set to any of the session's machines
+     *  refreshes this expiry. Defaults to 24h (86400). */
+    ttlSeconds?: number
+  }
+  /** Realtime / push policy. */
+  realtime?: {
+    /** SSE heartbeat interval in ms (default 25s). Tests shorten it. */
+    pingMs?: number
+  }
+  /** Dev-only tooling. */
+  dev?: {
+    /** Serve + inject the wire inspector toolbar (the dev server's on by
+     *  default; production opts in — demo sites want the wire visible). */
+    inspector?: boolean
+  }
   /** Extra `<head>` HTML per GET route. A production build uses this to link the
    *  prebuilt `components.css`; ignored if omitted. */
   headExtras?: (filePath: string) => string | Promise<string>
-  /** Serve + inject the wire inspector toolbar (the dev server's on by
-   *  default; production opts in — demo sites want the wire visible). */
-  inspector?: boolean
 }
 
 export interface StatorApp {
@@ -57,11 +71,12 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
   const routesDir = resolve(config.routesDir)
   const staticDir = config.staticDir ? resolve(config.staticDir) : undefined
 
+  const resolved = resolveAppConfig(config)
   const { defs } = await discoverMachines(machinesDir)
-  const persistence = config.store ?? new InMemoryStore()
-  const store = new MachineStore(defs, persistence, {
-    sessionTtlSeconds: config.sessionTtlSeconds,
-    appStore: config.appStore,
+  const sessionStore = resolved.session ?? new InMemoryStore()
+  const store = new MachineStore(defs, sessionStore, {
+    sessionTtlSeconds: resolved.sessionTtlSeconds,
+    appStore: resolved.app,
   })
   // Wire the effect scheduler BEFORE booting: a fresh app machine fires its
   // initial-state entry effect during boot, and that must have somewhere to go.
@@ -69,18 +84,19 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
   await store.bootAppMachines()
 
   const routes = await discoverRoutes(routesDir)
+  const inspector = resolved.inspector
   const app = await buildHonoApp({
     routes,
     store,
     staticDir,
-    headExtras: config.inspector
+    headExtras: inspector
       ? async (filePath) => {
           const base = (await config.headExtras?.(filePath)) ?? ''
           return `${base}\n<script src="/@stator/inspector.js" defer></script>`
         }
       : config.headExtras,
-    inspector: config.inspector,
-    ssePingMs: config.ssePingMs,
+    inspector,
+    ssePingMs: resolved.ssePingMs,
   })
 
   return {

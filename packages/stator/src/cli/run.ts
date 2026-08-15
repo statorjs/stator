@@ -5,8 +5,8 @@ import { parseArgs } from 'node:util'
 export interface CliContext {
   /** App root — where machines/, routes/, static/, dist/ live. Defaults to cwd. */
   root: string
-  /** Listen port (dev/start). Defaults to $PORT then 3000. */
-  port: number
+  /** `--port` flag, if given. Final port resolves flag > $PORT > config > 3000. */
+  portFlag?: number
   /** Extra positionals after the command (e.g. test file globs). */
   rest: string[]
 }
@@ -55,7 +55,7 @@ if (!COMMANDS.includes(command)) {
 
 const ctx: CliContext = {
   root: resolve(String(values.root ?? process.cwd())),
-  port: Number(values.port ?? process.env.PORT ?? 3000),
+  portFlag: values.port != null ? Number(values.port) : undefined,
   rest: positionals.slice(1),
 }
 

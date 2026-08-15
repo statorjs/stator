@@ -5,7 +5,7 @@ sidebar:
   order: 9
 ---
 
-Session-lifecycle state is persisted to a **store** between requests. Swapping stores is an infrastructure change — your machines and templates never know.
+Session-lifecycle state is persisted to a **store** between requests. Swapping stores is an infrastructure change — your machines and templates never know. In `stator.config.ts` the store lives at `persistence.session`.
 
 ## The Store interface
 
@@ -30,7 +30,7 @@ TTL is **per session**, not per machine — a whole session expires together, so
 `InMemoryStore` keeps snapshots in a `Map`. Zero-config and ideal for development, but **state is lost on restart** — not for production.
 
 ```ts
-store: new InMemoryStore()
+persistence: { session: new InMemoryStore() }
 ```
 
 ## Redis
@@ -38,7 +38,7 @@ store: new InMemoryStore()
 `RedisStore` persists to Redis so state survives restarts and deploys:
 
 ```ts
-store: new RedisStore(process.env.REDIS_URL)
+persistence: { session: new RedisStore(process.env.REDIS_URL) }
 ```
 
 ## Cached Redis
@@ -46,10 +46,12 @@ store: new RedisStore(process.env.REDIS_URL)
 `CachedStore` fronts any store with an in-memory cache (write-through), cutting Redis command counts on chatty sessions:
 
 ```ts
-store: new CachedStore(new RedisStore(url), {
-  memoryTtlSeconds: 300,
-  maxEntries: 10_000,
-})
+persistence: {
+  session: new CachedStore(new RedisStore(url), {
+    memoryTtlSeconds: 300,
+    maxEntries: 10_000,
+  }),
+}
 ```
 
 A crash loses only the cache, not committed state.

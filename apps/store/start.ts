@@ -26,17 +26,19 @@ const app = await createApp({
   staticDir: resolve(dist, 'static'),
   headExtras: await loadProductionHead(dist),
   // The wire IS the demo: the inspector pane shows every patch envelope.
-  inspector: true,
+  dev: { inspector: true },
   ...(redisUrl
     ? {
-        // Cache-in-front-of-Redis (write-through): cuts Upstash command
-        // counts on chatty sessions without changing durability.
-        store: new CachedStore(new RedisStore(redisUrl), {
-          memoryTtlSeconds: 300,
-          maxEntries: 10_000,
-        }),
-        appStore: new RedisAppStore(redisUrl),
-        sessionTtlSeconds: 2 * 60 * 60,
+        persistence: {
+          // Cache-in-front-of-Redis (write-through): cuts Upstash command
+          // counts on chatty sessions without changing durability.
+          session: new CachedStore(new RedisStore(redisUrl), {
+            memoryTtlSeconds: 300,
+            maxEntries: 10_000,
+          }),
+          app: new RedisAppStore(redisUrl),
+        },
+        sessions: { ttlSeconds: 2 * 60 * 60 },
       }
     : {}),
 })

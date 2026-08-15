@@ -95,7 +95,7 @@ describe('cross-path session serialization (lost-update regression)', () => {
     const app = await createApp({
       machinesDir: resolve(fixtures, 'machines'),
       routesDir: resolve(fixtures, 'routes'),
-      store: new SlowStore(new InMemoryStore(), 15),
+      persistence: { session: new SlowStore(new InMemoryStore(), 15) },
     })
     const first = await app.fetch(new Request('http://localhost/'))
     const cookie = first.headers.get('set-cookie')!.split(';')[0]!
