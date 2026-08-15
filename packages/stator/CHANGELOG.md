@@ -1,5 +1,12 @@
 # @statorjs/stator
 
+## 2.2.0
+
+### Minor Changes
+
+- 7fe66d7: Log-level control and a quieter production default. `createApp` (the production entry) now defaults to `warn` — errors and warnings only — while the dev server stays at `info`; the per-request HTTP lines and per-connection SSE lines that used to log at `info` are now `debug`, so a production server no longer narrates every request and connection. The one-line startup notice (`stator vX · http://localhost:PORT/ · N machines · N routes`) now prints independent of the log level, so a quiet `warn` server still confirms it booted. Set the level in `stator.config.ts` via `logging.level` (`'silent' | 'error' | 'warn' | 'info' | 'debug' | …`), or override anywhere with the `LOG_LEVEL` env (precedence: `LOG_LEVEL` > `logging.level` > default).
+- 0259433: A `stator` CLI and a first-class `stator.config.ts`. The CLI (`stator dev/build/start/check/test`) replaces the hand-written `server.ts`/`build.ts`/`start.ts` an app used to wire itself; `stator build` now runs `stator check` first — a full server-stack typecheck, not just islands — so a broken server import fails the build instead of shipping silently. `defineConfig` in `stator.config.ts` carries what those entry files held, grouped by concern: `persistence` (the session and app stores), `sessions` (TTL), `realtime` (SSE heartbeat), `dev` (inspector), and `port` — every field optional, in-memory and port 3000 by default. Non-breaking: `createApp`/`createDevApp` still accept the previous flat options (`store`, `appStore`, `sessionTtlSeconds`, `ssePingMs`, `inspector`), now `@deprecated` in favor of the nested shape and slated for removal in a future major.
+
 ## 2.1.0
 
 ### Minor Changes
