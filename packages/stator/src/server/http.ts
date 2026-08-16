@@ -18,7 +18,7 @@ import { renderRoute } from './render.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
 import { buildRouteRequest } from './route-request.ts'
 import { isStatorQueryRoute, type RouteDefinition } from './routing.ts'
-import { getOrCreateSessionId } from './session.ts'
+import { CLAIMS_KEY, getOrCreateSessionId, getSessionState } from './session.ts'
 import { withSessionLock } from './session-lock.ts'
 import { SessionRuntime } from './session-runtime.ts'
 import { fanOut, registerConnection, unregisterConnection } from './sse.ts'
@@ -166,7 +166,10 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   })
 
   // Context bridge — expose resolved config to every middleware (cors, app
-  // middleware) that follows, off `stator(c)`. Runs first.
+  // middleware) that follows, off `stator(c)`. Runs first. Also establishes the
+  // session once and eager-loads its claims (for a returning session), so the
+  // whole request shares one sid + claims snapshot; dirty claims persist at the
+  // end, to the current (possibly rotated) sid.
   app.use('*', async (c, next) => {
     c.set('stator', {
       origin: config.origin,
@@ -174,7 +177,19 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       sameSite: config.sameSite ?? 'Lax',
       cors: config.cors,
     })
+    const { sessionId, isNew } = getOrCreateSessionId(c)
+    const session = getSessionState(c)
+    if (!isNew && session) {
+      session.claims = (await config.store.persistence.get(sessionId, CLAIMS_KEY)) ?? undefined
+    }
     await next()
+    // Same session object (rotation mutates `.sid` in place), so persist to the
+    // current — possibly rotated — id.
+    if (session?.claimsDirty) {
+      await config.store.persistence.set(session.sid, CLAIMS_KEY, session.claims, {
+        ttlSeconds: config.store.sessionTtlSeconds,
+      })
+    }
   })
 
   // Security defaults (unless the app opted out via dangerouslyDefineMiddleware),
