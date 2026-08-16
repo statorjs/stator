@@ -52,4 +52,10 @@ describe('middleware seam', () => {
   it('rejects a middleware file that does not export a definition', async () => {
     await expect(boot(resolve(fixtures, 'mw-invalid.ts'))).rejects.toThrow(/defineMiddleware/)
   })
+
+  it('exposes the raw Hono app (break-glass)', async () => {
+    const app = await boot()
+    expect(typeof app.hono.fetch).toBe('function')
+    expect(typeof app.hono.route).toBe('function')
+  })
 })

@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
 import { serve } from '@hono/node-server'
+import type { Hono } from 'hono'
 import type { LogLevel } from '../config.ts'
 import type { AnyMachineDef, EventOf } from '../engine/index.ts'
 import { dispatchToApp } from './app-dispatch.ts'
@@ -88,6 +89,10 @@ export interface StatorApp {
     machine: D,
     event: EventOf<D>,
   ): Promise<{ committed: boolean }>
+  /** Break-glass: the raw Hono app. The unsupported paved-road exit — for
+   *  sub-app mounts / protocol upgrades the framework surface doesn't cover.
+   *  Mutate before `listen`. */
+  hono: Hono
 }
 
 export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
@@ -164,5 +169,6 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     fetch: (request: Request) => app.fetch(request),
     store,
     dispatchToApp: (machine, event) => dispatchToApp(store, machine, event),
+    hono: app,
   }
 }

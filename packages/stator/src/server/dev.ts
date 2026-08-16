@@ -100,6 +100,9 @@ export interface DevApp {
     machine: D,
     event: EventOf<D>,
   ): Promise<{ committed: boolean }>
+  /** Break-glass: the current raw Hono app (a getter — the dev server rebuilds
+   *  it on edits, so mount inside the pipeline, not post-hoc). */
+  readonly hono: Hono
   listen: (port: number) => Promise<void>
   close: () => Promise<void>
 }
@@ -287,6 +290,9 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
 
   return {
     fetch: (request) => app.fetch(request),
+    get hono() {
+      return app
+    },
     vite,
     // `store` is read at call time, not captured — a machine-edit rebuild
     // swaps it and the method follows.
