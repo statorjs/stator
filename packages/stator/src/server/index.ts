@@ -20,8 +20,13 @@ export type { AppStore } from './app-store.ts'
 export { InMemoryAppStore } from './app-store.ts'
 export type { CachedStoreOptions } from './cached-store.ts'
 export { CachedStore } from './cached-store.ts'
+export type { StatorContext } from './context.ts'
+export { stator } from './context.ts'
+export type { CorsOptions } from './cors.ts'
+export { cors } from './cors.ts'
 export type { CreateAppConfig, StatorApp } from './create-app.ts'
 export { createApp } from './create-app.ts'
+export { crossSiteGuard } from './csrf.ts'
 export type {
   ActionHelpers,
   DefineMachineConfig,
@@ -49,6 +54,13 @@ export type { InstanceHandle } from './instance-proxy.ts'
 export { createInstanceProxy, defForProxy } from './instance-proxy.ts'
 export { logger, scopedLogger, setLogLevel } from './logger.ts'
 export { MachineStore } from './machine-store.ts'
+export type { MiddlewareDefinition } from './middleware.ts'
+export {
+  dangerouslyDefineMiddleware,
+  defineMiddleware,
+  discoverMiddleware,
+  isMiddlewareDefinition,
+} from './middleware.ts'
 export { runQueryRoute } from './query-route.ts'
 export { recompute } from './recompute.ts'
 export { RedisAppStore, RedisStore } from './redis-store.ts'
@@ -106,6 +118,8 @@ export {
   isStatorQueryRoute,
   isStatorRoute,
 } from './routing.ts'
+export type { SecurityHeadersOptions } from './security-headers.ts'
+export { securityHeaders } from './security-headers.ts'
 export { getOrCreateSessionId, SESSION_COOKIE, setSessionSameSite } from './session.ts'
 export { SessionRuntime } from './session-runtime.ts'
 export type { Connection } from './sse.ts'

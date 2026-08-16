@@ -23,6 +23,13 @@ export type LogLevel = 'silent' | 'fatal' | 'error' | 'warn' | 'info' | 'debug' 
 export interface StatorConfig {
   /** Listen port for `dev`/`start`. Precedence: `--port` flag > `$PORT` > this > 3000. */
   port?: number
+  /** Listen host / bind address. Default: all interfaces. Containers behind a
+   *  proxy typically need `0.0.0.0`. */
+  host?: string
+  /** Canonical app URL (`https://example.com`) — for absolute-URL generation
+   *  (redirects, SSE reconnect, OG tags) and as a spoof-proof same-origin
+   *  anchor. Exposed to middleware via `stator(c).origin`. */
+  origin?: string
   /** The swappable persistence adapters, grouped by concern. Both optional —
    *  default to in-memory (restart-wipe). Neither is a machine-graph entry
    *  point (machines are file-discovered). */
@@ -65,6 +72,11 @@ export interface StatorConfig {
    *  Same-origin and same-site writes are already allowed; this is for decoupled
    *  frontends or partner domains. */
   trustedOrigins?: string[]
+  /** Cross-origin READ policy (CORS) — governs which cross-origin sites may read
+   *  responses (distinct from `trustedOrigins`, which governs cross-site writes).
+   *  Opt in per route/app with the `cors()` middleware; `origins` defaults to
+   *  `trustedOrigins`. */
+  cors?: { origins?: string[]; credentials?: boolean }
   /** Logging policy. */
   logging?: {
     /** Minimum level to emit. Default: `warn` in production, `info` in dev.

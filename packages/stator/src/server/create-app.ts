@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
 import { serve } from '@hono/node-server'
+import type { Hono } from 'hono'
 import type { LogLevel } from '../config.ts'
 import type { AnyMachineDef, EventOf } from '../engine/index.ts'
 import { dispatchToApp } from './app-dispatch.ts'
@@ -11,6 +12,7 @@ import { wireAppEffects } from './effects.ts'
 import { buildHonoApp } from './http.ts'
 import { logger, setLogLevel } from './logger.ts'
 import { MachineStore } from './machine-store.ts'
+import { discoverMiddleware } from './middleware.ts'
 import { discoverRoutes } from './route-discovery.ts'
 import { setSessionSameSite } from './session.ts'
 import { InMemoryStore, type Store } from './store.ts'
@@ -59,9 +61,18 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
   /** Origins allowed to make cross-site writes despite the CSRF guard (exact or
    *  wildcard-subdomain). Mirrors `StatorConfig.trustedOrigins`. */
   trustedOrigins?: readonly string[]
+  /** Canonical app URL, exposed via `stator(c).origin`. */
+  origin?: string
+  /** Listen host / bind address (used by `listen`). Default: all interfaces. */
+  host?: string
+  /** Cross-origin READ policy (CORS); `origins` defaults to `trustedOrigins`. */
+  cors?: { origins?: string[]; credentials?: boolean }
   /** Extra `<head>` HTML per GET route. A production build uses this to link the
    *  prebuilt `components.css`; ignored if omitted. */
   headExtras?: (filePath: string) => string | Promise<string>
+  /** Path to the app's `middleware.ts` (if any). Loaded and validated; its
+   *  default export must be `defineMiddleware`/`dangerouslyDefineMiddleware`. */
+  middlewareFile?: string
 }
 
 export interface StatorApp {
@@ -78,6 +89,10 @@ export interface StatorApp {
     machine: D,
     event: EventOf<D>,
   ): Promise<{ committed: boolean }>
+  /** Break-glass: the raw Hono app. The unsupported paved-road exit — for
+   *  sub-app mounts / protocol upgrades the framework surface doesn't cover.
+   *  Mutate before `listen`. */
+  hono: Hono
 }
 
 export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
@@ -103,6 +118,9 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
   await store.bootAppMachines()
 
   const routes = await discoverRoutes(routesDir)
+  const middleware = config.middlewareFile
+    ? await discoverMiddleware(config.middlewareFile)
+    : undefined
   const inspector = resolved.inspector
   const app = await buildHonoApp({
     routes,
@@ -118,12 +136,15 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     ssePingMs: resolved.ssePingMs,
     trustedOrigins: resolved.trustedOrigins,
     sameSite: resolved.sameSite,
+    origin: resolved.origin,
+    cors: resolved.cors,
+    middleware,
   })
 
   return {
     listen(port: number): Promise<void> {
       return new Promise((resolveFn) => {
-        const server = serve({ fetch: app.fetch, port }, () => {
+        const server = serve({ fetch: app.fetch, port, hostname: resolved.host }, () => {
           // Always-on (level-independent) so `warn` prod still confirms boot.
           printStartupNotice({ port, machines: defs.length, routes: routes.length })
           resolveFn()
@@ -148,5 +169,6 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     fetch: (request: Request) => app.fetch(request),
     store,
     dispatchToApp: (machine, event) => dispatchToApp(store, machine, event),
+    hono: app,
   }
 }

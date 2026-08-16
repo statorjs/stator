@@ -23,7 +23,12 @@ export async function run(ctx: CliContext): Promise<void> {
     persistence: config.persistence,
     sessions: config.sessions,
     realtime: config.realtime,
+    trustedOrigins: config.trustedOrigins,
+    origin: config.origin,
+    host: config.host,
+    cors: config.cors,
     headExtras: await loadProductionHead(dist),
+    middlewareFile: resolve(dist, 'middleware.ts'),
   })
 
   await app.listen(resolvePort(ctx.portFlag, config.port))

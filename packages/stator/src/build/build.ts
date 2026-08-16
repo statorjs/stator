@@ -82,6 +82,11 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
     if (await exists(src)) await cp(src, join(outDir, d), { recursive: true })
   }
 
+  // A root-level middleware.ts is a single file, not a source dir — copy it too
+  // (raw TS, run under tsx/native in prod like the rest of the server).
+  const middlewareSrc = join(root, 'middleware.ts')
+  if (await exists(middlewareSrc)) await cp(middlewareSrc, join(outDir, 'middleware.ts'))
+
   // Compile every .stator into a sibling .stator.ts; collect CSS and islands.
   const statorFiles = await walk(outDir, (f) => f.endsWith('.stator'))
   let css = ''

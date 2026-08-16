@@ -71,6 +71,10 @@ export interface DevAppConfig {
   /** Origins allowed to make cross-site writes despite the CSRF guard (exact or
    *  wildcard-subdomain). Mirrors `StatorConfig.trustedOrigins`. */
   trustedOrigins?: readonly string[]
+  /** Canonical app URL, exposed via `stator(c).origin`. */
+  origin?: string
+  /** Cross-origin READ policy (CORS); `origins` defaults to `trustedOrigins`. */
+  cors?: { origins?: string[]; credentials?: boolean }
   // Deprecated flat keys — accepted (typed) so 2.1.0 callers don't break; nested
   // wins. `createDevApp` never shipped `ssePingMs`, so it's not accepted here.
   /** @deprecated use `persistence.session` */
@@ -96,6 +100,9 @@ export interface DevApp {
     machine: D,
     event: EventOf<D>,
   ): Promise<{ committed: boolean }>
+  /** Break-glass: the current raw Hono app (a getter — the dev server rebuilds
+   *  it on edits, so mount inside the pipeline, not post-hoc). */
+  readonly hono: Hono
   listen: (port: number) => Promise<void>
   close: () => Promise<void>
 }
@@ -227,6 +234,9 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
     }
   }
   const rebuildServer = async (): Promise<void> => {
+    // Re-discover `middleware.ts` each rebuild so edits to it take effect. Loaded
+    // through the Vite runtime so its handlers share the runtime's instance.
+    const middleware = await runtime.discoverMiddleware(resolve(root, 'middleware.ts'), loader)
     app = await runtime.buildHonoApp({
       routes,
       store,
@@ -235,6 +245,9 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
       inspector: inspectorOn,
       trustedOrigins: resolved.trustedOrigins,
       sameSite: resolved.sameSite,
+      origin: resolved.origin,
+      cors: resolved.cors,
+      middleware,
     })
   }
 
@@ -277,6 +290,9 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
 
   return {
     fetch: (request) => app.fetch(request),
+    get hono() {
+      return app
+    },
     vite,
     // `store` is read at call time, not captured — a machine-edit rebuild
     // swaps it and the method follows.

@@ -11,6 +11,7 @@ import { scheduleSessionEffects } from './effects.ts'
 import { record, replayFor } from './event-dedupe.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
+import type { MiddlewareDefinition } from './middleware.ts'
 import { runQueryRoute } from './query-route.ts'
 import { initialSyncPatches, recompute } from './recompute.ts'
 import { renderRoute } from './render.ts'
@@ -43,6 +44,13 @@ export interface HttpConfig {
   /** Session cookie `SameSite`. `Strict` flips the guard to allowlist-only for
    *  same-site writes too. */
   sameSite?: 'Lax' | 'Strict'
+  /** Canonical app origin, exposed to middleware via `stator(c).origin`. */
+  origin?: string
+  /** Resolved CORS read policy, exposed via `stator(c).cors`. */
+  cors?: { origins: readonly string[]; credentials: boolean }
+  /** The app's discovered `middleware.ts` definition (if any). `withDefaults`
+   *  controls whether the framework security stack is prepended. */
+  middleware?: MiddlewareDefinition
 }
 
 const eventSchema = z.object({
@@ -157,15 +165,35 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     )
   })
 
-  // Cross-site write guard — runs before route matching so a cross-site write to
-  // an unknown path 403s (not a route-revealing 404). Safe methods pass through.
-  app.use(
-    '*',
-    crossSiteGuard({
-      trustedOrigins: config.trustedOrigins,
-      strict: config.sameSite === 'Strict',
-    }),
-  )
+  // Context bridge — expose resolved config to every middleware (cors, app
+  // middleware) that follows, off `stator(c)`. Runs first.
+  app.use('*', async (c, next) => {
+    c.set('stator', {
+      origin: config.origin,
+      trustedOrigins: config.trustedOrigins ?? [],
+      sameSite: config.sameSite ?? 'Lax',
+      cors: config.cors,
+    })
+    await next()
+  })
+
+  // Security defaults (unless the app opted out via dangerouslyDefineMiddleware),
+  // then the app's own middleware — all ahead of route matching, so a guard here
+  // can't be missed by a route added later. crossSiteGuard runs before matching,
+  // so a cross-site write to an unknown path 403s (not a route-revealing 404).
+  const mw = config.middleware
+  if (mw?.withDefaults ?? true) {
+    app.use(
+      '*',
+      crossSiteGuard({
+        trustedOrigins: config.trustedOrigins,
+        strict: config.sameSite === 'Strict',
+      }),
+    )
+  }
+  for (const handler of mw?.handlers ?? []) {
+    app.use('*', handler)
+  }
 
   // Compile matchers for every route, in discovery's specificity order. Our own
   // matcher (not Hono's router) is the routing authority: GET/API dispatch and
