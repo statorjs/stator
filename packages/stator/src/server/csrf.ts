@@ -15,15 +15,23 @@ import { matchOrigin } from './origin-match.ts'
  * `trustedOrigins` is an allowlist (exact or wildcard-subdomain — see
  * `matchOrigin`) of origins permitted despite being cross-site, for a decoupled
  * frontend or partner domain that legitimately writes. `same-site` (sibling
- * subdomain) is allowed by default; harden with `SameSite=Strict` if subdomains
- * are untrusted.
+ * subdomain) is allowed by default; under `strict` (the `SameSite=Strict`
+ * posture) a same-site write must match `trustedOrigins`, exactly like a
+ * cross-site one — the allowlist becomes the whole gate.
  */
-export function isBlockedCrossSite(c: Context, trustedOrigins: readonly string[] = []): boolean {
+export function isBlockedCrossSite(
+  c: Context,
+  trustedOrigins: readonly string[] = [],
+  strict = false,
+): boolean {
   const origin = c.req.header('origin')
   const site = c.req.header('sec-fetch-site')
 
   if (site) {
-    if (site !== 'cross-site') return false
+    if (site === 'same-origin' || site === 'none') return false
+    // same-site is allowed by default; under strict it must be allowlisted.
+    if (site === 'same-site') return strict ? !matchOrigin(origin, trustedOrigins) : false
+    // cross-site: allowed only if allowlisted.
     return !matchOrigin(origin, trustedOrigins)
   }
 
@@ -54,11 +62,12 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
  * can re-add it.
  */
 export function crossSiteGuard(
-  opts: { trustedOrigins?: readonly string[] } = {},
+  opts: { trustedOrigins?: readonly string[]; strict?: boolean } = {},
 ): MiddlewareHandler {
   const trusted = opts.trustedOrigins ?? []
+  const strict = opts.strict ?? false
   return async (c, next) => {
-    if (!SAFE_METHODS.has(c.req.method) && isBlockedCrossSite(c, trusted)) {
+    if (!SAFE_METHODS.has(c.req.method) && isBlockedCrossSite(c, trusted, strict)) {
       return c.json({ error: 'cross-site request blocked' }, 403)
     }
     await next()

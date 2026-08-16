@@ -39,6 +39,13 @@ export interface StatorConfig {
   sessions?: {
     /** Per-session idle TTL in seconds. Default: 86400 (24h). */
     ttlSeconds?: number
+    /** Session cookie policy. */
+    cookie?: {
+      /** `SameSite` attribute. Default `Lax` (allows same-site subdomains).
+       *  `Strict` withholds the cookie from every cross-site request and flips
+       *  the CSRF guard to allowlist-only — the controlled posture. */
+      sameSite?: 'Lax' | 'Strict'
+    }
     // cookieName?, rotation? — reserved policy siblings (not wired yet).
   }
   /** Realtime / push policy. Protocol-neutral so a future WS transport doesn't

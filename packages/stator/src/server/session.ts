@@ -12,12 +12,24 @@ function shouldUseSecureCookie(): boolean {
   return process.env.NODE_ENV === 'production'
 }
 
+/** The session cookie's `SameSite`. `Lax` (default) allows same-site sibling
+ *  subdomains; `Strict` withholds the cookie from every cross-site request (the
+ *  controlled posture — paired with the guard's allowlist-only same-site branch).
+ *  Set once at app construction; every `createApp` re-sets it, so it can't leak
+ *  across apps in one process. */
+let cookieSameSite: 'Lax' | 'Strict' = 'Lax'
+
+/** Configure the session cookie's `SameSite`. Called at app construction. */
+export function setSessionSameSite(value: 'Lax' | 'Strict'): void {
+  cookieSameSite = value
+}
+
 /** Write the session cookie — shared by session creation and rotation so
  *  the flags can never drift apart. */
 export function setSessionCookie(c: Context, sessionId: string): void {
   setCookie(c, SESSION_COOKIE, sessionId, {
     httpOnly: true,
-    sameSite: 'Lax',
+    sameSite: cookieSameSite,
     path: '/',
     secure: shouldUseSecureCookie(),
   })

@@ -106,7 +106,7 @@ export {
   isStatorQueryRoute,
   isStatorRoute,
 } from './routing.ts'
-export { getOrCreateSessionId, SESSION_COOKIE } from './session.ts'
+export { getOrCreateSessionId, SESSION_COOKIE, setSessionSameSite } from './session.ts'
 export { SessionRuntime } from './session-runtime.ts'
 export type { Connection } from './sse.ts'
 export {

@@ -40,6 +40,9 @@ export interface HttpConfig {
   /** Origins allowed to make cross-site writes despite the guard (exact or
    *  wildcard-subdomain). Feeds the default `crossSiteGuard`. */
   trustedOrigins?: readonly string[]
+  /** Session cookie `SameSite`. `Strict` flips the guard to allowlist-only for
+   *  same-site writes too. */
+  sameSite?: 'Lax' | 'Strict'
 }
 
 const eventSchema = z.object({
@@ -156,7 +159,13 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
   // Cross-site write guard — runs before route matching so a cross-site write to
   // an unknown path 403s (not a route-revealing 404). Safe methods pass through.
-  app.use('*', crossSiteGuard({ trustedOrigins: config.trustedOrigins }))
+  app.use(
+    '*',
+    crossSiteGuard({
+      trustedOrigins: config.trustedOrigins,
+      strict: config.sameSite === 'Strict',
+    }),
+  )
 
   // Compile matchers for every route, in discovery's specificity order. Our own
   // matcher (not Hono's router) is the routing authority: GET/API dispatch and

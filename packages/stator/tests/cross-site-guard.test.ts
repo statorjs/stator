@@ -74,4 +74,74 @@ describe('crossSiteGuard + trustedOrigins', () => {
     )
     expect(res.status).toBe(200)
   })
+
+  it('allows same-site writes by default (Lax posture)', async () => {
+    const app = await boot([])
+    const res = await app.fetch(
+      new Request('http://localhost/__events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Stator-Route': 'GET /',
+          'Sec-Fetch-Site': 'same-site',
+        },
+        body: VALID,
+      }),
+    )
+    expect(res.status).toBe(200)
+  })
+})
+
+describe('crossSiteGuard strict posture (SameSite=Strict)', () => {
+  function bootStrict(trustedOrigins: string[] = []) {
+    return createApp({
+      machinesDir: resolve(fixtures, 'machines'),
+      routesDir: resolve(fixtures, 'routes'),
+      trustedOrigins,
+      sessions: { cookie: { sameSite: 'Strict' } },
+    })
+  }
+  function sameSitePost(app: StatorApp, origin?: string) {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Stator-Route': 'GET /',
+      'Sec-Fetch-Site': 'same-site',
+    }
+    if (origin) headers.Origin = origin
+    return app.fetch(
+      new Request('http://localhost/__events', { method: 'POST', headers, body: VALID }),
+    )
+  }
+
+  it('sets the session cookie to SameSite=Strict', async () => {
+    const app = await bootStrict()
+    const res = await app.fetch(new Request('http://localhost/'))
+    expect(res.headers.get('set-cookie')).toContain('SameSite=Strict')
+  })
+
+  it('blocks a same-site write not in the allowlist', async () => {
+    const app = await bootStrict()
+    expect((await sameSitePost(app, 'https://sibling.tonysull.co')).status).toBe(403)
+  })
+
+  it('allows a same-site write from an allowlisted subdomain', async () => {
+    const app = await bootStrict(['https://*.tonysull.co'])
+    expect((await sameSitePost(app, 'https://sibling.tonysull.co')).status).toBe(200)
+  })
+
+  it('still allows same-origin writes under strict', async () => {
+    const app = await bootStrict()
+    const res = await app.fetch(
+      new Request('http://localhost/__events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Stator-Route': 'GET /',
+          'Sec-Fetch-Site': 'same-origin',
+        },
+        body: VALID,
+      }),
+    )
+    expect(res.status).toBe(200)
+  })
 })
