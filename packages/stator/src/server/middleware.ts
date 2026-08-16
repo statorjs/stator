@@ -1,4 +1,7 @@
+import { existsSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 import type { MiddlewareHandler } from 'hono'
+import type { ModuleLoader } from './discovery.ts'
 
 // A global-registry symbol so the brand survives the dev dual-instance: the app's
 // `middleware.ts` is loaded through Vite while the framework may check it from the
@@ -47,4 +50,29 @@ export function dangerouslyDefineMiddleware(
   handlers: readonly MiddlewareHandler[],
 ): MiddlewareDefinition {
   return { [MIDDLEWARE_BRAND]: true, handlers, withDefaults: false }
+}
+
+const nativeLoader: ModuleLoader = (file) => import(/* @vite-ignore */ pathToFileURL(file).href)
+
+/**
+ * Load an app's `middleware.ts` (if present) and validate its default export.
+ * Returns `undefined` when there is no file — the framework then applies its
+ * security defaults with no user handlers (safe-by-default). `loader` is injected
+ * so dev can go through Vite; prod/native uses `import`. The single toolchain
+ * touch-point, kept swappable for the post-Vite pipeline.
+ */
+export async function discoverMiddleware(
+  file: string,
+  loader: ModuleLoader = nativeLoader,
+): Promise<MiddlewareDefinition | undefined> {
+  if (!existsSync(file)) return undefined
+  const mod = await loader(file)
+  const def = (mod as { default?: unknown }).default
+  if (!isMiddlewareDefinition(def)) {
+    throw new Error(
+      `${file} must \`export default defineMiddleware([...])\` ` +
+        `(or dangerouslyDefineMiddleware([...]))`,
+    )
+  }
+  return def
 }

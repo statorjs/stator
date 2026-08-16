@@ -11,6 +11,7 @@ import { wireAppEffects } from './effects.ts'
 import { buildHonoApp } from './http.ts'
 import { logger, setLogLevel } from './logger.ts'
 import { MachineStore } from './machine-store.ts'
+import { discoverMiddleware } from './middleware.ts'
 import { discoverRoutes } from './route-discovery.ts'
 import { setSessionSameSite } from './session.ts'
 import { InMemoryStore, type Store } from './store.ts'
@@ -62,6 +63,9 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
   /** Extra `<head>` HTML per GET route. A production build uses this to link the
    *  prebuilt `components.css`; ignored if omitted. */
   headExtras?: (filePath: string) => string | Promise<string>
+  /** Path to the app's `middleware.ts` (if any). Loaded and validated; its
+   *  default export must be `defineMiddleware`/`dangerouslyDefineMiddleware`. */
+  middlewareFile?: string
 }
 
 export interface StatorApp {
@@ -103,6 +107,9 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
   await store.bootAppMachines()
 
   const routes = await discoverRoutes(routesDir)
+  const middleware = config.middlewareFile
+    ? await discoverMiddleware(config.middlewareFile)
+    : undefined
   const inspector = resolved.inspector
   const app = await buildHonoApp({
     routes,
@@ -118,6 +125,7 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     ssePingMs: resolved.ssePingMs,
     trustedOrigins: resolved.trustedOrigins,
     sameSite: resolved.sameSite,
+    middleware,
   })
 
   return {
