@@ -6,6 +6,7 @@ import { abortEntryEffects, isEffectInFlight } from './effects.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
 import { scopedLogger } from './logger.ts'
 import { serverReadsResolver } from './reads-helpers.ts'
+import { RESERVED_KEY_PREFIX } from './session.ts'
 import type { Store } from './store.ts'
 import { APP_SCOPE, armAfterTimers, cancelAfterTimers } from './timers.ts'
 
@@ -87,6 +88,12 @@ export class MachineStore {
     this.sessionTtlSeconds = opts?.sessionTtlSeconds ?? 86400
     this.appStore = opts?.appStore ?? new InMemoryAppStore()
     for (const def of defs) {
+      if (def.name.startsWith(RESERVED_KEY_PREFIX)) {
+        throw new Error(
+          `stator: machine name "${def.name}" is reserved — the "${RESERVED_KEY_PREFIX}" ` +
+            `prefix is framework-only (it namespaces per-session storage keys like claims)`,
+        )
+      }
       if (this.defs.has(def.name)) {
         throw new Error(`stator: duplicate machine name "${def.name}"`)
       }
