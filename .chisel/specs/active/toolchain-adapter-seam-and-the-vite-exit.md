@@ -130,19 +130,29 @@ by its first consumer before it freezes.
    This CLI *is* Phase 0 of the adapter seam (the user-facing toolchain seam;
    `stator build` runs `check` first, killing the silent-prod-break class). Already
    built on `feat/stator-cli`.
-2. **2.3 — HTTP middleware + security hardening.** `middleware.ts` seam (discovery,
-   ordering, the config-on-context bridge `stator(c)`, raw-Hono break-glass) **+**
-   default origin protection / security headers, and `origin`/`host`/
-   `trustedOrigins` config **data**. `checkOrigin` is the reference consumer of the
-   seam it introduces. (Security-owned flags are deferred here on purpose — they
-   are NOT in the 2.2 config.)
+2. **2.3 — Security & middleware round.** A multi-PR release, one capability per
+   PR, all into 2.3.0:
+   - **PR A** *(merged)* — cross-site guard + `trustedOrigins` + strict posture.
+   - **PR B** *(merged)* — the `middleware.ts` seam (`defineMiddleware`/
+     `dangerouslyDefineMiddleware`, discovery, ordering, `stator(c)`, raw-Hono
+     break-glass) + `cors()` / `securityHeaders()` + `origin`/`host`/`cors` config.
+   - **PR C** *(next)* — session **identity primitives**: claims, middleware
+     session-lifecycle ops, establish-once session + double-create fix, thin cookie
+     surface. Validated by upgrading the `with-auth` starter. See
+     [[session-identity-and-auth-primitives]].
+   - **PR D** *(proposed)* — the client-dispatch **event allowlist**: the compiler's
+     per-machine client-dispatch set → build manifest → **prod-only** `/__events`
+     403 gate (dev doesn't enforce — no attacker locally; `stator check` + tests are
+     the dev feedback). Usage-derived + 403; explicit `server-only` declaration
+     deferred. Design: `.chisel/docs/client-dispatch-allowlist.md`.
 3. **2.4 — Own the dev/build pipeline.** Adapter-seam interface + Option D (server
    native, fence dead, raw-TS kept), Vite behind `bundleIslands`. Spike 1 gates
    D→E *within* this release: acceptable → swap islands to esbuild and drop the
    Vite dep (E); marginal → ship D, defer the swap. Either way the fence + raw-TS
    wins are banked.
 4. **2.5 — Typed env + `.env` loading** (the loader is the real gap; direction
-   pre-decided).
+   pre-decided). Carries the auth-primitive **part 2**: **signed cookies** (= sealed
+   state) via the env secret — see [[session-identity-and-auth-primitives]].
 5. **2.6 — Deploy-aware clients (version/build-id)** (reload handshake).
 
 env (2.5) and version (2.6) both ride the owned dev loop D provides and are

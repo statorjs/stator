@@ -109,18 +109,30 @@ promotes it.
   effects (the load role), on session and app machines both. Still open:
   durable schedules (pairs with durable effects) — in-memory timers drop on
   restart by design.
-- **Server-only events / origin-based trust** *(design first)*: an event (or
-  machine) declares itself server-only — dispatchable from API routes,
-  effects, and `dispatchToApp`, rejected at `/__events`. The underlying rule
-  keys trust on *origin* (server code vs the wire), not on lifecycle plus
-  transport path — which also covers route-gated app dispatch and the
-  gateway-forgeability hazard in one stroke.
-  *Motivation*: two independent apps hit the same wall. `with-auth` had to
-  reject the natural handler-verifies-then-dispatches shape entirely, and
-  dogfooding a real app showed the gateway pattern recreates the forgeable
-  authority-event the auth recipe bans unless every such event proves itself
-  with HMAC ceremony. "Prove itself or grant nothing" stays the app-side
-  rule; this gives the framework side of it a home.
+- **Server-only events / client-dispatch allowlist** *(2.3, PR D)*: the compiler
+  derives, per machine, the set of events client code actually dispatches (template
+  `on:` handlers + island `dispatch`), the build writes it to the manifest, and
+  **`stator start` rejects any `/__events` event outside that set with 403** (403
+  not 404, to avoid revealing which events exist). Enforcement is **prod-only** —
+  dev has no attacker; `stator check` + tests are the dev feedback. Usage-derived,
+  so it excludes completions/internals/server-only *by construction* and closes the
+  forged-`COMMIT_OK` hazard; the explicit `server-only` *declaration* is a deferred
+  auditability layer. Design in
+  [`.chisel/docs/client-dispatch-allowlist.md`](.chisel/docs/client-dispatch-allowlist.md).
+  *Motivation*: two independent apps hit the wall — `with-auth` couldn't do
+  handler-verifies-then-dispatches, and the gateway pattern recreates a forgeable
+  authority event unless every one proves itself with HMAC. This gives the
+  framework side of "prove itself or grant nothing" a home.
+- **Session identity & auth primitives** *(2.3 PR C + 2.5)*: the substrate for
+  *third-party* auth toolkits — Stator provides session claims, middleware
+  session-lifecycle ops (`rotateSession`/`clearSession`), an establish-once
+  per-request session, a thin cookie surface over `hono/cookie`, and (2.5, on env)
+  signed cookies; the app/library owns the user store, hashing, providers,
+  verification, email, and UI. Middleware is **machine-unaware** (upstream of
+  machines); identity lives in claims/tokens, not session machines. *We do not
+  build an auth system* (the Pilcrow/Auth.js lesson). Validated by upgrading the
+  `with-auth` starter. Design in
+  [`.chisel/specs/active/session-identity-and-auth-primitives.md`](.chisel/specs/active/session-identity-and-auth-primitives.md).
 - **Data routes (non-HTML GET)** *(shipped 2026-07-29)*: `defineApiRoute`
   with `method: 'GET'` is a read-only data route — `{ machines }` read
   proxies and structurally no `dispatch`, plain values served as JSON,
