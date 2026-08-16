@@ -20,15 +20,24 @@ interface CreateAppConfig {
     session?: Store          // session persistence; default InMemoryStore
     app?: AppStore           // persistence for `persist: true` app machines; default in-memory
   }
-  sessions?: { ttlSeconds?: number }  // per-session TTL; default 86400 (24h)
-  realtime?: { pingMs?: number }      // SSE heartbeat interval; default 25s
-  dev?: { inspector?: boolean }       // serve + inject the wire inspector toolbar
-  logging?: { level?: LogLevel }      // default warn in prod, info in dev; LOG_LEVEL wins
+  sessions?: {
+    ttlSeconds?: number                 // per-session TTL; default 86400 (24h)
+    cookie?: { sameSite?: 'Lax' | 'Strict' }  // 'Strict' = allowlist-only CSRF posture
+  }
+  realtime?: { pingMs?: number }        // SSE heartbeat interval; default 25s
+  dev?: { inspector?: boolean }         // serve + inject the wire inspector toolbar
+  logging?: { level?: LogLevel }        // default warn in prod, info in dev; LOG_LEVEL wins
+  host?: string                         // bind address (containers: '0.0.0.0')
+  origin?: string                       // canonical URL; exposed via stator(c).origin
+  trustedOrigins?: string[]             // cross-site WRITE allowlist (exact or *.wildcard)
+  cors?: { origins?: string[]; credentials?: boolean }  // cross-origin READ policy
   headExtras?: (filePath: string) => string | Promise<string>
+  middlewareFile?: string               // path to the app's middleware.ts
 }
 
 interface StatorApp {
   listen(port: number): Promise<void>
+  hono: Hono                            // break-glass: the raw Hono app
   fetch(request: Request): Response | Promise<Response>
   store: MachineStore
   dispatchToApp(machine: MachineDef, event: EventOf<typeof machine>): Promise<{ committed: boolean }>
@@ -158,6 +167,32 @@ function scopedLogger(scope: string): Logger
 ```
 
 The framework's pino logger, exported for application use. Pretty colored output in dev (when `pino-pretty` is installed), JSON in production. Level defaults to `warn` from `createApp`/production (errors and warnings only — successful per-request and per-connection lines log at `debug`) and `info` from the dev server; precedence is `LOG_LEVEL` env > `stator.config.ts`'s `logging.level` > default. `scopedLogger('checkout')` returns a child tagged with a `scope` field for filtering.
+
+## Middleware & security
+
+See the [Middleware & security guide](/guides/middleware/) for the full picture.
+
+```ts
+function defineMiddleware(handlers: MiddlewareHandler[]): MiddlewareDefinition
+function dangerouslyDefineMiddleware(handlers: MiddlewareHandler[]): MiddlewareDefinition
+function crossSiteGuard(opts?: { trustedOrigins?: string[]; strict?: boolean }): MiddlewareHandler
+function cors(opts?: CorsOptions): MiddlewareHandler
+function securityHeaders(opts?: SecurityHeadersOptions): MiddlewareHandler
+function stator(c: Context): StatorContext  // resolved config on the request context
+```
+
+- **`defineMiddleware`** — the app's `middleware.ts` default export. Framework
+  security defaults run first, then these handlers, then the route.
+- **`dangerouslyDefineMiddleware`** — the same, without the security defaults (a
+  greppable opt-out; skips only security, never framework plumbing).
+- **`crossSiteGuard`** — the default cross-site (CSRF) write guard, exported so a
+  `dangerously…` app can re-add it. On by default; reads `trustedOrigins` from
+  the context.
+- **`cors`** — cross-origin *read* policy. `origins` defaults to `trustedOrigins`.
+- **`securityHeaders`** — opt-in baseline headers (nosniff always; frame/referrer
+  by default; HSTS/CSP opt-in).
+- **`stator(c)`** — read resolved config (`origin`, `trustedOrigins`, `cors`,
+  `sameSite`) inside a middleware.
 
 ## Lower-level exports
 
