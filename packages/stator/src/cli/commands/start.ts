@@ -24,6 +24,9 @@ export async function run(ctx: CliContext): Promise<void> {
     sessions: config.sessions,
     realtime: config.realtime,
     trustedOrigins: config.trustedOrigins,
+    origin: config.origin,
+    host: config.host,
+    cors: config.cors,
     headExtras: await loadProductionHead(dist),
     middlewareFile: resolve(dist, 'middleware.ts'),
   })

@@ -60,6 +60,12 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
   /** Origins allowed to make cross-site writes despite the CSRF guard (exact or
    *  wildcard-subdomain). Mirrors `StatorConfig.trustedOrigins`. */
   trustedOrigins?: readonly string[]
+  /** Canonical app URL, exposed via `stator(c).origin`. */
+  origin?: string
+  /** Listen host / bind address (used by `listen`). Default: all interfaces. */
+  host?: string
+  /** Cross-origin READ policy (CORS); `origins` defaults to `trustedOrigins`. */
+  cors?: { origins?: string[]; credentials?: boolean }
   /** Extra `<head>` HTML per GET route. A production build uses this to link the
    *  prebuilt `components.css`; ignored if omitted. */
   headExtras?: (filePath: string) => string | Promise<string>
@@ -125,13 +131,15 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     ssePingMs: resolved.ssePingMs,
     trustedOrigins: resolved.trustedOrigins,
     sameSite: resolved.sameSite,
+    origin: resolved.origin,
+    cors: resolved.cors,
     middleware,
   })
 
   return {
     listen(port: number): Promise<void> {
       return new Promise((resolveFn) => {
-        const server = serve({ fetch: app.fetch, port }, () => {
+        const server = serve({ fetch: app.fetch, port, hostname: resolved.host }, () => {
           // Always-on (level-independent) so `warn` prod still confirms boot.
           printStartupNotice({ port, machines: defs.length, routes: routes.length })
           resolveFn()

@@ -71,6 +71,10 @@ export interface DevAppConfig {
   /** Origins allowed to make cross-site writes despite the CSRF guard (exact or
    *  wildcard-subdomain). Mirrors `StatorConfig.trustedOrigins`. */
   trustedOrigins?: readonly string[]
+  /** Canonical app URL, exposed via `stator(c).origin`. */
+  origin?: string
+  /** Cross-origin READ policy (CORS); `origins` defaults to `trustedOrigins`. */
+  cors?: { origins?: string[]; credentials?: boolean }
   // Deprecated flat keys — accepted (typed) so 2.1.0 callers don't break; nested
   // wins. `createDevApp` never shipped `ssePingMs`, so it's not accepted here.
   /** @deprecated use `persistence.session` */
@@ -238,6 +242,8 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
       inspector: inspectorOn,
       trustedOrigins: resolved.trustedOrigins,
       sameSite: resolved.sameSite,
+      origin: resolved.origin,
+      cors: resolved.cors,
       middleware,
     })
   }

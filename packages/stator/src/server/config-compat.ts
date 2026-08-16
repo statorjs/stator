@@ -30,6 +30,9 @@ interface NestedReads {
   dev?: { inspector?: boolean }
   logging?: { level?: LogLevel }
   trustedOrigins?: readonly string[]
+  origin?: string
+  host?: string
+  cors?: { origins?: readonly string[]; credentials?: boolean }
 }
 
 /** The flat internal values `createApp`/`createDevApp` actually consume. */
@@ -42,6 +45,9 @@ export interface ResolvedAppConfig {
   logLevel?: LogLevel
   trustedOrigins?: readonly string[]
   sameSite?: 'Lax' | 'Strict'
+  origin?: string
+  host?: string
+  cors?: { origins: readonly string[]; credentials: boolean }
 }
 
 /**
@@ -74,5 +80,13 @@ export function resolveAppConfig(config: NestedReads & DeprecatedFlatConfig): Re
     logLevel: config.logging?.level,
     trustedOrigins: config.trustedOrigins,
     sameSite: config.sessions?.cookie?.sameSite,
+    origin: config.origin,
+    host: config.host,
+    cors: config.cors
+      ? {
+          origins: config.cors.origins ?? config.trustedOrigins ?? [],
+          credentials: config.cors.credentials ?? false,
+        }
+      : undefined,
   }
 }

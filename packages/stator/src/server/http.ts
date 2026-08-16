@@ -44,6 +44,10 @@ export interface HttpConfig {
   /** Session cookie `SameSite`. `Strict` flips the guard to allowlist-only for
    *  same-site writes too. */
   sameSite?: 'Lax' | 'Strict'
+  /** Canonical app origin, exposed to middleware via `stator(c).origin`. */
+  origin?: string
+  /** Resolved CORS read policy, exposed via `stator(c).cors`. */
+  cors?: { origins: readonly string[]; credentials: boolean }
   /** The app's discovered `middleware.ts` definition (if any). `withDefaults`
    *  controls whether the framework security stack is prepended. */
   middleware?: MiddlewareDefinition
@@ -159,6 +163,18 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       },
       isLive ? 'sse open' : 'request',
     )
+  })
+
+  // Context bridge — expose resolved config to every middleware (cors, app
+  // middleware) that follows, off `stator(c)`. Runs first.
+  app.use('*', async (c, next) => {
+    c.set('stator', {
+      origin: config.origin,
+      trustedOrigins: config.trustedOrigins ?? [],
+      sameSite: config.sameSite ?? 'Lax',
+      cors: config.cors,
+    })
+    await next()
   })
 
   // Security defaults (unless the app opted out via dangerouslyDefineMiddleware),
