@@ -34,6 +34,17 @@ The **framework security defaults run first**, then your handlers, then the rout
 With no `middleware.ts` at all, the defaults still apply — safe by default, nothing
 to remember.
 
+## Middleware runs at the HTTP layer
+
+Middleware runs *before* the per-request session machinery, so it sees the request
+(cookies, headers, method, path) and resolved config via `stator(c)` — but **not
+your machines' state**. Authorization that reads a machine (e.g.
+`AuthMachine.isAuthenticated`) stays in your routes as a guard, not here.
+Middleware is for cross-cutting HTTP concerns: the built-in CSRF guard, CORS,
+headers, rate-limiting, token/IP checks. The `with-auth` example shows the split —
+security headers in `middleware.ts`, identity in `AuthMachine` read by route
+guards.
+
 ## The cross-site guard (a default, always on)
 
 Every state-changing request (`POST`/`PUT`/`PATCH`/`DELETE`) is checked for
