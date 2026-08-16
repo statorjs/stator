@@ -54,6 +54,7 @@ export type { MiddlewareDefinition } from './middleware.ts'
 export {
   dangerouslyDefineMiddleware,
   defineMiddleware,
+  discoverMiddleware,
   isMiddlewareDefinition,
 } from './middleware.ts'
 export { runQueryRoute } from './query-route.ts'

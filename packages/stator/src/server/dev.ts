@@ -227,6 +227,9 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
     }
   }
   const rebuildServer = async (): Promise<void> => {
+    // Re-discover `middleware.ts` each rebuild so edits to it take effect. Loaded
+    // through the Vite runtime so its handlers share the runtime's instance.
+    const middleware = await runtime.discoverMiddleware(resolve(root, 'middleware.ts'), loader)
     app = await runtime.buildHonoApp({
       routes,
       store,
@@ -235,6 +238,7 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
       inspector: inspectorOn,
       trustedOrigins: resolved.trustedOrigins,
       sameSite: resolved.sameSite,
+      middleware,
     })
   }
 

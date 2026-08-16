@@ -16,6 +16,7 @@ export async function run(ctx: CliContext): Promise<void> {
     persistence: config.persistence,
     sessions: config.sessions,
     dev: config.dev,
+    trustedOrigins: config.trustedOrigins,
   })
   await app.listen(resolvePort(ctx.portFlag, config.port))
 }
