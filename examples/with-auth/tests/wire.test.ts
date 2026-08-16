@@ -135,6 +135,72 @@ describe('the auth arc', () => {
   })
 })
 
+describe('coarse admission at the edge (claims projection)', () => {
+  // Send an explicit Cookie header (postForm only sends the session id).
+  function withCookies(path: string, cookie: string, fields: Record<string, string>) {
+    return app.fetch(
+      new Request(`http://test${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
+        body: new URLSearchParams(fields),
+      }),
+    )
+  }
+  // Raw name=value of every Set-Cookie (drop attributes), for replay.
+  const cookiePairs = (res: Response) => res.headers.getSetCookie().map((c) => c.split(';')[0] ?? '')
+
+  it('anonymous is redirected from /profile to /login, with a returnTo stashed', async () => {
+    const res = await app.fetch(new Request('http://test/profile'))
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe('/login')
+    // returnTo remembers where they were headed.
+    expect(cookiePairs(res).some((p) => p.startsWith('returnTo='))).toBe(true)
+  })
+
+  it('after signing in, the stashed returnTo brings you back to /profile', async () => {
+    // A member to sign in as.
+    const anon0 = sidOf(await app.fetch(new Request('http://test/')))!
+    await postForm('/auth/register', anon0, {
+      email: 'gate@quay.test',
+      name: 'Gatekeeper',
+      password: 'password-123',
+    })
+
+    // Anonymous hits /profile → gets bounced, collecting the session + returnTo.
+    const bounced = await app.fetch(new Request('http://test/profile'))
+    const cookie = cookiePairs(bounced).join('; ')
+
+    // Sign in carrying that cookie → the login route reads returnTo and sends
+    // us back there (not to '/').
+    const login = await withCookies('/auth/login', cookie, {
+      email: 'gate@quay.test',
+      password: 'password-123',
+    })
+    const body = (await login.json()) as { directives: Array<{ type: string; to: string }> }
+    expect(body.directives[0]).toMatchObject({ type: 'navigate', to: '/profile' })
+
+    // And the rotated session is now admitted to /profile (200, not a redirect).
+    const authed = sidOf(login)!
+    const page = await app.fetch(
+      new Request('http://test/profile', { headers: { Cookie: `stator_sid=${authed}` } }),
+    )
+    expect(page.status).toBe(200)
+    expect(await page.text()).toContain('Display name')
+  })
+
+  it('a forged returnTo is ignored — no open redirect', async () => {
+    const anon = sidOf(await app.fetch(new Request('http://test/')))!
+    // Attacker-planted absolute target.
+    const login = await withCookies(
+      '/auth/login',
+      `stator_sid=${anon}; returnTo=${encodeURIComponent('//evil.example')}`,
+      { email: 'gate@quay.test', password: 'password-123' },
+    )
+    const body = (await login.json()) as { directives: Array<{ type: string; to: string }> }
+    expect(body.directives[0]).toMatchObject({ type: 'navigate', to: '/' })
+  })
+})
+
 describe('members-only visibility', () => {
   it("private notices never reach a visitor's wire — and do reach members", async () => {
     const anon0 = sidOf(await app.fetch(new Request('http://test/')))!
