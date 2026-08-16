@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 import { setCookie } from 'hono/cookie'
 import { safeNavigationUrl } from '../wire/safe-url.ts'
+import { cookieJar } from './cookies.ts'
 import { scheduleSessionEffects } from './effects.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
@@ -90,6 +91,7 @@ export async function runApiRoute(
             s.claimsDirty = true
           }
         },
+        cookies: cookieJar(c),
       }
 
       let result: Response | ApiRouteEnvelope
@@ -209,8 +211,10 @@ function synthesizeResponse(
       // same-origin, else fall back to '/' (no open redirect).
       return c.redirect(sameOriginReferer(request), 303)
     }
-    // No actionable directive for a no-JS client. Send a minimal 204.
-    return new Response(null, { status: 204 })
+    // No actionable directive for a no-JS client. Send a minimal 204 — via
+    // c.body so any cookies set this request (session rotation, the cookie jar)
+    // survive; a bare `new Response` would drop c's accumulated Set-Cookie.
+    return c.body(null, 204)
   }
 
   // JSON / client-runtime path.

@@ -1,5 +1,6 @@
 import type { HtmlFragment } from '../template/types.ts'
 import type { WireEnvelope } from '../wire/index.ts'
+import type { CookieJar } from './cookies.ts'
 import type { AnyMachineDef, EventOf, ReadsMap } from './define-machine.ts'
 
 /** Machine context passed to a route's render function. Keyed by machine name. */
@@ -158,6 +159,9 @@ export interface ApiRouteHelpers {
    *  anonymous. Sugar for `rotateSession({ clear: true })`; applied after the
    *  handler returns. */
   clearSession: () => void
+  /** Read/write app-owned cookies (e.g. a login `returnTo`). Distinct from the
+   *  framework-managed session cookie; writes take effect on this response. */
+  readonly cookies: CookieJar
 }
 
 export interface ApiRouteDefinition {

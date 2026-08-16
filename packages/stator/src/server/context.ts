@@ -1,4 +1,5 @@
 import type { Context } from 'hono'
+import { type CookieJar, cookieJar } from './cookies.ts'
 import { getSessionState, rotateSessionNow } from './session.ts'
 import type { Store } from './store.ts'
 
@@ -47,6 +48,9 @@ export interface StatorContext {
   /** Destroy this session *now* — its state is deleted and the browser starts
    *  anonymous. Sugar for `rotateSession({ clear: true })`. */
   clearSession(): Promise<void>
+  /** Read/write app-owned cookies (e.g. a login `returnTo`). Distinct from the
+   *  framework-managed session cookie. */
+  readonly cookies: CookieJar
 }
 
 const DEFAULT: StatorConfigData = { trustedOrigins: [], sameSite: 'Lax' }
@@ -92,5 +96,6 @@ export function stator(c: Context): StatorContext {
       if (!store) return
       await rotateSessionNow(c, store, { clear: true })
     },
+    cookies: cookieJar(c),
   }
 }
