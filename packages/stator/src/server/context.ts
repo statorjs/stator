@@ -1,5 +1,6 @@
 import type { Context } from 'hono'
-import { getSessionState } from './session.ts'
+import { getSessionState, rotateSessionNow } from './session.ts'
+import type { Store } from './store.ts'
 
 /**
  * The resolved config data `buildHonoApp` stashes on the context (early), for
@@ -12,10 +13,12 @@ interface StatorConfigData {
   readonly cors?: { readonly origins: readonly string[]; readonly credentials: boolean }
 }
 
-// Type `c.get('stator')` / `c.set('stator', …)` — the stored config data.
+// Type `c.get('stator')` / `c.set('stator', …)` — the stored config data, plus
+// the store the bridge stashes so middleware session ops can rotate/clear now.
 declare module 'hono' {
   interface ContextVariableMap {
     stator: StatorConfigData
+    statorStore: { persistence: Store }
   }
 }
 
@@ -37,6 +40,13 @@ export interface StatorContext {
   setClaims(claims: unknown): void
   /** Drop this session's claims (keeps the session) — persisted at request end. */
   clearClaims(): void
+  /** Rotate the session id *now* (fixation defense on privilege change): state
+   *  moves to a fresh id, the response carries the new cookie. Immediate because
+   *  middleware runs upstream of the handler pipeline. */
+  rotateSession(opts?: { clear?: boolean }): Promise<void>
+  /** Destroy this session *now* — its state is deleted and the browser starts
+   *  anonymous. Sugar for `rotateSession({ clear: true })`. */
+  clearSession(): Promise<void>
 }
 
 const DEFAULT: StatorConfigData = { trustedOrigins: [], sameSite: 'Lax' }
@@ -71,6 +81,16 @@ export function stator(c: Context): StatorContext {
         session.claims = undefined
         session.claimsDirty = true
       }
+    },
+    async rotateSession(opts?: { clear?: boolean }): Promise<void> {
+      const store = c.get('statorStore')
+      if (!store) return // inert outside the framework pipeline
+      await rotateSessionNow(c, store, opts)
+    },
+    async clearSession(): Promise<void> {
+      const store = c.get('statorStore')
+      if (!store) return
+      await rotateSessionNow(c, store, { clear: true })
     },
   }
 }

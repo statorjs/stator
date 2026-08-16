@@ -148,6 +148,16 @@ export interface ApiRouteHelpers {
    *  the response carries the new cookie. Requires a store with
    *  `renameSession` (all built-in stores have it). */
   rotateSession: (opts?: { clear?: boolean }) => void
+  /** Read this session's app-defined claims (identity/data). `undefined` if none. */
+  claims: <T = unknown>() => T | undefined
+  /** Replace this session's claims — persisted at request end. */
+  setClaims: (claims: unknown) => void
+  /** Drop this session's claims (keeps the session) — persisted at request end. */
+  clearClaims: () => void
+  /** Destroy this session — its state is deleted and the browser starts
+   *  anonymous. Sugar for `rotateSession({ clear: true })`; applied after the
+   *  handler returns. */
+  clearSession: () => void
 }
 
 export interface ApiRouteDefinition {

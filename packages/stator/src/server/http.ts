@@ -177,6 +177,8 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       sameSite: config.sameSite ?? 'Lax',
       cors: config.cors,
     })
+    // Stash the store so middleware session ops (rotate/clear) can act now.
+    c.set('statorStore', config.store)
     const { sessionId, isNew } = getOrCreateSessionId(c)
     const session = getSessionState(c)
     if (!isNew && session) {
