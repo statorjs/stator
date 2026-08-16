@@ -5,23 +5,13 @@ sidebar:
   order: 7
 ---
 
-A webhook — Stripe telling you a payment cleared, GitHub telling you a branch
-pushed — is a server-to-server `POST`. It arrives with **no browser and no
-session cookie**, and providers deliver *at least once*, so the same event can
-land twice. Two jobs follow from that: prove the request is real, then process
-it exactly once.
+A webhook — Stripe telling you a payment cleared, GitHub telling you a branch pushed — is a server-to-server `POST`. It arrives with **no browser and no session cookie**, and providers deliver *at least once*, so the same event can land twice. Two jobs follow from that: prove the request is real, then process it exactly once.
 
 ## Where a webhook lands: an app machine
 
-[Session machines are addressed by the browser's cookie](/recipes/authentication/) —
-they *are* the sender's identity. A webhook has no session, so it has no session
-machine to route into. Its home is an **app-lifecycle machine**: shared across
-all sessions, long-lived, the place cross-cutting state (billing, inventory,
-audit) lives. `dispatchToApp` is that machine's entry point for exactly this —
-webhooks and cron.
+[Session machines are addressed by the browser's cookie](/recipes/authentication/) — they *are* the sender's identity. A webhook has no session, so it has no session machine to route into. Its home is an **app-lifecycle machine**: shared across all sessions, long-lived, the place cross-cutting state (billing, inventory, audit) lives. `dispatchToApp` is that machine's entry point for exactly this — webhooks and cron.
 
-It isn't on the route helpers (those reach session machines only). You dispatch
-against the app instance you created:
+It isn't on the route helpers (those reach session machines only). You dispatch against the app instance you created:
 
 ```ts
 // routes/webhooks/stripe.ts
@@ -54,10 +44,7 @@ export const POST = defineApiRoute({
 
 ## Prove it's real: verify the signature
 
-The framework's cookie and CSRF defenses guard *browser* requests. A cookieless
-server-to-server caller sails past them — so the trust has to come from the
-payload itself. Every provider signs the body with a shared secret. Verify it
-before you dispatch, in constant time.
+The framework's cookie and CSRF defenses guard *browser* requests. A cookieless server-to-server caller sails past them — so the trust has to come from the payload itself. Every provider signs the body with a shared secret. Verify it before you dispatch, in constant time.
 
 ```ts
 // lib/webhook.ts
@@ -72,16 +59,11 @@ export function verifySignature(body: string, header: string | null, secret: str
 }
 ```
 
-This is the [same "prove itself or grant nothing" rule](/recipes/authentication/)
-the auth recipe bans forgeable events with — a webhook proves itself with a
-signature, or it gets nothing.
+This is the [same "prove itself or grant nothing" rule](/recipes/authentication/) the auth recipe bans forgeable events with — a webhook proves itself with a signature, or it gets nothing.
 
 ## Process exactly once: a guard makes duplicates a no-op
 
-At-least-once delivery means duplicates are normal, not exceptional. Stator has
-**no built-in dedupe** for app dispatch — and it doesn't need one, because
-idempotency is a guard. Keep the delivery ids you've processed and drop anything
-you've seen:
+At-least-once delivery means duplicates are normal, not exceptional. Stator has **no built-in dedupe** for app dispatch — and it doesn't need one, because idempotency is a guard. Keep the delivery ids you've processed and drop anything you've seen:
 
 ```ts
 // machines/billing.ts
@@ -94,32 +76,18 @@ PAYMENT_EVENT: {
 },
 ```
 
-A duplicate hits the guard, fails it, and *does not transition* — so
-`dispatchToApp` returns `{ committed: false }`. That's the signal the route reads
-to tell "processed" from "already handled".
+A duplicate hits the guard, fails it, and *does not transition* — so `dispatchToApp` returns `{ committed: false }`. That's the signal the route reads to tell "processed" from "already handled".
 
 :::note[`committed` is your idempotency signal]
-`{ committed: true }` means the event moved the machine. `false` means a guard
-dropped it — here, a duplicate. Same 200 either way, because the provider's job
-is done in both cases.
+`{ committed: true }` means the event moved the machine. `false` means a guard dropped it — here, a duplicate. Same 200 either way, because the provider's job is done in both cases.
 :::
 
 ## Answer fast, work in effects
 
-Providers time out and retry a slow endpoint. Do the *decision* synchronously
-(verify, dedupe, record) and push slow work — charging, emailing, calling
-another API — into a transition **effect**, which runs after the response is on
-its way. The route acknowledges in milliseconds and the real work happens
-off the request path.
+Providers time out and retry a slow endpoint. Do the *decision* synchronously (verify, dedupe, record) and push slow work — charging, emailing, calling another API — into a transition **effect**, which runs after the response is on its way. The route acknowledges in milliseconds and the real work happens off the request path.
 
 ## In production you'd add
 
-- **Per-provider signature schemes.** Stripe signs a timestamped payload with a
-  replay window, GitHub uses `X-Hub-Signature-256`, others differ. Verify to the
-  provider's spec, and reject stale timestamps to close replay.
-- **A bounded, durable processed-id store.** `ctx.processed` as an ever-growing
-  array is the exact [context cliff](/recipes/where-data-lives/) this framework
-  warns about — it's cloned and re-serialized on every event. Cap it to a recent
-  window, or key a table in real storage and dedupe with a guard that reads it.
-- **A dead-letter path** for events whose processing effect fails, so a bad
-  payload doesn't silently vanish.
+- **Per-provider signature schemes.** Stripe signs a timestamped payload with a replay window, GitHub uses `X-Hub-Signature-256`, others differ. Verify to the provider's spec, and reject stale timestamps to close replay.
+- **A bounded, durable processed-id store.** `ctx.processed` as an ever-growing array is the exact [context cliff](/recipes/where-data-lives/) this framework warns about — it's cloned and re-serialized on every event. Cap it to a recent window, or key a table in real storage and dedupe with a guard that reads it.
+- **A dead-letter path** for events whose processing effect fails, so a bad payload doesn't silently vanish.

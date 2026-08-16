@@ -5,10 +5,7 @@ sidebar:
   order: 13
 ---
 
-A `lifecycle: 'session'` machine exists once per visitor. A
-`lifecycle: 'app'` machine exists **once per server** — shared state every
-session can see. It's what powers cross-session views: an admin dashboard, a
-live poll tally, an inventory board.
+A `lifecycle: 'session'` machine exists once per visitor. A `lifecycle: 'app'` machine exists **once per server** — shared state every session can see. It's what powers cross-session views: an admin dashboard, a live poll tally, an inventory board.
 
 ```ts
 export default defineMachine({
@@ -24,14 +21,9 @@ export default defineMachine({
 
 Two ways, by design:
 
-**From sessions, via emits.** A session machine `emit`s; the app machine
-`subscribes`. The framework injects `sourceSessionId` into the dispatched
-event so the app machine knows who triggered it. This is the path for
-"every order updates the shared board."
+**From sessions, via emits.** A session machine `emit`s; the app machine `subscribes`. The framework injects `sourceSessionId` into the dispatched event so the app machine knows who triggered it. This is the path for "every order updates the shared board."
 
-**From server code, via `dispatchToApp`.** Webhooks, cron jobs, and anything
-else with no HTTP session use the typed server-originated entry point — a
-method on the app object (`createApp` and `createDevApp` both return it):
+**From server code, via `dispatchToApp`.** Webhooks, cron jobs, and anything else with no HTTP session use the typed server-originated entry point — a method on the app object (`createApp` and `createDevApp` both return it):
 
 ```ts
 import Board from './machines/board.ts'
@@ -42,23 +34,13 @@ const app = await createApp({ /* … */ })
 await app.dispatchToApp(Board, { type: 'BUMP', by: 5 })
 ```
 
-`dispatchToApp` sends the event, persists the machine if it opted in, and
-fans the change out to every live SSE connection whose route reads it — a
-cron job can move a dashboard in real time.
+`dispatchToApp` sends the event, persists the machine if it opted in, and fans the change out to every live SSE connection whose route reads it — a cron job can move a dashboard in real time.
 
-There is no direct *client*→app dispatch: browsers talk to their session
-machines, and session machines emit upward. That keeps "who can change shared
-state" an explicit, reviewable list — and it's deliberate, because `/__events`
-takes the machine name from the client, and shared state needs an
-authorization gate that per-session state doesn't.
+There is no direct *client*→app dispatch: browsers talk to their session machines, and session machines emit upward. That keeps "who can change shared state" an explicit, reviewable list — and it's deliberate, because `/__events` takes the machine name from the client, and shared state needs an authorization gate that per-session state doesn't.
 
 ## Buttons that drive shared state: the gateway pattern
 
-When a page needs to command an app machine — an admin "restock" button, a
-"close poll" control — route it through a **gateway session machine**. The
-gateway's guards are the authorization boundary (they run against the
-session's own context); the app machine's `subscribes:` stays the complete
-audit of who can change it:
+When a page needs to command an app machine — an admin "restock" button, a "close poll" control — route it through a **gateway session machine**. The gateway's guards are the authorization boundary (they run against the session's own context); the app machine's `subscribes:` stays the complete audit of who can change it:
 
 ```ts
 // machines/admin.ts — lifecycle: 'session'
@@ -88,31 +70,15 @@ export default defineMachine({
 subscribes: [{ from: Admin, event: 'restockRequested', dispatch: 'REQUEST_RESTOCK' }],
 ```
 
-The button sends to the gateway (its own session state — always legal), the
-guard authorizes, the emit crosses lifecycles with `sourceSessionId`
-attached, and persistence, effects, and SSE fan-out all behave normally from
-there. A more convenient route-gated form is a design candidate; this pattern is
-the supported path today and will keep working.
+The button sends to the gateway (its own session state — always legal), the guard authorizes, the emit crosses lifecycles with `sourceSessionId` attached, and persistence, effects, and SSE fan-out all behave normally from there. A more convenient route-gated form is a design candidate; this pattern is the supported path today and will keep working.
 
 :::caution[Gateways don't launder authority]
-A gateway's `REQUEST_*` events are ordinary session events — dispatchable
-from browser devtools via `/__events` like any other. Authority in the emit
-payload must come from the session's **context** (put there by a verified
-handler or guard, as `isAdmin` is above), never from fields on the incoming
-event — otherwise any visitor can forge the request the gateway was supposed
-to gate. If a handler has no choice but to thread authority through the
-event itself, make the event prove itself: sign the claims server-side (an
-HMAC with a server secret) and verify in the guard — guards are synchronous,
-and so is `node:crypto`.
+A gateway's `REQUEST_*` events are ordinary session events — dispatchable from browser devtools via `/__events` like any other. Authority in the emit payload must come from the session's **context** (put there by a verified handler or guard, as `isAdmin` is above), never from fields on the incoming event — otherwise any visitor can forge the request the gateway was supposed to gate. If a handler has no choice but to thread authority through the event itself, make the event prove itself: sign the claims server-side (an HMAC with a server secret) and verify in the guard — guards are synchronous, and so is `node:crypto`.
 :::
 
 ## Effects and timers on app machines
 
-[Entry effects and `after` timers](/guides/effects/) work on app machines
-exactly as on session machines, with one difference in *when*: they fire on
-wall clock, with no session attached — an app machine's clock is process
-housekeeping, not work done on behalf of a viewer. That makes app machines
-the legitimate home for a self-revalidating cache or a circuit breaker:
+[Entry effects and `after` timers](/guides/effects/) work on app machines exactly as on session machines, with one difference in *when*: they fire on wall clock, with no session attached — an app machine's clock is process housekeeping, not work done on behalf of a viewer. That makes app machines the legitimate home for a self-revalidating cache or a circuit breaker:
 
 ```ts
 states: {
@@ -127,24 +93,18 @@ states: {
 },
 ```
 
-Completions dispatch back into the machine and fan out to live routes like
-any other app-machine change. The dev server's poll-loop lint deliberately
-skips app machines — a non-durable server clock belongs here, not on a
-session machine.
+Completions dispatch back into the machine and fan out to live routes like any other app-machine change. The dev server's poll-loop lint deliberately skips app machines — a non-durable server clock belongs here, not on a session machine.
 
 ## Surviving restarts: `persist: true`
 
-App machines live in process memory and reset on deploy — often correct (a
-cache should reset). When state must survive, opt in:
+App machines live in process memory and reset on deploy — often correct (a cache should reset). When state must survive, opt in:
 
 ```ts
 lifecycle: 'app',
 persist: true,
 ```
 
-Persisted app machines snapshot through an **AppStore** — a deliberately
-separate interface from the session store (one blob per machine, no TTL).
-`InMemoryAppStore` is the default; pass `RedisAppStore` for real durability:
+Persisted app machines snapshot through an **AppStore** — a deliberately separate interface from the session store (one blob per machine, no TTL). `InMemoryAppStore` is the default; pass `RedisAppStore` for real durability:
 
 ```ts
 import { RedisAppStore } from '@statorjs/stator/server'
@@ -155,31 +115,19 @@ const app = await createApp({
 })
 ```
 
-On boot, a persisted snapshot restores the actor before it starts. An
-unusable snapshot logs loudly and boots fresh — restart-fresh is the safe
-default. Writes are event-driven: whenever a transition touches the machine,
-the new snapshot is saved.
+On boot, a persisted snapshot restores the actor before it starts. An unusable snapshot logs loudly and boots fresh — restart-fresh is the safe default. Writes are event-driven: whenever a transition touches the machine, the new snapshot is saved.
 
-Setting `persist: true` on a *session* machine is a define-time error —
-session machines always persist through the session store.
+Setting `persist: true` on a *session* machine is a define-time error — session machines always persist through the session store.
 
 ## The single-replica caveat
 
-App machines are in-process singletons. Two replicas would each run their own
-copy and drift; the AppStore assumes a single writer. Multi-replica app state
-is deferred with a designed path (leader/backplane) — don't scale out
-with persisted app machines until it lands.
+App machines are in-process singletons. Two replicas would each run their own copy and drift; the AppStore assumes a single writer. Multi-replica app state is deferred with a designed path (leader/backplane) — don't scale out with persisted app machines until it lands.
 
 ## Mutual machine relationships
 
-Sometimes two machines relate in both directions: a session cart `reads:` the
-shared inventory (stock-ceiling guards) while inventory `subscribes:` to the
-cart's `orderPlaced`. Declaring each half in its own module would make the two
-files import each other — a cycle the module loader resolves by handing one
-side `undefined` (Stator diagnoses this at boot with a named error).
+Sometimes two machines relate in both directions: a session cart `reads:` the shared inventory (stock-ceiling guards) while inventory `subscribes:` to the cart's `orderPlaced`. Declaring each half in its own module would make the two files import each other — a cycle the module loader resolves by handing one side `undefined` (Stator diagnoses this at boot with a named error).
 
-The pattern: **the importing end owns both halves.** The machine that already
-imports the other attaches the reverse subscription after definition:
+The pattern: **the importing end owns both halves.** The machine that already imports the other attaches the reverse subscription after definition:
 
 ```ts
 // cart.ts — already imports inventory for reads:
@@ -194,6 +142,4 @@ InventoryMachine.subscribes.push({
 export default CartMachine
 ```
 
-The store still validates the emit name at construction, so the wiring stays
-checked. First-class support (lazy refs or name-based subscribe) is a design
-candidate.
+The store still validates the emit name at construction, so the wiring stays checked. First-class support (lazy refs or name-based subscribe) is a design candidate.

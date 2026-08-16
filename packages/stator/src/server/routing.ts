@@ -1,5 +1,6 @@
 import type { HtmlFragment } from '../template/types.ts'
 import type { WireEnvelope } from '../wire/index.ts'
+import type { CookieJar } from './cookies.ts'
 import type { AnyMachineDef, EventOf, ReadsMap } from './define-machine.ts'
 
 /** Machine context passed to a route's render function. Keyed by machine name. */
@@ -148,6 +149,19 @@ export interface ApiRouteHelpers {
    *  the response carries the new cookie. Requires a store with
    *  `renameSession` (all built-in stores have it). */
   rotateSession: (opts?: { clear?: boolean }) => void
+  /** Read this session's app-defined claims (identity/data). `undefined` if none. */
+  claims: <T = unknown>() => T | undefined
+  /** Replace this session's claims — persisted at request end. */
+  setClaims: (claims: unknown) => void
+  /** Drop this session's claims (keeps the session) — persisted at request end. */
+  clearClaims: () => void
+  /** Destroy this session — its state is deleted and the browser starts
+   *  anonymous. Sugar for `rotateSession({ clear: true })`; applied after the
+   *  handler returns. */
+  clearSession: () => void
+  /** Read/write app-owned cookies (e.g. a login `returnTo`). Distinct from the
+   *  framework-managed session cookie; writes take effect on this response. */
+  readonly cookies: CookieJar
 }
 
 export interface ApiRouteDefinition {

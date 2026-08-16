@@ -53,12 +53,7 @@ Nested and parallel statecharts (and history/invoke) are not shipped. The state 
 
 ### Machine-level on:
 
-A top-level `on:` declares handlers that apply in ANY state, consulted only
-when the current state doesn't declare the event — a state-scoped handler
-always wins. It's the home for a completion event whose handling must not
-depend on an unrelated machine-wide state: a per-record save settling while
-the machine is busy reloading a collection would otherwise be silently
-dropped.
+A top-level `on:` declares handlers that apply in ANY state, consulted only when the current state doesn't declare the event — a state-scoped handler always wins. It's the home for a completion event whose handling must not depend on an unrelated machine-wide state: a per-record save settling while the machine is busy reloading a collection would otherwise be silently dropped.
 
 ```ts
 defineMachine({

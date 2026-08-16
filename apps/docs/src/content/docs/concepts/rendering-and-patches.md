@@ -55,26 +55,11 @@ The same patch shape travels over both transports. A POST event response and an 
 
 ## When patches are valid: the divergence contract
 
-A patch is a diff against **server truth** — applying it assumes your DOM
-matches that truth. Live pages (`// @stator live`) get this guaranteed: an
-initial sync converges the page on connect, fan-out keeps it converged, and
-the dispatching tab's own connection is skipped (its POST response already
-carried the diff). Non-live pages hold the guarantee only under two
-conditions:
+A patch is a diff against **server truth** — applying it assumes your DOM matches that truth. Live pages (`// @stator live`) get this guaranteed: an initial sync converges the page on connect, fan-out keeps it converged, and the dispatching tab's own connection is skipped (its POST response already carried the diff). Non-live pages hold the guarantee only under two conditions:
 
-- **one tab per session per page** — a second tab's dispatches update the
-  server (and the first tab's next dispatch works from that truth), but the
-  first tab's DOM won't hear about them until navigation;
-- **no shared (app-machine) reads** — another visitor's changes to shared
-  state reach a non-live page the same way: not until navigation.
+- **one tab per session per page** — a second tab's dispatches update the server (and the first tab's next dispatch works from that truth), but the first tab's DOM won't hear about them until navigation;
+- **no shared (app-machine) reads** — another visitor's changes to shared state reach a non-live page the same way: not until navigation.
 
-Outside that contract the framework fails safe, not silent: slot ids are
-scoped by branch arm and by list key, so a patch computed for content your
-page isn't showing can never write into the wrong element — it's skipped
-with a console warning. If a page reads shared state or expects multi-tab
-coherence, declare it `live`.
+Outside that contract the framework fails safe, not silent: slot ids are scoped by branch arm and by list key, so a patch computed for content your page isn't showing can never write into the wrong element — it's skipped with a console warning. If a page reads shared state or expects multi-tab coherence, declare it `live`.
 
-Client code has one obligation: **never remove server-owned DOM.** Islands
-hide and show it (CSS classes, `hidden`) — the slots must stay in the
-document to receive patches. An island that deletes server-rendered nodes
-orphans them until the next navigation.
+Client code has one obligation: **never remove server-owned DOM.** Islands hide and show it (CSS classes, `hidden`) — the slots must stay in the document to receive patches. An island that deletes server-rendered nodes orphans them until the next navigation.

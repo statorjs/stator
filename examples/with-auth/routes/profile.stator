@@ -7,6 +7,10 @@ import Layout from '../templates/auth-layout.stator'
 
 const [auth, board, prefs] = Stator.reads([AuthMachine, BoardMachine, PrefsMachine])
 const uid = auth.userId
+// Middleware already redirects anonymous visitors away from /profile (coarse
+// admission on the claims projection). This in-route guard is defense in depth
+// — reading the MACHINE, the source of truth — so the page never leaks even if
+// the edge rule is misconfigured.
 if (!auth.isAuthenticated) Stator.response.status = 401
 ---
 <Layout title="Profile">

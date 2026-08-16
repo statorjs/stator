@@ -23,11 +23,7 @@ export const POST = defineApiRoute({
 })
 ```
 
-Export by method (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`). The mutation
-methods are **command** routes, as above. A `GET` export is either a page
-(`defineRoute`) or a **[data route](#data-get-routes)** — `defineApiRoute`
-declaring `method: 'GET'` — serving JSON, XML, or text instead of a rendered
-page.
+Export by method (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`). The mutation methods are **command** routes, as above. A `GET` export is either a page (`defineRoute`) or a **[data route](#data-get-routes)** — `defineApiRoute` declaring `method: 'GET'` — serving JSON, XML, or text instead of a rendered page.
 
 ## The request
 
@@ -35,34 +31,15 @@ page.
 
 ## Mutate with dispatch
 
-`dispatch(Machine, event)` is typed against the machine's event union. The
-target must be in the route's loaded `reads` graph, and it must be a
-**session**-lifecycle machine — dispatching to an app machine throws at
-request time. To change app state from a handler, go through a session
-gateway machine's emit (see [app machines](/guides/app-machines/)); for
-server-originated events with no session at all (webhooks, cron), use
-`app.dispatchToApp(Machine, event)`.
+`dispatch(Machine, event)` is typed against the machine's event union. The target must be in the route's loaded `reads` graph, and it must be a **session**-lifecycle machine — dispatching to an app machine throws at request time. To change app state from a handler, go through a session gateway machine's emit (see [app machines](/guides/app-machines/)); for server-originated events with no session at all (webhooks, cron), use `app.dispatchToApp(Machine, event)`.
 
 ## Commands don't read, queries don't dispatch
 
-A command handler (`POST`/`PUT`/`PATCH`/`DELETE`) can **dispatch** but not
-read machine state; a data GET handler can **read** but not dispatch. The
-split is structural, not policy: a handler that cannot dispatch has nothing
-to interleave with effect completions or other sessions' commits, which is
-exactly what makes its reads safe. Command handlers that need
-state-dependent *responses* (redirect-to-created-id) remain a deferred design;
-the safe shape is settled (a read atomic with the dispatch), but a general
-"read anywhere in an async handler" can deadlock against effect completions
-and race shared state, so it will not exist in any version. Today's idioms:
-dispatch + navigate (the machine's guards decide; the page renders whichever
-state is true), put the data on a page and let `read()` do its job, or serve
-it from a data GET route.
+A command handler (`POST`/`PUT`/`PATCH`/`DELETE`) can **dispatch** but not read machine state; a data GET handler can **read** but not dispatch. The split is structural, not policy: a handler that cannot dispatch has nothing to interleave with effect completions or other sessions' commits, which is exactly what makes its reads safe. Command handlers that need state-dependent *responses* (redirect-to-created-id) remain a deferred design; the safe shape is settled (a read atomic with the dispatch), but a general "read anywhere in an async handler" can deadlock against effect completions and race shared state, so it will not exist in any version. Today's idioms: dispatch + navigate (the machine's guards decide; the page renders whichever state is true), put the data on a page and let `read()` do its job, or serve it from a data GET route.
 
 ## Data GET routes
 
-`method: 'GET'` declares a read-only **data route**: the handler receives
-`machines` — read proxies keyed by machine name, the same shape a page's
-render context uses — and no `dispatch`.
+`method: 'GET'` declares a read-only **data route**: the handler receives `machines` — read proxies keyed by machine name, the same shape a page's render context uses — and no `dispatch`.
 
 ```ts
 // routes/api/collections/[name].ts  →  GET /api/collections/:name
@@ -74,28 +51,15 @@ export const GET = defineApiRoute({
 })
 ```
 
-Machines hydrate under the session lock — a snapshot coherent *across*
-machines — and the lock is released before the handler runs. Session
-machines answer with the requesting cookie's own state; app machines answer
-with the shared instance.
+Machines hydrate under the session lock — a snapshot coherent *across* machines — and the lock is released before the handler runs. Session machines answer with the requesting cookie's own state; app machines answer with the shared instance.
 
-**The response.** A plain value is JSON, always. A string takes its
-`Content-Type` from the URL's extension — `routes/feed.xml.ts` serves
-`/feed.xml` as `application/xml` (also `.txt`, `.ics`, `.csv`), with
-`text/plain` as the fallback. A raw `Response` passes through verbatim,
-`Content-Type` filled from the extension only when you set none.
+**The response.** A plain value is JSON, always. A string takes its `Content-Type` from the URL's extension — `routes/feed.xml.ts` serves `/feed.xml` as `application/xml` (also `.txt`, `.ics`, `.csv`), with `text/plain` as the fallback. A raw `Response` passes through verbatim, `Content-Type` filled from the extension only when you set none.
 
-Dynamic segments compose with the extension: `routes/p/[id].json.ts` serves
-`/p/:id.json` — the captured param excludes the literal suffix, and the
-suffixed route outranks a bare `/p/:id` page at match time, so a poll page
-and its JSON twin coexist.
+Dynamic segments compose with the extension: `routes/p/[id].json.ts` serves `/p/:id.json` — the captured param excludes the literal suffix, and the suffixed route outranks a bare `/p/:id` page at match time, so a poll page and its JSON twin coexist.
 
-**Conditional GETs are free.** Synthesized responses carry a strong `ETag`
-and answer `If-None-Match` with a bodyless 304, so polling consumers stop
-paying for unchanged data.
+**Conditional GETs are free.** Synthesized responses carry a strong `ETag` and answer `If-None-Match` with a bodyless 304, so polling consumers stop paying for unchanged data.
 
-Data routes serve no HTML: no client runtime is injected, `live:` does not
-exist for them, and `/__events` refuses route keys that target them.
+Data routes serve no HTML: no client runtime is injected, `live:` does not exist for them, and `/__events` refuses route keys that target them.
 
 ## Return value
 

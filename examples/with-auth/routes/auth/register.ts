@@ -9,13 +9,14 @@ import AuthMachine from '../../machines/auth.ts'
  * this handler's scope — it is hashed before anything else touches it, and
  * what enters the database (and later the LOGIN guard) is scrypt output.
  * After creating the account we log the new user in through the same
- * guarded LOGIN as everyone else, then ROTATE the session id — the
- * fixation defense: whatever id this browser had while anonymous is now
- * worthless.
+ * guarded LOGIN as everyone else, mirror the identity into session CLAIMS
+ * (same projection as `login.ts`, for the middleware's edge admission), then
+ * ROTATE the session id — the fixation defense: whatever id this browser had
+ * while anonymous is now worthless.
  */
 export const POST = defineApiRoute({
   reads: [AuthMachine],
-  handler: async (request, { dispatch, rotateSession }) => {
+  handler: async (request, { dispatch, rotateSession, setClaims }) => {
     const form = await request.formData()
     const email = String(form.get('email') ?? '').trim().toLowerCase()
     const name = String(form.get('name') ?? '').trim()
@@ -32,6 +33,8 @@ export const POST = defineApiRoute({
     createUser({ id: `u-${randomUUID()}`, email, name, pass_salt: salt, pass_hash: hash })
 
     await dispatch(AuthMachine, { type: 'LOGIN', email, password })
+    const user = findUserByEmail(email)
+    if (user) setClaims({ userId: user.id, role: user.role })
     rotateSession()
     return { directives: [{ type: 'navigate', to: '/' }] }
   },

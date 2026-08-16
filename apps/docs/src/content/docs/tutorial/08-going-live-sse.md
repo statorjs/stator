@@ -78,7 +78,4 @@ Multi-replica fan-out (a Redis pub/sub backplane), the durable inbox (reaching s
 
 ## Next
 
-Desksmith renders, reacts, persists, and broadcasts — but it still can't take
-money. The final chapter adds checkout with a real async call, and with it
-the one pattern behind all I/O in Stator:
-[async effects](/tutorial/09-async-effects/).
+Desksmith renders, reacts, persists, and broadcasts — but it still can't take money. The final chapter adds checkout with a real async call, and with it the one pattern behind all I/O in Stator: [async effects](/tutorial/09-async-effects/).

@@ -1,7 +1,7 @@
-import { randomUUID } from 'node:crypto'
 import type { Context } from 'hono'
 import { setCookie } from 'hono/cookie'
 import { safeNavigationUrl } from '../wire/safe-url.ts'
+import { cookieJar } from './cookies.ts'
 import { scheduleSessionEffects } from './effects.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
@@ -15,7 +15,7 @@ import type {
   Directive,
   RouteRequest,
 } from './routing.ts'
-import { getOrCreateSessionId, setSessionCookie } from './session.ts'
+import { getOrCreateSessionId, getSessionState, rotateSessionNow } from './session.ts'
 import { withSessionLock } from './session-lock.ts'
 import { SessionRuntime } from './session-runtime.ts'
 import { fanOut } from './sse.ts'
@@ -73,6 +73,25 @@ export async function runApiRoute(
         rotateSession: (opts) => {
           rotation = { clear: opts?.clear === true }
         },
+        clearSession: () => {
+          rotation = { clear: true }
+        },
+        claims: <T = unknown>() => getSessionState(c)?.claims as T | undefined,
+        setClaims: (claims) => {
+          const s = getSessionState(c)
+          if (s) {
+            s.claims = claims
+            s.claimsDirty = true
+          }
+        },
+        clearClaims: () => {
+          const s = getSessionState(c)
+          if (s) {
+            s.claims = undefined
+            s.claimsDirty = true
+          }
+        },
+        cookies: cookieJar(c),
       }
 
       let result: Response | ApiRouteEnvelope
@@ -101,20 +120,11 @@ export async function runApiRoute(
       // new cookie. Effect completions must chase the NEW id.
       let effectsSessionId = sessionId
       if (rotation !== null) {
-        const newSessionId = randomUUID()
-        if ((rotation as { clear: boolean }).clear) {
-          await store.persistence.deleteSession(sessionId)
-        } else {
-          if (!store.persistence.renameSession) {
-            throw new Error(
-              'stator: rotateSession requires a store with renameSession — ' +
-                'the configured custom store does not implement it.',
-            )
-          }
-          await store.persistence.renameSession(sessionId, newSessionId)
-        }
-        setSessionCookie(c, newSessionId)
-        effectsSessionId = newSessionId
+        // Apply the deferred rotation now the handler has returned. The helper
+        // moves (or, on clear, deletes) the session, sets the new cookie, and
+        // updates the shared session state so the bridge persists claims to the
+        // new id. Effect completions must chase the NEW id.
+        effectsSessionId = await rotateSessionNow(c, store, rotation)
       }
       // Effects queued by dispatched events run after this callback returns
       // (never under the session lock); see server/effects.ts.
@@ -201,8 +211,10 @@ function synthesizeResponse(
       // same-origin, else fall back to '/' (no open redirect).
       return c.redirect(sameOriginReferer(request), 303)
     }
-    // No actionable directive for a no-JS client. Send a minimal 204.
-    return new Response(null, { status: 204 })
+    // No actionable directive for a no-JS client. Send a minimal 204 — via
+    // c.body so any cookies set this request (session rotation, the cookie jar)
+    // survive; a bare `new Response` would drop c's accumulated Set-Cookie.
+    return c.body(null, 204)
   }
 
   // JSON / client-runtime path.

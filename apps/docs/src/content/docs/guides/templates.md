@@ -54,10 +54,7 @@ Use `when` for one condition, `match` to pick one of several by value.
 ```
 
 :::note
-By default a changed list re-renders its body. Pass a `key` —
-`each(items, fn, { key: (i) => i.id })` — and changes become per-item
-insert/remove/move patches instead, so rows keep focus and transitions across
-reorders. See [Keyed lists](/guides/keyed-lists/).
+By default a changed list re-renders its body. Pass a `key` — `each(items, fn, { key: (i) => i.id })` — and changes become per-item insert/remove/move patches instead, so rows keep focus and transitions across reorders. See [Keyed lists](/guides/keyed-lists/).
 :::
 
 ## Async data: defer
@@ -103,8 +100,7 @@ Layouts and named children (`<children>`) are covered in [Routing](/guides/routi
 
 ### Attribute spread
 
-`{...rest}` spreads a bag of attributes onto an element or a component — the
-usual shape for a wrapper that forwards native attributes it doesn't handle:
+`{...rest}` spreads a bag of attributes onto an element or a component — the usual shape for a wrapper that forwards native attributes it doesn't handle:
 
 ```astro
 ---
@@ -113,22 +109,15 @@ const { label, ...rest } = Stator.props<{ label: string } & HTMLAttributes<'butt
 <button {...rest}>{label}</button>
 ```
 
-Machine reads inside the bag become live attribute bindings. Directives can't
-ride a spread — `on:`/`ref:` stay explicit attributes.
+Machine reads inside the bag become live attribute bindings. Directives can't ride a spread — `on:`/`ref:` stay explicit attributes.
 
 ### Typed native attributes
 
-`HTMLAttributes<Tag>` types a component's pass-through surface with the real
-per-element attribute set, so `<Button type="sbumit">` is a compile error at
-the call site. Per-element typing also backs plain elements: every intrinsic
-tag checks its own attributes.
+`HTMLAttributes<Tag>` types a component's pass-through surface with the real per-element attribute set, so `<Button type="sbumit">` is a compile error at the call site. Per-element typing also backs plain elements: every intrinsic tag checks its own attributes.
 
 ### Forwarding events to a component
 
-`on:*` on a component tag doesn't attach anywhere by itself — the component
-chooses the element that receives it with `Stator.forwarded(name)`, which
-returns that one directive's handler (or `undefined` when the caller didn't
-pass it — an absent handler renders no binding):
+`on:*` on a component tag doesn't attach anywhere by itself — the component chooses the element that receives it with `Stator.forwarded(name)`, which returns that one directive's handler (or `undefined` when the caller didn't pass it — an absent handler renders no binding):
 
 ```astro
 <Button on:click={() => cart.send({ type: 'CLEAR' })}>Reset</Button>
@@ -142,12 +131,6 @@ const onClick = Stator.forwarded('on:click')
 <button on:click={onClick}>{children}</button>
 ```
 
-Only `on:*` forwards, and only in a server component — a route has no parent
-to forward from, and client islands wire their own handlers. `ref:` applies
-to elements directly.
+Only `on:*` forwards, and only in a server component — a route has no parent to forward from, and client islands wire their own handlers. `ref:` applies to elements directly.
 
-The worked example of spread + forwarding together is the reference store's
-[`<Button>`](https://github.com/statorjs/stator/tree/main/apps/store) — one
-component rendering `<a>` or `<button>` off a discriminated union, native
-attributes through `{...rest}`, caller `class` folded into `class:list`, and
-`on:click` forwarded to the real element.
+The worked example of spread + forwarding together is the reference store's [`<Button>`](https://github.com/statorjs/stator/tree/main/apps/store) — one component rendering `<a>` or `<button>` off a discriminated union, native attributes through `{...rest}`, caller `class` folded into `class:list`, and `on:click` forwarded to the real element.
