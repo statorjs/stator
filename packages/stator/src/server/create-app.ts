@@ -12,6 +12,7 @@ import { buildHonoApp } from './http.ts'
 import { logger, setLogLevel } from './logger.ts'
 import { MachineStore } from './machine-store.ts'
 import { discoverRoutes } from './route-discovery.ts'
+import { setSessionSameSite } from './session.ts'
 import { InMemoryStore, type Store } from './store.ts'
 
 export interface CreateAppConfig extends DeprecatedFlatConfig {
@@ -34,6 +35,9 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
     /** Per-session TTL in seconds. Every set to any of the session's machines
      *  refreshes this expiry. Defaults to 24h (86400). */
     ttlSeconds?: number
+    /** Session cookie policy. `cookie.sameSite: 'Strict'` opts into the
+     *  controlled CSRF posture. */
+    cookie?: { sameSite?: 'Lax' | 'Strict' }
   }
   /** Realtime / push policy. */
   realtime?: {
@@ -52,6 +56,9 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
      *  `LOG_LEVEL` env takes precedence over this. */
     level?: LogLevel
   }
+  /** Origins allowed to make cross-site writes despite the CSRF guard (exact or
+   *  wildcard-subdomain). Mirrors `StatorConfig.trustedOrigins`. */
+  trustedOrigins?: readonly string[]
   /** Extra `<head>` HTML per GET route. A production build uses this to link the
    *  prebuilt `components.css`; ignored if omitted. */
   headExtras?: (filePath: string) => string | Promise<string>
@@ -83,6 +90,7 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
   // is the production entry point, so it defaults quiet). setLogLevel also covers
   // the scoped children (http/sse/…), which a bare `logger.level =` would miss.
   setLogLevel(process.env.LOG_LEVEL ?? resolved.logLevel ?? 'warn')
+  setSessionSameSite(resolved.sameSite ?? 'Lax')
   const { defs } = await discoverMachines(machinesDir)
   const sessionStore = resolved.session ?? new InMemoryStore()
   const store = new MachineStore(defs, sessionStore, {
@@ -108,6 +116,8 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
       : config.headExtras,
     inspector,
     ssePingMs: resolved.ssePingMs,
+    trustedOrigins: resolved.trustedOrigins,
+    sameSite: resolved.sameSite,
   })
 
   return {

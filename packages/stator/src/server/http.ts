@@ -6,7 +6,7 @@ import { type Context, Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
 import { applyRenderedEffects, runApiRoute } from './api-route.ts'
-import { isBlockedCrossSite } from './csrf.ts'
+import { crossSiteGuard } from './csrf.ts'
 import { scheduleSessionEffects } from './effects.ts'
 import { record, replayFor } from './event-dedupe.ts'
 import { scopedLogger } from './logger.ts'
@@ -37,6 +37,12 @@ export interface HttpConfig {
   inspector?: boolean
   /** SSE heartbeat interval in ms (default 25s). Tests shorten it. */
   ssePingMs?: number
+  /** Origins allowed to make cross-site writes despite the guard (exact or
+   *  wildcard-subdomain). Feeds the default `crossSiteGuard`. */
+  trustedOrigins?: readonly string[]
+  /** Session cookie `SameSite`. `Strict` flips the guard to allowlist-only for
+   *  same-site writes too. */
+  sameSite?: 'Lax' | 'Strict'
 }
 
 const eventSchema = z.object({
@@ -150,6 +156,16 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       isLive ? 'sse open' : 'request',
     )
   })
+
+  // Cross-site write guard — runs before route matching so a cross-site write to
+  // an unknown path 403s (not a route-revealing 404). Safe methods pass through.
+  app.use(
+    '*',
+    crossSiteGuard({
+      trustedOrigins: config.trustedOrigins,
+      strict: config.sameSite === 'Strict',
+    }),
+  )
 
   // Compile matchers for every route, in discovery's specificity order. Our own
   // matcher (not Hono's router) is the routing authority: GET/API dispatch and
@@ -291,9 +307,6 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   })
 
   app.post('/__events', async (c) => {
-    if (isBlockedCrossSite(c)) {
-      return c.json({ error: 'cross-site request blocked' }, 403)
-    }
     const { sessionId } = getOrCreateSessionId(c)
     const routeKey = c.req.header('X-Stator-Route')
     if (!routeKey) {
@@ -408,7 +421,6 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       const matched = matchPath(matchers, c.req.path)
       const apiRoute = matched?.route[method]
       if (!matched || !apiRoute) return next()
-      if (isBlockedCrossSite(c)) return c.text('cross-site request blocked', 403)
       return runApiRoute(c, matched.route, apiRoute, config.store, matched.params)
     })
   }

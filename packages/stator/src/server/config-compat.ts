@@ -25,10 +25,11 @@ export interface DeprecatedFlatConfig {
 
 interface NestedReads {
   persistence?: { session?: Store; app?: AppStore }
-  sessions?: { ttlSeconds?: number }
+  sessions?: { ttlSeconds?: number; cookie?: { sameSite?: 'Lax' | 'Strict' } }
   realtime?: { pingMs?: number }
   dev?: { inspector?: boolean }
   logging?: { level?: LogLevel }
+  trustedOrigins?: readonly string[]
 }
 
 /** The flat internal values `createApp`/`createDevApp` actually consume. */
@@ -39,6 +40,8 @@ export interface ResolvedAppConfig {
   ssePingMs?: number
   inspector?: boolean
   logLevel?: LogLevel
+  trustedOrigins?: readonly string[]
+  sameSite?: 'Lax' | 'Strict'
 }
 
 /**
@@ -69,5 +72,7 @@ export function resolveAppConfig(config: NestedReads & DeprecatedFlatConfig): Re
     ssePingMs: config.realtime?.pingMs ?? config.ssePingMs,
     inspector: config.dev?.inspector ?? config.inspector,
     logLevel: config.logging?.level,
+    trustedOrigins: config.trustedOrigins,
+    sameSite: config.sessions?.cookie?.sameSite,
   }
 }

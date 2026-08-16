@@ -54,6 +54,9 @@ export interface DevAppConfig {
   sessions?: {
     /** Per-session TTL in seconds. Defaults to 24h (86400). */
     ttlSeconds?: number
+    /** Session cookie policy. `cookie.sameSite: 'Strict'` opts into the
+     *  controlled CSRF posture. */
+    cookie?: { sameSite?: 'Lax' | 'Strict' }
   }
   /** Dev-only tooling. */
   dev?: {
@@ -65,6 +68,9 @@ export interface DevAppConfig {
     /** Minimum level to emit. Default: `info` in dev. `LOG_LEVEL` env wins. */
     level?: LogLevel
   }
+  /** Origins allowed to make cross-site writes despite the CSRF guard (exact or
+   *  wildcard-subdomain). Mirrors `StatorConfig.trustedOrigins`. */
+  trustedOrigins?: readonly string[]
   // Deprecated flat keys — accepted (typed) so 2.1.0 callers don't break; nested
   // wins. `createDevApp` never shipped `ssePingMs`, so it's not accepted here.
   /** @deprecated use `persistence.session` */
@@ -129,6 +135,9 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   const logLevel = process.env.LOG_LEVEL ?? resolved.logLevel ?? 'info'
   setLogLevel(logLevel)
   runtime.setLogLevel(logLevel)
+  // The session cookie is written by the Vite-loaded runtime, so configure that
+  // instance's SameSite (the native one would set a different module's global).
+  runtime.setSessionSameSite(resolved.sameSite ?? 'Lax')
   const inspectorOn = resolved.inspector ?? true
 
   const resultCache = new Map<string, ReturnType<typeof compile>>()
@@ -224,6 +233,8 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
       staticDir: config.staticDir,
       headExtras,
       inspector: inspectorOn,
+      trustedOrigins: resolved.trustedOrigins,
+      sameSite: resolved.sameSite,
     })
   }
 

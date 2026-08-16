@@ -39,6 +39,13 @@ export interface StatorConfig {
   sessions?: {
     /** Per-session idle TTL in seconds. Default: 86400 (24h). */
     ttlSeconds?: number
+    /** Session cookie policy. */
+    cookie?: {
+      /** `SameSite` attribute. Default `Lax` (allows same-site subdomains).
+       *  `Strict` withholds the cookie from every cross-site request and flips
+       *  the CSRF guard to allowlist-only — the controlled posture. */
+      sameSite?: 'Lax' | 'Strict'
+    }
     // cookieName?, rotation? — reserved policy siblings (not wired yet).
   }
   /** Realtime / push policy. Protocol-neutral so a future WS transport doesn't
@@ -53,6 +60,11 @@ export interface StatorConfig {
     /** Dev inspector toolbar (`dev` only). Default: on. */
     inspector?: boolean
   }
+  /** Origins allowed to make cross-site writes despite the CSRF guard — exact
+   *  (`https://app.example.com`) or wildcard-subdomain (`https://*.example.com`).
+   *  Same-origin and same-site writes are already allowed; this is for decoupled
+   *  frontends or partner domains. */
+  trustedOrigins?: string[]
   /** Logging policy. */
   logging?: {
     /** Minimum level to emit. Default: `warn` in production, `info` in dev.
