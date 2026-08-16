@@ -181,18 +181,12 @@ function securityHeaders(opts?: SecurityHeadersOptions): MiddlewareHandler
 function stator(c: Context): StatorContext  // resolved config on the request context
 ```
 
-- **`defineMiddleware`** — the app's `middleware.ts` default export. Framework
-  security defaults run first, then these handlers, then the route.
-- **`dangerouslyDefineMiddleware`** — the same, without the security defaults (a
-  greppable opt-out; skips only security, never framework plumbing).
-- **`crossSiteGuard`** — the default cross-site (CSRF) write guard, exported so a
-  `dangerously…` app can re-add it. On by default; reads `trustedOrigins` from
-  the context.
+- **`defineMiddleware`** — the app's `middleware.ts` default export. Framework security defaults run first, then these handlers, then the route.
+- **`dangerouslyDefineMiddleware`** — the same, without the security defaults (a greppable opt-out; skips only security, never framework plumbing).
+- **`crossSiteGuard`** — the default cross-site (CSRF) write guard, exported so a `dangerously…` app can re-add it. On by default; reads `trustedOrigins` from the context.
 - **`cors`** — cross-origin *read* policy. `origins` defaults to `trustedOrigins`.
-- **`securityHeaders`** — opt-in baseline headers (nosniff always; frame/referrer
-  by default; HSTS/CSP opt-in).
-- **`stator(c)`** — read resolved config (`origin`, `trustedOrigins`, `cors`,
-  `sameSite`) inside a middleware.
+- **`securityHeaders`** — opt-in baseline headers (nosniff always; frame/referrer by default; HSTS/CSP opt-in).
+- **`stator(c)`** — read resolved config (`origin`, `trustedOrigins`, `cors`, `sameSite`) inside a middleware.
 
 ## Lower-level exports
 

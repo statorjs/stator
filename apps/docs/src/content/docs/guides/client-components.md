@@ -117,15 +117,9 @@ Machine [actors](/concepts/state-machines/#definition-actor-instance) start on `
 
 ## Islands are leaves
 
-An island's markup is its own template — server-rendered content does not
-flow *through* it, and that's a deliberate boundary (like early Astro
-shipping without SSR: a known edge, owned). Four sanctioned channels cover
-composition with the server:
+An island's markup is its own template — server-rendered content does not flow *through* it, and that's a deliberate boundary (like early Astro shipping without SSR: a known edge, owned). Four sanctioned channels cover composition with the server:
 
-1. **Live attrs in.** Pass a `read()` as an island prop and the attribute
-   becomes a live server binding. Declared attrs are observed: implement
-   `${key}Changed(next)` and every patch lands there, coerced per your
-   `static attrs` declaration.
+1. **Live attrs in.** Pass a `read()` as an island prop and the attribute becomes a live server binding. Declared attrs are observed: implement `${key}Changed(next)` and every patch lands there, coerced per your `static attrs` declaration.
 
    ```astro
    <stock-badge stock={read(inventory, (i) => String(i.stock[sku]))} />
@@ -138,15 +132,9 @@ composition with the server:
 
 2. **`dispatch` out.** The one visible boundary crossing (below).
 
-3. **Observing server-owned DOM.** For regions the server keeps fresh
-   *outside* the island, plain platform tools (`querySelector`,
-   `MutationObserver`) are legitimate — islands are custom elements.
-   Prefer channel 1 when the data can arrive as an attr.
+3. **Observing server-owned DOM.** For regions the server keeps fresh *outside* the island, plain platform tools (`querySelector`, `MutationObserver`) are legitimate — islands are custom elements. Prefer channel 1 when the data can arrive as an attr.
 
-4. **Server-rendered sections (the adopt pattern).** Island templates may
-   contain server-evaluated expressions — props-driven maps with nested JSX,
-   even a full component render passed as a prop. The shell renders them per
-   use; the class adopts them by querying:
+4. **Server-rendered sections (the adopt pattern).** Island templates may contain server-evaluated expressions — props-driven maps with nested JSX, even a full component render passed as a prop. The shell renders them per use; the class adopts them by querying:
 
    ```astro
    <div class="opts" ref:opts>
@@ -163,8 +151,7 @@ composition with the server:
    }
    ```
 
-   Note: `on:` directives and client-machine `read()`s don't reach inside these server sections —
-   wiring happens in the class, which is the point of the pattern.
+   Note: `on:` directives and client-machine `read()`s don't reach inside these server sections — wiring happens in the class, which is the point of the pattern.
 
 ## Committing to the server
 
@@ -174,8 +161,4 @@ To change *server* state from an island, dispatch to a server machine:
 const result = await dispatch(CartMachine, { type: 'ADD_ITEM', productId: id })
 ```
 
-`dispatch` resolves `{ ok, committed, patchCount }` — three different facts.
-`ok` is transport; **`committed`** is whether the event actually transitioned
-a machine (a guard-dropped event is `ok && !committed`); `patchCount` is how
-many patches landed on *this* page. Buttons that announce success should look
-at `committed`.
+`dispatch` resolves `{ ok, committed, patchCount }` — three different facts. `ok` is transport; **`committed`** is whether the event actually transitioned a machine (a guard-dropped event is `ok && !committed`); `patchCount` is how many patches landed on *this* page. Buttons that announce success should look at `committed`.
