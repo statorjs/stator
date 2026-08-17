@@ -2,7 +2,7 @@
 title: File uploads
 description: "Uploads are standard web FormData and File. The only framework rule is that the bytes go to storage and only a key goes in a machine."
 sidebar:
-  order: 8
+  order: 9
 ---
 
 There is no Stator upload API, and that's the recipe. A file upload is a multipart `POST`, and an API route hands you the **web-standard `FormData` and `File`** — the same objects you'd use anywhere. The one framework-shaped decision is where the bytes go, and the answer is never "a machine."
