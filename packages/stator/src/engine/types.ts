@@ -243,6 +243,10 @@ export interface MachineDef<
   persist: boolean
   reads: AnyMachineDef[]
   subscribes: SubscribeEntry[]
+  /** Event types no client may dispatch to `/__events` (server-generated only:
+   *  effect completions, timers, cross-machine internals). Normalized to `[]`.
+   *  Enforced with a 403 in production; the chart handles them normally. */
+  serverOnly: readonly string[]
   /** Normalized: every declared emit, possibly with a payload selector. */
   emits: Record<string, EmitDeclaration<C, E>>
   selectors: Sel

@@ -399,6 +399,19 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       return c.json({ error: `unknown machine "${body.machine}"` }, 404)
     }
 
+    // `serverOnly` events are server-generated — effect completions
+    // (`CHARGE_APPROVED`), `after:` timers, cross-machine internals — that no
+    // client legitimately sends. A client POST of one is forgery (e.g. faking a
+    // settled charge), so reject at the wire boundary with 403. The chart still
+    // handles the event when the engine/effects raise it internally: that path
+    // is `runtime.processEvent`, never `/__events`, so it's untouched. Enforced
+    // in dev and prod alike — the declaration is explicit, so there's no
+    // false-positive risk and no dev/prod divergence. Origin legitimacy only,
+    // not per-user authorization — guards still own that.
+    if (originDef.serverOnly.includes(body.event.type)) {
+      return c.json({ error: `event type "${body.event.type}" is server-only` }, 403)
+    }
+
     return withSessionLock(sessionId, async () => {
       // Idempotent replay: a duplicate POST (client retry after a lost
       // response) returns the original response body verbatim instead of

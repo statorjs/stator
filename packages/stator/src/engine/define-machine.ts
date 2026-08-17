@@ -30,6 +30,13 @@ export interface DefineMachineConfig<
   /** Typed event surface. Pass `{} as MyEvents` — a phantom carrier the engine
    *  reads only for its type. Actions/guards then narrow per transition. */
   events?: E
+  /** Event types NO client may dispatch to `/__events` — effect completions
+   *  (`CHARGE_APPROVED`), timer/`after:` events, cross-machine internals: events
+   *  only the server/engine generates. A production `stator start` rejects a
+   *  client POST of one with 403 (dev does not enforce). Typed against the event
+   *  union, so a name that isn't a real event is a compile error. The chart still
+   *  handles them normally when the engine/effects raise them. */
+  serverOnly?: readonly E['type'][]
   emits?: EmitsConfig<C, E>
   context: C
   initial: NoInfer<S>
@@ -116,6 +123,7 @@ export function defineMachine<
     persist: config.persist ?? false,
     reads,
     subscribes: config.subscribes ?? [],
+    serverOnly: config.serverOnly ?? [],
     emits: normalizeEmits<C, E>(config.emits),
     selectors: (config.selectors ?? {}) as Sel,
     capabilities: computeCapabilities(reads),
