@@ -121,6 +121,12 @@ const CartMachineDef = defineMachine({
   name: 'CartMachine',
   lifecycle: 'session',
   events: {} as Events,
+  // The settlement events come only from the charge effect (server-authoritative
+  // — the amount is computed from context, never the client). Declaring them
+  // server-only means a forged POST /__events `CHARGE_APPROVED` — a paid order
+  // without a charge — is rejected with 403 at the wire boundary. Clients still
+  // drive checkout via BEGIN_CHECKOUT/SET_*/SUBMIT; only the completions are sealed.
+  serverOnly: ['CHARGE_APPROVED', 'CHARGE_DECLINED'],
   reads: [InventoryMachine],
   emits: {
     orderPlaced: {

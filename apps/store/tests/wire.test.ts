@@ -76,6 +76,22 @@ describe('the wire contract', () => {
     expect(body.patches).toEqual([])
   })
 
+  it('a forged CHARGE_APPROVED is hard-rejected: 403 (server-only), no fake settlement', async () => {
+    // Unlike the restock above (an unhandled event → soft guard-drop 200), the
+    // charge completions are declared `serverOnly` — a forged settlement is a
+    // paid order without a charge, so the wire boundary rejects it outright.
+    const cookie = await session('/cart')
+    const res = await post(cookie, 'GET /cart', 'CartMachine', {
+      type: 'CHARGE_APPROVED',
+      receiptId: 'forged',
+      amountCents: 0,
+      summary: 'free stuff',
+      items: [],
+    })
+    expect(res.status).toBe(403)
+    expect(((await res.json()) as { error: string }).error).toMatch(/server-only/)
+  })
+
   it('checkout form values travel as forms, guards decide the state', async () => {
     const cookie = await session('/cart')
     await post(cookie, 'GET /cart', 'CartMachine', { type: 'ADD', sku: 'mudlark--kelp--40' })
