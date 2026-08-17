@@ -109,15 +109,27 @@ promotes it.
   effects (the load role), on session and app machines both. Still open:
   durable schedules (pairs with durable effects) — in-memory timers drop on
   restart by design.
-- **Server-only events / client-dispatch allowlist** *(2.3, PR D)*: the compiler
-  derives, per machine, the set of events client code actually dispatches (template
-  `on:` handlers + island `dispatch`), the build writes it to the manifest, and
-  **`stator start` rejects any `/__events` event outside that set with 403** (403
-  not 404, to avoid revealing which events exist). Enforcement is **prod-only** —
-  dev has no attacker; `stator check` + tests are the dev feedback. Usage-derived,
-  so it excludes completions/internals/server-only *by construction* and closes the
-  forged-`COMMIT_OK` hazard; the explicit `server-only` *declaration* is a deferred
-  auditability layer. Design in
+- **Server-only events (`serverOnly` declaration)** *(shipped, 2.3)*: a machine
+  lists event types no client may dispatch (effect completions, `after:` timers,
+  cross-machine internals); a client `POST /__events` of one is rejected with **403**
+  (403 not 404 — don't reveal which events exist), enforced in **dev and prod** (the
+  declaration is explicit, so no false positives and no dev/prod divergence). The list
+  is typechecked against the event union. Closes the forged-`CHARGE_APPROVED`/
+  `COMMIT_OK` hazard with no compiler analysis. The completion still re-enters via the
+  internal dispatch path (never `/__events`). Dogfooded on `apps/store` (cart charge
+  completions) with a "Server-only events" recipe.
+- **Compiler-derived client-dispatch allowlist** *(post-2.4, evidence-gated)*: the
+  *automatic* version — the compiler derives, per machine, the set of events client
+  code actually dispatches (template `on:` + island `dispatch`) and enforces it at
+  `/__events`, excluding completions/internals *by construction*. Cut from 2.3 and
+  re-slotted **after the Vite exit (2.4)**: it needs the owned build pipeline (its
+  allowlist is a build artifact) and the introspection-manifest substrate, and its
+  prod-only-403 failure mode (compiler misses a legit dispatch → false 403 in prod
+  only) fights the dev==prod goal 2.4 chases — so it should land first as a
+  dev-visible `stator check` lint, not a silent gate. *Promotion bar*: the manifest
+  substrate landing **and** a justification beyond the manual `serverOnly` flag (real
+  `serverOnly` usage painful to hand-maintain, or a non-security manifest consumer).
+  Design in
   [`.chisel/docs/client-dispatch-allowlist.md`](.chisel/docs/client-dispatch-allowlist.md).
   *Motivation*: two independent apps hit the wall — `with-auth` couldn't do
   handler-verifies-then-dispatches, and the gateway pattern recreates a forgeable
