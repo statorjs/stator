@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join, relative, resolve, sep } from 'node:path'
 import { compile } from '../compiler/index.ts'
@@ -47,8 +48,11 @@ export interface BuildResult {
   islands: number
 }
 
-/** Shape of `dist/stator-manifest.json` (only written when islands exist). */
+/** Shape of `dist/stator-manifest.json` (always written — carries `buildId`). */
 export interface StatorManifest {
+  /** Per-build identifier — `stator start` serves it into live pages for the
+   *  reload handshake (a client on an older build reloads on reconnect). */
+  buildId: string
   /** Island component (dist-relative `.stator` path) → its script URL. */
   islands: Record<string, string>
   /** Route file (dist-relative) → script URLs for every island it reaches. */
@@ -120,10 +124,13 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
     await writeFile(join(outDir, 'static', 'components.css'), css)
   }
 
-  if (islands.length > 0) {
-    const manifest = await buildClientAssets(outDir, islands)
-    await writeFile(join(outDir, 'stator-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
-  }
+  // Always write the manifest — it carries the build-id even for an app with no
+  // islands (a live route without islands still needs the reload handshake).
+  const manifest: StatorManifest =
+    islands.length > 0
+      ? { buildId: randomUUID(), ...(await buildClientAssets(outDir, islands)) }
+      : { buildId: randomUUID(), islands: {}, routes: {} }
+  await writeFile(join(outDir, 'stator-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
 
   return { outDir, compiled: statorFiles.length, hasCss: Boolean(css), islands: islands.length }
 }
@@ -135,7 +142,7 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
 async function buildClientAssets(
   outDir: string,
   islands: Array<{ rel: string; entry: string }>,
-): Promise<StatorManifest> {
+): Promise<Omit<StatorManifest, 'buildId'>> {
   const [{ build: viteBuild }, { machineStub }] = await Promise.all([
     import('vite'),
     import('../vite/stub.ts'),

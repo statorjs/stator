@@ -7,12 +7,15 @@ import type { StatorManifest } from './build.ts'
  * build produced one, and injects each route's island `<script type="module">`
  * tags from `stator-manifest.json`. Pass the result to `createApp`:
  *
- *   const app = await createApp({ ..., headExtras: await loadProductionHead(dist) })
+ *   const { headExtras, buildId } = await loadProductionHead(dist)
+ *   const app = await createApp({ ..., headExtras, buildId })
  *
- * Both artifacts are optional — a server-only app without styles gets an
- * empty hook.
+ * Everything is optional — a server-only app without styles gets an empty hook,
+ * and a build with no `buildId` in its manifest just skips the reload handshake.
  */
-export async function loadProductionHead(distDir: string): Promise<(filePath: string) => string> {
+export async function loadProductionHead(
+  distDir: string,
+): Promise<{ headExtras: (filePath: string) => string; buildId?: string }> {
   const dist = resolve(distDir)
 
   let cssTag = ''
@@ -24,20 +27,23 @@ export async function loadProductionHead(distDir: string): Promise<(filePath: st
   }
 
   let routes: StatorManifest['routes'] = {}
+  let buildId: string | undefined
   try {
     const manifest = JSON.parse(
       await readFile(join(dist, 'stator-manifest.json'), 'utf8'),
     ) as StatorManifest
     routes = manifest.routes ?? {}
+    buildId = manifest.buildId
   } catch {
-    // no islands
+    // no manifest
   }
 
-  return (filePath: string): string => {
+  const headExtras = (filePath: string): string => {
     const rel = relative(dist, resolve(filePath)).replace(/\\/g, '/')
     const scripts = routes[rel] ?? []
     return [cssTag, ...scripts.map((url) => `<script type="module" src="${url}"></script>`)]
       .filter(Boolean)
       .join('\n')
   }
+  return { headExtras, buildId }
 }

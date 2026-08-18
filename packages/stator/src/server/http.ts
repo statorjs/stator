@@ -49,6 +49,10 @@ export interface HttpConfig {
   /** Signed-cookie signing key (`config.secret` ?? `STATOR_SECRET`). Stashed on
    *  the request context so `cookies.setSigned`/`getSigned` can reach it. */
   secret?: string
+  /** Build identifier — per-boot in dev, per-build in prod. Emitted into live
+   *  pages as `<meta name="stator-build">`; the client echoes it on /__sse
+   *  connect, and a mismatch reloads the page (its slot map may be stale). */
+  buildId?: string
   /** Resolved CORS read policy, exposed via `stator(c).cors`. */
   cors?: { origins: readonly string[]; credentials: boolean }
   /** The app's discovered `middleware.ts` definition (if any). `withDefaults`
@@ -304,6 +308,17 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     c.header('X-Accel-Buffering', 'no')
 
     return streamSSE(c, async (stream) => {
+      // Build-id handshake: this page was rendered against a server build
+      // (`build` param, from its `stator-build` meta). If ours differs — a dev
+      // restart or a deploy since page load — its DOM↔slot-ID map may be stale,
+      // so reload to fetch a fresh page instead of resyncing onto it. Checked
+      // before any render/registration: a doomed connection does no work.
+      const pageBuild = c.req.query('build')
+      if (config.buildId && pageBuild && pageBuild !== config.buildId) {
+        await stream.writeSSE({ data: JSON.stringify({ directives: [{ type: 'reload' }] }) })
+        return
+      }
+
       const runtime = new SessionRuntime(sessionId, config.store)
       await runtime.loadGraph(route.reads)
       const { renderState } = await renderRoute(route, routeKey, sessionId, runtime, request)
@@ -497,7 +512,15 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     if (isStatorQueryRoute(getRoute)) {
       return runQueryRoute(c, matched.route, getRoute, config.store, matched.params)
     }
-    return handleGet(c, matched.route, getRoute, matched.params, config.store, config.headExtras)
+    return handleGet(
+      c,
+      matched.route,
+      getRoute,
+      matched.params,
+      config.store,
+      config.headExtras,
+      config.buildId,
+    )
   })
 
   return app
@@ -568,6 +591,7 @@ async function handleGet(
   params: Record<string, string>,
   store: MachineStore,
   headExtras?: (filePath: string) => string | Promise<string>,
+  buildId?: string,
 ): Promise<Response> {
   {
     const { sessionId } = getOrCreateSessionId(c)
@@ -586,7 +610,15 @@ async function handleGet(
         const extra = await headExtras(discovered.filePath)
         if (extra) headHtml.push(extra)
       }
-      if (route.live) headHtml.push('<meta name="stator-live" content="true">')
+      if (route.live) {
+        headHtml.push('<meta name="stator-live" content="true">')
+        // The build this page was rendered against — the client echoes it on
+        // /__sse connect so the server can reload a page from a stale build.
+        // `buildId` is a framework-generated UUID (no HTML-special chars).
+        if (buildId) {
+          headHtml.push(`<meta name="stator-build" content="${buildId}">`)
+        }
+      }
 
       // Auto-inject the client runtime (delegated events + patch application).
       // Apps never hand-include it — a forgotten <script> is a silently dead

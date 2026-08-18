@@ -72,7 +72,12 @@ function initLiveChannel(): { close(): void } | undefined {
   if (!meta) return
 
   const routeKey = `GET ${location.pathname}${location.search}`
-  const url = `/__sse?route=${encodeURIComponent(routeKey)}&client=${encodeURIComponent(clientId)}`
+  // Echo the build this page was rendered against (if any) so the server can
+  // reload us when it's serving a newer build (dev restart / deploy). Baked
+  // into the URL at load time, so it rides EventSource's native reconnect too.
+  const build = document.querySelector('meta[name="stator-build"]')?.getAttribute('content')
+  const buildParam = build ? `&build=${encodeURIComponent(build)}` : ''
+  const url = `/__sse?route=${encodeURIComponent(routeKey)}&client=${encodeURIComponent(clientId)}${buildParam}`
 
   // Connection-state signal: `data-stator-connection` on the root element
   // (CSS hook for offline banners etc.) plus a `stator:connection-state`

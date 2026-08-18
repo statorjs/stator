@@ -73,9 +73,12 @@ describe('build: buildApp', () => {
     expect(await exists(join(outDir, 'templates/stepper.stator.client.ts'))).toBe(true)
 
     const manifest = JSON.parse(await readFile(join(outDir, 'stator-manifest.json'), 'utf8')) as {
+      buildId: string
       islands: Record<string, string>
       routes: Record<string, string[]>
     }
+    // The manifest carries a build-id for the reload handshake.
+    expect(manifest.buildId).toMatch(/[0-9a-f-]{36}/)
     const url = manifest.islands['templates/stepper.stator']
     expect(url).toMatch(/^\/static\/assets\/templates_stepper-[\w-]+\.js$/)
 
@@ -103,11 +106,13 @@ describe('build: buildApp', () => {
   })
 
   it('serves the built dist with island script injection (no Vite)', async () => {
+    const { headExtras, buildId } = await loadProductionHead(outDir)
     const app = await createApp({
       machinesDir: join(outDir, 'machines'),
       routesDir: join(outDir, 'routes'),
       staticDir: join(outDir, 'static'),
-      headExtras: await loadProductionHead(outDir),
+      headExtras,
+      buildId,
     })
 
     // The island route gets its module script + the shell renders.

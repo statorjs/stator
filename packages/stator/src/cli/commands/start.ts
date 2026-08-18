@@ -16,6 +16,7 @@ export async function run(ctx: CliContext): Promise<void> {
   }
 
   const config = await loadConfig(ctx.root)
+  const { headExtras, buildId } = await loadProductionHead(dist)
   const app = await createApp({
     machinesDir: resolve(dist, 'machines'),
     routesDir: resolve(dist, 'routes'),
@@ -26,8 +27,10 @@ export async function run(ctx: CliContext): Promise<void> {
     trustedOrigins: config.trustedOrigins,
     origin: config.origin,
     host: config.host,
+    secret: config.secret,
     cors: config.cors,
-    headExtras: await loadProductionHead(dist),
+    headExtras,
+    buildId,
     middlewareFile: resolve(dist, 'middleware.ts'),
   })
 

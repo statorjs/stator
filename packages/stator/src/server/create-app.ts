@@ -77,6 +77,9 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
   /** Path to the app's `middleware.ts` (if any). Loaded and validated; its
    *  default export must be `defineMiddleware`/`dangerouslyDefineMiddleware`. */
   middlewareFile?: string
+  /** Build identifier for the deploy-aware reload handshake. `stator start`
+   *  passes the id baked into the build manifest; absent → no handshake. */
+  buildId?: string
 }
 
 export interface StatorApp {
@@ -145,6 +148,7 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     sameSite: resolved.sameSite,
     origin: resolved.origin,
     secret: resolved.secret,
+    buildId: config.buildId,
     cors: resolved.cors,
     middleware,
   })
