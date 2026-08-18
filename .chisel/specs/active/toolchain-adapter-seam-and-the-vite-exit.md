@@ -115,10 +115,10 @@ Independent of the re-architecture, and already scoped:
 - **`.env`:** `createDevApp` / `createApp` load `.env` → `process.env` themselves
   (server secrets belong in `process.env` — the only home uniform across tsx/Vite
   AND dev/prod; `import.meta.env` is Vite-transform-time and absent in prod). This
-  is the env feature (2.5).
+  is the env feature (2.4).
 - **reload:** a build-id the client checks on SSE (re)connect; mismatch → hard
   reload. Reuses the wire's version-locked-runtime concept. This is the version
-  feature (2.6).
+  feature (2.5).
 
 ## Release sequencing (2.2 → 2.6)
 
@@ -146,35 +146,48 @@ by its first consumer before it freezes.
      dev/prod divergence). Closes the forged-completion hazard cheaply, with no compiler
      analysis. Dogfooded on `apps/store` (cart charge completions) + a
      "Server-only events" recipe. The originally-proposed **compiler-derived
-     client-dispatch allowlist** was cut from 2.3 and **re-slotted to post-2.4** (see
-     below): it needs the owned build pipeline (its output is a build artifact) and the
-     introspection-manifest substrate, and its prod-only-403 failure mode fights the
-     dev==prod goal 2.4 chases. `serverOnly` usage becomes the evidence for whether the
-     automatic version ever earns the compiler lift. Design:
-     `.chisel/docs/client-dispatch-allowlist.md`.
-3. **2.4 — Own the dev/build pipeline.** Adapter-seam interface + Option D (server
-   native, fence dead, raw-TS kept), Vite behind `bundleIslands`. Spike 1 gates
-   D→E *within* this release: acceptable → swap islands to esbuild and drop the
-   Vite dep (E); marginal → ship D, defer the swap. Either way the fence + raw-TS
-   wins are banked.
-4. **2.5 — Typed env + `.env` loading** (the loader is the real gap; direction
+     client-dispatch allowlist** was cut from 2.3 and **re-slotted to after the
+     pipeline release (now 2.6)** (see below): it needs the owned build pipeline (its
+     output is a build artifact) and the introspection-manifest substrate, and its
+     prod-only-403 failure mode fights the dev==prod goal the pipeline work chases.
+     `serverOnly` usage becomes the evidence for whether the automatic version ever
+     earns the compiler lift. Design: `.chisel/docs/client-dispatch-allowlist.md`.
+3. **2.4 — Typed env + `.env` loading** (the loader is the real gap; direction
    pre-decided). Carries the auth-primitive **part 2**: **signed cookies** (= sealed
-   state) via the env secret — see [[session-identity-and-auth-primitives]].
-5. **2.6 — Deploy-aware clients (version/build-id)** (reload handshake).
+   state) via the env secret — see [[session-identity-and-auth-primitives]]. The
+   `.env` loader is one of the two targeted fixes below — independent of the Vite exit,
+   so it ships first.
+4. **2.5 — Deploy-aware clients (version/build-id)** (reload handshake). The second
+   targeted fix — also independent of the Vite exit.
+5. **2.6 — Own the dev/build pipeline (the Vite exit).** Adapter-seam interface +
+   Option D (server native, fence dead, raw-TS kept), Vite behind `bundleIslands`.
+   Spike 1 gates D→E *within* this release: acceptable → swap islands to esbuild and
+   drop the Vite dep (E); marginal → ship D, defer the swap. Either way the fence +
+   raw-TS wins are banked.
 
-**Post-2.4, evidence-gated — compiler-derived client-dispatch allowlist.** The
-automatic version of PR D: the compiler enumerates every client dispatch site
+**Reorder rationale (2026-08-17):** the Vite exit was moved from 2.4 to *last*. Its
+two symptom-level pains — no `.env` story, the reload gap — have targeted fixes that
+are **independent of the re-architecture** (see below), so env (now 2.4) and build-id
+reload (now 2.5) ship as quick non-breaking wins *before* the larger, spike-gated
+pipeline work. This continues the 2.3 auth-primitive thread (signed cookies) sooner
+and de-risks the schedule: the Vite decision no longer blocks user-visible features.
+Trade-off accepted: the two fixes land on today's two-watcher setup rather than the
+owned loop, so they're band-aids the pipeline release later subsumes — cheap and
+worth it for the earlier delivery.
+
+**Post-pipeline (2.6), evidence-gated — compiler-derived client-dispatch allowlist.**
+The automatic version of PR D: the compiler enumerates every client dispatch site
 (template `on:` + island `dispatch`), derives the per-machine client-dispatch set,
-and enforces it at `/__events`. Deferred to *after* the pipeline is owned (2.4) so
-its build artifact rides the owned build + the introspection-manifest substrate, and
-ideally surfaces first as a **dev-visible `stator check` lint** (sound tier) rather
-than a silent prod gate — no dev/prod divergence. Promotion bar: the manifest
-substrate landing *and* a justification beyond the manual `serverOnly` flag (real
-`serverOnly` usage that's painful to maintain by hand, or a non-security manifest
-consumer). Design: `.chisel/docs/client-dispatch-allowlist.md`.
+and enforces it at `/__events`. Deferred to *after* the pipeline is owned so its build
+artifact rides the owned build + the introspection-manifest substrate, and ideally
+surfaces first as a **dev-visible `stator check` lint** (sound tier) rather than a
+silent prod gate — no dev/prod divergence. Promotion bar: the manifest substrate
+landing *and* a justification beyond the manual `serverOnly` flag (real `serverOnly`
+usage that's painful to maintain by hand, or a non-security manifest consumer). Design:
+`.chisel/docs/client-dispatch-allowlist.md`.
 
-env (2.5) and version (2.6) both ride the owned dev loop D provides and are
-independent of each other.
+env (2.4) and version (2.5) are the two targeted fixes — independent of each other and
+of the Vite exit (2.6), which is why they now ship ahead of it.
 
 ## Alternatives Considered
 

@@ -118,15 +118,15 @@ promotes it.
   `COMMIT_OK` hazard with no compiler analysis. The completion still re-enters via the
   internal dispatch path (never `/__events`). Dogfooded on `apps/store` (cart charge
   completions) with a "Server-only events" recipe.
-- **Compiler-derived client-dispatch allowlist** *(post-2.4, evidence-gated)*: the
+- **Compiler-derived client-dispatch allowlist** *(post-Vite-exit, evidence-gated)*: the
   *automatic* version — the compiler derives, per machine, the set of events client
   code actually dispatches (template `on:` + island `dispatch`) and enforces it at
   `/__events`, excluding completions/internals *by construction*. Cut from 2.3 and
-  re-slotted **after the Vite exit (2.4)**: it needs the owned build pipeline (its
+  re-slotted **after the Vite exit (now 2.6)**: it needs the owned build pipeline (its
   allowlist is a build artifact) and the introspection-manifest substrate, and its
   prod-only-403 failure mode (compiler misses a legit dispatch → false 403 in prod
-  only) fights the dev==prod goal 2.4 chases — so it should land first as a
-  dev-visible `stator check` lint, not a silent gate. *Promotion bar*: the manifest
+  only) fights the dev==prod goal the pipeline release chases — so it should land first
+  as a dev-visible `stator check` lint, not a silent gate. *Promotion bar*: the manifest
   substrate landing **and** a justification beyond the manual `serverOnly` flag (real
   `serverOnly` usage painful to hand-maintain, or a non-security manifest consumer).
   Design in
@@ -135,10 +135,10 @@ promotes it.
   handler-verifies-then-dispatches, and the gateway pattern recreates a forgeable
   authority event unless every one proves itself with HMAC. This gives the
   framework side of "prove itself or grant nothing" a home.
-- **Session identity & auth primitives** *(2.3 PR C + 2.5)*: the substrate for
+- **Session identity & auth primitives** *(2.3 PR C + 2.4)*: the substrate for
   *third-party* auth toolkits — Stator provides session claims, middleware
   session-lifecycle ops (`rotateSession`/`clearSession`), an establish-once
-  per-request session, a thin cookie surface over `hono/cookie`, and (2.5, on env)
+  per-request session, a thin cookie surface over `hono/cookie`, and (2.4, on env)
   signed cookies; the app/library owns the user store, hashing, providers,
   verification, email, and UI. Middleware is **machine-unaware** (upstream of
   machines); identity lives in claims/tokens, not session machines. *We do not
@@ -274,8 +274,12 @@ Stator. Held to the same evidence bar (a spike proves it before it ships).
   Vite dep dropped). The `stator` CLI + `stator check` are Phase 0 of the seam.
   Two locks: the seam at pipeline-work start, dropping Vite at its tail — the swap
   is one impl, so the endpoint never blocks the start. *Spike-gated*: esbuild
-  `splitting` island bundles must measure acceptable vs Vite. Design + the 2.2→2.6
-  release sequencing in
+  `splitting` island bundles must measure acceptable vs Vite. **Reordered to last
+  (now 2.6):** its two symptom pains — `.env` and the reload gap — have targeted
+  fixes independent of the re-architecture, so they ship first as **2.4** (env +
+  signed cookies) and **2.5** (build-id reload), de-risking the schedule and not
+  letting the Vite spike block user-visible features. Design + the release
+  sequencing in
   [`.chisel/specs/active/toolchain-adapter-seam-and-the-vite-exit.md`](.chisel/specs/active/toolchain-adapter-seam-and-the-vite-exit.md).
   *Motivation*: Vite is the odd bought-in exception to Stator's own-the-pipeline
   identity, optimizing for the client-heavy/HMR world the architecture avoids;
