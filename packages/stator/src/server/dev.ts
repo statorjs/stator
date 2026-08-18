@@ -12,6 +12,7 @@ import { machineStub, stator } from '../vite/index.ts'
 import type { AppStore } from './app-store.ts'
 import { findFreePort, installGracefulShutdown, printDevBanner } from './banner.ts'
 import { resolveAppConfig } from './config-compat.ts'
+import { loadDotenv } from './env.ts'
 import { logger, setLogLevel } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
@@ -108,6 +109,9 @@ export interface DevApp {
 }
 
 export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
+  // Load .env before anything reads process.env. No-op if the CLI already
+  // loaded it; covers a direct `createDevApp` call (a hand-written dev entry).
+  loadDotenv(resolve(config.root))
   // Vite's HMR websocket defaults to 24678 for EVERY dev server — two
   // stator apps side by side would fight over it (the loser's live reload
   // silently dies). Probe a free one instead.

@@ -1,4 +1,5 @@
 dist/
 .stator/
 node_modules/
-indie-blog.db
+indie-blog.db.env.local
+.env*.local

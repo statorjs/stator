@@ -1,2 +1,4 @@
 dist/
 .stator/
+.env.local
+.env*.local
