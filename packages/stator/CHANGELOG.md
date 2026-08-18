@@ -1,5 +1,55 @@
 # @statorjs/stator
 
+## 2.3.0
+
+### Minor Changes
+
+- e216ab1: Cross-site (CSRF) write protection is now composable and config-tunable. The guard Stator already applied — `Sec-Fetch-Site`/`Origin` on state-changing requests — is exported as `crossSiteGuard()` and applied ahead of route matching, so a cross-site write to an unknown path returns 403 rather than revealing the route with a 404. Two config knobs, both data (no behavior toggles):
+
+  - `trustedOrigins` — origins allowed to make cross-site writes despite the guard, exact (`https://app.example.com`) or wildcard-subdomain (`https://*.example.com`). Matching is boundary-safe: `https://*.example.com` matches `app.example.com` and `a.b.example.com`, never `example.com.evil.com` or the apex.
+  - `sessions.cookie.sameSite: 'Strict'` — the controlled posture. Sets the session cookie `SameSite=Strict` (withheld from every cross-site request) and flips the guard to allowlist-only for same-site writes too, so `trustedOrigins` becomes the whole gate.
+
+  Non-breaking: with no config the behavior is exactly as before (same-origin/same-site allowed, cross-site blocked).
+
+- 4a060b8: HTTP middleware and a security-primitive toolkit. Add a `middleware.ts` at your app root — `export default defineMiddleware([...])` — for cross-cutting request logic (auth guards, CORS, headers). The framework's security defaults run first, then your handlers, then the route, so a guard here can't be missed by a route added later; with no `middleware.ts` the defaults still apply (safe by default). `dangerouslyDefineMiddleware([...])` opts out of the defaults — a deliberate, greppable _code_ act, never a config flag, and it skips only the security defaults, never framework plumbing.
+
+  New exported middleware primitives:
+
+  - `cors()` — cross-origin _read_ policy (distinct from `trustedOrigins`, which governs cross-site _writes_); reflects an allowed `Origin` for credentialed reads and answers preflight. `cors.origins` defaults to `trustedOrigins`.
+  - `securityHeaders()` — opt-in baseline headers (`nosniff` always; frame/referrer with safe defaults; HSTS/CSP opt-in).
+  - `crossSiteGuard()` — the default write guard, exported so a `dangerously…` app can re-add it.
+
+  Middleware read resolved config off the request via `stator(c)`. New config data: `origin` (canonical URL), `host` (bind address), and `cors`. `createApp`/`createDevApp` also expose the raw Hono app as `.hono` for break-glass extension.
+
+- 1a3daa1: `serverOnly` event declaration — seal the events no client should ever send. A machine can now list event types that are server-generated only (effect completions like `CHARGE_APPROVED`, `after:` timers, cross-machine internals):
+
+  ```ts
+  defineMachine({
+    name: "CartMachine",
+    events: {} as Events,
+    serverOnly: ["CHARGE_APPROVED", "CHARGE_DECLINED"],
+    // ...
+  });
+  ```
+
+  A client `POST /__events` of a server-only event is rejected with **403** at the wire boundary, before dispatch — closing the forged-completion hazard (a `CHARGE_APPROVED` that fakes a settled charge). The list is typechecked against the machine's event union, so a name that isn't a real event is a compile error.
+
+  The completion still reaches the machine normally: an effect returning `{ type: 'CHARGE_APPROVED' }` re-enters through the internal dispatch path, which never touches `/__events`. The gate blocks only the forgeable client wire path.
+
+  Enforced in **dev and prod alike** — the declaration is explicit, so there's no false-positive risk and no dev/prod divergence (a UI that accidentally dispatches a server-only event fails the same 403 locally). This is a coarse origin gate ("could a client ever send this"), not per-user authorization — machine guards still own that.
+
+  The reference storefront's cart uses it on its charge completions; the new [Server-only events](https://stator.dev/recipes/server-only-events/) recipe walks the pattern (including the nonce-guard for completions that cross a trust boundary inside the server).
+
+- 481220b: Session identity primitives — the machine-unaware layer a third-party auth toolkit builds on. Stator ships the primitives, not an auth system: what a claim contains and whether it's still valid stays the app's job.
+
+  - **Session claims** — opaque per-session identity/data, readable from middleware (which runs upstream of the machine pipeline and cannot read a machine). `stator(c).claims()/setClaims()/clearClaims()` in middleware; the same three on the API-route handler `ctx`. Claims persist per session at a reserved `__claims` key; machine names may no longer start with the reserved `__` prefix. This is the projection a coarse edge-admission check needs — a redirect at the door — while your machines stay the source of truth.
+  - **Session lifecycle ops** — `rotateSession()` (fixation defense on privilege change: state moves to a fresh id) and `clearSession()` (delete the session, browser goes anonymous). Immediate in middleware (`await stator(c).rotateSession()`), deferred on the handler `ctx` (applied after the handler returns, so state persists before the id changes). Claims set the same request follow the rotation to the new id.
+  - **Cookie jar** — `stator(c).cookies` and handler `ctx.cookies`: `get`/`set`/`delete` over app-owned cookies (a login `returnTo`, a consent flag), distinct from the framework-managed session cookie. Thin over the platform; `get` reads the inbound request cookie.
+
+  The session is now established once per request and shared across middleware and handlers (one `sid`, one claims snapshot) — closing a latent double-issue on a request's first sight. A no-JS form POST that rotates the session or sets a cookie no longer drops the `Set-Cookie` on the empty-directive 204 path.
+
+  Non-breaking: apps that set no claims and touch no session ops are unaffected. The `with-auth` example gains a layered demonstration — coarse admission in middleware off the claims projection, fine-grained authorization still in the machine chart and in-route guards.
+
 ## 2.2.0
 
 ### Minor Changes
