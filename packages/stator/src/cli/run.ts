@@ -59,6 +59,12 @@ const ctx: CliContext = {
   rest: positionals.slice(1),
 }
 
+// Load .env before importing the command — so `stator.config.ts` (imported by
+// loadConfig inside the command) can read `process.env.*`. createApp/createDevApp
+// load it again for the direct-`server.ts` path; idempotent.
+const { loadDotenv } = await import('../server/env.ts')
+loadDotenv(ctx.root)
+
 // Dynamic import per command so `check` never loads the dev server's Vite, etc.
 const { run } = (await import(`./commands/${command}.ts`)) as {
   run: (ctx: CliContext) => Promise<void>

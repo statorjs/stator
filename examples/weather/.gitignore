@@ -1,3 +1,5 @@
 dist/
 .stator/
 FINDINGS.md
+.env.local
+.env*.local

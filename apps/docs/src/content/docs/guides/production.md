@@ -50,4 +50,6 @@ A [`create-stator`](/introduction/installation/) project ships this wiring as `p
   (override with `STATOR_SECURE_COOKIE=1|0` if TLS terminates elsewhere).
 - **`SESSION_TTL_SECONDS`** — per-session idle expiry, default 24h.
 
+These read from `process.env`, and Stator loads `.env` files into it at startup — `.env` for committed defaults, `.env.local` for machine-local secrets (gitignored). Precedence is **real environment → `.env.local` → `.env`**, so a value your host injects (a platform secret, a container env var) always wins over a file. In production, prefer real platform secrets for anything sensitive; `.env` is the convenience for local and simple deploys.
+
 The repo's `apps/store` (the live demo) carries a working Fly.io + Upstash setup (`fly.toml`, `Dockerfile`): `fly launch --no-deploy --copy-config`, set `REDIS_URL` as a secret, `fly deploy`.

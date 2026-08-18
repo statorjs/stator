@@ -9,6 +9,7 @@ import { installGracefulShutdown, printStartupNotice } from './banner.ts'
 import { type DeprecatedFlatConfig, resolveAppConfig } from './config-compat.ts'
 import { discoverMachines } from './discovery.ts'
 import { wireAppEffects } from './effects.ts'
+import { loadDotenv } from './env.ts'
 import { buildHonoApp } from './http.ts'
 import { logger, setLogLevel } from './logger.ts'
 import { MachineStore } from './machine-store.ts'
@@ -96,6 +97,9 @@ export interface StatorApp {
 }
 
 export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
+  // Load .env before anything reads process.env (LOG_LEVEL below, app secrets).
+  // No-op if the CLI already loaded it; covers the direct `server.ts` entry.
+  loadDotenv()
   const machinesDir = resolve(config.machinesDir)
   const routesDir = resolve(config.routesDir)
   const staticDir = config.staticDir ? resolve(config.staticDir) : undefined

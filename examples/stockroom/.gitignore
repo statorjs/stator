@@ -2,3 +2,5 @@ node_modules/
 dist/
 .stator/
 FINDINGS.md
+.env.local
+.env*.local
