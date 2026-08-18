@@ -77,7 +77,8 @@ shared-runtime/lock/dispatch-from-middleware complexity.
     OAuth/magic-link/WebAuthn flow, and signing nothing in `with-auth` (its `returnTo`
     is already same-origin-constrained) would improve — bolting it on = manufacturing a
     use case ([[feedback_evidence_before_primitives]]). The worked OAuth-`state` **recipe**
-    (middleware guide) is the substrate's proof-of-ergonomics. *Promotion trigger for a
+    (`recipes/sealed-state.md`, cross-linked from the middleware guide) is the substrate's
+    proof-of-ergonomics. *Promotion trigger for a
     real example dogfood:* a starter that adds a genuine sealed-state flow — a
     mock-provider OAuth login or a magic-link second auth method on `with-auth` (email =
     logged link in dev, testable). Build it when the example lands, not before.

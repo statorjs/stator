@@ -87,25 +87,7 @@ const to = returnTo?.startsWith('/') && !returnTo.startsWith('//') ? returnTo : 
 
 `cookies.get` reads the *inbound* request cookie — a `set` this request isn't visible to a later `get` in the same request (standard cookie semantics).
 
-**Signed cookies (sealed state)** — `cookies.setSigned` / `getSigned` add a tamper-evident signature over the value, using an app **secret** (`secret` in `stator.config.ts`, or `STATOR_SECRET` in the environment — see [.env loading](/guides/production/)). This is the sealed short-lived-state primitive: the OAuth `state`/PKCE handshake, a magic-link token, a WebAuthn challenge — state you hand to the browser and must trust when it comes back, without server-side storage.
-
-```ts
-import { randomBytes } from 'node:crypto'
-
-// before redirecting to an identity provider — seal a random state
-const state = randomBytes(16).toString('hex')
-await ctx.cookies.setSigned('oauth_state', state, { httpOnly: true, path: '/', maxAge: 600 })
-return { directives: [{ type: 'navigate', to: `https://provider.example/authorize?state=${state}` }] }
-
-// on the callback — the returned state must match the sealed one
-const expected = await ctx.cookies.getSigned('oauth_state') // undefined if absent OR tampered
-ctx.cookies.delete('oauth_state', { path: '/' })
-if (!expected || request.query.state !== expected) {
-  return { directives: [{ type: 'navigate', to: '/login?error=bad-state' }] }
-}
-```
-
-`getSigned` returns `undefined` for a missing *or* invalid signature — a tampered value (or one signed with a since-rotated secret) is never trusted. Signing is tamper-*evidence*, not encryption: the value is still readable by the client, so seal a nonce it can't forge, not a secret. Calling either method with no secret configured throws — a clear boot-time-visible error, not a silent weak signature. Server-stored state (a `Store` entry keyed by an opaque cookie id) is the env-free alternative when you'd rather not manage a secret.
+**Signed cookies** — the jar also has `cookies.setSigned` / `getSigned`, which add a tamper-evident signature over the value using an app **secret** (`secret` in `stator.config.ts`, or `STATOR_SECRET` in the environment). This is the sealed short-lived-state primitive for auth handshakes (OAuth `state`/PKCE, magic-link, WebAuthn) — `getSigned` returns `undefined` for a missing *or* invalid signature, and calling either method with no secret throws. The full pattern (seal before the redirect, verify on the callback) is the [Signed cookies & sealed state](/recipes/sealed-state/) recipe.
 
 Reserved: machine names may not start with `__` (the prefix namespaces per-session framework keys like claims), and the session cookie is framework-managed — use the lifecycle ops, not the cookie jar, to touch it.
 
