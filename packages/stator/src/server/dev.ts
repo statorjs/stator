@@ -74,6 +74,9 @@ export interface DevAppConfig {
   trustedOrigins?: readonly string[]
   /** Canonical app URL, exposed via `stator(c).origin`. */
   origin?: string
+  /** Signed-cookie signing key. Falls back to `STATOR_SECRET`. Mirrors
+   *  `StatorConfig.secret`. */
+  secret?: string
   /** Cross-origin READ policy (CORS); `origins` defaults to `trustedOrigins`. */
   cors?: { origins?: string[]; credentials?: boolean }
   // Deprecated flat keys — accepted (typed) so 2.1.0 callers don't break; nested
@@ -250,6 +253,7 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
       trustedOrigins: resolved.trustedOrigins,
       sameSite: resolved.sameSite,
       origin: resolved.origin,
+      secret: resolved.secret,
       cors: resolved.cors,
       middleware,
     })

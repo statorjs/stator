@@ -64,6 +64,9 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
   trustedOrigins?: readonly string[]
   /** Canonical app URL, exposed via `stator(c).origin`. */
   origin?: string
+  /** Signed-cookie signing key. Falls back to `STATOR_SECRET`. Mirrors
+   *  `StatorConfig.secret`. */
+  secret?: string
   /** Listen host / bind address (used by `listen`). Default: all interfaces. */
   host?: string
   /** Cross-origin READ policy (CORS); `origins` defaults to `trustedOrigins`. */
@@ -141,6 +144,7 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     trustedOrigins: resolved.trustedOrigins,
     sameSite: resolved.sameSite,
     origin: resolved.origin,
+    secret: resolved.secret,
     cors: resolved.cors,
     middleware,
   })
