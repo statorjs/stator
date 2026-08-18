@@ -120,6 +120,45 @@ Independent of the re-architecture, and already scoped:
   reload. Reuses the wire's version-locked-runtime concept. This is the version
   feature (2.5).
 
+### `.env` scope (2.4, decided 2026-08-17)
+
+- **Files:** `.env` (committed defaults) then `.env.local` (gitignored overrides,
+  wins). No mode matrix — Stator has no `mode` concept, and the 90% split is
+  default-vs-local. Real shell `process.env` wins over both (standard precedence).
+- **Mechanism:** native `process.loadEnvFile()` (Node ≥24 is the floor) — **zero
+  dependency**, same lean-on-platform stance as raw-TS packaging and the native test
+  runner. No `dotenv`.
+- **Where:** `createApp`/`createDevApp` load at boot (before config resolution / the
+  `LOG_LEVEL`/`PORT` reads); the CLI also loads *before* importing `stator.config.ts`
+  so a config file may reference `process.env.*`. Never bundled into `dist`; examples
+  gitignore `.env*`.
+
+### Typed env (`defineEnv`) — DEFERRED, design note
+
+Load-only ships in 2.4. A typed/validated accessor (`defineEnv({ STATOR_SECRET:
+z.string().min(1), PORT: z.coerce.number().optional() })` → boot-time validation with
+one aggregated error, returns a typed frozen object; zod is already a dependency) is
+**deferred** per evidence-before-primitives ([[project_two_way_binding_2_0]] — the
+`bind:` lesson). Rationale:
+
+- **The validation core is cheap; the authoring/access surface is the real cost** —
+  where the schema lives, how it's read (module singleton vs `stator(c).env`), and the
+  load-before-first-read ordering. Those calcify, so shape them from evidence, not a
+  guess.
+- **Architectural simplifier:** server-canonical → islands get props/patches, never an
+  env injection, so **a secret cannot leak to the client by construction**. The
+  public/private boundary that is the *bulk* of SvelteKit's `$env/*` and Astro's
+  `astro:env` is MOOT here — a Stator typed-env is much smaller (server-only
+  validation + coercion + existence typing), which is exactly why it can wait.
+- **The one sharp edge is covered locally:** a missing signing secret reads as
+  `undefined` and fails confusingly. 2.4's signed-cookie work validates its own secret
+  at config/boot time (clear error), so no framework-wide system is needed to neutralize
+  the dangerous case.
+- **Promotion trigger:** an app whose env surface makes untyped `process.env` +
+  hand-coercion a *logged* paper cut. `indie-blog` is already near the line (7 vars, 2
+  secrets, coercion) — if it or the next real app logs the friction, build it then, with
+  the schema/access shape the evidence reveals.
+
 ## Release sequencing (2.2 → 2.6)
 
 One story per minor; middleware+security co-cut so the middleware API is validated
