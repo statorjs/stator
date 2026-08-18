@@ -87,6 +87,8 @@ const to = returnTo?.startsWith('/') && !returnTo.startsWith('//') ? returnTo : 
 
 `cookies.get` reads the *inbound* request cookie — a `set` this request isn't visible to a later `get` in the same request (standard cookie semantics).
 
+**Signed cookies** — the jar also has `cookies.setSigned` / `getSigned`, which add a tamper-evident signature over the value using an app **secret** (`secret` in `stator.config.ts`, or `STATOR_SECRET` in the environment). This is the sealed short-lived-state primitive for auth handshakes (OAuth `state`/PKCE, magic-link, WebAuthn) — `getSigned` returns `undefined` for a missing *or* invalid signature, and calling either method with no secret throws. The full pattern (seal before the redirect, verify on the callback) is the [Signed cookies & sealed state](/recipes/sealed-state/) recipe.
+
 Reserved: machine names may not start with `__` (the prefix namespaces per-session framework keys like claims), and the session cookie is framework-managed — use the lifecycle ops, not the cookie jar, to touch it.
 
 ## The cross-site guard (a default, always on)

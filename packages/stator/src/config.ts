@@ -30,6 +30,12 @@ export interface StatorConfig {
    *  (redirects, SSE reconnect, OG tags) and as a spoof-proof same-origin
    *  anchor. Exposed to middleware via `stator(c).origin`. */
   origin?: string
+  /** Signing secret for signed cookies (`cookies.setSigned`/`getSigned`) — the
+   *  sealed short-lived-state primitive (OAuth `state`/PKCE, a magic-link token,
+   *  a WebAuthn challenge). Falls back to `process.env.STATOR_SECRET`. Use a long
+   *  random string (≥32 chars); keep it out of source — set it in `.env.local` or
+   *  a platform secret. Absent → the signed-cookie methods throw. */
+  secret?: string
   /** The swappable persistence adapters, grouped by concern. Both optional —
    *  default to in-memory (restart-wipe). Neither is a machine-graph entry
    *  point (machines are file-discovered). */

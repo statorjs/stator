@@ -65,11 +65,23 @@ shared-runtime/lock/dispatch-from-middleware complexity.
   framework-internal). Thin, web-standard-adjacent, native `Response` escape; **no**
   `.json()/.number()` parsers (Astro's over-reach). Not built — Hono is the
   battle-tested library under it.
-- **Signed cookies** (2.5) — `hono/cookie`'s `getSignedCookie`/`setSignedCookie`
-  surfaced through the same API once a config/env **secret** exists. This *is* the
-  "sealed short-lived state" primitive (OAuth `state`+PKCE, SSO relay, WebAuthn
-  challenge). Sealing is a *convenience*, not a requirement — server-stored state in
-  the `Store` keyed by an opaque cookie id is the env-free alternative.
+- **Signed cookies** *(SHIPPED 2.4)* — `hono/cookie`'s `getSignedCookie`/`setSignedCookie`
+  surfaced through the same jar (`cookies.setSigned`/`getSigned`) on a config/env
+  **secret** (`secret` ?? `STATOR_SECRET`). This *is* the "sealed short-lived state"
+  primitive (OAuth `state`+PKCE, SSO relay, WebAuthn challenge). Sealing is a
+  *convenience*, not a requirement — server-stored state in the `Store` keyed by an
+  opaque cookie id is the env-free alternative. `getSigned` returns `undefined` on a
+  missing OR invalid signature (tamper/rotation-safe); no-secret throws at call time
+  (the local secret validation). Secret rotation (multi-key) deferred.
+  - **Dogfood DEFERRED (no natural fit, 2026-08-17):** no current example has an
+    OAuth/magic-link/WebAuthn flow, and signing nothing in `with-auth` (its `returnTo`
+    is already same-origin-constrained) would improve — bolting it on = manufacturing a
+    use case ([[feedback_evidence_before_primitives]]). The worked OAuth-`state` **recipe**
+    (`recipes/sealed-state.md`, cross-linked from the middleware guide) is the substrate's
+    proof-of-ergonomics. *Promotion trigger for a
+    real example dogfood:* a starter that adds a genuine sealed-state flow — a
+    mock-provider OAuth login or a magic-link second auth method on `with-auth` (email =
+    logged link in dev, testable). Build it when the example lands, not before.
 
 **Library / app owns (deliberately not ours — the Pilcrow trap):** the user store
 and schema, credential/token storage, password hashing policy, provider configs,

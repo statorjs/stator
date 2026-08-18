@@ -46,6 +46,9 @@ export interface HttpConfig {
   sameSite?: 'Lax' | 'Strict'
   /** Canonical app origin, exposed to middleware via `stator(c).origin`. */
   origin?: string
+  /** Signed-cookie signing key (`config.secret` ?? `STATOR_SECRET`). Stashed on
+   *  the request context so `cookies.setSigned`/`getSigned` can reach it. */
+  secret?: string
   /** Resolved CORS read policy, exposed via `stator(c).cors`. */
   cors?: { origins: readonly string[]; credentials: boolean }
   /** The app's discovered `middleware.ts` definition (if any). `withDefaults`
@@ -179,6 +182,8 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     })
     // Stash the store so middleware session ops (rotate/clear) can act now.
     c.set('statorStore', config.store)
+    // Stash the signing key so the cookie jar's signed methods can reach it.
+    if (config.secret !== undefined) c.set('statorSecret', config.secret)
     const { sessionId, isNew } = getOrCreateSessionId(c)
     const session = getSessionState(c)
     if (!isNew && session) {

@@ -32,6 +32,7 @@ interface NestedReads {
   trustedOrigins?: readonly string[]
   origin?: string
   host?: string
+  secret?: string
   cors?: { origins?: readonly string[]; credentials?: boolean }
 }
 
@@ -47,6 +48,8 @@ export interface ResolvedAppConfig {
   sameSite?: 'Lax' | 'Strict'
   origin?: string
   host?: string
+  /** Signed-cookie signing key. `config.secret` ?? `STATOR_SECRET`. */
+  secret?: string
   cors?: { origins: readonly string[]; credentials: boolean }
 }
 
@@ -82,6 +85,8 @@ export function resolveAppConfig(config: NestedReads & DeprecatedFlatConfig): Re
     sameSite: config.sessions?.cookie?.sameSite,
     origin: config.origin,
     host: config.host,
+    // The signing key: explicit config wins, else the env (loadable via .env).
+    secret: config.secret ?? process.env.STATOR_SECRET,
     cors: config.cors
       ? {
           origins: config.cors.origins ?? config.trustedOrigins ?? [],

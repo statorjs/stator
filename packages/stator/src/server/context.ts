@@ -20,6 +20,8 @@ declare module 'hono' {
   interface ContextVariableMap {
     stator: StatorConfigData
     statorStore: { persistence: Store }
+    /** Signed-cookie signing key, stashed by the bridge when configured. */
+    statorSecret: string
   }
 }
 
