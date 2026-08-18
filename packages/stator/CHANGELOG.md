@@ -1,5 +1,36 @@
 # @statorjs/stator
 
+## 2.4.0
+
+### Minor Changes
+
+- ae602ac: `.env` file loading. Stator now loads `.env` files into `process.env` at startup, so server config and secrets (a store URL, an auth provider secret, `LOG_LEVEL`, `PORT`) have a uniform home across dev and prod — no more relying on the shell to export them, and no `import.meta.env` (which is Vite-transform-time and absent in production).
+
+  Precedence, highest first: **real shell env → `.env.local` → `.env`**. Commit `.env` for defaults; keep machine-local secrets in `.env.local` (gitignored). A real environment variable always wins, so production secrets injected by the host are never shadowed by a stray file.
+
+  Loaded by `createApp`/`createDevApp` (covering a hand-written `server.ts`) and by the `stator` CLI _before_ it imports `stator.config.ts` (so your config file can read `process.env.*`). Uses Node's native `process.loadEnvFile` — no new dependency. Absent files are skipped.
+
+  Scaffold templates now gitignore `.env.local` / `.env*.local`.
+
+- cef2bd1: Signed cookies — the sealed short-lived-state primitive. The cookie jar (`stator(c).cookies` / `ctx.cookies`) gains `setSigned`/`getSigned`, adding a tamper-evident signature over a cookie value using an app secret:
+
+  ```ts
+  await cookies.setSigned("oauth_state", state, {
+    httpOnly: true,
+    maxAge: 600,
+  });
+  const state = await cookies.getSigned("oauth_state"); // string | undefined
+  ```
+
+  This is the substrate for auth flows that hand short-lived state to the browser and must trust it on the way back without server-side storage: the OAuth `state`/PKCE handshake, a magic-link token, a WebAuthn challenge.
+
+  - **Secret:** new top-level `secret` in config, falling back to `process.env.STATOR_SECRET` (loadable via `.env`). Use a long random string, kept out of source.
+  - **`getSigned` returns `undefined`** for a missing _or_ invalid signature — a tampered value, or one signed with a since-rotated secret, is never trusted (no `false` to handle, no leak of the distinction).
+  - **No secret configured → a clear throw** at call time (not a silent weak signature).
+  - Signing is tamper-_evidence_, not encryption — the value stays client-readable, so seal a nonce, not a secret. Server-stored state keyed by an opaque cookie id remains the env-free alternative.
+
+  Continues the 2.3 session-identity thread (auth primitives, part 2). Bundles into 2.4.0 with `.env` loading.
+
 ## 2.3.0
 
 ### Minor Changes
