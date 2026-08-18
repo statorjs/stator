@@ -140,11 +140,18 @@ by its first consumer before it freezes.
      session-lifecycle ops, establish-once session + double-create fix, thin cookie
      surface. Validated by upgrading the `with-auth` starter. See
      [[session-identity-and-auth-primitives]].
-   - **PR D** *(proposed)* — the client-dispatch **event allowlist**: the compiler's
-     per-machine client-dispatch set → build manifest → **prod-only** `/__events`
-     403 gate (dev doesn't enforce — no attacker locally; `stator check` + tests are
-     the dev feedback). Usage-derived + 403; explicit `server-only` declaration
-     deferred. Design: `.chisel/docs/client-dispatch-allowlist.md`.
+   - **PR D** *(shipped, reshaped)* — the explicit **`serverOnly` event declaration**:
+     a machine lists event types no client may dispatch; `/__events` rejects them with
+     403 (dev **and** prod — the declaration is explicit, so no false positives and no
+     dev/prod divergence). Closes the forged-completion hazard cheaply, with no compiler
+     analysis. Dogfooded on `apps/store` (cart charge completions) + a
+     "Server-only events" recipe. The originally-proposed **compiler-derived
+     client-dispatch allowlist** was cut from 2.3 and **re-slotted to post-2.4** (see
+     below): it needs the owned build pipeline (its output is a build artifact) and the
+     introspection-manifest substrate, and its prod-only-403 failure mode fights the
+     dev==prod goal 2.4 chases. `serverOnly` usage becomes the evidence for whether the
+     automatic version ever earns the compiler lift. Design:
+     `.chisel/docs/client-dispatch-allowlist.md`.
 3. **2.4 — Own the dev/build pipeline.** Adapter-seam interface + Option D (server
    native, fence dead, raw-TS kept), Vite behind `bundleIslands`. Spike 1 gates
    D→E *within* this release: acceptable → swap islands to esbuild and drop the
@@ -154,6 +161,17 @@ by its first consumer before it freezes.
    pre-decided). Carries the auth-primitive **part 2**: **signed cookies** (= sealed
    state) via the env secret — see [[session-identity-and-auth-primitives]].
 5. **2.6 — Deploy-aware clients (version/build-id)** (reload handshake).
+
+**Post-2.4, evidence-gated — compiler-derived client-dispatch allowlist.** The
+automatic version of PR D: the compiler enumerates every client dispatch site
+(template `on:` + island `dispatch`), derives the per-machine client-dispatch set,
+and enforces it at `/__events`. Deferred to *after* the pipeline is owned (2.4) so
+its build artifact rides the owned build + the introspection-manifest substrate, and
+ideally surfaces first as a **dev-visible `stator check` lint** (sound tier) rather
+than a silent prod gate — no dev/prod divergence. Promotion bar: the manifest
+substrate landing *and* a justification beyond the manual `serverOnly` flag (real
+`serverOnly` usage that's painful to maintain by hand, or a non-security manifest
+consumer). Design: `.chisel/docs/client-dispatch-allowlist.md`.
 
 env (2.5) and version (2.6) both ride the owned dev loop D provides and are
 independent of each other.
