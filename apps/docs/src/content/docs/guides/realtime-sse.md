@@ -27,6 +27,7 @@ When any session changes a machine the route reads, the server recomputes the af
 
 - **Opt-in** — a route is static request/response until `// @stator live`.
 - **Reconnect = resync** — a dropped or stale connection reopens and the initial sync converges the page in place (`data-stator-connection` on `<html>` tracks the transitions). There's no missed-frame replay; directives fired during the outage (e.g. a `navigate`) are not re-delivered.
+- **Reconnect to a new build = reload** — the one exception to resync. Each page carries the build it was rendered against; if it reconnects to a server running a newer build (a dev restart, or a production deploy), the page hard-reloads instead of resyncing onto a slot map that may no longer match. In production the id is per *build*, so a crash-restart of the same build doesn't reload anyone — only an actual deploy does.
 - **Single-replica** — fan-out is in-process.
 
 :::caution[Single replica]
