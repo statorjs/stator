@@ -47,6 +47,7 @@ export default defineConfig({
         { label: 'Guides', autogenerate: { directory: 'guides' } },
         { label: 'Recipes', autogenerate: { directory: 'recipes' } },
         { label: 'API Reference', autogenerate: { directory: 'reference' } },
+        { label: 'Changelog', link: '/changelog/' },
       ],
     }),
   ],

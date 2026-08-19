@@ -133,25 +133,7 @@ Element ids are flat sequential identifiers (`e0`, `e1`, …) allocated on deman
 
 ## The SSE push channel
 
-Routes declared `live: true` open `GET /__sse?route=<route-key>`. The framing
-is standard event-stream `data:` lines; each frame's payload is the same
-envelope a POST response carries — `{ patches: [...] }` (and optionally
-`directives`; POST responses additionally carry `committed: boolean`, whether
-the event transitioned any machine — a guard-dropped event is HTTP 200 with
-`committed: false`). Patches are diffed per connection against that
-connection's own binding baseline, so successive pushes are deltas, not
-resets. On connect, the server first pushes an **initial sync** — every
-binding's current value (keyed lists as one wholesale `html` reset) — so a
-page that missed changes between render and connect converges; clients apply
-it like any other frame. The initial sync is also the whole reconnect story:
-a dropped or watchdog-stale channel reopens (browser auto-reconnect or a
-client rebuild) and the fresh connection's sync converges the DOM in place —
-frames are unsequenced and individually unreplayable, and directives missed
-during an outage are gone. The server also sends an observable ping frame
-(`{"ping":true}`) every 25s; a visible page that misses two pings closes the
-half-open channel and reconnects. Comment frames
-(`: open`, `: keep-alive`) hold the connection through proxies; clients ignore
-them per the SSE spec.
+Routes declared `live: true` open `GET /__sse?route=<route-key>`. The framing is standard event-stream `data:` lines; each frame's payload is the same envelope a POST response carries — `{ patches: [...] }` (and optionally `directives`; POST responses additionally carry `committed: boolean`, whether the event transitioned any machine — a guard-dropped event is HTTP 200 with `committed: false`). Patches are diffed per connection against that connection's own binding baseline, so successive pushes are deltas, not resets. On connect, the server first pushes an **initial sync** — every binding's current value (keyed lists as one wholesale `html` reset) — so a page that missed changes between render and connect converges; clients apply it like any other frame. The initial sync is also the whole reconnect story: a dropped or watchdog-stale channel reopens (browser auto-reconnect or a client rebuild) and the fresh connection's sync converges the DOM in place — frames are unsequenced and individually unreplayable, and directives missed during an outage are gone. The server also sends an observable ping frame (`{"ping":true}`) every 25s; a visible page that misses two pings closes the half-open channel and reconnects. Comment frames (`: open`, `: keep-alive`) hold the connection through proxies; clients ignore them per the SSE spec.
 
 ## What's not in the wire protocol (yet)
 

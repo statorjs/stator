@@ -67,19 +67,9 @@ For unkeyed `each` (no `key:`), behavior is unchanged: full-body `html` patch on
 
 Shipped 2026-07-03. As designed, with these decisions filled in:
 
-- **Item identity is a scope primitive**: keyed items render under key-derived
-  slot scopes (`s0:k<token>:s0`), so a row's inner slot ids survive reordering
-  — a patch addresses "the row for p1, wherever it is now". Key tokens encode
-  to `[A-Za-z0-9-]` (injective `_<hex>` escape) for attribute/selector safety.
-- **Retained rows are never re-rendered** by the keyed path. Content inside
-  them updates through their own nested (key-scoped) bindings; plain
-  interpolations of item fields are render-once in keyed lists — the doctrine
-  matches "read selectors are the unit of reactivity".
-- **Ordering rule**: ops apply sequentially, each against the DOM state left
-  by the previous op. The server emits from a replay simulation (removals
-  right-to-left, then settle each position left-to-right via move-or-insert).
-- **Single-root-element rule**: keyed items must render exactly one root
-  element (enforced at render) because ops address element children by index.
-- Scope subsumption extended: patches sourced inside a removed row's key scope
-  are dropped, and the row's bindings unregistered.
+- **Item identity is a scope primitive**: keyed items render under key-derived slot scopes (`s0:k<token>:s0`), so a row's inner slot ids survive reordering — a patch addresses "the row for p1, wherever it is now". Key tokens encode to `[A-Za-z0-9-]` (injective `_<hex>` escape) for attribute/selector safety.
+- **Retained rows are never re-rendered** by the keyed path. Content inside them updates through their own nested (key-scoped) bindings; plain interpolations of item fields are render-once in keyed lists — the doctrine matches "read selectors are the unit of reactivity".
+- **Ordering rule**: ops apply sequentially, each against the DOM state left by the previous op. The server emits from a replay simulation (removals right-to-left, then settle each position left-to-right via move-or-insert).
+- **Single-root-element rule**: keyed items must render exactly one root element (enforced at render) because ops address element children by index.
+- Scope subsumption extended: patches sourced inside a removed row's key scope are dropped, and the row's bindings unregistered.
 - `updated 2026-07-03`; wire ops documented as implemented in WIRE.md.
