@@ -1,5 +1,45 @@
 # @statorjs/stator
 
+## 2.5.0
+
+### Minor Changes
+
+- fe14c65: `boot.ts` — run code once when the server starts. A root-level `boot.ts` (auto-discovered like `middleware.ts`) is the home for a long-lived inbound source: query config at startup, then start a poll or subscription that feeds events into the app-machine graph.
+
+  ```ts
+  // boot.ts
+  import { defineBoot } from "@statorjs/stator/server";
+  import FleetMachine from "./machines/fleet.ts";
+
+  export default defineBoot(async ({ dispatchToApp }) => {
+    const timer = setInterval(
+      async () =>
+        dispatchToApp(FleetMachine, { type: "TICK", data: await poll() }),
+      30_000
+    );
+    return () => clearInterval(timer); // teardown, composed into graceful shutdown
+  });
+  ```
+
+  - Runs **once per process** when the app starts listening (a dev restart re-runs it; an in-process rebuild does not; tests that only `app.fetch` never trigger it).
+  - **`BootContext` is deliberately narrow** — `dispatchToApp` (feed the app-machine graph) and a read-only `config`. Not the raw app: no `listen`/`fetch`/`hono`/store, because boot is a _source_, not a controller. Env stays ambient (`process.env` is loaded before boot runs).
+  - Return a **teardown** to clean up on shutdown (clear a timer, unsubscribe a source).
+
+  Cadence _policy_ belongs in the machine (a guard can debounce a `TICK` by state — unit-testable with `createActor`), not in the boot closure.
+
+- 1a55a96: Deploy-aware reload — a live page from a stale build reloads itself. The server now stamps a build identifier into every live page (`<meta name="stator-build">`) — per-boot in dev, per-build in production (written to the build manifest). The client echoes it on the `/__sse` connection, and if the server is now serving a different build, it tells the page to hard-reload instead of resyncing onto a slot map that may no longer match.
+
+  This closes two gaps:
+
+  - **Dev:** a `tsx`-side server restart previously fired no browser reload, so a changed DOM↔slot-ID contract could silently break patches. Now the restart is a new build-id → the client reloads on reconnect.
+  - **Prod:** after a deploy, still-open pages reconnect to the new build and reload, rather than applying patches against the old layout.
+
+  Per-build (not per-boot) in production, so a crash-restart of the _same_ build doesn't reload everyone — only an actual deploy does. Fully graceful: an app with no build-id (a build predating this, or a hand-written server that doesn't set one) simply keeps today's resync-never-reload behavior.
+
+### Patch Changes
+
+- 1a55a96: Fix: `stator start` now passes the config `secret` through to the running app. Previously the production server only picked up the signing secret from `STATOR_SECRET` in the environment — a `secret` set in `stator.config.ts` was silently dropped in production (it worked in dev via `createDevApp`). Signed cookies configured with an explicit `secret` now work under `stator start` too.
+
 ## 2.4.0
 
 ### Minor Changes
