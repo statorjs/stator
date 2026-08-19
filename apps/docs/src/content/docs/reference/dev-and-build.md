@@ -5,7 +5,7 @@ sidebar:
   order: 6
 ---
 
-Two subpaths, one lifecycle: `@statorjs/stator/dev` runs your app during development; `@statorjs/stator/build` compiles it for production.
+Two subpaths, one lifecycle: `@statorjs/stator/dev` runs your app during development; `@statorjs/stator/build` compiles it for production. Most apps reach these through the [`stator` CLI](/introduction/installation/#the-cli) (`stator dev`/`build`/`start`) rather than calling them directly — the functions below underlie the CLI and are exported for custom tooling and test isolation.
 
 ## createDevApp
 

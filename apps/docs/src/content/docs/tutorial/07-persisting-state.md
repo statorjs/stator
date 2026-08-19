@@ -34,28 +34,18 @@ Snapshots are opaque JSON — the store never needs to understand your machine, 
 
 ## Swapping in Redis
 
-Move to durable persistence by changing one line in `server.ts`. Stator ships `RedisStore` and a `CachedStore` wrapper that fronts Redis with an in-memory cache to cut command counts:
+Move to durable persistence by adding a `stator.config.ts` — no entry file to touch, and nothing in your machines or templates changes. Stator ships `RedisStore` and a `CachedStore` wrapper that fronts Redis with an in-memory cache to cut command counts:
 
 ```ts
-import {
-  InMemoryStore,
-  RedisStore,
-  CachedStore,
-  type Store,
-} from '@statorjs/stator/server'
+// stator.config.ts
+import { defineConfig } from '@statorjs/stator/config'
+import { InMemoryStore, RedisStore, CachedStore, type Store } from '@statorjs/stator/server'
 
-let store: Store
-if (process.env.REDIS_URL) {
-  store = new CachedStore(new RedisStore(process.env.REDIS_URL), {
-    memoryTtlSeconds: 300,
-    maxEntries: 10_000,
-  })
-} else {
-  store = new InMemoryStore()
-}
+const store: Store = process.env.REDIS_URL
+  ? new CachedStore(new RedisStore(process.env.REDIS_URL), { memoryTtlSeconds: 300, maxEntries: 10_000 })
+  : new InMemoryStore()
 
-const app = await createDevApp({
-  // …root, dirs…
+export default defineConfig({
   persistence: { session: store },
   sessions: { ttlSeconds: 86_400 }, // 24h idle window, refreshed on each cart action
 })

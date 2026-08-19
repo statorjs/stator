@@ -1,18 +1,18 @@
 ---
 title: Production builds & deployment
-description: "Compile once, serve with no Vite: buildApp, the island manifest, and a Fly.io recipe."
+description: "Compile once, serve with no Vite: stator build, the island manifest, and a Fly.io recipe."
 sidebar:
   order: 14
 ---
 
-Dev runs through Vite (`createDevApp`); production doesn't. `buildApp` compiles everything ahead of time, and the plain runtime serves the result:
+Dev runs through Vite (`stator dev`); production doesn't. `stator build` compiles everything ahead of time, and `stator start` serves the result with no Vite in the process.
 
-```ts
-// build.ts
-import { buildApp } from '@statorjs/stator/build'
-
-await buildApp({ root: here, outDir: resolve(here, 'dist') })
+```bash
+stator build    # compile the app to dist/ (runs `stator check` first)
+stator start    # serve the built dist/ in production
 ```
+
+A [`create-stator`](/introduction/installation/) project ships these as `pnpm build` / `pnpm start`.
 
 The build:
 
@@ -20,12 +20,15 @@ The build:
 2. compiles each `.stator` to a sibling `.ts` and rewrites imports,
 3. concatenates scoped CSS into `dist/static/components.css`,
 4. bundles every [client island](/guides/client-components/) through one Vite pass into hashed assets under `dist/static/assets/`, stubbing any server-machine imports down to `{ name }` so server code never reaches a browser bundle,
-5. walks each route's import graph and writes `dist/stator-manifest.json` — which islands each route needs.
+5. walks each route's import graph and writes `dist/stator-manifest.json` — which islands each route needs, plus the per-build id.
 
-## Serving the build
+`stator start` loads that manifest to link `components.css` and inject each route's island scripts, and stamps the build id into live pages so the deploy-aware [reload handshake](/guides/realtime-sse/) can reload a page left on an older build. It runs your `stator.config.ts` exactly as dev does — same store, same session policy.
+
+### A custom production entry (advanced)
+
+Most apps never need this — `stator start` is the entry point. If you must hand-wire the server (an unusual host, an embedded runtime), the pieces are exported: `buildApp` and `loadProductionHead` from `@statorjs/stator/build`, and `createApp` from `@statorjs/stator/server`.
 
 ```ts
-// start.ts
 import { loadProductionHead } from '@statorjs/stator/build'
 import { createApp } from '@statorjs/stator/server'
 
@@ -40,16 +43,11 @@ const app = await createApp({
 await app.listen(port)
 ```
 
-`loadProductionHead` links `components.css`, injects each route's island `<script type="module">` tags from the manifest, and hands back the per-build `buildId` for the deploy-aware [reload handshake](/guides/realtime-sse/). No Vite in the process — `tsx start.ts` is the whole server.
-
-A [`create-stator`](/introduction/installation/) project ships this wiring as `pnpm build` / `pnpm start`.
-
 ## Deploy checklist
 
 - **Always-on, single instance.** SSE connections need the process running — disable scale-to-zero, and don't scale out (fan-out and app machines are in-process; multi-replica is deferred).
-- **`REDIS_URL`** for session state that survives deploys (`RedisStore`, optionally wrapped in `CachedStore`), and `RedisAppStore` if you use [persisted app machines](/guides/app-machines/).
-- **`NODE_ENV=production`** — JSON logs and the `Secure` cookie flag
-  (override with `STATOR_SECURE_COOKIE=1|0` if TLS terminates elsewhere).
+- **`REDIS_URL`** for session state that survives deploys (`RedisStore`, optionally wrapped in `CachedStore`), and `RedisAppStore` if you use [persisted app machines](/guides/app-machines/). Wire it in `stator.config.ts`'s `persistence`.
+- **`NODE_ENV=production`** — JSON logs and the `Secure` cookie flag (override with `STATOR_SECURE_COOKIE=1|0` if TLS terminates elsewhere).
 - **`SESSION_TTL_SECONDS`** — per-session idle expiry, default 24h.
 
 These read from `process.env`, and Stator loads `.env` files into it at startup — `.env` for committed defaults, `.env.local` for machine-local secrets (gitignored). Precedence is **real environment → `.env.local` → `.env`**, so a value your host injects (a platform secret, a container env var) always wins over a file. In production, prefer real platform secrets for anything sensitive; `.env` is the convenience for local and simple deploys.

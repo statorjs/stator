@@ -37,8 +37,7 @@ desksmith/
 ├── lib/
 │   └── payments.ts        # the (pretend) payment processor
 ├── static/
-├── server.ts
-└── sync.ts
+└── stator.config.ts       # optional — added in step 7 for Redis
 ```
 
 This is the **end state** — what you'll have built by the last step. Create each file when the step that introduces it tells you to; don't pre-create them now.
@@ -53,19 +52,20 @@ Files in `machines/` and `routes/` are discovered automatically — there's no r
 
 ## Prerequisites & scaffold
 
-Follow [Installation](/introduction/installation/) first: install `@statorjs/stator`, `tsx`, and `typescript`, and create the `server.ts` and `sync.ts` entry points shown there. Add `"type": "module"` and the script aliases to `package.json`:
+Follow [Installation](/introduction/installation/) first: install `@statorjs/stator` and `typescript`. There's no entry file to write — the `stator` CLI is the entry point. Add `"type": "module"` and the CLI scripts to `package.json`:
 
 ```json
 {
   "type": "module",
   "scripts": {
-    "sync": "tsx sync.ts",
-    "dev": "tsx watch server.ts"
+    "dev": "stator dev",
+    "check": "stator check",
+    "build": "stator build"
   }
 }
 ```
 
-`"type": "module"` is required — the entry points use top-level `await`, which needs ES modules.
+`"type": "module"` is required — machines, routes, and `stator.config.ts` are ES modules.
 
 ## Configure TypeScript
 
@@ -99,38 +99,17 @@ The `.stator/` directory is generated, so add it to `.gitignore`:
 dist/
 ```
 
-Now install dependencies and generate the type declarations for the first time:
+Now install dependencies and run `stator check` — it generates the `.stator` type declarations and typechecks the whole stack in one step:
 
 <PackageManagers type="install" />
 
-<PackageManagers type="run" args="sync" />
+<PackageManagers type="run" args="check" />
 
-Re-run `sync` whenever a component's props change.
+`stator dev` keeps these declarations current as you work, and `stator build` runs `check` first — so you rarely run it by hand.
 
 ## The dev server
 
-Your `server.ts` boots the dev server and points it at the three directories. For the tutorial, the in-memory store is fine — we'll swap it for Redis in [step 7](/tutorial/07-persisting-state/):
-
-```ts
-import { resolve, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { InMemoryStore } from '@statorjs/stator/server'
-import { createDevApp } from '@statorjs/stator/dev'
-
-const here = dirname(fileURLToPath(import.meta.url))
-
-const app = await createDevApp({
-  root: here,
-  machinesDir: resolve(here, 'machines'),
-  routesDir: resolve(here, 'routes'),
-  staticDir: resolve(here, 'static'),
-  persistence: { session: new InMemoryStore() },
-})
-
-await app.listen(Number(process.env.PORT ?? 3000))
-```
-
-During development, Vite compiles `.stator` files as they're requested — there's no separate build step to run while you work.
+`stator dev` boots the dev server, auto-discovering `machines/`, `routes/`, and `static/`. For the tutorial the default in-memory store is fine — we'll add a `stator.config.ts` for Redis in [step 7](/tutorial/07-persisting-state/). During development, Vite compiles `.stator` files as they're requested — there's no separate build step to run while you work.
 
 ## Run it
 
