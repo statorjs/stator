@@ -7,7 +7,7 @@ import type { Store } from './store.ts'
  * The resolved config data `buildHonoApp` stashes on the context (early), for
  * the security defaults, `cors()`, and app middleware to read.
  */
-interface StatorConfigData {
+export interface StatorConfigData {
   readonly origin?: string
   readonly trustedOrigins: readonly string[]
   readonly sameSite: 'Lax' | 'Strict'

@@ -6,6 +6,7 @@ import type { AnyMachineDef, EventOf } from '../engine/index.ts'
 import { dispatchToApp } from './app-dispatch.ts'
 import type { AppStore } from './app-store.ts'
 import { installGracefulShutdown, printStartupNotice } from './banner.ts'
+import { type BootTeardown, discoverBoot, runBoot } from './boot.ts'
 import { type DeprecatedFlatConfig, resolveAppConfig } from './config-compat.ts'
 import { discoverMachines } from './discovery.ts'
 import { wireAppEffects } from './effects.ts'
@@ -77,6 +78,9 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
   /** Path to the app's `middleware.ts` (if any). Loaded and validated; its
    *  default export must be `defineMiddleware`/`dangerouslyDefineMiddleware`. */
   middlewareFile?: string
+  /** Path to the app's `boot.ts` (if any). Its default export must be
+   *  `defineBoot(...)`; it runs once when the app starts listening. */
+  bootFile?: string
   /** Build identifier for the deploy-aware reload handshake. `stator start`
    *  passes the id baked into the build manifest; absent → no handshake. */
   buildId?: string
@@ -131,6 +135,7 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
   const middleware = config.middlewareFile
     ? await discoverMiddleware(config.middlewareFile)
     : undefined
+  const bootDef = config.bootFile ? await discoverBoot(config.bootFile) : undefined
   const inspector = resolved.inspector
   const app = await buildHonoApp({
     routes,
@@ -156,9 +161,27 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
   return {
     listen(port: number): Promise<void> {
       return new Promise((resolveFn) => {
-        const server = serve({ fetch: app.fetch, port, hostname: resolved.host }, () => {
+        const server = serve({ fetch: app.fetch, port, hostname: resolved.host }, async () => {
           // Always-on (level-independent) so `warn` prod still confirms boot.
           printStartupNotice({ port, machines: defs.length, routes: routes.length })
+          // Run boot.ts once the server is up — its long-lived work (a poll, a
+          // subscription) starts here, not during createApp, so tests that only
+          // `app.fetch` never trigger it.
+          const teardown: BootTeardown | undefined = await runBoot(bootDef, {
+            dispatchToApp: (machine, event) => dispatchToApp(store, machine, event),
+            config: {
+              origin: resolved.origin,
+              trustedOrigins: resolved.trustedOrigins ?? [],
+              sameSite: resolved.sameSite ?? 'Lax',
+              cors: resolved.cors,
+            },
+          })
+          // Ctrl+C / SIGTERM (deploy rollover) exits 0, not 130 — quiet in prod.
+          // Boot teardown runs first (unsubscribe/clear timers), then the server.
+          installGracefulShutdown(async () => {
+            if (teardown) await teardown()
+            await new Promise<void>((done) => server.close(() => done()))
+          }, true)
           resolveFn()
         })
         // Production is strict about its port (a collision is a deploy
@@ -173,9 +196,6 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
           }
           throw err
         })
-        // Ctrl+C / SIGTERM (deploy rollover) exits 0, not 130 — quiet in
-        // prod: the structured logs are the record.
-        installGracefulShutdown(() => new Promise<void>((done) => server.close(() => done())), true)
       })
     },
     fetch: (request: Request) => app.fetch(request),

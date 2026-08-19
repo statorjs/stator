@@ -32,6 +32,7 @@ export async function run(ctx: CliContext): Promise<void> {
     headExtras,
     buildId,
     middlewareFile: resolve(dist, 'middleware.ts'),
+    bootFile: resolve(dist, 'boot.ts'),
   })
 
   await app.listen(resolvePort(ctx.portFlag, config.port))
