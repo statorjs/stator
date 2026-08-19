@@ -90,6 +90,9 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   // (raw TS, run under tsx/native in prod like the rest of the server).
   const middlewareSrc = join(root, 'middleware.ts')
   if (await exists(middlewareSrc)) await cp(middlewareSrc, join(outDir, 'middleware.ts'))
+  // Same for a root-level boot.ts (the once-at-startup hook).
+  const bootSrc = join(root, 'boot.ts')
+  if (await exists(bootSrc)) await cp(bootSrc, join(outDir, 'boot.ts'))
 
   // Compile every .stator into a sibling .stator.ts; collect CSS and islands.
   const statorFiles = await walk(outDir, (f) => f.endsWith('.stator'))

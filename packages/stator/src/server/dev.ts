@@ -269,6 +269,10 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   await rebuildRoutes()
   await rebuildServer()
 
+  // Discover boot.ts ONCE per process (not per rebuild) — a long-lived source
+  // shouldn't restart on every edit. Runs in listen() below.
+  const bootDef = await runtime.discoverBoot(resolve(root, 'boot.ts'), loader)
+
   // Live reload: on a relevant source change, re-discover and rebuild the app,
   // then tell the browser to reload. A template/route edit keeps the store (and
   // your session — cart contents and all) intact; only a machine edit resets it,
@@ -319,22 +323,35 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
       const server = createHttpServer((req, res) => {
         vite.middlewares(req, res, () => honoListener(req, res))
       })
-      installGracefulShutdown(async () => {
-        await vite.close()
-        await new Promise<void>((done) => server.close(() => done()))
-      })
       // Busy port? Shift up like every modern dev server (the requested
       // port is someone's other project, not an error).
       return findFreePort(port).then(
         (freePort) =>
           new Promise((resolveFn) => {
-            server.listen(freePort, () => {
+            server.listen(freePort, async () => {
               printDevBanner({
                 port: freePort,
                 requestedPort: port,
                 machines: machineCount,
                 routes: routes.length,
                 inspector: true,
+              })
+              // Boot runs once the dev server is up (store is read at call time,
+              // so a later rebuild's store is used). Teardown composes into the
+              // shutdown below.
+              const teardown = await runtime.runBoot(bootDef, {
+                dispatchToApp: (machine, event) => runtime.dispatchToApp(store, machine, event),
+                config: {
+                  origin: resolved.origin,
+                  trustedOrigins: resolved.trustedOrigins ?? [],
+                  sameSite: resolved.sameSite ?? 'Lax',
+                  cors: resolved.cors,
+                },
+              })
+              installGracefulShutdown(async () => {
+                if (teardown) await teardown()
+                await vite.close()
+                await new Promise<void>((done) => server.close(() => done()))
               })
               resolveFn()
             })

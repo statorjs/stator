@@ -18,6 +18,8 @@ export type {
 export { dispatchToApp } from './app-dispatch.ts'
 export type { AppStore } from './app-store.ts'
 export { InMemoryAppStore } from './app-store.ts'
+export type { BootContext, BootDefinition, BootFn, BootTeardown } from './boot.ts'
+export { defineBoot, discoverBoot, isBootDefinition, runBoot } from './boot.ts'
 export type { CachedStoreOptions } from './cached-store.ts'
 export { CachedStore } from './cached-store.ts'
 export type { StatorContext } from './context.ts'
