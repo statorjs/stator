@@ -171,17 +171,37 @@ promotes it.
   [`.chisel/specs/active/ambient-by-def-machine-reads-with-a-typed-requirement-channel.md`](.chisel/specs/active/ambient-by-def-machine-reads-with-a-typed-requirement-channel.md).
   *Motivation*: prop-drilling shared state is the first DX wall a component tree
   hits at scale; the fix is inversion of control done with types.
-- **Long-lived inbound sources — clock + subscription** *(evidence-gated;
-  userland pattern is complete today, so NOT committed)*: external inputs that
-  drive machines over the process lifetime — a recurring poll, a push
-  subscription (Firestore `onSnapshot`, an upstream stream). They decompose into
-  two mechanisms, and today **both live cleanly in userland**: create the app,
-  then call your own `clock(app, …)` / `watch(app, …)` helpers dispatching via
-  the bound `dispatchToApp` (reachable and store-current in dev *and* prod). No
-  lifecycle hook is required — `createApp` returns after `bootAppMachines()`, so
-  ordering alone guarantees the source can't start before the graph is up, and a
-  `server.ts` helper survives dev rebuilds (it isn't in the Vite-reloaded graph).
-  Decomposition: **poll = a recurring clock → an effect → events** (the clock
+- **`boot.ts` startup hook** *(shipped, 2.5)*: the seam for a long-lived inbound
+  source. `defineBoot((ctx) => { … return teardown })` in a root `boot.ts`
+  (auto-discovered like `middleware.ts`) runs once when the server starts
+  listening; `BootContext` is narrow (`dispatchToApp` + read-only `config`) — boot
+  is a *source, not a controller*, so policy stays in the machine (a guard
+  debounces `TICK`). Teardown composes into graceful shutdown, closing the
+  cleanup-race promotion trigger below. **Why this shipped now:** the 2.2 CLI
+  invalidated the "userland pattern is complete" premise — apps no longer own the
+  `createApp` call (`stator dev`/`start` do), so there was no `server.ts` seam left
+  to hang a source on. `boot.ts` restores the seam WITHOUT building the declarative
+  `clock()`/`source()` primitives (those stay deferred — the bind-family caution
+  holds). Dogfood: Mayday (external — one poll clock + per-robot `onSnapshot`).
+  Recipe: "Startup work & background sources".
+- **Demand-gated server polling — the presence follow-up** *(evidence-gated; ~2.6)*:
+  `boot.ts` gives the poll loop; the missing half is knowing *which* watched
+  entities have live sessions, so the server polls only those and stops when the
+  last watcher disconnects. The SSE registry already holds every connection
+  (sessionId + routeKey + live runtime) but exposes only `activeConnectionCount()`
+  — so this needs a **presence read** (e.g. `activeConnections()`), the roadmap's
+  presence/connection-lifecycle gap, now with a second evidence point (weather, on
+  top of planning-poker). Preferred shape: **derive demand from the live-connection
+  set each tick** (robust — disconnects self-heal, no refcount to drift) over
+  event-sourced refcounts or a demand-TTL. Dogfood: refactor `weather` off its
+  client refresh-clock "hack" to a `boot.ts` poll over the presence-derived
+  watched-set (its `ForecastCache` guard/fan-out already fit). Its own design round
+  — spec the presence surface before building. Design note:
+  `.chisel/docs/presence-and-demand-gated-polling.md`.
+- **Declarative clock/subscription primitives — still deferred**: external inputs
+  that drive machines over the process lifetime. Today the userland form is
+  `boot.ts` (above) dispatching via `dispatchToApp`. Decomposition: **poll = a
+  recurring clock → an effect → events** (the clock
   carries no I/O; the query stays in the effect, results re-enter — needs no new
   inbound primitive, *except* a recurring clock isn't expressible via a
   self-looping `after`, which won't re-arm — `config.to !== stateKey`,
