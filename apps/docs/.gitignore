@@ -4,3 +4,5 @@ dist/
 .astro/
 # deps
 node_modules/
+# generated from the repo-root CHANGELOG.md (scripts/sync-changelog.mjs)
+src/content/docs/changelog.md

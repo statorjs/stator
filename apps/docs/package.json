@@ -5,7 +5,10 @@
   "type": "module",
   "description": "Stator public developer docs (Astro Starlight). Content is the chisel docs source of truth (see /chisel.toml).",
   "scripts": {
+    "sync:changelog": "node scripts/sync-changelog.mjs",
+    "predev": "pnpm sync:changelog",
     "dev": "astro dev",
+    "prebuild": "pnpm sync:changelog",
     "build": "astro build",
     "preview": "astro preview"
   },
