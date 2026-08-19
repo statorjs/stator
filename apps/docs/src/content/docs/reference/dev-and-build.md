@@ -78,13 +78,16 @@ Vite is imported lazily — a server-only app never needs it at build time.
 ## loadProductionHead
 
 ```ts
-function loadProductionHead(distDir: string): Promise<(filePath: string) => string>
+function loadProductionHead(
+  distDir: string,
+): Promise<{ headExtras: (filePath: string) => string; buildId?: string }>
 ```
 
-The production `headExtras` for a built `dist/`: links `components.css` when the build produced one and injects each route's island `<script type="module">` tags from the manifest. Pass the result to `createApp`:
+Reads a built `dist/`'s manifest and returns two things for `createApp`: `headExtras` (links `components.css` when the build produced one and injects each route's island `<script type="module">` tags) and `buildId` (the per-build id for the deploy-aware [reload handshake](/guides/realtime-sse/)):
 
 ```ts
-const app = await createApp({ ...dirs, headExtras: await loadProductionHead('dist') })
+const { headExtras, buildId } = await loadProductionHead('dist')
+const app = await createApp({ ...dirs, headExtras, buildId })
 ```
 
 Both artifacts are optional — a server-only app without styles gets an empty hook.

@@ -29,16 +29,18 @@ The build:
 import { loadProductionHead } from '@statorjs/stator/build'
 import { createApp } from '@statorjs/stator/server'
 
+const { headExtras, buildId } = await loadProductionHead(dist)
 const app = await createApp({
   machinesDir: resolve(dist, 'machines'),
   routesDir: resolve(dist, 'routes'),
   staticDir: resolve(dist, 'static'),
-  headExtras: await loadProductionHead(dist),
+  headExtras,
+  buildId,
 })
 await app.listen(port)
 ```
 
-`loadProductionHead` links `components.css` and injects each route's island `<script type="module">` tags from the manifest. No Vite in the process — `tsx start.ts` is the whole server.
+`loadProductionHead` links `components.css`, injects each route's island `<script type="module">` tags from the manifest, and hands back the per-build `buildId` for the deploy-aware [reload handshake](/guides/realtime-sse/). No Vite in the process — `tsx start.ts` is the whole server.
 
 A [`create-stator`](/introduction/installation/) project ships this wiring as `pnpm build` / `pnpm start`.
 
