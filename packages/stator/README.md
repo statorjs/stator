@@ -1,15 +1,8 @@
 # @statorjs/stator
 
-A server-canonical web framework: business logic lives in composable state
-machines that have no awareness of the UI, and the UI is a thin renderer
-binding machine outputs to DOM positions. Templates are `.stator` single-file
-components; interactions POST typed events; the server diffs affected bindings
-into small JSON patches. Client islands run the same machine engine in the
-browser as custom elements.
+A server-canonical web framework: business logic lives in composable state machines that have no awareness of the UI, and the UI is a thin renderer binding machine outputs to DOM positions. Templates are `.stator` single-file components; interactions POST typed events; the server diffs affected bindings into small JSON patches. Client islands run the same machine engine in the browser as custom elements.
 
-Full documentation — tutorial, concepts, guides — lives in the repo's
-[`apps/docs`](https://github.com/statorjs/stator/tree/main/apps/docs) site;
-the repo [README](https://github.com/statorjs/stator#readme) has the tour.
+Full documentation — tutorial, concepts, guides — lives in the repo's [`apps/docs`](https://github.com/statorjs/stator/tree/main/apps/docs) site; the repo [README](https://github.com/statorjs/stator#readme) has the tour.
 
 ## Install
 
@@ -36,8 +29,7 @@ pnpm add @statorjs/stator hono
 | `@statorjs/stator/build`    | `buildApp`, `loadProductionHead`, `syncTypes` |
 | `@statorjs/stator/components` | built-ins (`<JsonLd>`) |
 
-`compiler` and `vite` subpaths exist but are internal — their shape may change
-in minor releases.
+`compiler` and `vite` subpaths exist but are internal — their shape may change in minor releases.
 
 ## Minimal app
 
@@ -96,8 +88,7 @@ const [counter] = Stator.reads([Counter])
 </html>
 ```
 
-Run with `tsx server.ts`. See the repo's `examples/desksmith` for the full wiring
-(type sync, production build, deploy).
+Run with `tsx server.ts`. See the repo's `examples/desksmith` for the full wiring (type sync, production build, deploy).
 
 ## License
 
