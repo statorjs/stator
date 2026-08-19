@@ -71,7 +71,7 @@
     </a>
 
     <nav class="nav">
-      <span class="nav__meta">REV 2.0</span>
+      <span class="nav__meta">REV 2.5</span>
       <a href="https://docs.statorjs.dev" class="nav__link">Docs</a>
       <a href="https://demo.statorjs.dev" class="nav__link">Demo</a>
       <a href="https://github.com/statorjs/stator" class="nav__link">Source</a>
@@ -103,7 +103,7 @@
 
     <!-- HERO -->
     <section class="hero">
-      <p class="hero__spec">DOC-002 · v2.0 · released</p>
+      <p class="hero__spec">DOC-002 · v2.5 · released</p>
       <h1 class="hero__title">
         <span class="hero__title-line">Render HTML</span>
         <span class="hero__title-line">where your</span>
@@ -129,7 +129,7 @@
       <div class="poc">
         <p class="poc__label">/* RELEASED */</p>
         <p class="poc__text">
-          What this is: released software, now at 2.0 — on npm today via
+          What this is: released software, now at 2.5 — on npm today via
           <code class="inline">pnpm create stator</code>, with docs at
           <a href="https://docs.statorjs.dev" class="link">docs.statorjs.dev</a>
           and a deployed reference demo at
@@ -479,7 +479,7 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
       <div class="prose">
         <p>
           The fastest way to evaluate a framework is to know its edges. Here are
-          ours, plainly: what's shipped as of 2.0, what's planned next, and what
+          ours, plainly: what's shipped as of 2.5, what's planned next, and what
           Stator is deliberately <em>not</em> going to do.
         </p>
       </div>
@@ -493,6 +493,11 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
             <li>Import-location server/client boundary, compiler-enforced</li>
             <li>State machines with typed events, guards, actions, selectors</li>
             <li>Client machines + custom elements; <code class="inline">read()</code> / <code class="inline">on:</code> / <code class="inline">ref:</code></li>
+            <li>Startup hook — <code class="inline">boot.ts</code> (<code class="inline">defineBoot</code>) runs a long-lived source (poll, subscription) into the app-machine graph, plus deploy-aware client reload on reconnect (2.5)</li>
+            <li><code class="inline">.env</code> / <code class="inline">.env.local</code> loading, and signed cookies (<code class="inline">setSigned</code>/<code class="inline">getSigned</code>) for sealed short-lived state — OAuth state, magic links (2.4)</li>
+            <li>Security &amp; middleware round — <code class="inline">middleware.ts</code>, cross-site write guard with <code class="inline">trustedOrigins</code>, <code class="inline">cors()</code>/<code class="inline">securityHeaders()</code>, session claims + cookie surface, <code class="inline">serverOnly</code> events (2.3)</li>
+            <li>The <code class="inline">stator</code> CLI (<code class="inline">dev</code>/<code class="inline">build</code>/<code class="inline">start</code>/<code class="inline">check</code>) and a first-class <code class="inline">stator.config.ts</code> — no hand-written entry files (2.2)</li>
+            <li>Island frontmatter fences — server work an island owns, a server component's contract (2.1)</li>
             <li>The forms pattern — platform-guarded drafts, typed commit events, server-rendered pre-fill, two-tier validation (2.0)</li>
             <li>Typed machine-mediated <code class="inline">dispatch</code></li>
             <li>File routing, path params, API routes, response directives</li>
@@ -654,7 +659,7 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
 
   <footer class="footer">
     <div class="footer__row">
-      <span class="footer__cell">STATOR · v2.0.0</span>
+      <span class="footer__cell">STATOR · v2.5.0</span>
       <span class="footer__cell">DOC-002</span>
       <span class="footer__cell">REV. 2026.07</span>
     </div>
