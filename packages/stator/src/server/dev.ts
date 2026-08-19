@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
@@ -115,6 +116,10 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   // Load .env before anything reads process.env. No-op if the CLI already
   // loaded it; covers a direct `createDevApp` call (a hand-written dev entry).
   loadDotenv(resolve(config.root))
+  // One build-id per dev boot — a `tsx` restart is a new process → new id → the
+  // client reloads on reconnect (the restart-without-reload gap). An inner Vite
+  // rebuild keeps the same id (no full reload; islands hot-reload via Vite).
+  const devBuildId = randomUUID()
   // Vite's HMR websocket defaults to 24678 for EVERY dev server — two
   // stator apps side by side would fight over it (the loser's live reload
   // silently dies). Probe a free one instead.
@@ -254,6 +259,7 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
       sameSite: resolved.sameSite,
       origin: resolved.origin,
       secret: resolved.secret,
+      buildId: devBuildId,
       cors: resolved.cors,
       middleware,
     })

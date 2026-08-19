@@ -44,7 +44,7 @@ interface StatorApp {
 }
 ```
 
-The production entry point. Discovers machines and routes from the given directories, boots app-lifecycle machines, wires cross-machine effects, and serves over Hono. `fetch` is the raw handler for tests; `store` is what you hand to [`dispatchToApp`](#dispatchtoapp) for server-originated events. In production, pass [`loadProductionHead`](/reference/dev-and-build/#loadproductionhead)'s result as `headExtras`. The dev server serves the wire inspector toolbar by default; `dev: { inspector: true }` opts a production app in (demo sites want the wire visible).
+The production entry point. Discovers machines and routes from the given directories, boots app-lifecycle machines, wires cross-machine effects, and serves over Hono. `fetch` is the raw handler for tests; `store` is what you hand to [`dispatchToApp`](#dispatchtoapp) for server-originated events. In production, spread [`loadProductionHead`](/reference/dev-and-build/#loadproductionhead)'s result (`headExtras` + `buildId`) into the config. The dev server serves the wire inspector toolbar by default; `dev: { inspector: true }` opts a production app in (demo sites want the wire visible).
 
 ## defineMachine
 

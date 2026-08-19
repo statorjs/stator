@@ -20,11 +20,13 @@ try {
 // REDIS_URL opts into durable state (sessions slide a short TTL — this is a
 // public demo, not a bank); without it, in-memory keeps local `start` simple.
 const redisUrl = process.env.REDIS_URL
+const { headExtras, buildId } = await loadProductionHead(dist)
 const app = await createApp({
   machinesDir: resolve(dist, 'machines'),
   routesDir: resolve(dist, 'routes'),
   staticDir: resolve(dist, 'static'),
-  headExtras: await loadProductionHead(dist),
+  headExtras,
+  buildId,
   // The wire IS the demo: the inspector pane shows every patch envelope.
   dev: { inspector: true },
   ...(redisUrl
