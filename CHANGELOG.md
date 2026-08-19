@@ -12,6 +12,80 @@ validates the API without breaking changes**. Subpaths `server`, `machine`,
 `template`, `client`, `dev`, `build`, and `components` are treated as stable
 from 0.9.0; `compiler` and `vite` are internal and may change in minors.
 
+## @statorjs/stator 2.4.0 — 2026-08-18
+
+The secrets and config release, and the second half of the auth-primitive
+thread. Server configuration and secrets — a store URL, a provider key,
+`LOG_LEVEL` — finally have a uniform home: Stator loads `.env` and `.env.local`
+into `process.env` at startup, with real environment variables always winning,
+so the same code reads its config in dev and in production. No `import.meta.env`,
+no shell-export ritual, no new dependency (Node's own `loadEnvFile`).
+
+On that foundation, signed cookies land as the sealed short-lived-state
+primitive. `cookies.setSigned`/`getSigned` sign a value with an app secret so
+the server can hand state to the browser and trust it on the way back — the
+OAuth `state` handshake, a magic-link token, a WebAuthn challenge — without a
+database row for every in-flight attempt. A tampered or since-rotated cookie
+reads as absent, never as a value to trust. This is the substrate an auth
+toolkit builds on, not an auth system Stator ships: the framework gives you the
+sealed state and the session ops, the library owns the provider and the user
+store.
+
+## @statorjs/stator 2.3.0 — 2026-08-17
+
+The security round — one release, four focused changes, one thesis: give
+third-party auth its primitives instead of shipping an auth system. Cross-site
+write protection became composable and config-tunable (`crossSiteGuard`,
+`trustedOrigins`, a `Strict` posture), and a real middleware seam arrived — a
+`middleware.ts` at the app root, framework security defaults that run first by
+default, and `cors()`/`securityHeaders()` as exported primitives. Middleware
+runs upstream of the machine pipeline, so it reads request and config, never a
+machine.
+
+The heart of the release is the session-identity substrate. Session claims are
+a minimal projection of identity the machine-unaware edge can gate on — coarse
+admission at the door — while the machine chart stays the source of truth for
+fine authorization. Middleware and handlers get session-lifecycle ops
+(`rotateSession`, `clearSession`) and a thin cookie surface, and the session is
+established once per request. The last piece, `serverOnly`, lets a machine
+declare the events no client may send — effect completions, timers, internals —
+so a forged `CHARGE_APPROVED` is rejected at the wire, not processed as truth.
+The `with-auth` starter proved the layering, the reference storefront's cart
+proved `serverOnly`. The guiding decision, learned from every framework that
+tried to build auth generically and abandoned it: enable the toolkits, don't
+become one.
+
+## @statorjs/stator 2.2.0 — 2026-08-15
+
+Stator starts owning its toolchain. A `stator` CLI (`dev`/`build`/`start`/
+`check`/`test`) replaces the hand-written `server.ts`/`build.ts`/`start.ts` an
+app used to wire itself, and `stator build` now runs `stator check` first — a
+full server-stack typecheck, not just islands — so a broken server import fails
+the build instead of shipping silently. Configuration moves into a first-class
+`stator.config.ts` with `defineConfig`, grouped by concern — `persistence`,
+`sessions`, `realtime`, `dev`, `port` — every field optional, sensible defaults
+throughout. The old flat `createApp` options still work, now deprecated in
+favor of the nested shape.
+
+Alongside it, production got quieter: `createApp` defaults to `warn`, and the
+per-request and per-connection lines that used to narrate every request dropped
+to `debug`, while the one-line startup notice prints regardless of level so a
+silent server still confirms it booted. The CLI is Phase 0 of the toolchain
+work — the user-facing seam that later releases build the owned dev/build
+pipeline behind.
+
+## @statorjs/stator 2.1.0 — 2026-08-11
+
+Islands get a server-side frontmatter fence. An island file may now carry a
+frontmatter block that runs per shell render — exactly a server component's
+contract — with its bindings in scope for the template and invisible to the
+`<script>` in either direction. It's the home for server work the island owns
+(imports, computed constants, queries), while per-use data stays props. The
+markers that only make sense in a route (`Stator.*`) are rejected in an island
+fence with located errors, and a fence binding that collides with a `use()`
+field is a located error rather than a silent precedence rule — the seam is
+explicit, not magic.
+
 ## @statorjs/stator 2.0.0 — 2026-08-09
 
 The removal release. Two-way binding was the one place a Stator machine

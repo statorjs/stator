@@ -36,7 +36,15 @@ version bumps happen later, in the Version PR.
    deletes the consumed changesets. Review and merge it. **Do not** run the
    version step by hand (it's the automation's job — keep the PR flow honest).
 
-2. Publish, per target — both manual, both after the Version PR merges:
+2. **Write the root `CHANGELOG.md` story** for a minor with an arc (NOT
+   automated — the Version PR only writes per-package changelogs). A
+   `## @statorjs/stator X.Y.0 — YYYY-MM-DD` narrative synthesizing the minor's
+   changesets into its through-line (see the 2.0.0 / 2.3.0 entries for voice).
+   Patches and arc-less minors can skip it. Do it when you merge the Version PR,
+   while the arc is fresh — it went un-written for 2.1–2.4 because it lived only
+   as a passing "Notes" line, not as a checklist step.
+
+3. Publish, per target — both manual, both after the Version PR merges:
 
    ```sh
    # npm packages (@statorjs/stator, language-server, create-stator):
