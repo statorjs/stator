@@ -57,6 +57,36 @@ So the toolchain choice never blocks the *start* of the pipeline work — only S
 
 Gating metric = **seam cleanliness + acceptable island bundles**, not the endpoint label.
 
+### Ecosystem lock-out, re-examined (2026-08-19)
+
+The main fear about dropping Vite is losing its client-island plugin ecosystem. Examined against the three asks devs actually raise, it mostly dissolves — because Stator is server-first and Vite already never touches server templates in prod, the "ecosystem" E forecloses is only the *deliberately-thin* client-island layer, and the concrete asks resolve to non-bundler mechanisms:
+
+- **Image optimization** → a runtime server endpoint (a generic image route taking options as query params, cached with the ETag/304 conditional-GET Stator already ships), NOT a build-time plugin. Vite plugins were never the tool for the *server* version of this, and image state lives on the server anyway.
+- **WASM** (viz libs, Squoosh-style in-browser codecs) → asset handling, not transformation. Vite's WASM support decomposes into: emit+hash the `.wasm` and rewrite its URL (esbuild's `file` loader + the `new URL(import.meta.url)` idiom cover it), a trivial `?init` fetch/instantiate helper, and correct `application/wasm` dev MIME. The one rough edge is Worker-hosted WASM (Squoosh's shape) — esbuild handles the URL idiom with more manual wiring. WASM needs the bundler's built-in *asset* handling (esbuild has it) + web-standard APIs (framework-agnostic), NOT a third-party plugin. Forward: the WASM ESM-integration proposal drops the bundler from the path once browsers ship it.
+- **Tailwind** → a file-scanning global-CSS generator, decoupled from the module graph (it works with Rails/Django/PHP for this reason). Pointed at source globs (server templates *and* islands), it emits one stylesheet Stator links in every head — the exact slot `components.css` already uses. Needs no Vite; the standalone CLI/PostCSS is the correct server-first setup. The "misses server classes" failure is a footgun of wiring Tailwind through the `@tailwindcss/vite` *island* plugin (content scoped to the island graph, CSS delivery coupled to island loading) — which the exit nudges people OFF of. Stator can offer this first-class (run Tailwind over globs in `dev`/`build`, link the output).
+
+Pattern: image/WASM/Tailwind all *look* like client-island bundler-ecosystem needs and all resolve to non-bundler mechanisms in a server-first model. Each is a specific, testable line on the owned-pipeline checklist, not an open-ended ecosystem loss.
+
+### The corrected D/E risk boundary
+
+- **D removes the pain; E removes the least-painful part of Vite.** The dual-instance fence exists because the *dev server* imports the framework through Vite's module graph. Vite-as-island-bundler is an offline pass — never in the server graph, so it doesn't cause the fence. D kills the fence (server native in dev), keeps raw-TS, gets dev==prod. E then swaps an offline island bundler at the thin leaf layer.
+- **D also fixes a footgun that exists today:** a Vite plugin on a *server* import runs only in dev (via `ssrLoadModule`) and vanishes in prod (server compiles via the Stator compiler, no Vite) — a silent dev/prod divergence. D compiles the server identically dev-and-prod, removing it.
+- **E is lower-risk than "ecosystem lock-out" implies** — the island layer is intentionally thin (islands are leaves), minimizing both the plugin need *and* esbuild's splitting complexity (few/simple islands → esbuild's weaker code-splitting is more likely sufficient).
+- **The concerns that SURVIVE are D concerns, not E:** (1) native TS-strip constrains *user* code — no `enum`-with-emit, no `namespace`, no tsconfig `paths`, no decorator emit — because D runs the server native; a quiet new rule to document, untested by any bundle spike. (2) The dev-server long-tail (resolution, symlinks, watch, sourcemaps), the cost of owning the dev loop, mitigated by the no-HMR shape but not gone.
+
+### The E gate, rewritten
+
+Replace "esbuild `splitting` bundle size acceptable" with concrete, testable items:
+
+1. esbuild emits+hashes a `.wasm`/asset and the `new URL(import.meta.url)` glue resolves; the dev server serves `application/wasm`.
+2. Prototype ONE worker-hosted WASM island end-to-end (the Squoosh stress shape).
+3. Tailwind-over-source-globs → global stylesheet → head link works (ideally first-class, so users skip the island-plugin trap).
+4. Island split *quality* measured (shared chunks, waterfalls, CSS), not only size.
+5. Native-TS-strip constraint on user code accepted + documented.
+6. A cheap revert path to the Vite island bundler preserved.
+
+E is a values bet (toolchain singularity vs a thin residual of island-plugin optionality) these items can decide — the byte-count spike alone can't.
+
 ### The two targeted fixes (symptom-level, complementary to D)
 
 Independent of the re-architecture, and already scoped:
