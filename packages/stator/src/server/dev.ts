@@ -127,6 +127,11 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   const vite = await createViteServer({
     root: resolve(config.root),
     appType: 'custom',
+    // Ignore a user `vite.config.*` — the production build already sets this,
+    // and reading it only in dev is a dev/prod divergence footgun (a plugin
+    // configured there would run in `stator dev` and silently vanish in
+    // `stator build`). Stator's own plugins are passed inline below.
+    configFile: false,
     server: { middlewareMode: true, hmr: { port: hmrPort } },
     // machineStub keeps server machines out of browser module graphs: island
     // imports of a machine resolve to a `{ name }` stub (SSR loads are

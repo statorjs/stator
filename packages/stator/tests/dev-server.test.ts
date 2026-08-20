@@ -292,3 +292,26 @@ describe('dev server: .stator end to end', () => {
     }
   })
 })
+
+describe('dev server: a user vite.config is ignored (dev/prod parity)', () => {
+  it('boots even when the app root has a throwing vite.config.ts', async () => {
+    // The fixture's vite.config.ts throws if evaluated. `createDevApp` sets
+    // `configFile: false` (matching `stator build`), so it's never read and the
+    // dev server boots — a user vite.config can't take effect in dev, just as it
+    // never did in prod. A regression would reject here with STRAY_VITE_CONFIG.
+    const cfgRoot = resolve(here, 'fixtures/dev-vite-config')
+    let cfgApp: DevApp | undefined
+    try {
+      cfgApp = await createDevApp({
+        root: cfgRoot,
+        machinesDir: resolve(cfgRoot, 'machines'),
+        routesDir: resolve(cfgRoot, 'routes'),
+      })
+      const res = await cfgApp.fetch(new Request('http://localhost/'))
+      expect(res.status).toBe(200)
+      expect(await res.text()).toContain('ok')
+    } finally {
+      await cfgApp?.close()
+    }
+  })
+})
