@@ -150,6 +150,30 @@ One story per minor; middleware+security co-cut so the middleware API is validat
 
 env (2.4) and version (2.5) are the two targeted fixes — independent of each other and of the Vite exit (2.6), which is why they now ship ahead of it.
 
+## Spike D — native server dev loop, no Vite (2026-08-20)
+
+Prototyped the whole D server path against `examples/minimal` (server templates, **zero islands** — isolates the server loop): compile (`.stator`→`.ts`) → discover+wire+serve → edit → recompile → re-import → serve the change, with Vite never invoked. Harness ran under a copy of the shipped esbuild loader (`packages/stator/src/cli/loader.js`) registered via `module.register`, exactly as the `stator` bin does. Result: **D is feasible, and the one hard part (incremental module invalidation) is solved by the shipped loader plus one addition.**
+
+**What the spike proved:**
+
+1. **The server compiles and serves with no Vite.** `buildApp` compiles `minimal` in ~11ms cold with `islands = 0`, so its Vite branch (`buildClientAssets`, gated on `islands.length > 0`) is never entered. Wiring the compiled output through the *public* server API — `discoverMachines(dir, loader)` → `MachineStore` + `wireAppEffects` + `bootAppMachines` → `discoverRoutes(dir, loader)` → `buildHonoApp` — renders the page (`GET /` → 200, correct SSR). This is just `stator build` + `stator start`'s existing Vite-free path, run in a loop.
+
+2. **Incremental invalidation is the only real gap, and the shipped loader already tolerates the fix.** The current Vite dev server gets module invalidation for free from `vite.ssrLoadModule`'s graph (this is *the fence*). The native equivalent is a cache-busting import: `import(pathToFileURL(file) + '?v=' + version)`. The shipped loader needs **no change** to accept it — its extension check tests `new URL(url).pathname` (strips the `?v=` query) and `fileURLToPath` ignores the query, so a cache-busted URL transforms and reads the real file.
+
+3. **Entry-only cache-bust is insufficient — transitive edits stay stale.** Bumping `?v=` on the discovered entry (route/machine) re-imports *that module* fresh, but its static transitive imports (`route.stator.ts` → `import Layout from '../templates/layout.stator.ts'`) carry no query, so they resolve to the **cached** copy. Measured: a route-file edit surfaces (recompile ~4–5ms); a `route→layout` template edit does **not**.
+
+4. **The fix is `?v=` propagation through `resolve`, scoped to app source.** Adding ~6 lines to the loader's `resolve` hook — inherit the importer's `?v=` onto app-relative children — makes the whole graph re-import fresh, and the transitive edit surfaces. **Critical constraint discovered the hard way:** propagation MUST stop at `node_modules` / the framework package. Versioning framework internals (e.g. `template/read.ts?v=3`) forks their singletons — the route's `read()` ran against a second render-context instance and 500'd. This is the **same dual-instance hazard as the Vite fence**, reappearing from the other side: the owned loop trades "framework loaded twice across two module systems" for "framework must be loaded exactly once, so version only app files." In an installed app the boundary is literally `node_modules`; scope propagation there.
+
+5. **Compiled output imports `@statorjs/stator` by bare specifier**, so the dev loop must run the build output from **within the project's `node_modules` resolution** (as `stator start` does). An out-of-tree build dir fails with `ERR_MODULE_NOT_FOUND`. Not a constraint, just a wiring fact for where the dev-build dir lives.
+
+**Design consequences for 2.6:**
+
+- **The native loader = shipped esbuild loader + scoped `?v=` propagation in `resolve` + `.stator` compile-on-`load`.** The spike used AOT (`buildApp` writes `.stator.ts` siblings, then the loader transforms the `.ts`); folding compile into the loader's `load` hook (read `.stator` → `compile()` → esbuild) removes the disk round-trip and is the productionizing step. Note this is exactly the "`.stator` `node:test` loader hook" the shipped `loader.js` header already anticipates.
+- **Invalidation model — two options, (a) proven here:** (a) in-process graph-wide `?v=` propagation scoped to the app dir — fast (~4–5ms recompile on `minimal`), matches today's *rebuild-without-restart* behaviour (`dev-server.test.ts:264` "live-reloads a template edit without a restart"), leaks superseded module versions into the ESM registry (dev-acceptable; bound with a periodic worker-recycle). (b) worker/process restart per change — what `tsx watch` does; robust and simpler (no version bookkeeping) but higher latency and drops in-memory app-machine state. Given Stator's no-HMR shape hard-reloads the browser regardless, (b) is a viable fallback, but (a) is proven and preserves the current no-restart feel.
+- **Islands are untouched by this spike** (`minimal` has none) and keep bundling through Vite behind `bundleIslands` — consistent with D. Spike 1 (esbuild `splitting` for islands, the D→E gate) remains separate and open.
+
+Method is cheap to reproduce (~10 min): copy an island-free example, `buildApp` it, wire the public server API with a cache-busting loader, edit a route then a transitive template, assert both surface. The scoped-propagation loader diff is the whole novelty.
+
 ## Alternatives Considered
 
 - **Buy Vite (stay), keep E reachable** — the prior lean (2026-08-14), driven by sole-maintainer robustness fear. Superseded by the current decision to exit, because platform maturity (Node native TS + watch) and Stator's no-HMR shape shrink the owned surface that motivated "buy."
@@ -159,7 +183,7 @@ env (2.4) and version (2.5) are the two targeted fixes — independent of each o
 ## Open Questions
 
 - Spike 1 result: is esbuild `splitting` shared-chunk output acceptable for real multi-island apps, or does the runtime duplicate per island?
-- Exact shape of the watch loop / error-overlay Stator owns in D (reuses existing compile-error code frames).
+- Exact shape of the watch loop / error-overlay Stator owns in D (reuses existing compile-error code frames). **Invalidation core settled by Spike D** (scoped `?v=` propagation, 2026-08-20); the watcher (chokidar → recompile-changed → version-bump → build-id reload) + error overlay are the remaining glue.
 - `machineStub` (island machine-import stubbing) as an esbuild `onResolve`/ `onLoad` plugin; route→island manifest as an esbuild metafile.
 - Whether `tsx` is dropped for Node-native TS at the same time or stays a swappable adapter until the min-Node floor rises.
 
