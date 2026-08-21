@@ -37,6 +37,10 @@ import type { Store } from './store.ts'
  * follow-up; this is the dev half of Phase 3a.
  */
 
+// The native (Vite-free) dev server — Option D. Opt-in during the transition;
+// see `dev-native.ts`.
+export { createNativeDevApp, type NativeDevApp } from './dev-native.ts'
+
 export interface DevAppConfig {
   /** Vite root — the app directory (must reach node_modules for resolution). */
   root: string
