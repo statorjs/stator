@@ -84,7 +84,21 @@ async function main() {
   })
   console.log('✓ boots and renders')
 
-  // 1. Route edit → fast path.
+  // 1. Runtime parity: an event round-trips to a patch (shared buildHonoApp path).
+  const home = await fetch(url())
+  const cookie = home.headers.get('set-cookie')?.split(';')[0]
+  if (!cookie) fail('no session cookie on GET /')
+  const evt = await fetch(`${url()}__events`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Stator-Route': 'GET /', Cookie: cookie },
+    body: JSON.stringify({ machine: 'CounterMachine', event: { type: 'INCREMENT' } }),
+  })
+  const patched = await evt.json()
+  if (!patched.patches?.some((p) => p.value === 'count is 1'))
+    fail(`event round-trip produced no INCREMENT patch: ${JSON.stringify(patched)}`)
+  console.log('✓ event round-trips to a patch')
+
+  // 2. Route edit → fast path.
   writeFileSync(routeFile, originals.get(routeFile).replace('Hello, Stator', 'Hello, CI-Route'))
   await waitFor(url(), (b) => b.includes('Hello, CI-Route'), {
     timeoutMs: 15000,
@@ -92,13 +106,28 @@ async function main() {
   })
   console.log('✓ route edit live-reloads')
 
-  // 2. Machine edit → store path.
+  // 3. Machine edit → store path.
   writeFileSync(machineFile, originals.get(machineFile).replace('count is ', 'tally is '))
   await waitFor(url(), (b) => b.includes('tally is 0'), {
     timeoutMs: 15000,
     label: 'machine edit reload',
   })
   console.log('✓ machine edit live-reloads')
+
+  // 4. Compile error resilience: a broken edit must NOT crash the server — it
+  //    keeps serving the last good build, then recovers when the file is fixed.
+  writeFileSync(routeFile, '---\nthis is not valid typescript ][\n---\n<h1>broken</h1>\n')
+  await sleep(1500)
+  const duringError = await fetch(url())
+  if (duringError.status !== 200)
+    fail(`server stopped serving during a compile error (status ${duringError.status})`)
+  console.log('✓ compile error keeps last-good build alive')
+  writeFileSync(routeFile, originals.get(routeFile))
+  await waitFor(url(), (b) => b.includes('Hello, Stator'), {
+    timeoutMs: 15000,
+    label: 'recovery after fixing the compile error',
+  })
+  console.log('✓ recovers after the error is fixed')
 
   restore()
   child.kill()

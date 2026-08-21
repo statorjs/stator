@@ -53,6 +53,11 @@ export interface NativeDevApp {
   close: () => Promise<void>
 }
 
+// The dev browser client (replaces Vite's `/@vite/client`): reconnecting-EventSource
+// that reloads on a successful rebuild and renders a full-screen overlay with the
+// message on a build failure, so a compile error is visible instead of a frozen page.
+const DEV_CLIENT_SCRIPT = `(()=>{let o;const show=(m)=>{if(o)o.remove();o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:2147483647;margin:0;padding:24px;overflow:auto;background:#1a1015;color:#f8d7da;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap';o.textContent='stator \\u2014 build failed\\n\\n'+m;document.body.appendChild(o)};const es=new EventSource('/__stator_dev');es.onmessage=(e)=>{let m;try{m=JSON.parse(e.data)}catch{return}if(m.type==='reload')location.reload();else if(m.type==='error')show(m.message)}})()`
+
 export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDevApp> {
   const root = resolve(config.root)
   loadDotenv(root)
@@ -71,6 +76,11 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   const outDir = resolve(devRoot, String(process.pid))
   const machinesDir = resolve(outDir, 'machines')
   const routesDir = resolve(outDir, 'routes')
+
+  // Make the dev output self-ignoring so users never have to touch their
+  // .gitignore — `.stator-dev/.gitignore` with `*` hides the whole tree.
+  await mkdir(devRoot, { recursive: true })
+  await writeFile(join(devRoot, '.gitignore'), '*\n')
 
   // Sweep output dirs left behind by dev servers that have since exited (crash or
   // kill), so `.stator-dev/` doesn't accumulate cruft. Liveness-checked by PID.
@@ -104,10 +114,12 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   // ── Dev live-reload channel (replaces Vite's `/@vite/client` HMR socket) ────
   const reloadClients = new Set<ReadableStreamDefaultController<Uint8Array>>()
   const enc = new TextEncoder()
-  const broadcastReload = (): void => {
+  type DevMessage = { type: 'reload' } | { type: 'error'; message: string }
+  const broadcast = (msg: DevMessage): void => {
+    const frame = enc.encode(`data: ${JSON.stringify(msg)}\n\n`)
     for (const c of reloadClients) {
       try {
-        c.enqueue(enc.encode('data: reload\n\n'))
+        c.enqueue(frame)
       } catch {
         reloadClients.delete(c)
       }
@@ -252,9 +264,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
     const headExtras = (routeFile: string): string => {
       const dev: string[] = []
       if (inspectorOn) dev.push('<script src="/@stator/inspector.js" defer></script>')
-      dev.push(
-        `<script>new EventSource('/__stator_dev').onmessage=(e)=>{if(e.data==='reload')location.reload()}</script>`,
-      )
+      dev.push(`<script>${DEV_CLIENT_SCRIPT}</script>`)
       return [prodHead(routeFile), ...dev].filter(Boolean).join('\n')
     }
     app = await buildHonoApp({
@@ -333,7 +343,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       // so a non-machine structural change (new template) keeps the session.
       if (machineEdit) await rebuildStore()
       await rebuildServer()
-      broadcastReload()
+      broadcast({ type: 'reload' })
       logger.info(
         {
           ms: Math.round(performance.now() - t0),
@@ -344,10 +354,11 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
         'reloaded',
       )
     } catch (err) {
-      logger.error(
-        { err: (err as Error).message, mode, structural, files: files.map(relOf) },
-        'reload failed',
-      )
+      // Keep serving the last good build, but surface the failure in the browser
+      // (a compile/import error) instead of silently freezing on the old page.
+      const message = (err as Error).message
+      logger.error({ err: message, mode, structural, files: files.map(relOf) }, 'reload failed')
+      broadcast({ type: 'error', message })
     }
   }
 
