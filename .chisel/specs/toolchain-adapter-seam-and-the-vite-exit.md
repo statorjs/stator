@@ -189,6 +189,50 @@ D is implemented behind `STATOR_NATIVE_DEV=1` (`stator dev`), in four stages. St
 
 **Still open before the flag flips to default:** unbounded `?v=` growth (every rebuild re-imports the whole app graph; superseded copies stay in the ESM registry — a worker recycle after N bumps or importer-only propagation), the 120 ms watch floor (`awaitWriteFinish` 80 + debounce 40, tunable), `dispatchToApp`/SSE fan-out coverage for native (the Vite test exercises the in-process API; the subprocess harness can't), docs that still describe `stator dev` as Vite-backed, and the Windows leg of the CI matrix (unverified until the branch is pushed).
 
+## E implementation plan (2026-08-21)
+
+**Governing rule (decided 2026-08-21): Stator never exposes a bundler plugin surface.** No `vite.plugins`, no `esbuild.plugins`, no user `vite.config.*` — in D or E. A plugin the user configured would apply only to the island leaf and silently miss every server template (the Tailwind-through-`@tailwindcss/vite` failure), which is the one dev/prod divergence the whole exit exists to kill. Every "can I add a plugin" request is answered with a non-bundler mechanism that works identically on both tiers (Tailwind over source globs, image optimization as a server route, WASM as plain asset handling). Under this rule the bundler is an implementation detail of one export — which is what makes E a swap rather than a migration, and what makes the half-state (Vite kept, Vite visible) the one configuration to avoid.
+
+Inventory of what references Vite today: code — `server/dev.ts` (the Vite dev server), `vite/{index,plugin,stub}.ts`, `build/islands.ts` (impl #1); tests — `dev-server.test.ts`, `vite-plugin.test.ts`, fixture `dev-vite-config/`; packaging — peer dep `^6 || ^7`, devDep, the `vite` keyword, the `/vite` subpath export, the package description; scaffolds — every `examples/*/package.json` + `apps/store` carry `vite ^6` (these are what `create-stator` copies, see ROADMAP "devDeps drift"); docs — 8 pages (`reference/overview` stability table lists `/dev` as "Vite-embedded" and `/vite` as Internal, `reference/dev-and-build` documents `DevApp.vite`, `reference/cli`, `guides/production`, `tutorial/01-setup`, `reference/server` "Lower-level exports" rationale, `guides/testing`, `changelog`); README (3 lines); ROADMAP (the exit entry, the `/server` runtime-tier split, the devDeps-drift entry).
+
+### Phase 0 — close the affordance (ships with or before the default flip; no behaviour change)
+
+- Drop the `vite` keyword and reword the package description (`"Ships TypeScript source (Vite/tsx-native by design)"` → native loader).
+- `vite/index.ts` header stops saying "add it to `plugins`"; `reference/overview` stability table: `/vite` is removed from the public table (Internal tier → no import path promised), `/dev` loses "Vite-embedded".
+- New guide page — *Styling and assets without a bundler*: the rule above stated for users, with the three recipes (Tailwind CLI over `routes/ templates/` globs → `static/tailwind.css` linked from the layout; images as a server route with ETag/304; WASM via `new URL('./x.wasm', import.meta.url)` + fetch/instantiate). Cross-link from `guides/client-components`.
+- Acceptance: `grep -ri vite apps/docs/src` hits only the changelog and the production guide's "no Vite at runtime" line.
+
+### Phase 1 — flip the default to native (2.6.0)
+
+Prerequisites, each with a test: bound `?v=` growth (recycle the loader-side graph after N bumps, or propagate only to importers of the changed file — measure RSS over 500 edits on `weather`); tune the watch floor (`awaitWriteFinish` 80→20, debounce 40→20; assert write→visible < 100 ms on `minimal`); native coverage for `dispatchToApp` + SSE fan-out (a fixture `boot.ts` that dispatches on a timer, asserted through `/__sse` from the subprocess harness); Windows CI leg green on the smoke.
+
+Then: `createDevApp` becomes the native implementation and `createNativeDevApp` is an alias; `STATOR_VITE_DEV=1` keeps the Vite path for one minor as the escape hatch; `DevApp.vite` becomes a deprecated getter returning `undefined` with a one-time warning (removed in the 3.0 batch with the other cutovers — it is the only observable surface the exit touches, and `/dev` is Stable tier). `stator dev` banner and the CLI docstring drop "Vite-backed". Changeset: minor.
+
+### Phase 2 — Spike 1 and the esbuild bundler (the E gate, behind a switch)
+
+- `build/islands-esbuild.ts`: implementation #2 of `IslandBundler`. `esbuild.build({ entryPoints, bundle: true, splitting: true, format: 'esm', write: false, metafile: true, entryNames: '[name]-[hash]', chunkNames: 'chunks/[name]-[hash]', assetNames: '[name]-[hash]', loader: { '.css': 'css', '.svg|.png|.wasm|…': 'file' } })` with two plugins: `.stator` → `onResolve`/`onLoad` that compiles the client entry (the `CLIENT_QUERY` job), and `machineStub` → `onResolve` filtered to `machinesDir` into a stub namespace whose `onLoad` imports the machine for `{ name }` (the existing Vite stub's logic, ~40 lines). `modules` from `metafile.inputs`, `islandUrls` from `metafile.outputs[*].entryPoint`. The `.client.ts` prebuilt-entry form `buildApp` uses works unchanged.
+- Selection: `bundleIslands` dispatches on `STATOR_ISLAND_BUNDLER=esbuild|vite` (default vite until the gate passes, then esbuild). Both implementations run the same contract tests: `build.test.ts`, `dev-native.test.ts`, the smoke.
+- The gate, each item a test or a recorded measurement on `weather` (7 islands): (1) asset emit + hashed URL rewrite via `new URL(…, import.meta.url)` resolves from a served island; (2) one worker-hosted WASM island end-to-end (Squoosh shape); (3) Tailwind-over-globs recipe works with the native dev server (no plugin involved — proves the Phase 0 guide); (4) split *quality*: count shared chunks, depth of the import waterfall per route, CSS emitted per island, compared against the Vite output; (5) the native-TS-strip item is closed — N/A, the esbuild loader carries full TS; (6) revert path: the Vite implementation stays in-tree for one release behind the switch.
+- Decision record: add a "Spike 1 results" section here with the numbers; E is committed only if (1)–(4) pass.
+
+### Phase 3 — remove Vite (the minor after the gate passes)
+
+- Delete `server/dev.ts` (Vite impl) — `dev-native.ts` becomes `dev.ts`; delete `vite/` (its `CLIENT_QUERY`/stub concerns now live in `islands-esbuild.ts`); delete `build/islands-vite.ts` (the current impl #1, moved out of `islands.ts` in Phase 2); delete `tests/vite-plugin.test.ts` (replaced by esbuild-plugin tests in Phase 2), `tests/dev-server.test.ts` (its cases already live in `dev-native.test.ts`), fixture `dev-vite-config/`.
+- Packaging: remove the peer dep, the devDep, the `/vite` export; `vitest` stays (test runner, unrelated). Remove `vite` from every `examples/*/package.json` and `apps/store` — this also resolves the ROADMAP "devDeps drift" ceiling (Vite 8) by removing the dependency rather than chasing the peer range; `scripts/check-scaffold-range.mjs` gets a guard that no example reintroduces it.
+- Docs/README/ROADMAP: README "What's here" + Layout (`vite/` line), the 8 docs pages, ROADMAP exit entry → shipped, the `/server` runtime-tier split entry re-motivated (its ~45 plumbing symbols were public *because* the Vite module graph needed them importable — after E they can move to a `server/runtime` subpath without a dev-server seam to protect).
+- Semver: minor. Non-breaking by the 2.5.1 argument (no user-configurable Vite surface survived into 2.6); `DevApp.vite` was already a deprecated `undefined` from Phase 1. Changeset + CHANGELOG story: "one toolchain".
+
+### Phase 4 — what E unlocks (separate specs, evidence-gated)
+
+- Compiler-derived client-dispatch allowlist rides the owned build (ROADMAP entry; `.chisel/docs/client-dispatch-allowlist.md`).
+- `/server` runtime-tier split to a structural subpath (free while external usage is zero).
+- Tailwind first-class (`stator dev`/`build` run the CLI over globs and link the output) — only if the Phase 0 recipe logs friction in a real app.
+
+### Risks and the stop conditions
+
+- **Split quality (Phase 2 gate 4) is the only technical unknown.** esbuild's splitting is ESM-only and coarser than Rollup's; with few, leaf-shaped islands it is expected to be fine, and the switch means a bad result costs nothing but the spike. If `weather` shows per-island duplication of the runtime, stop at D with Vite invisible — that is a complete, stable end state under the governing rule.
+- **Scope creep is the real failure mode.** Island HMR, a plugin API, asset pipelines — any of these turns "own the dev loop" into "own a bundler". The answer to each is architectural (leaf islands, hard reload, non-bundler recipes), recorded here so the next request doesn't re-litigate it.
+
 ## Alternatives Considered
 
 - **Buy Vite (stay), keep E reachable** — the prior lean (2026-08-14), driven by sole-maintainer robustness fear. Superseded by the current decision to exit, because platform maturity (Node native TS + watch) and Stator's no-HMR shape shrink the owned surface that motivated "buy."
