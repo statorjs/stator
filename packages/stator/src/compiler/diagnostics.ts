@@ -63,3 +63,13 @@ export function locAt(source: string, offset: number, file?: string): Diagnostic
   const { line, column } = offsetToLineCol(source, offset)
   return { file, line, column, frame: codeFrame(source, line, column) }
 }
+
+/** Render a `CompileError` for a terminal or a dev overlay: the message, then
+ *  `file:line:column` and the code frame when the error is located. Plain text
+ *  on purpose — it is the one shape that survives crossing a loader/worker
+ *  thread, where an Error's custom properties (`loc`) are dropped. */
+export function formatCompileError(err: CompileError): string {
+  if (!err.loc) return err.message
+  const { file, line, column, frame } = err.loc
+  return `${err.message}\n\n${file ?? '<source>'}:${line}:${column}\n${frame}`
+}

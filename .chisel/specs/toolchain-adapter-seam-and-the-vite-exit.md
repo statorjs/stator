@@ -2,7 +2,7 @@
 title: Toolchain adapter seam and the Vite exit
 status: draft
 created: 2026-08-15
-updated: 2026-08-15
+updated: 2026-08-21
 area: tooling
 ---
 
@@ -174,6 +174,21 @@ Prototyped the whole D server path against `examples/minimal` (server templates,
 
 Method is cheap to reproduce (~10 min): copy an island-free example, `buildApp` it, wire the public server API with a cache-busting loader, edit a route then a transitive template, assert both surface. The scoped-propagation loader diff is the whole novelty.
 
+## Stages 1–4 on `feat/vite-exit` (2026-08-21)
+
+D is implemented behind `STATOR_NATIVE_DEV=1` (`stator dev`), in four stages. Stages 1–3 built the loop on a **mirror**: `buildApp` copied the app into `.stator-dev/<pid>/`, the server ran from the copy. Review of that branch found the mirror load-bearing in the wrong way — it silently changed `import.meta.url` semantics for app code (`examples/with-auth` created its SQLite file *inside* the throwaway mirror and lost it on exit), ignored every non-code edit (`static/*.svg`, `data/*.json`), compiled every template twice per full build, and carried a PID sweep + self-ignoring `.gitignore` to manage its own cruft. Stage 4 removed it.
+
+**Stage 4 — no mirror, compile in the loader, a real seam.**
+
+- `dev-loader.mjs` compiles `.stator` on `load` (framework compiler → esbuild) and runs the server from the **source tree**. `import.meta.url` is truthful in dev, `static/` is served in place, data files are read live. `?v=` propagation now covers `.js`/`.mjs` app modules too, and the boundary is both an app-root allowlist AND a `node_modules` denylist (pnpm realpaths the framework *out* of node_modules, a flat install leaves it *inside* the app root — each check covers the case the other misses).
+- `sourceId(base, file)` is the one place the compile identity (`id` → scope hash, `kind`) is derived; the loader (hooks thread), the dev server's CSS scan (main thread), and `buildApp` all use it, so markup compiled on one thread matches CSS scoped on another.
+- `bundleIslands` (`build/islands.ts`) is now a real function boundary — Lock 1. Pure inputs→outputs: island entries in (a `.stator` source or a prebuilt client entry); emitted files, rel→URL map, and the set of source modules that went in, out. Nothing is written or served inside it: `buildApp` writes the files under `dist/static/assets/`, the dev server holds them in memory and serves them (and the concatenated scoped CSS) on the production URLs with the production `<head>` shape. The Vite implementation is ~60 lines; E is swapping that one export. `routeIslandMap` (route → reachable islands) is shared the same way.
+- The `modules` set the seam returns drives rebundling: an island rebundles only when an edit touches a module the last bundle contained, a file became an island, or the file set changed. Measured on `weather` (7 islands): a route edit is a ~190 ms write→visible path with no bundler involved; an island edit rebundles in ~125 ms server-side.
+- Parity items ported from the Vite dev server: the `findPollLoops` lint; compile errors now cross the loader thread as plain text carrying `file:line:column` + code frame (`formatCompileError`), so the overlay shows the frame; cross-file named-region validation (`regionResolverFor`) runs on **every** compile path — previously it ran only in Vite dev, so a bad `child="x"` passed `stator build` silently. The `public/`-shadows-data-route warning is intentionally not ported: only Vite served `public/` at the root, so the shadow no longer exists in dev (nor ever did in prod).
+- Tests: `tests/dev-native.test.ts` mirrors `dev-server.test.ts` case for case (render + scoped CSS + patches, raw Response passthrough, island shell + bundled script, machine stubbing in the bundle vs whole machine on SSR, data GET routes, param+extension routes, live reload) plus the native-only guarantees (`import.meta.url` under the fixture, dev reload client instead of `/@vite/client`). It drives the CLI in a subprocess because vitest's module runner intercepts `import()` and the loader hooks would never see it. `scripts/native-dev-smoke.mjs` runs on the three-OS CI matrix against `examples/minimal` (server loop) and the island fixture (bundle + per-route script injection).
+
+**Still open before the flag flips to default:** unbounded `?v=` growth (every rebuild re-imports the whole app graph; superseded copies stay in the ESM registry — a worker recycle after N bumps or importer-only propagation), the 120 ms watch floor (`awaitWriteFinish` 80 + debounce 40, tunable), `dispatchToApp`/SSE fan-out coverage for native (the Vite test exercises the in-process API; the subprocess harness can't), docs that still describe `stator dev` as Vite-backed, and the Windows leg of the CI matrix (unverified until the branch is pushed).
+
 ## Alternatives Considered
 
 - **Buy Vite (stay), keep E reachable** — the prior lean (2026-08-14), driven by sole-maintainer robustness fear. Superseded by the current decision to exit, because platform maturity (Node native TS + watch) and Stator's no-HMR shape shrink the owned surface that motivated "buy."
@@ -183,7 +198,7 @@ Method is cheap to reproduce (~10 min): copy an island-free example, `buildApp` 
 ## Open Questions
 
 - Spike 1 result: is esbuild `splitting` shared-chunk output acceptable for real multi-island apps, or does the runtime duplicate per island?
-- Exact shape of the watch loop / error-overlay Stator owns in D (reuses existing compile-error code frames). **Invalidation core settled by Spike D** (scoped `?v=` propagation, 2026-08-20); the watcher (chokidar → recompile-changed → version-bump → build-id reload) + error overlay are the remaining glue.
+- ~~Exact shape of the watch loop / error-overlay Stator owns in D.~~ **Settled** — Spike D (scoped `?v=` propagation) and Stage 4 (compile-in-loader from the source tree, chokidar watch, in-memory islands, code-frame overlay); see the stages section above for what remains before the default flips.
 - `machineStub` (island machine-import stubbing) as an esbuild `onResolve`/ `onLoad` plugin; route→island manifest as an esbuild metafile.
 - Whether `tsx` is dropped for Node-native TS at the same time or stays a swappable adapter until the min-Node floor rises.
 

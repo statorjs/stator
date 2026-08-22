@@ -653,7 +653,7 @@ async function handleGet(
   }
 }
 
-function contentTypeFor(path: string): string {
+export function contentTypeFor(path: string): string {
   const ext = extname(path).toLowerCase()
   if (ext === '.css') return 'text/css; charset=utf-8'
   if (ext === '.js' || ext === '.mjs') return 'application/javascript; charset=utf-8'

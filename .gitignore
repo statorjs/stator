@@ -1,6 +1,5 @@
 node_modules/
 dist/
-.stator-dev/
 *.vsix
 .DS_Store
 *.log

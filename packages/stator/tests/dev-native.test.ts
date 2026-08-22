@@ -1,0 +1,195 @@
+import { type ChildProcess, spawn } from 'node:child_process'
+import { readFile, writeFile } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
+/**
+ * The native (Vite-free) dev server, exercised the way a user runs it: the
+ * `stator` CLI with `STATOR_NATIVE_DEV=1` against the same fixture app the
+ * Vite-backed dev server tests use. A subprocess rather than an in-process
+ * `createNativeDevApp`, because the native server loads app modules through
+ * Node's loader hooks and vitest's module runner intercepts `import()` — the
+ * hooks would never see a thing.
+ *
+ * Mirrors `dev-server.test.ts` case for case where the contract is shared
+ * (render + scoped CSS + patches, raw Response passthrough, island shell +
+ * script, machine stubbing, data GET routes, param+extension routes, live
+ * reload) and adds the native-only guarantees: `import.meta.url` is truthful
+ * (no mirror), and the dev reload client replaces Vite's HMR client.
+ */
+
+const here = dirname(fileURLToPath(import.meta.url))
+const root = resolve(here, 'fixtures/dev-app')
+const bin = resolve(here, '../src/cli/stator.js')
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+let child: ChildProcess | undefined
+let base = ''
+const output: string[] = []
+
+const get = (path: string, init?: RequestInit) => fetch(`${base}${path}`, init)
+
+beforeAll(async () => {
+  const port = 52000 + (process.pid % 3000)
+  child = spawn(process.execPath, [bin, 'dev', '--port', String(port)], {
+    cwd: root,
+    env: { ...process.env, STATOR_NATIVE_DEV: '1', LOG_LEVEL: 'warn' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  let bound = 0
+  child.stdout!.on('data', (b) => {
+    const s = String(b)
+    output.push(s)
+    const m = /localhost:(\d+)/.exec(s)
+    if (m) bound = Number(m[1])
+  })
+  child.stderr!.on('data', (b) => output.push(String(b)))
+
+  // The banner prints the port actually bound (it shifts if `port` is busy).
+  const deadline = Date.now() + 30_000
+  while (!bound && Date.now() < deadline) await sleep(50)
+  if (!bound) throw new Error(`native dev server printed no banner:\n${output.join('')}`)
+  base = `http://localhost:${bound}`
+  while (Date.now() < deadline) {
+    try {
+      if ((await get('/')).status === 200) return
+    } catch {
+      // not listening yet
+    }
+    await sleep(50)
+  }
+  throw new Error(`native dev server did not answer:\n${output.join('')}`)
+}, 40_000)
+
+afterAll(() => {
+  child?.kill()
+})
+
+describe('native dev server: .stator end to end, no Vite', () => {
+  it('renders a .stator route with scoped CSS (production head shape) and patches events', async () => {
+    const res = await get('/')
+    expect(res.status).toBe(200)
+    const html = await res.text()
+
+    expect(html).toContain('count is 0')
+    const m = html.match(/data-s-([0-9a-f]{8})/)
+    expect(m).toBeTruthy()
+    const hash = m![1]
+    // Scoped CSS is linked exactly as in production, served from memory.
+    expect(html).toContain('<link rel="stylesheet" href="/static/components.css">')
+    const cssRes = await get('/static/components.css')
+    expect(cssRes.status).toBe(200)
+    expect(cssRes.headers.get('content-type')).toContain('text/css')
+    const css = await cssRes.text()
+    expect(css).toContain(`.label[data-s-${hash}]`)
+    expect(css).toContain('rebeccapurple')
+
+    const cookie = res.headers.get('set-cookie')!.split(';')[0]!
+    const post = await get('/__events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Stator-Route': 'GET /', Cookie: cookie },
+      body: JSON.stringify({ machine: 'CounterMachine', event: { type: 'INCREMENT' } }),
+    })
+    expect(post.status).toBe(200)
+    const json = (await post.json()) as { patches: Array<{ op: string; value?: string }> }
+    expect(json.patches.some((p) => p.value === 'count is 1')).toBe(true)
+  })
+
+  it('passes a raw Response from an api route through verbatim', async () => {
+    const res = await get('/raw-response', { method: 'POST' })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true, marker: 'raw-passthrough' })
+  })
+
+  it('renders a client component shell and serves its bundled module script', async () => {
+    const html = await (await get('/')).text()
+    expect(html).toContain('<tick-counter')
+    expect(html).toContain('data-b="b0"')
+    expect(html).not.toContain('on:click')
+    // Bundled through the seam to a hashed asset on the production URL shape.
+    const m = html.match(
+      /<script type="module" src="(\/static\/assets\/templates_tick-counter-[\w-]+\.js)"><\/script>/,
+    )
+    expect(m).toBeTruthy()
+    const asset = await get(m![1]!)
+    expect(asset.status).toBe(200)
+    expect(asset.headers.get('content-type')).toContain('javascript')
+    expect(await asset.text()).toContain('tick-counter')
+    // A route that reaches no island gets no island script.
+    const api = await (await get('/tally')).text()
+    expect(api).not.toContain('/static/assets/')
+  })
+
+  it('stubs a server-machine import in the island bundle but renders with the whole machine', async () => {
+    const html = await (await get('/remote')).text()
+    // SSR used the real machine (its selector ran).
+    expect(html).toContain('count is 0')
+    const m = html.match(/src="(\/static\/assets\/templates_counter-remote-[\w-]+\.js)"/)
+    expect(m).toBeTruthy()
+    const code = await (await get(m![1]!)).text()
+    // The browser bundle carries the identity stub only — never the body.
+    expect(code).toContain('CounterMachine')
+    expect(code).not.toContain('count is')
+    expect(code).not.toContain('selectors')
+  })
+
+  it('runs app modules from the source tree — import.meta.url is truthful', async () => {
+    const res = await get('/where.json')
+    expect(res.status).toBe(200)
+    const { url } = (await res.json()) as { url: string }
+    expect(url.startsWith(pathToFileURL(resolve(root, 'routes')).href)).toBe(true)
+    expect(url).not.toContain('.stator-dev')
+  })
+
+  it('injects the dev reload client (replacing Vite HMR) and the inspector', async () => {
+    const html = await (await get('/')).text()
+    expect(html).toContain("new EventSource('/__stator_dev')")
+    expect(html).not.toContain('/@vite/client')
+    expect(html).toContain('<script src="/@stator/inspector.js" defer></script>')
+    const asset = await get('/@stator/inspector.js')
+    expect(asset.status).toBe(200)
+    expect(await asset.text()).toContain('stator-inspector')
+  })
+
+  it('serves a data GET route as JSON', async () => {
+    const res = await get('/api-tally')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('application/json')
+    expect(typeof ((await res.json()) as { total: number }).total).toBe('number')
+  })
+
+  it('a param segment with an extension suffix routes beside its bare-param page', async () => {
+    const data = await get('/pp/abc.json')
+    expect(data.status).toBe(200)
+    expect(await data.json()).toEqual({ id: 'abc' })
+    const page = await get('/pp/abc')
+    expect(page.headers.get('content-type')).toContain('text/html')
+    expect(await page.text()).toContain('page abc')
+  })
+
+  it('live-reloads a template edit without a restart', async () => {
+    // Edits `remote-page.stator`, not `page.stator`: the Vite dev-server test
+    // live-edits the latter and vitest runs files in parallel on this fixture.
+    const file = resolve(root, 'templates/remote-page.stator')
+    const original = await readFile(file, 'utf8')
+    const title = async () =>
+      /<title[^>]*>([^<]*)<\/title>/.exec(await (await get('/remote')).text())?.[1]
+    const settle = async (expected: string) => {
+      for (let i = 0; i < 60; i++) {
+        if ((await title()) === expected) return true
+        await sleep(150)
+      }
+      return false
+    }
+    try {
+      expect(await title()).toBe('remote')
+      await writeFile(file, original.replace('<title>remote</title>', '<title>edited-live</title>'))
+      expect(await settle('edited-live')).toBe(true)
+    } finally {
+      await writeFile(file, original)
+      await settle('remote')
+    }
+  }, 20_000)
+})

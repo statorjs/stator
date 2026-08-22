@@ -29,6 +29,7 @@ export type { DiagnosticLocation } from './diagnostics.ts'
 export {
   CompileError,
   codeFrame,
+  formatCompileError,
   locAt,
   offsetToLineCol,
 } from './diagnostics.ts'
@@ -36,7 +37,7 @@ export { generateDts } from './dts.ts'
 export { scopeHash } from './hash.ts'
 export type { LowerMeta, LowerOptions } from './lower.ts'
 export { lowerTemplate } from './lower.ts'
-export { componentImportSpecifier, declaredRegions } from './regions.ts'
+export { componentImportSpecifier, declaredRegions, regionResolverFor } from './regions.ts'
 export type { ParsedStator, ScannedRegions, SourceRegion } from './split.ts'
 export { scanRegions, splitStator } from './split.ts'
 export { scopeCss } from './styles.ts'

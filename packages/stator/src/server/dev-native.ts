@@ -1,23 +1,26 @@
-import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
 import { register } from 'node:module'
-import { dirname, join, relative, resolve } from 'node:path'
+import { relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { getRequestListener } from '@hono/node-server'
 import chokidar from 'chokidar'
 import type { Hono } from 'hono'
-import { buildApp, loadProductionHead } from '../build/index.ts'
-import { compile } from '../compiler/index.ts'
+import { bundleIslands, type IslandBundle, routeIslandMap, walkFiles } from '../build/islands.ts'
+import { sourceId } from '../build/source-id.ts'
+import { CompileError, compile, formatCompileError, regionResolverFor } from '../compiler/index.ts'
 import type { AnyMachineDef, EventOf } from '../engine/index.ts'
 import { dispatchToApp } from './app-dispatch.ts'
 import { findFreePort, installGracefulShutdown, printDevBanner } from './banner.ts'
 import { type BootTeardown, discoverBoot, runBoot } from './boot.ts'
 import { resolveAppConfig } from './config-compat.ts'
 import type { DevAppConfig } from './dev.ts'
+import { findPollLoops } from './dev-lint.ts'
 import { discoverMachines } from './discovery.ts'
 import { wireAppEffects } from './effects.ts'
 import { loadDotenv } from './env.ts'
-import { buildHonoApp } from './http.ts'
+import { buildHonoApp, contentTypeFor } from './http.ts'
 import { logger, setLogLevel } from './logger.ts'
 import { MachineStore } from './machine-store.ts'
 import { discoverMiddleware } from './middleware.ts'
@@ -25,22 +28,26 @@ import { discoverRoutes } from './route-discovery.ts'
 import { InMemoryStore } from './store.ts'
 
 /**
- * Native dev server — the Vite exit (Option D). Runs the SSR path with NO Vite:
- * `.stator` is compiled by the framework's own compiler (via `buildApp`), the
- * server modules are imported natively through the esbuild `dev-loader.mjs`, and
- * the app is served by Hono exactly as `stator start` serves a production build.
+ * Native dev server — the Vite exit (Option D). The server runs from the app's
+ * SOURCE tree with no Vite and no mirror: `.stator` files are compiled on
+ * import by `dev-loader.mjs` (the framework compiler + esbuild on Node's loader
+ * hooks), machines/routes/middleware are discovered from their real paths, and
+ * the app is served by Hono exactly as `stator start` serves a build. Because
+ * nothing is copied, `import.meta.url`-relative paths in app code (a SQLite
+ * file, a data dir) mean the same thing in dev as in prod.
  *
- * The two dev-only capabilities Vite used to provide are reproduced natively:
- *  - **Live reload** — a source change triggers a recompile + a bumped module
- *    version (`?v=N`, propagated app-wide by `dev-loader.mjs`) so the next import
- *    of the app graph is fresh; connected browsers reload via a tiny SSE channel
- *    (`/__stator_dev`), replacing Vite's HMR websocket.
- *  - **CSS + island `<head>` injection** — reused verbatim from the production
- *    path (`loadProductionHead` reads the build manifest); islands still bundle
- *    through Vite inside `buildApp` (the `bundleIslands` seam), never on the SSR
- *    path.
+ * The dev-only capabilities Vite used to provide are reproduced natively:
+ *  - **Live reload** — a source change bumps the module version (`?v=N`,
+ *    propagated app-wide by the loader) so the next import of the app graph is
+ *    fresh; connected browsers reload via a tiny SSE channel (`/__stator_dev`),
+ *    replacing Vite's HMR websocket. A failed rebuild keeps the last good
+ *    graph serving and renders the error (with its code frame) in an overlay.
+ *  - **Scoped CSS + island scripts** — islands bundle through the
+ *    `bundleIslands` seam (Vite today, never on the SSR path) and are served
+ *    from memory with the concatenated scoped CSS, on the same URLs and with
+ *    the same `<head>` shape as production.
  *
- * See spec `toolchain-adapter-seam-and-the-vite-exit` §"Spike D".
+ * See spec `toolchain-adapter-seam-and-the-vite-exit`.
  */
 export interface NativeDevApp {
   fetch: (request: Request) => Response | Promise<Response>
@@ -58,6 +65,15 @@ export interface NativeDevApp {
 // message on a build failure, so a compile error is visible instead of a frozen page.
 const DEV_CLIENT_SCRIPT = `(()=>{let o;const show=(m)=>{if(o)o.remove();o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:2147483647;margin:0;padding:24px;overflow:auto;background:#1a1015;color:#f8d7da;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap';o.textContent='stator \\u2014 build failed\\n\\n'+m;document.body.appendChild(o)};const es=new EventSource('/__stator_dev');es.onmessage=(e)=>{let m;try{m=JSON.parse(e.data)}catch{return}if(m.type==='reload')location.reload();else if(m.type==='error')show(m.message)}})()`
 
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'tests', 'test', '__tests__'])
+const APP_EXT = /\.(stator|ts|tsx|mts|cts|js|mjs)$/
+/** Root-relative path segments that are never app source (mirrors SKIP_DIRS). */
+const PRUNE_DIR = /(^|\/)(node_modules|dist|tests|test|__tests__)(\/|$)/
+/** Any dot-prefixed segment: VCS/config dirs and editor temp/swap files. */
+const DOT_SEGMENT = /(^|\/)\.[^/]+/
+const EMPTY_BUNDLE: IslandBundle = { islandUrls: {}, assets: [], modules: [] }
+const norm = (p: string): string => p.replace(/\\/g, '/')
+
 export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDevApp> {
   const root = resolve(config.root)
   loadDotenv(root)
@@ -66,47 +82,23 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   const logLevel = process.env.LOG_LEVEL ?? resolved.logLevel ?? 'info'
   setLogLevel(logLevel)
   const inspectorOn = resolved.inspector ?? true
+  const machinesDir = resolve(config.machinesDir)
+  const routesDir = resolve(config.routesDir)
+  const staticDir = config.staticDir ? resolve(config.staticDir) : resolve(root, 'static')
+  // One build-id per dev process, as the Vite dev server did — rebuilds reload
+  // through the dev channel, a restart is a new id for the SSE reconnect handshake.
+  const buildId = randomUUID()
 
-  // Compiled output lives under the app (so the emitted `.stator.ts` and its bare
-  // `@statorjs/stator` imports resolve against the app's own node_modules, like
-  // `stator start`), in a per-PROCESS subdir. That lets several `stator dev`
-  // instances run side by side — each on its own auto-incremented port AND its
-  // own output tree — without corrupting each other's builds.
-  const devRoot = resolve(root, '.stator-dev')
-  const outDir = resolve(devRoot, String(process.pid))
-  const machinesDir = resolve(outDir, 'machines')
-  const routesDir = resolve(outDir, 'routes')
-
-  // Make the dev output self-ignoring so users never have to touch their
-  // .gitignore — `.stator-dev/.gitignore` with `*` hides the whole tree.
-  await mkdir(devRoot, { recursive: true })
-  await writeFile(join(devRoot, '.gitignore'), '*\n')
-
-  // Sweep output dirs left behind by dev servers that have since exited (crash or
-  // kill), so `.stator-dev/` doesn't accumulate cruft. Liveness-checked by PID.
-  const isAlive = (pid: number): boolean => {
-    try {
-      process.kill(pid, 0)
-      return true
-    } catch (e) {
-      return (e as NodeJS.ErrnoException).code === 'EPERM' // exists, not ours to signal
-    }
-  }
-  for (const name of await readdir(devRoot).catch(() => [] as string[])) {
-    const pid = Number(name)
-    if (pid && pid !== process.pid && !isAlive(pid))
-      await rm(resolve(devRoot, name), { recursive: true, force: true }).catch(() => {})
-  }
-  const cleanup = (): Promise<void> => rm(outDir, { recursive: true, force: true }).catch(() => {})
-
-  // Register the native loader BEFORE the first app import. Its `?v=`
-  // propagation is scoped to `outDir` so only app modules re-import on a bump —
-  // framework singletons stay single (the dual-instance guard, Spike D #4).
-  register('./dev-loader.mjs', import.meta.url, { data: { appDir: outDir } })
+  // Loaders, BEFORE the first app import. The CLI's TS loader first — a no-op
+  // extra link when the CLI already registered it, required when the dev server
+  // is started programmatically, because the dev loader (a hooks-thread module)
+  // imports the TypeScript compiler source. Then the dev loader: `.stator`
+  // compile-on-load plus `?v=` propagation scoped to the app root.
+  register('../cli/loader.js', import.meta.url)
+  register('./dev-loader.mjs', import.meta.url, { data: { appDir: root } })
 
   // A monotonic build version drives cache-busting: every rebuild bumps it, and
-  // the discovery loader imports entries at `?v=N` so the whole app graph is
-  // re-read fresh (propagation carries N to transitive imports).
+  // discovery imports entries at `?v=N` so the whole app graph is re-read fresh.
   let version = 1
   const bust = (file: string): Promise<Record<string, unknown>> =>
     import(`${pathToFileURL(file).href}?v=${version}`)
@@ -132,9 +124,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
           controller.enqueue(enc.encode(': connected\n\n'))
           reloadClients.add(controller)
         },
-        cancel() {
-          // controller identity differs on cancel; prune lazily on next broadcast
-        },
+        // A closed stream's controller throws on the next enqueue and is pruned then.
       }),
       {
         headers: {
@@ -146,102 +136,103 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       },
     )
 
+  // ── Source scan: scoped CSS + island-ness of every `.stator` ───────────────
+  // The loader compiles each `.stator` into its server module on import; this
+  // main-thread pass compiles for the two things the <head> needs up front —
+  // scoped CSS and which files are islands. Same `sourceId`, so the scope
+  // hashes agree with the markup the loader emits.
+  interface StatorInfo {
+    css: string
+    isClient: boolean
+  }
+  const infos = new Map<string, StatorInfo>() // abs `.stator` → info
+  const skipDir = (name: string): boolean => name.startsWith('.') || SKIP_DIRS.has(name)
+  const compileInfo = async (file: string): Promise<StatorInfo> => {
+    const source = await readFile(file, 'utf8')
+    const { id, kind } = sourceId(root, file)
+    const r = compile(source, { id, kind, resolveRegions: regionResolverFor(file, source) })
+    return { css: r.css ?? '', isClient: r.isClient }
+  }
+  // Tolerant at boot: a broken file is logged and skipped here (it surfaces
+  // with its code frame when something imports it), so one bad template
+  // doesn't keep the whole dev server from starting.
+  const scanAll = async (): Promise<void> => {
+    infos.clear()
+    for (const file of await walkFiles(root, (f) => f.endsWith('.stator'), skipDir)) {
+      try {
+        infos.set(file, await compileInfo(file))
+      } catch (err) {
+        logger.error({ file: sourceId(root, file).id, err: describe(err) }, 'compile failed')
+        infos.set(file, { css: '', isClient: false })
+      }
+    }
+  }
+  let css = ''
+  const regenCss = (): void => {
+    css = ''
+    for (const [file, info] of infos)
+      if (info.css) css += `/* ${sourceId(root, file).id} */\n${info.css}\n`
+  }
+
+  // ── Islands: bundled through the seam, held in memory ──────────────────────
+  let islands: IslandBundle = EMPTY_BUNDLE
+  const assetBodies = new Map<string, string | Uint8Array>() // URL path → body
+  let islandGraph = new Set<string>() // every source module in the last bundle
+  let routeIslands = new Map<string, string[]>() // abs route file → island rels
+  const islandFiles = (): string[] => [...infos].filter(([, i]) => i.isClient).map(([f]) => f)
+  const rebundleIslands = async (): Promise<void> => {
+    const entries = islandFiles().map((file) => ({ rel: sourceId(root, file).id, file }))
+    islands = entries.length ? await bundleIslands({ root, machinesDir, entries }) : EMPTY_BUNDLE
+    assetBodies.clear()
+    for (const a of islands.assets) assetBodies.set(`/static/assets/${a.fileName}`, a.source)
+    islandGraph = new Set(islands.modules)
+  }
+  const remapRoutes = async (): Promise<void> => {
+    const shells = new Map(islandFiles().map((file) => [file, sourceId(root, file).id]))
+    routeIslands = await routeIslandMap({ routesDir, baseDir: root, shells })
+  }
+
+  // Production head shape (CSS link + per-route island scripts), then the dev
+  // inspector and the reload client layered on top.
+  const headExtras = (routeFile: string): string => {
+    const head: string[] = []
+    if (css) head.push('<link rel="stylesheet" href="/static/components.css">')
+    for (const rel of routeIslands.get(resolve(routeFile)) ?? []) {
+      const url = islands.islandUrls[rel]
+      if (url) head.push(`<script type="module" src="${url}"></script>`)
+    }
+    if (inspectorOn) head.push('<script src="/@stator/inspector.js" defer></script>')
+    head.push(`<script>${DEV_CLIENT_SCRIPT}</script>`)
+    return head.join('\n')
+  }
+
+  // Dev-owned URLs answered ahead of the app: the reload channel and the
+  // in-memory build outputs. Everything else — including the app's real
+  // `static/` dir, served in place — falls through to Hono.
+  const noCache = (type: string): HeadersInit => ({
+    'Content-Type': type,
+    'Cache-Control': 'no-cache',
+  })
+  const serveDev = (request: Request): Response | undefined => {
+    const { pathname } = new URL(request.url)
+    if (pathname === '/__stator_dev') return devReloadResponse()
+    if (pathname === '/static/components.css' && css)
+      return new Response(css, { headers: noCache('text/css; charset=utf-8') })
+    const body = assetBodies.get(pathname)
+    if (body !== undefined)
+      return new Response(typeof body === 'string' ? body : new Uint8Array(body), {
+        headers: noCache(contentTypeFor(pathname)),
+      })
+    return undefined
+  }
+
   // ── App graph (rebuilt on edits) ────────────────────────────────────────────
   let store: MachineStore
   let routes: Awaited<ReturnType<typeof discoverRoutes>> = []
   let machineCount = 0
   let app: Hono
-  let buildId: string | undefined
-
-  // ── Incremental build ───────────────────────────────────────────────────────
-  // Native dev compiles `.stator` from the SOURCE tree straight into outDir's
-  // `.stator.ts` mirror (no `.stator` ever in outDir, so discovery can't
-  // double-count). The slow part — the Vite island bundle inside buildApp — runs
-  // ONLY on a full build; a plain server/template edit takes the fast path
-  // (compile + css, no Vite), so per-edit latency is independent of island count.
-  const machinesSrcDir = resolve(root, 'machines')
-  const cssBySource = new Map<string, string>() // abs .stator → its scoped css
-  const islandRels = new Set<string>() // root-relative `.stator` paths that are islands
-  const relOf = (abs: string): string => relative(root, abs).replace(/\\/g, '/')
-  const kindOf = (r: string): 'route' | 'component' =>
-    /(^|\/)routes\//.test(r) ? 'route' : 'component'
-  const rewriteStatorSpecifiers = (code: string): string =>
-    code.replace(/(['"])([^'"]+\.stator)\1/g, '$1$2.ts$1')
-
-  const APP_EXT = /\.(stator|ts|tsx|mts|cts|js|css)$/
-  const EXCLUDE_DIR = new Set(['node_modules', 'dist', 'tests', 'test', '__tests__'])
-  const walkApp = async (dir: string, out: string[] = []): Promise<string[]> => {
-    for (const e of await readdir(dir, { withFileTypes: true })) {
-      if (e.isDirectory()) {
-        if (EXCLUDE_DIR.has(e.name) || e.name.startsWith('.')) continue
-        await walkApp(join(dir, e.name), out)
-      } else if (APP_EXT.test(e.name)) {
-        out.push(join(e.parentPath, e.name))
-      }
-    }
-    return out
-  }
-  // Top-level dirs to mirror into outDir — excludes dist/hidden/tests so a stale
-  // `dist/` or the `.stator-dev/` output is never copied into the build.
-  const sourceDirs = async (): Promise<string[]> =>
-    (await readdir(root, { withFileTypes: true }))
-      .filter((e) => e.isDirectory() && !EXCLUDE_DIR.has(e.name) && !e.name.startsWith('.'))
-      .map((e) => e.name)
-
-  // Compile one `.stator` source into its outDir `.stator.ts` (+ `.client.ts` for
-  // an island). Returns css + island flag for the caller's bookkeeping.
-  const compileStatorTo = async (src: string): Promise<{ css: string; isClient: boolean }> => {
-    const r = relOf(src)
-    const result = compile(await readFile(src, 'utf8'), { id: r, kind: kindOf(r) })
-    const outBase = join(outDir, r)
-    await mkdir(dirname(outBase), { recursive: true })
-    await writeFile(`${outBase}.ts`, rewriteStatorSpecifiers(result.serverCode))
-    if (result.isClient)
-      await writeFile(`${outBase}.client.ts`, rewriteStatorSpecifiers(result.clientCode))
-    return { css: result.css ?? '', isClient: result.isClient }
-  }
-
-  const writeComponentsCss = async (): Promise<void> => {
-    let css = ''
-    for (const [src, c] of cssBySource) if (c) css += `/* ${relOf(src)} */\n${c}\n`
-    if (css) {
-      await mkdir(join(outDir, 'static'), { recursive: true })
-      await writeFile(join(outDir, 'static', 'components.css'), css)
-    }
-  }
-
-  // Raw `.ts`/`.js` (machines, lib) are served as-is by the loader; mirror the one
-  // changed file into outDir, rewriting any `.stator` specifier it imports.
-  const copyTs = async (src: string): Promise<void> => {
-    const out = join(outDir, relOf(src))
-    await mkdir(dirname(out), { recursive: true })
-    await writeFile(out, rewriteStatorSpecifiers(await readFile(src, 'utf8')))
-  }
-  const copyAsset = async (src: string): Promise<void> => {
-    const out = join(outDir, relOf(src))
-    await mkdir(dirname(out), { recursive: true })
-    await cp(src, out)
-  }
-
-  // Re-derive css + island tracking from the source tree (after a full build).
-  const seedState = async (): Promise<void> => {
-    cssBySource.clear()
-    islandRels.clear()
-    for (const src of await walkApp(root)) {
-      if (!src.endsWith('.stator')) continue
-      const r = relOf(src)
-      const result = compile(await readFile(src, 'utf8'), { id: r, kind: kindOf(r) })
-      cssBySource.set(src, result.css ?? '')
-      if (result.isClient) islandRels.add(r)
-    }
-  }
-
-  // Full build — clean compile + Vite island bundle + manifest. Used at boot and
-  // for island/structural changes (added/removed files, island client edits).
-  const fullBuild = async (): Promise<void> => {
-    await buildApp({ root, outDir, dirs: await sourceDirs() })
-    await seedState()
-  }
+  const handle = (request: Request): Response | Promise<Response> =>
+    serveDev(request) ?? app.fetch(request)
 
   const rebuildStore = async (): Promise<void> => {
     const { defs } = await discoverMachines(machinesDir, bust)
@@ -252,25 +243,27 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
     })
     wireAppEffects(store)
     await store.bootAppMachines()
+    // Dev-only lint: a session machine whose `after` timer drives a loop with
+    // a data-loading entry effect is server-side polling that runs for
+    // sessions nobody is watching. Warn with the steer, don't block.
+    for (const f of findPollLoops(defs)) {
+      console.warn(
+        `stator: session machine "${f.machine}" self-reschedules through \`after\` ` +
+          `(${f.cycle.join(' → ')} via ${f.event}) with a data-loading entry effect on the loop. ` +
+          `This polls upstream for sessions nobody is watching. Prefer a client-owned clock ` +
+          `with a staleness guard — see the effects guide, "Who owns the clock".`,
+      )
+    }
   }
 
   const rebuildServer = async (): Promise<void> => {
     routes = await discoverRoutes(routesDir, bust)
-    const middleware = await discoverMiddleware(resolve(outDir, 'middleware.ts'), bust)
-    // Reuse the production head (CSS link + per-route island scripts from the
-    // manifest just written by buildApp); layer the dev inspector + reload script.
-    const { headExtras: prodHead, buildId: manifestBuildId } = await loadProductionHead(outDir)
-    buildId = manifestBuildId
-    const headExtras = (routeFile: string): string => {
-      const dev: string[] = []
-      if (inspectorOn) dev.push('<script src="/@stator/inspector.js" defer></script>')
-      dev.push(`<script>${DEV_CLIENT_SCRIPT}</script>`)
-      return [prodHead(routeFile), ...dev].filter(Boolean).join('\n')
-    }
+    const middleware = await discoverMiddleware(resolve(root, 'middleware.ts'), bust)
+    await remapRoutes()
     app = await buildHonoApp({
       routes,
       store,
-      staticDir: resolve(outDir, 'static'),
+      staticDir,
       headExtras,
       inspector: inspectorOn,
       trustedOrigins: resolved.trustedOrigins,
@@ -281,86 +274,72 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       cors: resolved.cors,
       middleware,
     })
-    // Mount the dev reload channel ahead of everything else on the fresh app.
-    app.get('/__stator_dev', () => devReloadResponse())
   }
 
-  await fullBuild()
+  await scanAll()
+  regenCss()
+  await rebundleIslands()
   await rebuildStore()
   await rebuildServer()
 
   // boot.ts once per process (a long-lived source shouldn't restart on edits).
-  const bootDef = await discoverBoot(resolve(outDir, 'boot.ts'), bust)
+  const bootDef = await discoverBoot(resolve(root, 'boot.ts'), bust)
 
   // ── Watch → recompile → reload ──────────────────────────────────────────────
-  const isAppFile = (abs: string): boolean => {
-    if (!APP_EXT.test(abs)) return false
-    if (abs.startsWith(outDir)) return false
-    if (abs.includes('/node_modules/') || abs.includes('/dist/') || abs.includes('/.git/'))
-      return false
-    // Ignore editor temp/swap artifacts — atomic saves (`sed`, vim `.swp`, some
-    // editors) write a dotfile beside the target; only the real file matters.
-    if (abs.slice(abs.lastIndexOf('/') + 1).startsWith('.')) return false
-    return true
-  }
-
-  // Recompile just what changed. Server/template edits + machine edits take the
-  // fast path (compile/copy, no Vite); island client edits, added/removed files,
-  // and a template that just became an island fall back to a full build.
+  // Recompile just what changed. Islands rebundle only when an edit touches a
+  // module the last bundle contained (an island, or something it imports — the
+  // seam reports exactly that set), a file became an island, or the file set
+  // changed; machine edits rebuild the store; everything rebuilds the server
+  // graph at the bumped version.
   const doRebuild = async (files: string[], structural: boolean): Promise<void> => {
     version++
     const t0 = performance.now()
-    let mode: 'full' | 'fast' = 'fast'
+    let rebundled = false
+    let storeRebuilt = false
     try {
-      const statorChanged = files.filter((f) => f.endsWith('.stator'))
-      const machineEdit = files.some((f) => f.startsWith(machinesSrcDir))
-      const touchesIsland = statorChanged.some((f) => islandRels.has(relOf(f)))
-      if (structural || touchesIsland) {
-        mode = 'full'
-        await fullBuild()
-      } else {
-        let cssTouched = false
-        let becameIsland = false
-        for (const f of files) {
-          if (f.endsWith('.stator')) {
-            const { css, isClient } = await compileStatorTo(f)
-            cssBySource.set(f, css)
-            cssTouched = true
-            if (isClient) becameIsland = true
-          } else if (/\.(ts|tsx|mts|cts|js)$/.test(f)) {
-            await copyTs(f)
-          } else {
-            await copyAsset(f)
-          }
-        }
-        // A template that gained a `<script>` needs its island bundled — fall back.
-        if (becameIsland) {
-          mode = 'full'
-          await fullBuild()
-        } else if (cssTouched) await writeComponentsCss()
+      if (structural) await scanAll()
+      else for (const f of files) if (f.endsWith('.stator')) infos.set(f, await compileInfo(f))
+      regenCss()
+      const needsBundle =
+        structural || files.some((f) => islandGraph.has(norm(f)) || infos.get(f)?.isClient)
+      if (needsBundle) {
+        await rebundleIslands()
+        rebundled = true
       }
-      // machineEdit already covers machine add/remove (they live under machines/),
-      // so a non-machine structural change (new template) keeps the session.
-      if (machineEdit) await rebuildStore()
+      if (files.some((f) => f.startsWith(machinesDir + sep))) {
+        await rebuildStore()
+        storeRebuilt = true
+      }
       await rebuildServer()
       broadcast({ type: 'reload' })
       logger.info(
         {
           ms: Math.round(performance.now() - t0),
-          mode,
+          islands: rebundled,
+          store: storeRebuilt,
           routes: routes.length,
-          files: files.map(relOf),
+          files: files.map((f) => sourceId(root, f).id),
         },
         'reloaded',
       )
     } catch (err) {
-      // Keep serving the last good build, but surface the failure in the browser
-      // (a compile/import error) instead of silently freezing on the old page.
-      const message = (err as Error).message
-      logger.error({ err: message, mode, structural, files: files.map(relOf) }, 'reload failed')
+      // Keep serving the last good graph, but surface the failure (with its code
+      // frame for a compile error) in the browser instead of a frozen page.
+      const message = describe(err)
+      logger.error(
+        { err: message, structural, files: files.map((f) => sourceId(root, f).id) },
+        'reload failed',
+      )
       broadcast({ type: 'error', message })
     }
   }
+
+  // Prune rules apply to the path RELATIVE to the app root — the root's own
+  // ancestors may legitimately contain a `tests/` or a dot-dir.
+  const relOf = (abs: string): string => norm(relative(root, abs))
+  const pruned = (rel: string): boolean =>
+    rel.startsWith('..') || PRUNE_DIR.test(rel) || DOT_SEGMENT.test(rel)
+  const isAppFile = (abs: string): boolean => APP_EXT.test(abs) && !pruned(relOf(abs))
 
   const changed = new Set<string>()
   let structural = false
@@ -371,18 +350,19 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   // into one settled event — the cross-platform robustness `fs.watch` lacks.
   const watcher = chokidar.watch(root, {
     ignoreInitial: true,
-    // Prune deps/build-output/VCS and dotfile+editor-temp artifacts. Pruning at
-    // the dir level keeps the watch cheap (never descends node_modules).
-    ignored: (p: string) =>
-      /(^|[\\/])(node_modules|dist|\.git|\.stator-dev)([\\/]|$)/.test(p) ||
-      /[\\/]\.[^\\/]+$/.test(p),
+    // Prune deps/build-output/VCS/tests and dotfile+editor-temp artifacts at the
+    // directory level, so the watch never descends node_modules.
+    ignored: (p: string) => {
+      const rel = relOf(resolve(p))
+      return rel !== '' && pruned(rel)
+    },
     awaitWriteFinish: { stabilityThreshold: 80, pollInterval: 10 },
   })
   const onEvent = (event: 'add' | 'change' | 'unlink', p: string): void => {
     const abs = resolve(p)
     if (!isAppFile(abs)) return
     changed.add(abs)
-    // add/unlink change the file SET → full build; a plain edit stays fast.
+    // add/unlink change the file SET → rescan; a plain edit stays incremental.
     if (event === 'add' || event === 'unlink') structural = true
     // Small debounce to coalesce a multi-file save (awaitWriteFinish already
     // settled each file, so this only groups a batch).
@@ -400,13 +380,13 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   watcher.on('unlink', (p) => onEvent('unlink', p))
 
   return {
-    fetch: (request) => app.fetch(request),
+    fetch: handle,
     get hono() {
       return app
     },
     dispatchToApp: (machine, event) => dispatchToApp(store, machine, event),
     listen(port: number): Promise<void> {
-      const listener = getRequestListener((req) => app.fetch(req))
+      const listener = getRequestListener(handle)
       const server = createHttpServer(listener)
       return findFreePort(port).then(
         (freePort) =>
@@ -431,7 +411,6 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
               installGracefulShutdown(async () => {
                 if (teardown) await teardown()
                 await watcher.close()
-                await cleanup()
                 await new Promise<void>((done) => server.close(() => done()))
               })
               resolveFn()
@@ -439,9 +418,13 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
           }),
       )
     },
-    close: async () => {
-      await watcher.close()
-      await cleanup()
-    },
+    close: () => watcher.close(),
   }
+}
+
+/** Error text for logs and the overlay — a located compile error renders with
+ *  its file:line:column and code frame. */
+function describe(err: unknown): string {
+  if (err instanceof CompileError) return formatCompileError(err)
+  return err instanceof Error ? err.message : String(err)
 }
