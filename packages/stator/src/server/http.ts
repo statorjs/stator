@@ -661,5 +661,11 @@ export function contentTypeFor(path: string): string {
   if (ext === '.svg') return 'image/svg+xml'
   if (ext === '.png') return 'image/png'
   if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg'
+  if (ext === '.webp') return 'image/webp'
+  if (ext === '.gif') return 'image/gif'
+  if (ext === '.ico') return 'image/x-icon'
+  if (ext === '.wasm') return 'application/wasm'
+  if (ext === '.woff2') return 'font/woff2'
+  if (ext === '.woff') return 'font/woff'
   return 'application/octet-stream'
 }

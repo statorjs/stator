@@ -29,7 +29,7 @@ pnpm add @statorjs/stator hono
 | `@statorjs/stator/build`    | `buildApp`, `loadProductionHead`, `syncTypes` |
 | `@statorjs/stator/components` | built-ins (`<JsonLd>`) |
 
-`compiler` and `vite` subpaths exist but are internal — their shape may change in minor releases.
+`compiler` and `vite` subpaths exist but are internal — their shape may change in minor releases. Neither is a plugin surface: Stator reads no `vite.config.*` and accepts no bundler plugins.
 
 ## Minimal app
 

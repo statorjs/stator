@@ -117,6 +117,8 @@ Machine [actors](/concepts/state-machines/#definition-actor-instance) start on `
 
 ## Islands are leaves
 
+Islands are also the only code Stator bundles, and there is no bundler plugin to configure — by design. Tailwind, global CSS, images, and WASM are handled outside the bundler so they apply to the whole app, not just the island tier: see [Styling and assets](/guides/styling-and-assets/).
+
 An island's markup is its own template — server-rendered content does not flow *through* it, and that's a deliberate boundary (like early Astro shipping without SSR: a known edge, owned). Four sanctioned channels cover composition with the server:
 
 1. **Live attrs in.** Pass a `read()` as an island prop and the attribute becomes a live server binding. Declared attrs are observed: implement `${key}Changed(next)` and every patch lands there, coerced per your `static attrs` declaration.

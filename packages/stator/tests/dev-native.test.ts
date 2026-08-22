@@ -149,6 +149,22 @@ describe('native dev server: .stator end to end, no Vite', () => {
     expect(code).not.toContain('selectors')
   })
 
+  it('emits a URL-referenced .wasm as a hashed asset and serves it as application/wasm', async () => {
+    const html = await (await get('/wasm')).text()
+    const script = /src="(\/static\/assets\/templates_wasm-probe-[\w-]+\.js)"/.exec(html)?.[1]
+    expect(script).toBeTruthy()
+    const code = await (await get(script!)).text()
+    // `new URL('./probe.wasm', import.meta.url)` → hashed asset URL in the bundle.
+    const wasm = /\/static\/assets\/probe-[\w-]+\.wasm/.exec(code)?.[0]
+    expect(wasm).toBeTruthy()
+    const res = await get(wasm!)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('application/wasm')
+    expect(new Uint8Array(await res.arrayBuffer()).slice(0, 4)).toEqual(
+      new Uint8Array([0x00, 0x61, 0x73, 0x6d]),
+    )
+  })
+
   it('runs app modules from the source tree — import.meta.url is truthful', async () => {
     const res = await get('/where.json')
     expect(res.status).toBe(200)

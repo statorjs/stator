@@ -79,11 +79,19 @@ export const bundleIslands: IslandBundler = async (opts) => {
 
   const result = await viteBuild({
     root: opts.root,
+    // Assets referenced by URL from island code (`new URL(...)`, CSS `url()`)
+    // render against `base`, so it must be where the assets are served from.
+    base: publicPath,
     logLevel: 'warn',
     configFile: false,
     plugins: [stator(), machineStub({ machinesDir: resolve(opts.machinesDir) })],
     build: {
       write: false,
+      // Seam contract: a URL-referenced asset (`new URL('./x.wasm',
+      // import.meta.url)`) is always emitted as a hashed FILE, never inlined
+      // as a data: URL — deterministic for callers and identical to what an
+      // esbuild implementation (file loader) produces.
+      assetsInlineLimit: 0,
       rollupOptions: {
         input,
         output: {
