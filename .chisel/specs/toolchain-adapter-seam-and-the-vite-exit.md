@@ -189,7 +189,9 @@ D is implemented behind `STATOR_NATIVE_DEV=1` (`stator dev`), in four stages. St
 
 **Stage 5 (2026-08-21) — importer-only invalidation + watch floor.** Whole-graph `?v=` propagation re-evaluated every app module on every edit: measured on `weather`, RSS went 326 → 584 MB over 200 edits (~1.3–2.9 MB/edit, still climbing) — and every `lib/` module's top-level side effects (a DB handle, a timer) re-ran per edit. Replaced with per-file versions: the dev server keeps a static reverse import graph (regex read of relative specifiers, rebuilt on structural changes, patched per edited file), bumps the changed files **and their transitive importers**, pushes the new versions to the loader over a `MessagePort` (acknowledged before re-import), and the loader stamps each app-local module with its own `?v=` at resolve time. Result: 332 → 411 MB over 500 edits, flat from ~150 on (~160 KB/edit amortised, the edited subtree only); an unrelated edit no longer re-runs a `lib/` module (tested: `lib/instance.ts` keeps its instance id across a template edit, changes when itself edited). Paths are realpath'd throughout (Node realpaths module URLs; the version map must key on what the loader sees). Watch floor tuned `awaitWriteFinish` 80→20 ms + debounce 40→20 ms: `minimal` route edit → visible median 80 ms (10 samples, 60–89), from ~190. Known limit: the graph is static, so a dynamically-imported app module is invalidated only when itself edited, not via its importers.
 
-**Still open before the flag flips to default:** `dispatchToApp`/SSE fan-out coverage for native (the Vite test exercises the in-process API; the subprocess harness needs a fixture `boot.ts` that dispatches on a timer, asserted through `/__sse`), docs that still describe `stator dev` as Vite-backed, and the Windows leg of the CI matrix (unverified until the branch is pushed).
+**SSE fan-out coverage (2026-08-21):** the fixture's env-gated `boot.ts` BUMPs the app tally on a timer; `dev-native.test.ts` opens `/__sse` for the live `/tally` route through the CLI subprocess and asserts a non-zero push arrives — server-originated dispatch and the SSE registry share one module instance, the property the Vite fence broke.
+
+**Still open before the flag flips to default:** docs that still describe `stator dev` as Vite-backed (Phase 0 below), and the Windows leg of the CI matrix (unverified until the branch is pushed).
 
 ## E implementation plan (2026-08-21)
 
@@ -206,7 +208,7 @@ Inventory of what references Vite today: code — `server/dev.ts` (the Vite dev 
 
 ### Phase 1 — flip the default to native (2.6.0)
 
-Prerequisites, each with a test: ~~bound `?v=` growth~~ **done (Stage 5: importer-only invalidation, 332 → 411 MB over 500 edits on `weather`, flat from ~150)**; ~~tune the watch floor~~ **done (20/20 ms; `minimal` write→visible median 80 ms)**; native coverage for `dispatchToApp` + SSE fan-out (a fixture `boot.ts` that dispatches on a timer, asserted through `/__sse` from the subprocess harness); Windows CI leg green on the smoke.
+Prerequisites, each with a test: ~~bound `?v=` growth~~ **done (Stage 5: importer-only invalidation, 332 → 411 MB over 500 edits on `weather`, flat from ~150)**; ~~tune the watch floor~~ **done (20/20 ms; `minimal` write→visible median 80 ms)**; ~~native coverage for `dispatchToApp` + SSE fan-out~~ **done (env-gated fixture `boot.ts` + `/__sse` assertion in `dev-native.test.ts`)**; Windows CI leg green on the smoke.
 
 Then: `createDevApp` becomes the native implementation and `createNativeDevApp` is an alias; `STATOR_VITE_DEV=1` keeps the Vite path for one minor as the escape hatch; `DevApp.vite` becomes a deprecated getter returning `undefined` with a one-time warning (removed in the 3.0 batch with the other cutovers — it is the only observable surface the exit touches, and `/dev` is Stable tier). `stator dev` banner and the CLI docstring drop "Vite-backed". Changeset: minor.
 

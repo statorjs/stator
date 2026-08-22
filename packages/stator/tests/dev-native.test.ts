@@ -44,7 +44,12 @@ beforeAll(async () => {
   const port = 52000 + (process.pid % 3000)
   child = spawn(process.execPath, [bin, 'dev', '--port', String(port)], {
     cwd: root,
-    env: { ...process.env, STATOR_NATIVE_DEV: '1', LOG_LEVEL: 'warn' },
+    env: {
+      ...process.env,
+      STATOR_NATIVE_DEV: '1',
+      STATOR_FIXTURE_BOOT_BUMP: '1',
+      LOG_LEVEL: 'warn',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   let bound = 0
@@ -161,6 +166,53 @@ describe('native dev server: .stator end to end, no Vite', () => {
     expect(asset.status).toBe(200)
     expect(await asset.text()).toContain('stator-inspector')
   })
+
+  it('boot-originated dispatchToApp fans out to a live SSE connection', async () => {
+    // The fixture's boot.ts BUMPs the app tally every 200 ms (env-gated). Open
+    // the live route's stream and expect a push: the dispatch and the SSE
+    // registry must share one module instance — the property the Vite fence
+    // broke, and the one the native server has by construction.
+    const page = await get('/tally')
+    expect(page.status).toBe(200)
+    const cookie = page.headers.get('set-cookie')!.split(';')[0]!
+    const abort = new AbortController()
+    const res = await get(`/__sse?route=${encodeURIComponent('GET /tally')}`, {
+      headers: { Cookie: cookie },
+      signal: abort.signal,
+    })
+    expect(res.status).toBe(200)
+    const reader = res.body!.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    // Pump in the background — a read racing a timer would abandon reads and
+    // drop the chunks they consume.
+    const pump = (async () => {
+      try {
+        while (true) {
+          const r = await reader.read()
+          if (r.done) break
+          buffer += decoder.decode(r.value, { stream: true })
+        }
+      } catch {
+        // stream aborted — fine
+      }
+    })()
+    try {
+      // The first frame may be the connect-time snapshot (possibly still "0"
+      // before the first tick) — wait for a non-zero total, i.e. a real push.
+      const pushed = /"value":"([1-9]\d*)"/
+      const deadline = Date.now() + 5000
+      while (!pushed.test(buffer) && Date.now() < deadline) await sleep(50)
+      expect(buffer).toContain(': open')
+      const total = Number(pushed.exec(buffer)?.[1])
+      expect(total).toBeGreaterThanOrEqual(4)
+      expect(total % 4).toBe(0)
+    } finally {
+      abort.abort()
+      reader.cancel().catch(() => {})
+      void pump
+    }
+  }, 15_000)
 
   it('serves a data GET route as JSON', async () => {
     const res = await get('/api-tally')
