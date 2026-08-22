@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname, extname, isAbsolute, relative, resolve } from 'node:path'
+import { isAbsolute, relative, resolve } from 'node:path'
 import { build, version as esbuildVersion } from 'esbuild'
 import type { AnyMachineDef } from '../engine/index.ts'
 
@@ -21,10 +21,14 @@ import type { AnyMachineDef } from '../engine/index.ts'
  * External (never bundled, never hashed by content):
  *  - bare specifiers — the framework and node_modules; their versions are hash
  *    inputs instead, so an engine or transform-engine upgrade counts once;
- *  - `.stator` files (a machine has no business importing a template);
- *  - sibling machines (files directly in `machinesDir`) — a machine's hash is
- *    its OWN reachable code, so editing `WeatherMachine` does not reset
- *    `ForecastCache`'s sessions.
+ *  - `.stator` files (a machine has no business importing a template).
+ *
+ * Sibling machines are NOT external: a machine that imports another often
+ * takes values from it (`weather.ts` mirrors `DEFAULT_CLOCK` from
+ * `settings.ts` into its own context), and a default changed in the sibling
+ * must reset the importer too. The cost is over-reset — a machine imported only
+ * for identity (`subscribes: [{ from: Sibling }]`) still resets its importers
+ * when it changes — which the principle permits; a missed reset it does not.
  *
  * One esbuild invocation hashes every machine, so build-time cost does not
  * scale with the number of calls; `stator build` fails on a machine whose
@@ -39,7 +43,8 @@ export interface MachineHash {
 }
 
 export interface HashMachinesOptions {
-  /** The conventional machines directory — files directly in it are siblings. */
+  /** The conventional machines directory. Kept for the stable ids of
+   *  externalized `.stator` imports; siblings are bundled, not external. */
   machinesDir: string
 }
 
@@ -48,7 +53,6 @@ const statorVersion: string = (
 ).version
 
 const OUTDIR = '/__stator_machine_hash__'
-const MACHINE_EXT = new Set(['.ts', '.js'])
 
 /** Hash every machine file in one esbuild pass. Throws if any closure cannot
  *  be bundled — the error names the machine. */
@@ -68,8 +72,6 @@ export async function hashMachines(
     }
   }
   const machinesDir = real(opts.machinesDir)
-  const isSibling = (abs: string): boolean =>
-    dirname(abs) === machinesDir && MACHINE_EXT.has(extname(abs))
   const wanted = new Map(files.map((f) => [real(f), f]))
   const cwd = process.cwd()
 
@@ -106,10 +108,10 @@ export async function hashMachines(
               return { path: args.path, external: true }
             }
             const abs = real(resolve(args.resolveDir, args.path))
-            // Externals keep their specifier in the bundle, so give siblings and
-            // templates a STABLE id (relative to machinesDir), never an absolute
-            // path — or the hash would change with the checkout directory.
-            if (abs.endsWith('.stator') || isSibling(abs)) {
+            // Externals keep their specifier in the bundle, so give a template a
+            // STABLE id (relative to machinesDir), never an absolute path — or the
+            // hash would change with the checkout directory.
+            if (abs.endsWith('.stator')) {
               return {
                 path: `stator:${relative(machinesDir, abs).replace(/\\/g, '/')}`,
                 external: true,

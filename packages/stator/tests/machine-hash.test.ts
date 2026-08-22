@@ -111,25 +111,26 @@ describe('machine code hash', () => {
     await write('lib/rules.ts', LIB)
   })
 
-  it('does not change when a sibling machine it imports changes', async () => {
+  it('changes when a sibling machine it imports changes (siblings are part of the closure)', async () => {
     const all = await hashAll()
     const auditBefore = all.get(join(machinesDir(), 'audit.ts'))!.hash
     const cartBefore = all.get(join(machinesDir(), 'cart.ts'))!.hash
     await write('machines/cart.ts', CART('ctx.items.length < 9'))
     const after = await hashAll()
     expect(after.get(join(machinesDir(), 'cart.ts'))!.hash).not.toBe(cartBefore)
-    // Audit imports Cart only for identity (subscribes); its own code is unchanged.
-    expect(after.get(join(machinesDir(), 'audit.ts'))!.hash).toBe(auditBefore)
+    // Audit imports Cart for identity only, but a sibling import may also carry
+    // values (a default mirrored into context) — so the importer resets too.
+    expect(after.get(join(machinesDir(), 'audit.ts'))!.hash).not.toBe(auditBefore)
     await write('machines/cart.ts', CART())
   })
 
-  it('reports the bundled inputs — the machine and its app modules, not siblings or packages', async () => {
+  it('reports the bundled inputs — the machine, its app modules and siblings, not packages', async () => {
     const all = await hashAll()
     const cart = all.get(join(machinesDir(), 'cart.ts'))!
     expect(cart.inputs).toContain(join(machinesDir(), 'cart.ts'))
     expect(cart.inputs).toContain(join(root, 'lib/rules.ts'))
     const audit = all.get(join(machinesDir(), 'audit.ts'))!
-    expect(audit.inputs).not.toContain(join(machinesDir(), 'cart.ts'))
+    expect(audit.inputs).toContain(join(machinesDir(), 'cart.ts'))
     expect(audit.inputs.some((p) => p.includes('node_modules'))).toBe(false)
   })
 
