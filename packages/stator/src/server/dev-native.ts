@@ -30,6 +30,7 @@ import { wireAppEffects } from './effects.ts'
 import { loadDotenv } from './env.ts'
 import { buildHonoApp, contentTypeFor } from './http.ts'
 import { logger, setLogLevel } from './logger.ts'
+import { codeHashOf, codeInputsOf } from './machine-hash.ts'
 import { MachineStore } from './machine-store.ts'
 import { discoverMiddleware } from './middleware.ts'
 import { discoverRoutes } from './route-discovery.ts'
@@ -319,15 +320,20 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
 
   // ── App graph (rebuilt on edits) ────────────────────────────────────────────
   let store: MachineStore
+  let defs: AnyMachineDef[] = []
   let routes: Awaited<ReturnType<typeof discoverRoutes>> = []
   let machineCount = 0
   let app: Hono
   const handle = (request: Request): Response | Promise<Response> =>
     serveDev(request) ?? app.fetch(request)
 
-  const rebuildStore = async (): Promise<void> => {
-    const { defs } = await discoverMachines(machinesDir, bust)
+  // Which machines' code hashes changed across a store rebuild — the sessions
+  // of exactly those start fresh on their next request (hydration policy).
+  const rebuildStore = async (): Promise<string[]> => {
+    const before = new Map(defs.map((d) => [d.name, codeHashOf(d)]))
+    defs = (await discoverMachines(machinesDir, bust)).defs
     machineCount = defs.length
+    const changed = defs.filter((d) => before.has(d.name) && before.get(d.name) !== codeHashOf(d))
     store = new MachineStore(defs, resolved.session ?? new InMemoryStore(), {
       sessionTtlSeconds: resolved.sessionTtlSeconds,
       appStore: resolved.app,
@@ -345,7 +351,16 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
           `with a staleness guard — see the effects guide, "Who owns the clock".`,
       )
     }
+    return changed.map((d) => d.name)
   }
+
+  // An edit touches a machine when the file is in that machine's hashed
+  // closure — the machine file itself or anything it imports. (A file under
+  // machines/ that no machine reaches is still a structural change to the set.)
+  const touchesMachine = (files: string[]): boolean =>
+    files.some(
+      (f) => f.startsWith(machinesDir + sep) || defs.some((d) => codeInputsOf(d).includes(f)),
+    )
 
   const rebuildServer = async (): Promise<void> => {
     routes = await discoverRoutes(routesDir, bust)
@@ -387,6 +402,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
     const t0 = performance.now()
     let rebundled = false
     let storeRebuilt = false
+    let machinesChanged: string[] = []
     try {
       if (structural) {
         await scanAll()
@@ -404,8 +420,8 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
         await rebundleIslands()
         rebundled = true
       }
-      if (files.some((f) => f.startsWith(machinesDir + sep))) {
-        await rebuildStore()
+      if (touchesMachine(files)) {
+        machinesChanged = await rebuildStore()
         storeRebuilt = true
       }
       await rebuildServer()
@@ -421,6 +437,14 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
         },
         'reloaded',
       )
+      if (storeRebuilt) {
+        logger.info(
+          { machines: machinesChanged },
+          machinesChanged.length
+            ? 'machine code changed — their sessions start fresh on the next request'
+            : 'machine files changed but no machine code changed — sessions carry over',
+        )
+      }
     } catch (err) {
       // Keep serving the last good graph, but surface the failure (with its code
       // frame for a compile error) in the browser instead of a frozen page.

@@ -139,8 +139,11 @@ export async function hashMachines(
       .update('\0')
       .update(esbuildVersion)
       .digest('hex')
-    const inputs = Object.keys(meta.inputs).map((p) => resolve(cwd, p))
-    out.set(entry, { hash, inputs })
+    // The closure comes from the resolved import GRAPH (`metafile.inputs`),
+    // not from `outputs[*].inputs` — that lists only modules that contributed
+    // bytes, and a module whose only used export is a constant the minifier
+    // inlined contributes none while still being code the machine depends on.
+    out.set(entry, { hash, inputs: closureOf(meta.entryPoint, result.metafile.inputs, cwd) })
   }
   for (const f of files) {
     if (!out.has(f)) throw new Error(`stator: no bundle produced for machine ${f}`)
@@ -148,16 +151,43 @@ export async function hashMachines(
   return out
 }
 
+function closureOf(
+  entryKey: string,
+  inputs: Record<string, { imports: Array<{ path: string; external?: boolean }> }>,
+  cwd: string,
+): string[] {
+  const seen = new Set<string>()
+  const stack = [entryKey]
+  while (stack.length) {
+    const key = stack.pop()!
+    if (seen.has(key)) continue
+    seen.add(key)
+    for (const imp of inputs[key]?.imports ?? []) if (!imp.external) stack.push(imp.path)
+  }
+  return [...seen].map((k) => resolve(cwd, k))
+}
+
 // ── Def registry ─────────────────────────────────────────────────────────────
 // Discovery attaches each def's hash here; hydration reads it. A WeakMap keyed
 // by the def object keeps the def type untouched and needs no plumbing —
 // whoever has the def has the hash.
-const hashes = new WeakMap<AnyMachineDef, string>()
+const hashes = new WeakMap<AnyMachineDef, { hash: string; inputs: readonly string[] }>()
 
-export function setCodeHash(def: AnyMachineDef, hash: string): void {
-  hashes.set(def, hash)
+export function setCodeHash(
+  def: AnyMachineDef,
+  hash: string,
+  inputs: readonly string[] = [],
+): void {
+  hashes.set(def, { hash, inputs })
 }
 
 export function codeHashOf(def: AnyMachineDef): string | undefined {
-  return hashes.get(def)
+  return hashes.get(def)?.hash
+}
+
+/** Absolute paths of the modules in the def's hashed closure (empty when the
+ *  hash came from a manifest). The dev servers use it to decide whether an
+ *  edit touches a machine at all. */
+export function codeInputsOf(def: AnyMachineDef): readonly string[] {
+  return hashes.get(def)?.inputs ?? []
 }

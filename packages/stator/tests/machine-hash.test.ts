@@ -133,6 +133,29 @@ describe('machine code hash', () => {
     expect(audit.inputs.some((p) => p.includes('node_modules'))).toBe(false)
   })
 
+  it('lists an imported module even when its only used export is an inlined constant', async () => {
+    await write('lib/step.ts', 'export const STEP = 1\n')
+    await write(
+      'machines/stepper.ts',
+      `import { defineMachine } from '@statorjs/stator/server'
+import { STEP } from '../lib/step.ts'
+export default defineMachine({ name: 'Stepper', context: { n: 0 }, initial: 'idle', states: { idle: { on: { ADD: (ctx: { n: number }) => { ctx.n += STEP } } } } })
+`,
+    )
+    const res = await hashMachines([join(machinesDir(), 'stepper.ts')], {
+      machinesDir: machinesDir(),
+    })
+    const entry = res.get(join(machinesDir(), 'stepper.ts'))!
+    expect(entry.inputs).toContain(join(root, 'lib/step.ts'))
+    await write('lib/step.ts', 'export const STEP = 2\n')
+    expect(
+      (await hashMachines([join(machinesDir(), 'stepper.ts')], { machinesDir: machinesDir() })).get(
+        join(machinesDir(), 'stepper.ts'),
+      )!.hash,
+    ).not.toBe(entry.hash)
+    await rm(join(machinesDir(), 'stepper.ts'))
+  })
+
   it('throws, naming the machine, when a closure cannot be bundled', async () => {
     await write(
       'machines/broken.ts',

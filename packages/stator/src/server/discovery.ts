@@ -93,7 +93,8 @@ export async function discoverMachines(
       }
       setCodeHash(def, hash)
     } else if (live) {
-      setCodeHash(def, live.get(file)!.hash)
+      const { hash, inputs } = live.get(file)!
+      setCodeHash(def, hash, inputs)
     }
     defs.push(def)
   }

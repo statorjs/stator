@@ -48,7 +48,8 @@ beforeAll(async () => {
       ...process.env,
       STATOR_NATIVE_DEV: '1',
       STATOR_FIXTURE_BOOT_BUMP: '1',
-      LOG_LEVEL: 'warn',
+      LOG_LEVEL: 'info',
+      NO_COLOR: '1',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -260,6 +261,50 @@ describe('native dev server: .stator end to end, no Vite', () => {
       await settleTitle('/remote', 'remote')
     }
   }, 20_000)
+
+  it("an edit to a module a machine imports resets that machine's sessions (hydration policy, live)", async () => {
+    // Session A increments under STEP = 1.
+    const page = await get('/')
+    const cookie = page.headers.get('set-cookie')!.split(';')[0]!
+    const inc = () =>
+      get('/__events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Stator-Route': 'GET /', Cookie: cookie },
+        body: JSON.stringify({ machine: 'CounterMachine', event: { type: 'INCREMENT' } }),
+      })
+    await inc()
+    expect(await (await get('/', { headers: { Cookie: cookie } })).text()).toContain('count is 1')
+
+    // Edit lib/counter-step.ts — not under machines/, but in CounterMachine's closure.
+    const lib = resolve(root, 'lib/counter-step.ts')
+    const original = await readFile(lib, 'utf8')
+    const logLen = output.length
+    try {
+      await writeFile(lib, original.replace('STEP = 1', 'STEP = 2'))
+      let html = ''
+      for (let i = 0; i < 60; i++) {
+        html = await (await get('/', { headers: { Cookie: cookie } })).text()
+        if (/count is 0/.test(html)) break
+        await sleep(150)
+      }
+      // Same cookie, fresh machine: the snapshot was written by different code.
+      expect(html).toContain('count is 0')
+      // …and the new code runs: one increment is now a step of 2.
+      await inc()
+      expect(await (await get('/', { headers: { Cookie: cookie } })).text()).toContain('count is 2')
+      // The dev server said so.
+      const log = output.slice(logLen).join('')
+      expect(log).toContain('machine code changed')
+      expect(log).toContain('CounterMachine')
+    } finally {
+      await writeFile(lib, original)
+      for (let i = 0; i < 60; i++) {
+        const html = await (await get('/', { headers: { Cookie: cookie } })).text()
+        if (/count is 0/.test(html)) break
+        await sleep(150)
+      }
+    }
+  }, 30_000)
 
   it('re-evaluates only the changed module and its importers', async () => {
     const id = async () => ((await (await get('/instance.json')).json()) as { id: string }).id

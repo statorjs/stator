@@ -213,11 +213,20 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
   let store: MachineStore
   let routes: DiscoveredRoute[] = []
   let machineCount = 0
+  let defs: AnyMachineDef[] = []
   let app: Hono
 
-  const rebuildStore = async (): Promise<void> => {
-    const { defs } = await runtime.discoverMachines(machinesDir, loader)
+  // Which machines' code hashes changed across a store rebuild — the sessions
+  // of exactly those start fresh on their next request (hydration policy).
+  // Hashes are read through the Vite-loaded runtime: its registry instance is
+  // the one discovery populated (the native import would be a second, empty one).
+  const rebuildStore = async (): Promise<string[]> => {
+    const before = new Map(defs.map((d) => [d.name, runtime.codeHashOf(d)]))
+    defs = (await runtime.discoverMachines(machinesDir, loader)).defs
     machineCount = defs.length
+    const changed = defs
+      .filter((d) => before.has(d.name) && before.get(d.name) !== runtime.codeHashOf(d))
+      .map((d) => d.name)
     store = new runtime.MachineStore(defs, resolved.session ?? new runtime.InMemoryStore(), {
       sessionTtlSeconds: resolved.sessionTtlSeconds,
       appStore: resolved.app,
@@ -237,7 +246,12 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
           `with a staleness guard — see the effects guide, "Who owns the clock".`,
       )
     }
+    return changed
   }
+  // An edit touches a machine when the file is in that machine's hashed
+  // closure — the machine file itself or anything it imports.
+  const touchesMachine = (file: string): boolean =>
+    file.startsWith(machinesDir) || defs.some((d) => runtime.codeInputsOf(d).includes(file))
   const rebuildRoutes = async (): Promise<void> => {
     routes = await runtime.discoverRoutes(routesDir, loader)
     // Vite serves `public/` at the root ahead of Hono in dev, so a static
@@ -301,11 +315,20 @@ export async function createDevApp(config: DevAppConfig): Promise<DevApp> {
       invalidateModuleTree(vite, abs)
       resultCache.delete(abs)
       try {
-        if (abs.startsWith(machinesDir)) await rebuildStore()
+        let machinesChanged: string[] | undefined
+        if (touchesMachine(abs)) machinesChanged = await rebuildStore()
         await rebuildRoutes()
         await rebuildServer()
         vite.ws.send({ type: 'full-reload' })
         logger.info({ file: relative(root, abs) }, 'reloaded')
+        if (machinesChanged) {
+          logger.info(
+            { machines: machinesChanged },
+            machinesChanged.length
+              ? 'machine code changed — their sessions start fresh on the next request'
+              : 'machine files changed but no machine code changed — sessions carry over',
+          )
+        }
       } catch (err) {
         logger.error({ err: (err as Error).message, file: relative(root, abs) }, 'reload failed')
       }
