@@ -216,6 +216,15 @@ export interface Snapshot<C> {
    *  effect (the load role is re-runnable by contract) instead of leaving the
    *  machine wedged waiting for a completion that died with another process. */
   pendingEntry?: { effectId: string }
+  /** Snapshot format version, stamped by the host on persist. Absent ⇒ the
+   *  original (current) format. Lets the shape itself evolve (hierarchy in
+   *  `value`) with a known-old snapshot recognisable as such. */
+  format?: number
+  /** Code hash of the machine that wrote this snapshot, stamped by the host on
+   *  persist. Hydration rejects a snapshot whose hash differs from the running
+   *  machine's — sessions never outlive the code that made them. Absent
+   *  (pre-existing snapshots) ⇒ mismatch. */
+  code?: string
 }
 
 export type Lifecycle = 'app' | 'session'

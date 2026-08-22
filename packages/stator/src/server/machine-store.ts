@@ -7,6 +7,7 @@ import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
 import { scopedLogger } from './logger.ts'
 import { serverReadsResolver } from './reads-helpers.ts'
 import { RESERVED_KEY_PREFIX } from './session.ts'
+import { reconcileSnapshot, stampSnapshot } from './snapshot-policy.ts'
 import type { Store } from './store.ts'
 import { APP_SCOPE, armAfterTimers, cancelAfterTimers } from './timers.ts'
 
@@ -316,7 +317,10 @@ export class MachineStore {
       if (!Array.isArray(snap.value) || typeof snap.context !== 'object' || snap.context === null) {
         throw new Error('snapshot shape invalid (expected { value: string[], context: object })')
       }
-      return snap
+      // Hydration policy: written by different code / newer format / vanished
+      // state ⇒ boot fresh (logged by the policy).
+      const def = this.defs.get(name)
+      return def ? reconcileSnapshot(def, snap, APP_SCOPE) : snap
     } catch (err) {
       storeLog.error(
         { machine: name, err: String(err) },
@@ -339,7 +343,10 @@ export class MachineStore {
     if (def?.lifecycle !== 'app' || !def.persist) return
     const handle = this.appInstances.get(name)
     if (!handle) return
-    await this.appStore.saveAppMachine(name, handle.actor.getPersistedSnapshot())
+    await this.appStore.saveAppMachine(
+      name,
+      stampSnapshot(def, handle.actor.getPersistedSnapshot()),
+    )
   }
 
   /** Wire app→app subscription listeners. Session-involved subscriptions

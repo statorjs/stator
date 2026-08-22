@@ -1,10 +1,11 @@
-import { createActor, type EffectInvocation, type Snapshot } from '../engine/index.ts'
+import { createActor, type EffectInvocation } from '../engine/index.ts'
 import type { AnyMachineDef } from './define-machine.ts'
 import { type DispatchContext, recordTouch, withDispatchContext } from './dispatch-context.ts'
 import { abortEntryEffects, isEffectInFlight } from './effects.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
 import { buildDispatchEvent, MAX_CASCADE_DEPTH, type MachineStore } from './machine-store.ts'
 import { serverReadsResolver } from './reads-helpers.ts'
+import { reconcileSnapshot, stampSnapshot } from './snapshot-policy.ts'
 import { armAfterTimers, cancelAfterTimers } from './timers.ts'
 
 /**
@@ -64,7 +65,9 @@ export class SessionRuntime {
   private async loadOne(def: AnyMachineDef): Promise<void> {
     const persisted = await this.store.persistence.get(this.sessionId, def.name)
     const actor = createActor(def, {
-      snapshot: persisted !== null ? (persisted as Snapshot<object>) : undefined,
+      // Hydration policy: a snapshot written by different code (or in a newer
+      // format, or naming a vanished state) is discarded — fresh start, logged.
+      snapshot: reconcileSnapshot(def, persisted, this.sessionId),
       resolveHelpers: serverReadsResolver(def),
       // Server plane: never run effects inline — queue them for the entry
       // point to schedule after persist + lock release.
@@ -114,7 +117,7 @@ export class SessionRuntime {
     if (def?.lifecycle !== 'session' || !this.actors.has(name)) return
     const persisted = await this.store.persistence.get(this.sessionId, def.name)
     const actor = createActor(def, {
-      snapshot: persisted !== null ? (persisted as Snapshot<object>) : undefined,
+      snapshot: reconcileSnapshot(def, persisted, this.sessionId),
       resolveHelpers: serverReadsResolver(def),
       onEffect: (invocation) => this.pendingEffects.push(invocation),
     }).start()
@@ -263,7 +266,9 @@ export class SessionRuntime {
         await this.store.persistAppMachine(name)
         continue
       }
-      const snapshot = handle.actor.getPersistedSnapshot()
+      // Stamped with the format and the writing machine's code hash, so a
+      // later hydration can tell whether the code that wrote it still runs.
+      const snapshot = stampSnapshot(this.store.getDef(name), handle.actor.getPersistedSnapshot())
       // A ttlSeconds-bearing set refreshes the session's whole expiry — the
       // user is active, so all of their machines stay alive together. TTL-less
       // sets (machine-driven work) leave the expiry untouched.
