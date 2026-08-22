@@ -132,6 +132,7 @@ Where this is going — and why each item earned its place — lives in [ROADMAP
 - **Templates must parse as TSX** — a permanent design constraint (it's what makes the compiler and LSP cheap). No modifier syntax (`on:click.prevent`); compose typed wrappers instead.
 - **App machines are emit-driven** from sessions (plus `dispatchToApp` from server code); there is no direct client→app dispatch yet.
 - **`subscribes:` is callback-shaped.** Declarative source/predicate/transform subscriptions are 1.x.
+- **Machine state is working state.** Sessions never outlive the code that made them: a change to a machine's code resets its sessions at the next hydration, in dev and prod alike. Durable facts belong in your own store, written by effects and reloaded on entry.
 
 ## Scripts
 
