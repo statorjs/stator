@@ -10,6 +10,16 @@ export async function run(ctx: CliContext): Promise<void> {
   const result = await buildApp({ root: ctx.root, outDir: resolve(ctx.root, 'dist') })
   process.stdout.write(
     `stator build: ${result.compiled} components → ${result.outDir}` +
-      `${result.islands ? ` (${result.islands} island${result.islands === 1 ? '' : 's'})` : ''}\n`,
+      `${result.islands ? ` (${result.islands} island${result.islands === 1 ? '' : 's'})` : ''}` +
+      ` · ${result.machines} machine${result.machines === 1 ? '' : 's'} hashed in ${result.machineHashMs} ms\n`,
   )
+  // Deploy awareness: which machines' sessions this build resets (see the
+  // snapshot hydration policy — sessions never outlive the code that made them).
+  if (result.resetMachines) {
+    process.stdout.write(
+      result.resetMachines.length
+        ? `  machine code changed — sessions reset on deploy for: ${result.resetMachines.join(', ')}\n`
+        : '  no machine code changed — sessions carry over\n',
+    )
+  }
 }

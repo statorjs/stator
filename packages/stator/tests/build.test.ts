@@ -1,4 +1,4 @@
-import { readFile, rm, stat } from 'node:fs/promises'
+import { readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -105,14 +105,41 @@ describe('build: buildApp', () => {
     expect(bundle).not.toContain('server-only-machine-body')
   })
 
-  it('serves the built dist with island script injection (no Vite)', async () => {
+  it('hashes every machine into the manifest (the snapshot hydration policy)', async () => {
+    expect(result.machines).toBe(1)
+    expect(result.machineHashMs).toBeGreaterThanOrEqual(0)
+    // First build in this outDir: nothing to diff against.
+    expect(result.resetMachines).toBeUndefined()
+    const manifest = JSON.parse(await readFile(join(outDir, 'stator-manifest.json'), 'utf8')) as {
+      machines: Record<string, string>
+    }
+    expect(manifest.machines['counter.ts']).toMatch(/^[0-9a-f]{64}$/)
+    const { machines } = await loadProductionHead(outDir)
+    expect(machines).toEqual(manifest.machines)
+  })
+
+  it('refuses to boot a machine the manifest has no hash for', async () => {
     const { headExtras, buildId } = await loadProductionHead(outDir)
+    await expect(
+      createApp({
+        machinesDir: join(outDir, 'machines'),
+        routesDir: join(outDir, 'routes'),
+        headExtras,
+        buildId,
+        machineHashes: {},
+      }),
+    ).rejects.toThrow(/no code hash for machine "CounterMachine" \(counter\.ts\)/)
+  })
+
+  it('serves the built dist with island script injection (no Vite)', async () => {
+    const { headExtras, buildId, machines } = await loadProductionHead(outDir)
     const app = await createApp({
       machinesDir: join(outDir, 'machines'),
       routesDir: join(outDir, 'routes'),
       staticDir: join(outDir, 'static'),
       headExtras,
       buildId,
+      machineHashes: machines,
     })
 
     // The island route gets its module script + the shell renders.
@@ -136,4 +163,26 @@ describe('build: buildApp', () => {
     expect(assetRes.status).toBe(200)
     expect(await assetRes.text()).toContain('customElements')
   })
+
+  it('a rebuild reports which machines changed since the previous manifest', async () => {
+    // Unchanged code ⇒ same hash ⇒ no resets.
+    const same = await buildApp({ root, outDir })
+    expect(same.resetMachines).toEqual([])
+
+    // A behaviour change in the machine ⇒ its sessions reset on deploy.
+    const file = resolve(root, 'machines/counter.ts')
+    const original = await readFile(file, 'utf8')
+    try {
+      // A comment is not code: same hash, no reset. (An added EXPORT on the
+      // machine file itself would count — entry-point exports are its public
+      // surface and esbuild keeps them; only imported modules are tree-shaken.)
+      await writeFile(file, `${original}\n// touched\n`)
+      expect((await buildApp({ root, outDir })).resetMachines).toEqual([])
+      await writeFile(file, original.replace('count: 0', 'count: 1'))
+      expect((await buildApp({ root, outDir })).resetMachines).toEqual(['counter.ts'])
+    } finally {
+      await writeFile(file, original)
+      await buildApp({ root, outDir })
+    }
+  }, 60_000)
 })

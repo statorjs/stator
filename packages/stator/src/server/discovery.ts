@@ -1,5 +1,5 @@
 import { readdir } from 'node:fs/promises'
-import { extname, resolve } from 'node:path'
+import { extname, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { type AnyMachineDef, isStatorMachine } from './define-machine.ts'
 import { hashMachines, setCodeHash } from './machine-hash.ts'
@@ -20,9 +20,11 @@ export interface DiscoverMachinesOptions {
    * Code hashes for the hydration policy (see `snapshot-policy.ts`).
    *  - omitted: computed live, one esbuild pass over the discovered files
    *    (the dev servers, and `createApp` without a build manifest);
-   *  - a map keyed by machine NAME: consumed as-is (`stator start` from the
-   *    build manifest) — a discovered machine with no entry is an error, never
-   *    a silent always-reset;
+   *  - a map keyed by machine FILE (relative to the machines dir, e.g.
+   *    `cart.ts`): consumed as-is — `stator start` from the build manifest,
+   *    whose hashes are per file because the build never executes a machine
+   *    to learn its name. A discovered machine with no entry is an error,
+   *    never a silent always-reset;
    *  - `false`: skip hashing (unit tests assembling stores from defs).
    */
   hashes?: ReadonlyMap<string, string> | Readonly<Record<string, string>> | false
@@ -54,7 +56,7 @@ export async function discoverMachines(
   const defs: AnyMachineDef[] = []
   const seenNames = new Set<string>()
   const supplied = opts.hashes
-  const byName =
+  const byFile =
     supplied === false || supplied === undefined
       ? undefined
       : supplied instanceof Map
@@ -80,11 +82,12 @@ export async function discoverMachines(
       throw new Error(`stator: duplicate machine name "${def.name}" in ${file}`)
     }
     seenNames.add(def.name)
-    if (byName) {
-      const hash = byName.get(def.name)
+    if (byFile) {
+      const key = relative(absDir, file).replace(/\\/g, '/')
+      const hash = byFile.get(key)
       if (hash === undefined) {
         throw new Error(
-          `stator: no code hash for machine "${def.name}" (${file}) in the build manifest — ` +
+          `stator: no code hash for machine "${def.name}" (${key}) in the build manifest — ` +
             `rebuild with \`stator build\`; a machine without a hash cannot hydrate safely.`,
         )
       }

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { compile, regionResolverFor } from '../compiler/index.ts'
+import { hashMachines } from '../server/machine-hash.ts'
 import { bundleIslands, routeIslandMap, walkFiles } from './islands.ts'
 import { sourceId } from './source-id.ts'
 
@@ -48,6 +49,13 @@ export interface BuildResult {
   hasCss: boolean
   /** Number of client components bundled for the browser. */
   islands: number
+  /** Machines hashed for the snapshot hydration policy, and how long it took. */
+  machines: number
+  machineHashMs: number
+  /** Machine files (relative to `machines/`) whose code hash differs from the
+   *  previous build's manifest — their sessions reset on deploy. `undefined`
+   *  when there was no previous manifest to compare against. */
+  resetMachines?: string[]
 }
 
 /** Shape of `dist/stator-manifest.json` (always written — carries `buildId`). */
@@ -59,6 +67,10 @@ export interface StatorManifest {
   islands: Record<string, string>
   /** Route file (dist-relative) → script URLs for every island it reaches. */
   routes: Record<string, string[]>
+  /** Machine file (relative to `machines/`) → code hash. Consumed by
+   *  `stator start` for the snapshot hydration policy; the build fails if a
+   *  machine's closure cannot be bundled, so this lands in CI, not at boot. */
+  machines: Record<string, string>
 }
 
 const NEVER_COPY = new Set(['node_modules', 'tests', 'test', '__tests__'])
@@ -80,6 +92,12 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   const root = resolve(config.root)
   const outDir = resolve(config.outDir)
   const dirs = config.dirs ?? (await discoverSourceDirs(root, outDir))
+
+  // Remember the previous build's machine hashes (if any) so the build can
+  // report which machines' sessions this deploy resets.
+  const previous = await readFile(join(outDir, 'stator-manifest.json'), 'utf8')
+    .then((t) => (JSON.parse(t) as Partial<StatorManifest>).machines)
+    .catch(() => undefined)
 
   await rm(outDir, { recursive: true, force: true })
   await mkdir(outDir, { recursive: true })
@@ -134,15 +152,40 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
     await writeFile(join(outDir, 'static', 'components.css'), css)
   }
 
+  // Machine code hashes for the snapshot hydration policy: one esbuild pass
+  // over dist/machines. Throws (failing the build) if a closure can't bundle.
+  const machinesDir = join(outDir, 'machines')
+  const machineFiles = (
+    await walkFiles(machinesDir, (f) => /\.(ts|js)$/.test(f)).catch(() => [] as string[])
+  ).filter((f) => resolve(f, '..') === resolve(machinesDir))
+  const t0 = performance.now()
+  const hashed = await hashMachines(machineFiles, { machinesDir })
+  const machineHashMs = Math.round(performance.now() - t0)
+  const machines: Record<string, string> = {}
+  for (const file of machineFiles.sort()) {
+    machines[relative(machinesDir, file).replace(/\\/g, '/')] = hashed.get(file)!.hash
+  }
+  const resetMachines = previous
+    ? Object.keys(machines).filter((k) => previous[k] !== machines[k])
+    : undefined
+
   // Always write the manifest — it carries the build-id even for an app with no
   // islands (a live route without islands still needs the reload handshake).
   const manifest: StatorManifest =
     islands.length > 0
-      ? { buildId: randomUUID(), ...(await buildClientAssets(outDir, islands)) }
-      : { buildId: randomUUID(), islands: {}, routes: {} }
+      ? { buildId: randomUUID(), ...(await buildClientAssets(outDir, islands)), machines }
+      : { buildId: randomUUID(), islands: {}, routes: {}, machines }
   await writeFile(join(outDir, 'stator-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
 
-  return { outDir, compiled: statorFiles.length, hasCss: Boolean(css), islands: islands.length }
+  return {
+    outDir,
+    compiled: statorFiles.length,
+    hasCss: Boolean(css),
+    islands: islands.length,
+    machines: machineFiles.length,
+    machineHashMs,
+    ...(resetMachines ? { resetMachines } : {}),
+  }
 }
 
 /**
@@ -152,7 +195,7 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
 async function buildClientAssets(
   outDir: string,
   islands: Array<{ rel: string; entry: string }>,
-): Promise<Omit<StatorManifest, 'buildId'>> {
+): Promise<Pick<StatorManifest, 'islands' | 'routes'>> {
   const bundle = await bundleIslands({
     root: outDir,
     machinesDir: join(outDir, 'machines'),

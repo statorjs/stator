@@ -13,9 +13,14 @@ import type { StatorManifest } from './build.ts'
  * Everything is optional — a server-only app without styles gets an empty hook,
  * and a build with no `buildId` in its manifest just skips the reload handshake.
  */
-export async function loadProductionHead(
-  distDir: string,
-): Promise<{ headExtras: (filePath: string) => string; buildId?: string }> {
+export async function loadProductionHead(distDir: string): Promise<{
+  headExtras: (filePath: string) => string
+  buildId?: string
+  /** Machine file → code hash from the build manifest; pass to `createApp` as
+   *  `machineHashes` so hydration compares against what was built. Absent on
+   *  a dist built before hashes existed — `createApp` then hashes live. */
+  machines?: Record<string, string>
+}> {
   const dist = resolve(distDir)
 
   let cssTag = ''
@@ -28,12 +33,14 @@ export async function loadProductionHead(
 
   let routes: StatorManifest['routes'] = {}
   let buildId: string | undefined
+  let machines: Record<string, string> | undefined
   try {
     const manifest = JSON.parse(
       await readFile(join(dist, 'stator-manifest.json'), 'utf8'),
     ) as StatorManifest
     routes = manifest.routes ?? {}
     buildId = manifest.buildId
+    machines = manifest.machines
   } catch {
     // no manifest
   }
@@ -45,5 +52,5 @@ export async function loadProductionHead(
       .filter(Boolean)
       .join('\n')
   }
-  return { headExtras, buildId }
+  return { headExtras, buildId, ...(machines ? { machines } : {}) }
 }
