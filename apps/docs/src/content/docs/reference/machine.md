@@ -101,6 +101,18 @@ Two rules to know:
 - **Annotate the return type**: `effect: async (ctx, ev, meta): Promise<Events | null> => …`. TypeScript defers context-sensitive arrows during `defineMachine`'s inference, so an unannotated effect fails to typecheck; the annotation restores full checking of the completion event against your event union.
 - **Effects are infallible by construction**: catch inside and return your declared failure event. A throw is the runtime backstop — logged and dropped, never a crash.
 
+### meta.session
+
+```ts
+interface EffectMeta {
+  effectId: string
+  signal?: AbortSignal
+  session?: { id: string; claims<T = unknown>(): T | undefined }
+}
+```
+
+For **session** machines the server host sets `meta.session` on every effect — the session id and its app-defined claims as of the moment the effect started (the same claims middleware reads with `stator(c).claims()`). It is what lets an entry effect reload a durable fact by identity on a fresh start or after a [snapshot reset](/guides/persistence/#what-survives-a-deploy), with no client round trip. App machines have no session and client islands run no host, so it is `undefined` there.
+
 ## Entry effects
 
 ```ts

@@ -2,6 +2,7 @@ import type { AnyMachineDef, EffectInvocation, EventObject } from '../engine/ind
 import { dispatchToApp } from './app-dispatch.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
+import { CLAIMS_KEY } from './session.ts'
 import { withSessionLock } from './session-lock.ts'
 import { SessionRuntime } from './session-runtime.ts'
 import { fanOut } from './sse.ts'
@@ -156,7 +157,15 @@ async function runSessionEffect(
   try {
     let completion: Awaited<ReturnType<EffectInvocation['run']>>
     try {
-      completion = await invocation.run(controller.signal)
+      // The session the effect runs for: its id and its claims as of now —
+      // loaded here (outside the lock, like the I/O the effect is about to do)
+      // so an entry effect can reload a durable fact by identity after a fresh
+      // start or a snapshot reset, with no client round trip.
+      const claims = (await store.persistence.get(sessionId, CLAIMS_KEY)) ?? undefined
+      completion = await invocation.run(controller.signal, {
+        id: sessionId,
+        claims: <T>() => claims as T | undefined,
+      })
     } catch (err) {
       // Backstop only — the type contract asks effects to catch and return
       // their failure event. Never crashes the host.

@@ -66,29 +66,23 @@ Machine state is **working state with a TTL, not persistence**. Stator keeps a s
 
 That last rule is the one to design around: **sessions never outlive the code that made them.** Every persisted snapshot carries a hash of the machine's code — the machine file and every module it reaches, tree-shaken — and a snapshot whose hash no longer matches the running machine is discarded at the next hydration. The machine starts fresh, exactly as it would for a new session, and a line is logged. A guard you rewrote can never run against state it would not have allowed, and a state you renamed can never strand a session. The rule is the same in `stator dev` (a save resets the affected machines on their next request) and in production (a deploy resets the machines whose code changed — `stator build` prints which), and it holds for every `Store`.
 
-So anything whose loss would be an incident is a **durable fact**, and durable facts belong in your own database, written by an effect and read back when the machine starts:
+So anything whose loss would be an incident is a **durable fact**, and durable facts belong in your own database, written by an effect and read back by an entry effect when the machine starts — for a new session, after TTL expiry, and after a reset alike. The entry effect knows *whose* data to load from `meta.session`: the session id and its claims, the same claims middleware reads with [`stator(c).claims()`](/guides/middleware/):
 
 ```ts
+type Me = { userId: string }
+
 export default defineMachine({
   name: 'CartMachine',
   lifecycle: 'session',
-  context: { cartId: null as string | null, items: [] as Item[] },
-  initial: 'idle',
+  context: { items: [] as Item[] },
+  initial: 'loading',
   states: {
-    idle: {
-      on: {
-        // The client holds the cart token (a cookie or localStorage) and
-        // dispatches RESUME on load — so a fresh machine, new session or
-        // post-reset, finds its durable cart.
-        RESUME: {
-          to: 'loading',
-          do: (ctx, ev) => { ctx.cartId = ev.cartId },
-        },
-      },
-    },
     loading: {
-      entry: async (ctx): Promise<CartEvents> => {
-        const cart = await loadCart(ctx.cartId!)
+      // Runs on every fresh start — new session, expired session, snapshot
+      // reset — and rebuilds the working copy from the durable cart.
+      entry: async (_ctx, meta): Promise<CartEvents> => {
+        const me = meta.session?.claims<Me>()
+        const cart = me ? await loadCart(me.userId) : null
         return cart ? { type: 'LOADED', cart } : { type: 'EMPTY' }
       },
       on: {
@@ -100,7 +94,10 @@ export default defineMachine({
       on: {
         ADD: {
           do: (ctx, ev) => { ctx.items.push(ev.item) },
-          effect: async (ctx) => { await saveCart(ctx.cartId!, ctx.items); return null },
+          effect: async (ctx, _ev, meta) => {
+            await saveCart(meta.session!.claims<Me>()!.userId, ctx.items)
+            return null
+          },
         },
       },
     },
@@ -108,7 +105,7 @@ export default defineMachine({
 })
 ```
 
-With that shape a reset is a cache miss: deploys, restarts, TTL expiry, a flushed Redis, and a second replica all become the same non-event. The key has to come from outside the snapshot — the snapshot is what a reset throws away — which today means the client sends it. Keying by the session's identity on the server (claims in the entry effect, no client round trip) is where this is going.
+With that shape a reset is a cache miss: deploys, restarts, TTL expiry, a flushed Redis, and a second replica all become the same non-event. Effects run after the commit, never inline, so the first render of a fresh machine shows its `loading` state and the `LOADED` completion lands moments later — over SSE on a [live route](/guides/realtime-sse/), or on the next request otherwise. That is the ordinary entry-effect rhythm, and it needs nothing from the client. `meta.session` is set for session machines only; app machines and client islands have none.
 
 `persist: true` app machines follow the same rule: they survive restarts while the machine's code is unchanged. A shared tally or counter that must outlive a code change is a durable fact too.
 

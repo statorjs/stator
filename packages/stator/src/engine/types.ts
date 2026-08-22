@@ -61,6 +61,18 @@ export type Guard<C, E extends EventObject, R = Record<string, any>> = (
 export interface EffectMeta {
   effectId: string
   signal?: AbortSignal
+  /** The session this effect runs for — set by the server host for SESSION
+   *  machines only (app machines and client islands have none). Lets an entry
+   *  effect reload a durable fact by identity after a fresh start or a
+   *  snapshot reset, with no client round trip: `loadCart(meta.session.claims<Me>().userId)`. */
+  session?: EffectSession
+}
+
+/** The session an effect runs for. `claims` mirrors `stator(c).claims<T>()`:
+ *  the app-defined claims as of the moment the effect started, or `undefined`. */
+export interface EffectSession {
+  readonly id: string
+  claims<T = unknown>(): T | undefined
 }
 
 /**
@@ -127,7 +139,9 @@ export interface EffectInvocation {
   kind: 'entry' | 'transition'
   /** The owning state — set for entry effects, for exit-abort targeting. */
   stateKey?: string
-  run: (signal?: AbortSignal) => Promise<EventObject | null>
+  /** Run the effect. The host passes the abort signal and, for session
+   *  machines, the session — merged into the effect's `meta`. */
+  run: (signal?: AbortSignal, session?: EffectSession) => Promise<EventObject | null>
 }
 
 /** Object form of a transition. A bare `Action` is sugar for `{ do: fn }`.
