@@ -9,13 +9,17 @@
 //  2. TS-on-import, like the CLI's shipped `cli/loader.js`.
 //  3. App-scoped `?v=` propagation — the one piece the prod loader lacks.
 //
-// Invalidation model: the dev server imports a changed entry with a bumped
-// `?v=N` cache-buster. This loader propagates that `?v=N` through `resolve`
-// onto the entry's app-relative imports, so a single bumped entry re-imports
-// its WHOLE transitive graph (templates, lib) fresh — not just the entry module.
-// Without propagation a `route → layout` edit stays cached (proven in Spike D).
+// Invalidation model — importer-only: every app module is imported at
+// `?v=<its own version>`. The dev server keeps a per-file version map, bumps
+// a changed file AND its transitive importers (a static reverse import graph),
+// and pushes the new versions here over a MessagePort before re-importing
+// entries. `resolve` stamps each app-local child with its current version, so
+// a changed subtree re-evaluates fresh while everything else keeps its cached
+// module instance — a `lib/db.ts` that opens a connection at top level runs
+// once per session, not once per edit, and the ESM registry (which never
+// releases a module) grows by the affected subtree instead of the whole app.
 //
-// The propagation boundary is CRITICAL: it applies only to files under the app
+// The versioning boundary is CRITICAL: it applies only to files under the app
 // root (`initialize({ appDir })`) and never inside a `node_modules` directory.
 // Versioning framework internals would fork their singletons (render context,
 // registries) into a second instance and break `read()` — the same dual-
@@ -38,12 +42,21 @@ const STATOR = /\.stator$/
 /** Extensions whose app-local imports carry the build version. */
 const VERSIONED = /\.(?:stator|ts|tsx|mts|cts|js|mjs)$/
 
-/** Absolute app root under which `?v=` propagation applies. Unset ⇒ this loader
- *  behaves like the prod TS loader plus `.stator` compile (no propagation). */
+/** Absolute (real) app root under which versioning applies. Unset ⇒ this loader
+ *  behaves like the prod TS loader plus `.stator` compile (no versioning). */
 let appDir
+/** Absolute file path → current version, pushed by the dev server. */
+const versions = new Map()
 
 export async function initialize(data) {
   appDir = data?.appDir
+  const port = data?.port
+  if (!port) return
+  port.on('message', (msg) => {
+    if (msg?.type !== 'versions') return
+    for (const [file, v] of msg.entries) versions.set(file, v)
+    port.postMessage({ type: 'ack', id: msg.id })
+  })
 }
 
 const inApp = (path) =>
@@ -56,12 +69,12 @@ export async function resolve(specifier, context, nextResolve) {
   const format = own ? 'module' : result.format
   if (!VERSIONED.test(url.pathname) || format !== 'module') return result
 
-  // Inherit the importer's build version onto app-local children so the whole
-  // app graph re-imports fresh on a bumped build.
-  if (url.protocol === 'file:' && context.parentURL && inApp(fileURLToPath(url))) {
-    const pv = new URL(context.parentURL).searchParams.get('v')
-    if (pv && !url.searchParams.has('v')) {
-      url.searchParams.set('v', pv)
+  // Stamp an app-local module with its current version (entries arrive already
+  // stamped by the dev server; children get theirs here).
+  if (url.protocol === 'file:' && !url.searchParams.has('v')) {
+    const path = fileURLToPath(url)
+    if (inApp(path)) {
+      url.searchParams.set('v', String(versions.get(path) ?? 1))
       return { url: url.href, format, shortCircuit: true }
     }
   }

@@ -1,13 +1,21 @@
 import { randomUUID } from 'node:crypto'
+import { realpathSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
 import { register } from 'node:module'
 import { relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { MessageChannel } from 'node:worker_threads'
 import { getRequestListener } from '@hono/node-server'
 import chokidar from 'chokidar'
 import type { Hono } from 'hono'
-import { bundleIslands, type IslandBundle, routeIslandMap, walkFiles } from '../build/islands.ts'
+import {
+  bundleIslands,
+  type IslandBundle,
+  localImports,
+  routeIslandMap,
+  walkFiles,
+} from '../build/islands.ts'
 import { sourceId } from '../build/source-id.ts'
 import { CompileError, compile, formatCompileError, regionResolverFor } from '../compiler/index.ts'
 import type { AnyMachineDef, EventOf } from '../engine/index.ts'
@@ -37,10 +45,12 @@ import { InMemoryStore } from './store.ts'
  * file, a data dir) mean the same thing in dev as in prod.
  *
  * The dev-only capabilities Vite used to provide are reproduced natively:
- *  - **Live reload** — a source change bumps the module version (`?v=N`,
- *    propagated app-wide by the loader) so the next import of the app graph is
- *    fresh; connected browsers reload via a tiny SSE channel (`/__stator_dev`),
- *    replacing Vite's HMR websocket. A failed rebuild keeps the last good
+ *  - **Live reload** — a source change bumps the version of the changed file
+ *    and its transitive importers (a static reverse import graph; the loader
+ *    stamps every app module with its own `?v=`), so exactly that subtree
+ *    re-evaluates and everything else keeps its module instance; connected
+ *    browsers reload via a tiny SSE channel (`/__stator_dev`), replacing
+ *    Vite's HMR websocket. A failed rebuild keeps the last good
  *    graph serving and renders the error (with its code frame) in an overlay.
  *  - **Scoped CSS + island scripts** — islands bundle through the
  *    `bundleIslands` seam (Vite today, never on the SSR path) and are served
@@ -75,16 +85,25 @@ const EMPTY_BUNDLE: IslandBundle = { islandUrls: {}, assets: [], modules: [] }
 const norm = (p: string): string => p.replace(/\\/g, '/')
 
 export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDevApp> {
-  const root = resolve(config.root)
+  // Real paths throughout: Node's resolver realpaths module URLs, and the
+  // per-file version map must key on what the loader sees.
+  const real = (p: string): string => {
+    try {
+      return realpathSync(p)
+    } catch {
+      return p
+    }
+  }
+  const root = real(resolve(config.root))
   loadDotenv(root)
 
   const resolved = resolveAppConfig(config)
   const logLevel = process.env.LOG_LEVEL ?? resolved.logLevel ?? 'info'
   setLogLevel(logLevel)
   const inspectorOn = resolved.inspector ?? true
-  const machinesDir = resolve(config.machinesDir)
-  const routesDir = resolve(config.routesDir)
-  const staticDir = config.staticDir ? resolve(config.staticDir) : resolve(root, 'static')
+  const machinesDir = real(resolve(config.machinesDir))
+  const routesDir = real(resolve(config.routesDir))
+  const staticDir = config.staticDir ? real(resolve(config.staticDir)) : resolve(root, 'static')
   // One build-id per dev process, as the Vite dev server did — rebuilds reload
   // through the dev channel, a restart is a new id for the SSE reconnect handshake.
   const buildId = randomUUID()
@@ -93,15 +112,51 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   // extra link when the CLI already registered it, required when the dev server
   // is started programmatically, because the dev loader (a hooks-thread module)
   // imports the TypeScript compiler source. Then the dev loader: `.stator`
-  // compile-on-load plus `?v=` propagation scoped to the app root.
+  // compile-on-load plus per-file `?v=` stamping scoped to the app root, fed
+  // over a MessagePort.
+  const { port1, port2 } = new MessageChannel()
   register('../cli/loader.js', import.meta.url)
-  register('./dev-loader.mjs', import.meta.url, { data: { appDir: root } })
+  register('./dev-loader.mjs', import.meta.url, {
+    data: { appDir: root, port: port2 },
+    transferList: [port2],
+  })
 
-  // A monotonic build version drives cache-busting: every rebuild bumps it, and
-  // discovery imports entries at `?v=N` so the whole app graph is re-read fresh.
-  let version = 1
+  // ── Module graph + per-file versions (importer-only invalidation) ──────────
+  // An edit re-evaluates the changed file and its transitive importers — nothing
+  // else. The graph is a static regex read of relative imports (no evaluation),
+  // rebuilt on structural changes and patched per edited file otherwise; the
+  // loader stamps each app module with its version at resolve time.
+  const versions = new Map<string, number>()
+  const forward = new Map<string, Set<string>>()
+  const importers = new Map<string, Set<string>>()
+  let seq = 0
+  const acks = new Map<number, () => void>()
+  port1.on('message', (m: { type?: string; id?: number }) => {
+    if (m?.type !== 'ack' || m.id === undefined) return
+    acks.get(m.id)?.()
+    acks.delete(m.id)
+    if (acks.size === 0) port1.unref()
+  })
+  port1.unref()
+  // Bump versions and push them to the loader; resolves once the loader has
+  // them, so the next import sees the new stamps.
+  const bumpVersions = (files: Iterable<string>): Promise<void> => {
+    const entries: Array<[string, number]> = []
+    for (const f of files) {
+      const v = (versions.get(f) ?? 1) + 1
+      versions.set(f, v)
+      entries.push([f, v])
+    }
+    if (entries.length === 0) return Promise.resolve()
+    return new Promise((done) => {
+      const id = ++seq
+      acks.set(id, done)
+      port1.ref()
+      port1.postMessage({ type: 'versions', id, entries })
+    })
+  }
   const bust = (file: string): Promise<Record<string, unknown>> =>
-    import(`${pathToFileURL(file).href}?v=${version}`)
+    import(`${pathToFileURL(file).href}?v=${versions.get(file) ?? 1}`)
 
   // ── Dev live-reload channel (replaces Vite's `/@vite/client` HMR socket) ────
   const reloadClients = new Set<ReadableStreamDefaultController<Uint8Array>>()
@@ -147,6 +202,42 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   }
   const infos = new Map<string, StatorInfo>() // abs `.stator` → info
   const skipDir = (name: string): boolean => name.startsWith('.') || SKIP_DIRS.has(name)
+  // Prune rules apply to the path RELATIVE to the app root — the root's own
+  // ancestors may legitimately contain a `tests/` or a dot-dir.
+  const relOf = (abs: string): string => norm(relative(root, abs))
+  const pruned = (rel: string): boolean =>
+    rel.startsWith('..') || PRUNE_DIR.test(rel) || DOT_SEGMENT.test(rel)
+  const isAppFile = (abs: string): boolean => APP_EXT.test(abs) && !pruned(relOf(abs))
+
+  const setEdges = (file: string, children: Set<string>): void => {
+    for (const old of forward.get(file) ?? []) importers.get(old)?.delete(file)
+    forward.set(file, children)
+    for (const child of children) {
+      const set = importers.get(child) ?? new Set<string>()
+      set.add(file)
+      importers.set(child, set)
+    }
+  }
+  const updateEdges = async (files: string[]): Promise<void> => {
+    for (const f of files) setEdges(f, new Set((await localImports(f, root)).filter(isAppFile)))
+  }
+  const buildGraph = async (): Promise<void> => {
+    forward.clear()
+    importers.clear()
+    await updateEdges(await walkFiles(root, (f) => APP_EXT.test(f), skipDir))
+  }
+  /** The changed files plus everything that (transitively) imports them. */
+  const affectedBy = (files: string[]): Set<string> => {
+    const out = new Set<string>()
+    const stack = [...files]
+    while (stack.length) {
+      const f = stack.pop()!
+      if (out.has(f)) continue
+      out.add(f)
+      for (const parent of importers.get(f) ?? []) stack.push(parent)
+    }
+    return out
+  }
   const compileInfo = async (file: string): Promise<StatorInfo> => {
     const source = await readFile(file, 'utf8')
     const { id, kind } = sourceId(root, file)
@@ -277,6 +368,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   }
 
   await scanAll()
+  await buildGraph()
   regenCss()
   await rebundleIslands()
   await rebuildStore()
@@ -286,19 +378,25 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   const bootDef = await discoverBoot(resolve(root, 'boot.ts'), bust)
 
   // ── Watch → recompile → reload ──────────────────────────────────────────────
-  // Recompile just what changed. Islands rebundle only when an edit touches a
-  // module the last bundle contained (an island, or something it imports — the
-  // seam reports exactly that set), a file became an island, or the file set
-  // changed; machine edits rebuild the store; everything rebuilds the server
-  // graph at the bumped version.
+  // Recompile just what changed, then bump the changed files + their importers
+  // so exactly that subtree re-evaluates. Islands rebundle only when an edit
+  // touches a module the last bundle contained (the seam reports that set), a
+  // file became an island, or the file set changed; machine edits rebuild the
+  // store; everything rebuilds the server graph.
   const doRebuild = async (files: string[], structural: boolean): Promise<void> => {
-    version++
     const t0 = performance.now()
     let rebundled = false
     let storeRebuilt = false
     try {
-      if (structural) await scanAll()
-      else for (const f of files) if (f.endsWith('.stator')) infos.set(f, await compileInfo(f))
+      if (structural) {
+        await scanAll()
+        await buildGraph()
+      } else {
+        for (const f of files) if (f.endsWith('.stator')) infos.set(f, await compileInfo(f))
+        await updateEdges(files)
+      }
+      const affected = affectedBy(files)
+      await bumpVersions(affected)
       regenCss()
       const needsBundle =
         structural || files.some((f) => islandGraph.has(norm(f)) || infos.get(f)?.isClient)
@@ -315,6 +413,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       logger.info(
         {
           ms: Math.round(performance.now() - t0),
+          modules: affected.size,
           islands: rebundled,
           store: storeRebuilt,
           routes: routes.length,
@@ -334,13 +433,6 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
     }
   }
 
-  // Prune rules apply to the path RELATIVE to the app root — the root's own
-  // ancestors may legitimately contain a `tests/` or a dot-dir.
-  const relOf = (abs: string): string => norm(relative(root, abs))
-  const pruned = (rel: string): boolean =>
-    rel.startsWith('..') || PRUNE_DIR.test(rel) || DOT_SEGMENT.test(rel)
-  const isAppFile = (abs: string): boolean => APP_EXT.test(abs) && !pruned(relOf(abs))
-
   const changed = new Set<string>()
   let structural = false
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -356,7 +448,9 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       const rel = relOf(resolve(p))
       return rel !== '' && pruned(rel)
     },
-    awaitWriteFinish: { stabilityThreshold: 80, pollInterval: 10 },
+    // 20 ms is enough to see a rename-style atomic save settle; a torn read
+    // only costs one overlay, which the next settled write clears.
+    awaitWriteFinish: { stabilityThreshold: 20, pollInterval: 10 },
   })
   const onEvent = (event: 'add' | 'change' | 'unlink', p: string): void => {
     const abs = resolve(p)
@@ -373,7 +467,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       changed.clear()
       structural = false
       reloadChain = reloadChain.then(() => doRebuild(files, wasStructural))
-    }, 40)
+    }, 20)
   }
   watcher.on('add', (p) => onEvent('add', p))
   watcher.on('change', (p) => onEvent('change', p))
@@ -418,7 +512,10 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
           }),
       )
     },
-    close: () => watcher.close(),
+    close: async () => {
+      await watcher.close()
+      port1.close()
+    },
   }
 }
 

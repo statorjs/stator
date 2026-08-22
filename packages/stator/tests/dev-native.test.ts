@@ -30,6 +30,15 @@ let base = ''
 const output: string[] = []
 
 const get = (path: string, init?: RequestInit) => fetch(`${base}${path}`, init)
+const titleOf = async (path: string) =>
+  /<title[^>]*>([^<]*)<\/title>/.exec(await (await get(path)).text())?.[1]
+const settleTitle = async (path: string, expected: string) => {
+  for (let i = 0; i < 60; i++) {
+    if ((await titleOf(path)) === expected) return true
+    await sleep(150)
+  }
+  return false
+}
 
 beforeAll(async () => {
   const port = 52000 + (process.pid % 3000)
@@ -174,22 +183,51 @@ describe('native dev server: .stator end to end, no Vite', () => {
     // live-edits the latter and vitest runs files in parallel on this fixture.
     const file = resolve(root, 'templates/remote-page.stator')
     const original = await readFile(file, 'utf8')
-    const title = async () =>
-      /<title[^>]*>([^<]*)<\/title>/.exec(await (await get('/remote')).text())?.[1]
-    const settle = async (expected: string) => {
-      for (let i = 0; i < 60; i++) {
-        if ((await title()) === expected) return true
-        await sleep(150)
-      }
-      return false
-    }
     try {
-      expect(await title()).toBe('remote')
+      expect(await titleOf('/remote')).toBe('remote')
       await writeFile(file, original.replace('<title>remote</title>', '<title>edited-live</title>'))
-      expect(await settle('edited-live')).toBe(true)
+      expect(await settleTitle('/remote', 'edited-live')).toBe(true)
     } finally {
       await writeFile(file, original)
-      await settle('remote')
+      await settleTitle('/remote', 'remote')
     }
   }, 20_000)
+
+  it('re-evaluates only the changed module and its importers', async () => {
+    const id = async () => ((await (await get('/instance.json')).json()) as { id: string }).id
+    const first = await id()
+
+    // An unrelated template edit reloads the app but must not re-run
+    // lib/instance.ts (nothing in its import chain changed).
+    const page = resolve(root, 'templates/remote-page.stator')
+    const pageOriginal = await readFile(page, 'utf8')
+    try {
+      await writeFile(
+        page,
+        pageOriginal.replace('<title>remote</title>', '<title>lib-untouched</title>'),
+      )
+      expect(await settleTitle('/remote', 'lib-untouched')).toBe(true)
+      expect(await id()).toBe(first)
+    } finally {
+      await writeFile(page, pageOriginal)
+      await settleTitle('/remote', 'remote')
+    }
+    expect(await id()).toBe(first)
+
+    // Editing the module itself re-evaluates it — and the route that imports it.
+    const lib = resolve(root, 'lib/instance.ts')
+    const libOriginal = await readFile(lib, 'utf8')
+    try {
+      await writeFile(lib, `${libOriginal}// touched\n`)
+      let after = first
+      for (let i = 0; i < 60 && after === first; i++) {
+        await sleep(150)
+        after = await id()
+      }
+      expect(after).not.toBe(first)
+    } finally {
+      await writeFile(lib, libOriginal)
+      await sleep(500)
+    }
+  }, 30_000)
 })

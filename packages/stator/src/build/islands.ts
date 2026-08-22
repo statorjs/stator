@@ -160,6 +160,26 @@ export async function routeIslandMap(opts: {
 
 const IMPORT_SPECIFIER_RE = /(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g
 
+/** Absolute targets of a file's relative import specifiers, bounded to
+ *  `baseDir` (a static regex read — no module evaluation; an unreadable file
+ *  yields none). Specifiers carry explicit extensions by convention. */
+export async function localImports(file: string, baseDir: string): Promise<string[]> {
+  let code: string
+  try {
+    code = await readFile(file, 'utf8')
+  } catch {
+    return []
+  }
+  const out: string[] = []
+  for (const match of code.matchAll(IMPORT_SPECIFIER_RE)) {
+    const spec = match[1]!
+    if (!spec.startsWith('.')) continue
+    const target = resolve(join(file, '..'), spec)
+    if (target.startsWith(baseDir)) out.push(target)
+  }
+  return out
+}
+
 /** Depth-first walk of a file's relative-import graph, bounded to `baseDir`. */
 export async function walkImports(
   file: string,
@@ -170,17 +190,7 @@ export async function walkImports(
   if (seen.has(file)) return
   seen.add(file)
   visit(file)
-  let code: string
-  try {
-    code = await readFile(file, 'utf8')
-  } catch {
-    return
-  }
-  for (const match of code.matchAll(IMPORT_SPECIFIER_RE)) {
-    const spec = match[1]!
-    if (!spec.startsWith('.')) continue
-    const target = resolve(join(file, '..'), spec)
-    if (!target.startsWith(baseDir)) continue
+  for (const target of await localImports(file, baseDir)) {
     await walkImports(target, baseDir, seen, visit)
   }
 }
