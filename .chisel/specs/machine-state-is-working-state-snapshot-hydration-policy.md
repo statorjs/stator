@@ -1,6 +1,6 @@
 ---
 title: 'Machine state is working state: snapshot hydration policy'
-status: draft
+status: in-progress
 created: 2026-08-22
 updated: 2026-08-22
 area: engine
