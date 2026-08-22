@@ -37,7 +37,7 @@ interface DevApp {
 
 The dev server. Embeds Vite in middleware mode so `.stator` and TS modules compile on the way in, loads machines, routes, and the framework runtime itself through `vite.ssrLoadModule` (one shared module instance — the same pattern Astro and SvelteKit use), and injects each route's scoped component CSS and island scripts into `<head>` at render time.
 
-On a relevant source change it re-discovers, rebuilds, and tells the browser to reload. A template or route edit keeps the store — and your session state, cart contents and all — intact; only a machine edit resets it, since route `reads` bind to machine defs by identity.
+On a relevant source change it re-discovers, rebuilds, and tells the browser to reload. Session state is governed by the same rule as production: a machine whose code changed starts fresh on its next request (its snapshot carries the hash of the code that wrote it — see [What survives a deploy](/guides/persistence/#what-survives-a-deploy)); everything else keeps its state, cart contents and all. Nothing clears your store on a save.
 
 The **inspector toolbar** is injected by default (`dev: { inspector: false }` disables it): a drawer that shows the wire itself — one row per outgoing event (↑) and incoming patch envelope (↓), including patches arriving over a live route's SSE channel with their apply time. It's the fastest way to see exactly which slots a dispatch touched. Production apps can opt in with `dev: { inspector: true }` on [`createApp`](/reference/server/#createapp) — demo sites want the wire visible.
 
@@ -61,6 +61,10 @@ interface BuildResult {
   compiled: number  // .stator files compiled
   hasCss: boolean   // components.css written
   islands: number   // client components bundled
+  machines: number  // machines hashed for the snapshot hydration policy
+  machineHashMs: number
+  resetMachines?: string[]  // machine files whose hash changed since the previous
+                            // build's manifest — their sessions reset on deploy
 }
 ```
 
@@ -70,8 +74,11 @@ The production build: compiles the app to a `dist/` of plain `.ts` that `createA
 interface StatorManifest {
   islands: Record<string, string>   // island .stator path → script URL
   routes: Record<string, string[]>  // route file → script URLs it reaches
+  machines: Record<string, string>  // machine file (relative to machines/) → code hash
 }
 ```
+
+Every machine is hashed in one esbuild pass — the machine file and every module it reaches, bundled in memory and never written — and the build **fails** if a machine's closure can't be bundled, so an import problem surfaces here rather than at a production boot. `stator build` prints the hashing time and, when a previous manifest exists, which machines' sessions this build resets.
 
 Vite is imported lazily — a server-only app never needs it at build time.
 
@@ -80,15 +87,21 @@ Vite is imported lazily — a server-only app never needs it at build time.
 ```ts
 function loadProductionHead(
   distDir: string,
-): Promise<{ headExtras: (filePath: string) => string; buildId?: string }>
+): Promise<{
+  headExtras: (filePath: string) => string
+  buildId?: string
+  machines?: Record<string, string>
+}>
 ```
 
 Reads a built `dist/`'s manifest and returns two things for `createApp`: `headExtras` (links `components.css` when the build produced one and injects each route's island `<script type="module">` tags) and `buildId` (the per-build id for the deploy-aware [reload handshake](/guides/realtime-sse/)):
 
 ```ts
-const { headExtras, buildId } = await loadProductionHead('dist')
-const app = await createApp({ ...dirs, headExtras, buildId })
+const { headExtras, buildId, machines } = await loadProductionHead('dist')
+const app = await createApp({ ...dirs, headExtras, buildId, machineHashes: machines })
 ```
+
+`machines` is the manifest's code hashes; passed as `machineHashes`, `createApp` hydrates against what was built, and a machine with no entry is a boot error rather than a silent reset. Omit it (a dist built before hashes existed, a hand-rolled entry) and machines are hashed live at boot.
 
 Both artifacts are optional — a server-only app without styles gets an empty hook.
 

@@ -27,11 +27,14 @@ function defineMachine(config: DefineMachineConfig): MachineDef
   reads?: MachineDef[]          // machines this one reads (typed helpers.reads)
   subscribes?: SubscribeEntry[] // cross-machine subscriptions
   emits?: string[] | Record<string, { payload?: (ctx, ev) => object }>
-  persist?: boolean             // app machines only: survive restarts via the AppStore
+  persist?: boolean             // app machines only: survive restarts (while the machine's
+                                // code is unchanged) via the AppStore
 }
 ```
 
 Defines a machine: flat states, typed events, and inline transitions. `events` is a phantom carrier — the engine reads only its type, and each transition's action/guard then sees the event **narrowed** to exactly its `on` key. A machine that declares `reads` gets a typed `helpers.reads` map (keyed by machine name, selectors preserved) in its actions, guards, **and selectors** — reads-aware selectors project cross-machine verdicts as display state, and bindings on the reading machine re-diff when a read machine changes. Declaring `reads` server-pins the machine, since cross-machine reads can't resolve in the browser. `persist: true` on a session machine is an error; sessions always persist through the session `Store`.
+
+**Snapshots are bound to the machine's code.** Every persisted snapshot is stamped with a hash of the machine's code (the file plus every module it reaches, tree-shaken), and a snapshot whose hash no longer matches the running machine is discarded at hydration — the machine starts fresh. Machine state is working state, not persistence; see [What survives a deploy](/guides/persistence/#what-survives-a-deploy) for the rule, what moves the hash, and the reload-on-entry idiom for durable facts.
 
 Each entry in an `on` map is a transition (or an ordered array of guarded candidates — first passing `when` wins):
 
