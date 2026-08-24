@@ -99,6 +99,12 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   loadDotenv(root)
 
   const resolved = resolveAppConfig(config)
+  // One session store for the life of the dev process. Rebuilds swap the
+  // MachineStore AROUND it, so sessions survive an edit unless their machine's
+  // code hash changed (hydration policy). Creating the default store inside
+  // rebuildStore would silently reset every session on any machine-touching
+  // edit — the opposite of what the per-machine hash promises.
+  const sessionStore = resolved.session ?? new InMemoryStore()
   const logLevel = process.env.LOG_LEVEL ?? resolved.logLevel ?? 'info'
   setLogLevel(logLevel)
   const inspectorOn = resolved.inspector ?? true
@@ -334,7 +340,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
     defs = (await discoverMachines(machinesDir, bust)).defs
     machineCount = defs.length
     const changed = defs.filter((d) => before.has(d.name) && before.get(d.name) !== codeHashOf(d))
-    store = new MachineStore(defs, resolved.session ?? new InMemoryStore(), {
+    store = new MachineStore(defs, sessionStore, {
       sessionTtlSeconds: resolved.sessionTtlSeconds,
       appStore: resolved.app,
     })

@@ -2,14 +2,19 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
-import { createDevApp, type DevApp } from '../src/server/dev.ts'
+import { createDevApp, type DevApp, withDeprecatedVite } from '../src/server/dev.ts'
 import Tally from './fixtures/dev-app/machines/tally.ts'
 
 /**
- * Phase 3a exit proof: a `.stator` template, compiled by Vite, rendered through
- * the real runtime in a running dev app — producing scoped HTML, SSR-injected
- * scoped CSS in <head>, and correct event patches.
+ * The TRANSITIONAL Vite-embedded dev server (`createDevApp` boots the native
+ * server by default since the Vite exit — see dev-native.test.ts). This suite
+ * pins the escape hatch via STATOR_VITE_DEV=1, exercising both the dispatch in
+ * `createDevApp` and the Vite implementation behind it: a `.stator` template,
+ * compiled by Vite, rendered through the real runtime — scoped HTML,
+ * SSR-injected scoped CSS in <head>, and correct event patches. Deleted with
+ * the Vite implementation when the hatch retires.
  */
+process.env.STATOR_VITE_DEV = '1'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = resolve(here, 'fixtures/dev-app')
@@ -106,12 +111,13 @@ describe('dev server: .stator end to end', () => {
     })
 
     // Browser-plane transform: the machine collapses to its identity stub.
-    const browser = await app.vite.transformRequest('/machines/counter.ts')
+    // (`vite` is non-null here — the escape hatch returns the real server.)
+    const browser = await app.vite!.transformRequest('/machines/counter.ts')
     expect(browser?.code).toContain('CounterMachine')
     expect(browser?.code).not.toContain('INCREMENT')
 
     // SSR-plane transform: the real module, untouched.
-    const ssr = await app.vite.transformRequest('/machines/counter.ts', { ssr: true })
+    const ssr = await app.vite!.transformRequest('/machines/counter.ts', { ssr: true })
     expect(ssr?.code).toContain('INCREMENT')
   })
 
@@ -289,6 +295,85 @@ describe('dev server: .stator end to end', () => {
       expect(after).toMatch(/<title[^>]*>edited-live<\/title>/)
     } finally {
       await writeFile(file, original)
+    }
+  })
+})
+
+describe('dev server: session carry-over across store rebuilds', () => {
+  // Own fixture, deliberately: this suite's dev app AND the dev-native
+  // subprocess suite both watch fixtures/dev-app, so a persistence assertion
+  // there would race the other suite's machine edits.
+  it("a machine-closure edit that doesn't change code keeps sessions", async () => {
+    const coRoot = resolve(here, 'fixtures/dev-carryover')
+    const coApp = await createDevApp({
+      root: coRoot,
+      machinesDir: resolve(coRoot, 'machines'),
+      routesDir: resolve(coRoot, 'routes'),
+    })
+    const lib = resolve(coRoot, 'lib/step.ts')
+    const original = await readFile(lib, 'utf8')
+    try {
+      const res = await coApp.fetch(new Request('http://localhost/'))
+      const cookie = res.headers.get('set-cookie')!.split(';')[0]!
+      await coApp.fetch(
+        new Request('http://localhost/__events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Stator-Route': 'GET /',
+            Cookie: cookie,
+          },
+          body: JSON.stringify({ machine: 'CarryCounterMachine', event: { type: 'INCREMENT' } }),
+        }),
+      )
+      const at1 = await (
+        await coApp.fetch(new Request('http://localhost/', { headers: { Cookie: cookie } }))
+      ).text()
+      expect(at1).toContain('count is 1')
+
+      // Append a comment to a file in the machine's closure: the store IS
+      // rebuilt, but the code hash is unchanged (the hash ignores comments), so
+      // the session must survive. Guards the one-session-store-per-process
+      // invariant — recreating the default store on rebuild reset everything.
+      const before = coApp.hono
+      await writeFile(lib, `${original}// carry-over probe\n`)
+      // The rebuild swaps the Hono app; the swap is the completion signal.
+      for (let i = 0; i < 100 && coApp.hono === before; i++) {
+        await new Promise((r) => setTimeout(r, 100))
+      }
+      expect(coApp.hono).not.toBe(before)
+
+      const after = await (
+        await coApp.fetch(new Request('http://localhost/', { headers: { Cookie: cookie } }))
+      ).text()
+      expect(after).toContain('count is 1')
+    } finally {
+      await writeFile(lib, original)
+      await coApp.close()
+    }
+  }, 30_000)
+})
+
+describe('createDevApp dispatch (the Vite exit surface)', () => {
+  it('withDeprecatedVite exposes vite as undefined with a one-time warning', () => {
+    const fake = {
+      fetch: () => new Response('ok'),
+      hono: {} as never,
+      dispatchToApp: async () => ({ committed: true }),
+      listen: async () => {},
+      close: async () => {},
+    }
+    const warnings: unknown[] = []
+    const original = console.warn
+    console.warn = (...args: unknown[]) => void warnings.push(args)
+    try {
+      const wrapped = withDeprecatedVite(fake)
+      expect(wrapped.vite).toBeUndefined()
+      expect(wrapped.vite).toBeUndefined()
+      expect(warnings.length).toBe(1)
+      expect(String(warnings[0])).toContain('deprecated')
+    } finally {
+      console.warn = original
     }
   })
 })

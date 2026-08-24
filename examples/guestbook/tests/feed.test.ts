@@ -3,6 +3,14 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { escapeXml, renderFeed } from '../lib/feed.ts'
 
+// Wire tests boot the dev app IN-PROCESS, which needs the transitional Vite dev
+// server: the native default (the Vite exit) loads app modules through Node
+// loader hooks that vitest's module runner bypasses. Migrates to the
+// CLI-subprocess harness when the Vite implementation retires (see the
+// framework's dev-native.test.ts for the pattern).
+process.env.STATOR_VITE_DEV = '1'
+
+
 /**
  * The RSS feed: the builder's escaping tested directly (signatures are
  * visitor-typed text), and the /feed.xml route end-to-end through a real

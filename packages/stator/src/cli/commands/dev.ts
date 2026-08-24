@@ -1,5 +1,5 @@
 import { resolve } from 'node:path'
-import { createDevApp, createNativeDevApp } from '../../server/dev.ts'
+import { createDevApp } from '../../server/dev.ts'
 import { loadConfig, resolvePort } from '../config.ts'
 import type { CliContext } from '../run.ts'
 
@@ -7,12 +7,12 @@ import type { CliContext } from '../run.ts'
  *  static; `stator.config.ts` for the store/session/port an app previously
  *  hand-wrote a `server.ts` for.
  *
- *  `STATOR_NATIVE_DEV=1` opts into the Vite-free native dev server (Option D,
- *  in development) instead of the Vite-backed default. */
+ *  The app runs natively from its source tree, exactly as `stator start` runs a
+ *  build. `STATOR_VITE_DEV=1` keeps the previous Vite-embedded dev server for
+ *  one minor as an escape hatch. */
 export async function run(ctx: CliContext): Promise<void> {
   const config = await loadConfig(ctx.root)
-  const create = process.env.STATOR_NATIVE_DEV === '1' ? createNativeDevApp : createDevApp
-  const app = await create({
+  const app = await createDevApp({
     root: ctx.root,
     machinesDir: resolve(ctx.root, 'machines'),
     routesDir: resolve(ctx.root, 'routes'),

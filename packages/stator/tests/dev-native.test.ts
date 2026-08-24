@@ -5,12 +5,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 /**
- * The native (Vite-free) dev server, exercised the way a user runs it: the
- * `stator` CLI with `STATOR_NATIVE_DEV=1` against the same fixture app the
- * Vite-backed dev server tests use. A subprocess rather than an in-process
- * `createNativeDevApp`, because the native server loads app modules through
- * Node's loader hooks and vitest's module runner intercepts `import()` — the
- * hooks would never see a thing.
+ * The native (Vite-free) dev server — the default since the Vite exit —
+ * exercised the way a user runs it: the `stator` CLI against the same fixture
+ * app the transitional Vite dev server tests use. A subprocess rather than an
+ * in-process `createDevApp`, because the native server loads app modules
+ * through Node's loader hooks and vitest's module runner intercepts
+ * `import()` — the hooks would never see a thing.
  *
  * Mirrors `dev-server.test.ts` case for case where the contract is shared
  * (render + scoped CSS + patches, raw Response passthrough, island shell +
@@ -46,7 +46,6 @@ beforeAll(async () => {
     cwd: root,
     env: {
       ...process.env,
-      STATOR_NATIVE_DEV: '1',
       STATOR_FIXTURE_BOOT_BUMP: '1',
       LOG_LEVEL: 'info',
       NO_COLOR: '1',
@@ -303,6 +302,42 @@ describe('native dev server: .stator end to end, no Vite', () => {
         if (/count is 0/.test(html)) break
         await sleep(150)
       }
+    }
+  }, 30_000)
+
+  it("a machine-closure edit that doesn't change code keeps sessions (carry over)", async () => {
+    // Session increments to 1.
+    const page = await get('/')
+    const cookie = page.headers.get('set-cookie')!.split(';')[0]!
+    await get('/__events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Stator-Route': 'GET /', Cookie: cookie },
+      body: JSON.stringify({ machine: 'CounterMachine', event: { type: 'INCREMENT' } }),
+    })
+    expect(await (await get('/', { headers: { Cookie: cookie } })).text()).toContain('count is 1')
+
+    // Append a comment to a file in CounterMachine's closure: the store IS
+    // rebuilt (the edit touches a machine), but the code hash is unchanged —
+    // the machine-hash contract ignores comments — so sessions must survive.
+    // Guards the one-session-store-per-process invariant: recreating the
+    // default store on rebuild would reset every session on any machine edit.
+    const lib = resolve(root, 'lib/counter-step.ts')
+    const original = await readFile(lib, 'utf8')
+    const logLen = output.length
+    try {
+      await writeFile(lib, `${original}// carry-over probe\n`)
+      let log = ''
+      for (let i = 0; i < 60; i++) {
+        log = output.slice(logLen).join('')
+        if (log.includes('sessions carry over')) break
+        await sleep(150)
+      }
+      expect(log).toContain('no machine code changed — sessions carry over')
+      // Same cookie, same state.
+      expect(await (await get('/', { headers: { Cookie: cookie } })).text()).toContain('count is 1')
+    } finally {
+      await writeFile(lib, original)
+      await sleep(500)
     }
   }, 30_000)
 

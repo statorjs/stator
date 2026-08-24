@@ -3,7 +3,7 @@
 // which is the whole reason for a CI matrix (raw `fs.watch` behaves differently
 // on each; this exercises chokidar + the loader hooks + live reload for real).
 //
-// Runs `stator dev` (STATOR_NATIVE_DEV=1) against each app below and asserts:
+// Runs `stator dev` (native is the default) against each app below and asserts:
 //   1. the page renders, and an event round-trips to a patch,
 //   2. a template/route edit live-reloads,
 //   3. a machine edit live-reloads (store path),
@@ -96,7 +96,7 @@ async function runApp(spec) {
   const port = 51000 + Math.floor(Date.now() % 4000)
   child = spawn(process.execPath, [bin, 'dev', '--port', String(port)], {
     cwd: appDir,
-    env: { ...process.env, STATOR_NATIVE_DEV: '1', LOG_LEVEL: 'warn' },
+    env: { ...process.env, LOG_LEVEL: 'warn' },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   // The banner prints the actual bound port (findFreePort may shift it).

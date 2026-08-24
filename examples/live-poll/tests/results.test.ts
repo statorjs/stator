@@ -2,6 +2,14 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+// Wire tests boot the dev app IN-PROCESS, which needs the transitional Vite dev
+// server: the native default (the Vite exit) loads app modules through Node
+// loader hooks that vitest's module runner bypasses. Migrates to the
+// CLI-subprocess harness when the Vite implementation retires (see the
+// framework's dev-native.test.ts for the pattern).
+process.env.STATOR_VITE_DEV = '1'
+
+
 /**
  * The per-poll JSON twin: created through the real form route, read back at
  * /p/:id.json — the poll's public shape only (no voter sessions).

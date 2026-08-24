@@ -65,7 +65,7 @@ const ctx: CliContext = {
 const { loadDotenv } = await import('../server/env.ts')
 loadDotenv(ctx.root)
 
-// Dynamic import per command so `check` never loads the dev server's Vite, etc.
+// Dynamic import per command so `check` never loads the dev server's watcher, etc.
 const { run } = (await import(`./commands/${command}.ts`)) as {
   run: (ctx: CliContext) => Promise<void>
 }
