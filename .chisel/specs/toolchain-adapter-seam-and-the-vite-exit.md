@@ -2,7 +2,7 @@
 title: Toolchain adapter seam and the Vite exit
 status: draft
 created: 2026-08-15
-updated: 2026-08-21
+updated: 2026-08-23
 area: tooling
 ---
 
@@ -191,7 +191,7 @@ D is implemented behind `STATOR_NATIVE_DEV=1` (`stator dev`), in four stages. St
 
 **SSE fan-out coverage (2026-08-21):** the fixture's env-gated `boot.ts` BUMPs the app tally on a timer; `dev-native.test.ts` opens `/__sse` for the live `/tally` route through the CLI subprocess and asserts a non-zero push arrives — server-originated dispatch and the SSE registry share one module instance, the property the Vite fence broke.
 
-**Still open before the flag flips to default:** docs that still describe `stator dev` as Vite-backed (Phase 0 below), and the Windows leg of the CI matrix (unverified until the branch is pushed).
+~~**Still open before the flag flips to default:** docs that still describe `stator dev` as Vite-backed (Phase 0 below), and the Windows leg of the CI matrix (unverified until the branch is pushed).~~ **Resolved 2026-08-23:** the branch PR's CI ran the native-dev loop green on macOS, Linux, AND Windows; the docs moved with Phase 1 below.
 
 ## E implementation plan (2026-08-21)
 
@@ -206,11 +206,15 @@ Inventory of what references Vite today: code — `server/dev.ts` (the Vite dev 
 - New guide page — *Styling and assets without a bundler*: the rule above stated for users, with the three recipes (Tailwind CLI over `routes/ templates/` globs → `static/tailwind.css` linked from the layout; images as a server route with ETag/304; WASM via `new URL('./x.wasm', import.meta.url)` + fetch/instantiate). Cross-link from `guides/client-components`.
 - Acceptance: `grep -ri vite apps/docs/src` hits only the changelog and the production guide's "no Vite at runtime" line. *(Phase 0 as shipped removes the invitation — keyword, header, stability table, the guide `guides/styling-and-assets` with cross-links from client-components and scoped-styles. The remaining "Vite-backed" descriptions of `stator dev` are accurate until the default flips and move with Phase 1.)*
 
-### Phase 1 — flip the default to native (2.6.0)
+### Phase 1 — flip the default to native (2.6.0) — DONE 2026-08-23
 
-Prerequisites, each with a test: ~~bound `?v=` growth~~ **done (Stage 5: importer-only invalidation, 332 → 411 MB over 500 edits on `weather`, flat from ~150)**; ~~tune the watch floor~~ **done (20/20 ms; `minimal` write→visible median 80 ms)**; ~~native coverage for `dispatchToApp` + SSE fan-out~~ **done (env-gated fixture `boot.ts` + `/__sse` assertion in `dev-native.test.ts`)**; Windows CI leg green on the smoke.
+Prerequisites, each with a test: ~~bound `?v=` growth~~ **done (Stage 5: importer-only invalidation, 332 → 411 MB over 500 edits on `weather`, flat from ~150)**; ~~tune the watch floor~~ **done (20/20 ms; `minimal` write→visible median 80 ms)**; ~~native coverage for `dispatchToApp` + SSE fan-out~~ **done (env-gated fixture `boot.ts` + `/__sse` assertion in `dev-native.test.ts`)**; ~~Windows CI leg green on the smoke~~ **done (branch PR CI, all three OSes)**.
 
-Then: `createDevApp` becomes the native implementation and `createNativeDevApp` is an alias; `STATOR_VITE_DEV=1` keeps the Vite path for one minor as the escape hatch; `DevApp.vite` becomes a deprecated getter returning `undefined` with a one-time warning (removed in the 3.0 batch with the other cutovers — it is the only observable surface the exit touches, and `/dev` is Stable tier). `stator dev` banner and the CLI docstring drop "Vite-backed". Changeset: minor.
+As shipped: `server/dev.ts` is now the dispatcher (holds `DevAppConfig`/`DevApp`, boots native by default, lazily imports the Vite impl — renamed to `dev-vite.ts` — under `STATOR_VITE_DEV=1`, kept one minor); `createNativeDevApp` is a deprecated alias that always boots native; `DevApp.vite` is a deprecated getter returning `undefined` with a one-time warning (`withDeprecatedVite`, unit-tested; removed in the 3.0 batch — it is the only observable surface the exit touches, and `/dev` is Stable tier). `STATOR_NATIVE_DEV` is gone (it never shipped). Docs moved off the Vite frame (cli, dev-and-build, tutorial/01, overview stability + packaging, server lower-level exports, README). Changeset: minor (`native-dev-default`).
+
+Landed with the flip, found reviewing it: **the session carry-over bug** — both dev servers created the default `InMemoryStore` inside `rebuildStore`, so any machine-touching edit reset ALL sessions in the default config, contradicting the hydration policy's "no hash change → sessions carry over" log line. Fixed by hoisting the store to one instance per dev process; carry-over tests on both loops (the Vite-path test on its own `dev-carryover` fixture — both suites watch `dev-app`, so a persistence assertion there would race the other suite's machine edits).
+
+Known cost, accepted: in-process `createDevApp` under vitest cannot run the native path (vitest's module runner intercepts `import()`, bypassing the loader hooks), so the six example/store wire-test suites pin `STATOR_VITE_DEV=1` with a comment. They migrate to the CLI-subprocess harness (the `dev-native.test.ts` pattern) in Phase 3 — added to its inventory below.
 
 ### Phase 2 — Spike 1 and the esbuild bundler (the E gate, behind a switch)
 
@@ -221,7 +225,8 @@ Then: `createDevApp` becomes the native implementation and `createNativeDevApp` 
 
 ### Phase 3 — remove Vite (the minor after the gate passes)
 
-- Delete `server/dev.ts` (Vite impl) — `dev-native.ts` becomes `dev.ts`; delete `vite/` (its `CLIENT_QUERY`/stub concerns now live in `islands-esbuild.ts`); delete `build/islands-vite.ts` (the current impl #1, moved out of `islands.ts` in Phase 2); delete `tests/vite-plugin.test.ts` (replaced by esbuild-plugin tests in Phase 2), `tests/dev-server.test.ts` (its cases already live in `dev-native.test.ts`), fixture `dev-vite-config/`.
+- Delete `server/dev-vite.ts` (the transitional Vite impl — `server/dev.ts` stays as the dispatcher-turned-plain-entry, losing the `STATOR_VITE_DEV` branch and the deprecated `vite` getter's Vite half); delete `vite/` (its `CLIENT_QUERY`/stub concerns now live in `islands-esbuild.ts`); delete `build/islands-vite.ts` (the current impl #1, moved out of `islands.ts` in Phase 2); delete `tests/vite-plugin.test.ts` (replaced by esbuild-plugin tests in Phase 2), `tests/dev-server.test.ts` (its cases already live in `dev-native.test.ts`) with fixtures `dev-vite-config/` and `dev-carryover/` (fold the carry-over case into `dev-native.test.ts` if not already equivalent — it already has one).
+- Migrate the six pinned wire-test suites off in-process `createDevApp` (`examples/{registration,with-auth,live-poll,indie-blog,guestbook}` + `apps/store`) to the CLI-subprocess harness (`dev-native.test.ts` pattern) — they pin `STATOR_VITE_DEV=1` today because vitest's module runner bypasses the native loader hooks.
 - Packaging: remove the peer dep, the devDep, the `/vite` export; `vitest` stays (test runner, unrelated). Remove `vite` from every `examples/*/package.json` and `apps/store` — this also resolves the ROADMAP "devDeps drift" ceiling (Vite 8) by removing the dependency rather than chasing the peer range; `scripts/check-scaffold-range.mjs` gets a guard that no example reintroduces it.
 - Docs/README/ROADMAP: README "What's here" + Layout (`vite/` line), the 8 docs pages, ROADMAP exit entry → shipped, the `/server` runtime-tier split entry re-motivated (its ~45 plumbing symbols were public *because* the Vite module graph needed them importable — after E they can move to a `server/runtime` subpath without a dev-server seam to protect).
 - Semver: minor. Non-breaking by the 2.5.1 argument (no user-configurable Vite surface survived into 2.6); `DevApp.vite` was already a deprecated `undefined` from Phase 1. Changeset + CHANGELOG story: "one toolchain".

@@ -194,7 +194,7 @@ function stator(c: Context): StatorContext  // resolved config on the request co
 
 ## Lower-level exports
 
-Plumbing the framework itself runs on. Exported because the dev server and tests load the runtime through Vite, not because your app should need them — and held to the **Toolchain** tier of the [stability policy](/reference/overview/#stability-policy): these may change in a minor.
+Plumbing the framework itself runs on. Exported because compiled `.stator` output and the framework's own tooling import them, not because your app should need them — and held to the **Toolchain** tier of the [stability policy](/reference/overview/#stability-policy): these may change in a minor.
 
 - `MachineStore` — the machine registry + actor manager behind `StatorApp.store`.
 - `findPollLoops` (+ `PollLoopFinding`) — the dev-plane lint that detects self-rescheduling poll loops on session machines (an `after` timer whose event cycles back and re-arms it); the dev server runs it at boot and logs findings.

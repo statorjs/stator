@@ -13,7 +13,7 @@ Two subpaths, one lifecycle: `@statorjs/stator/dev` runs your app during develop
 function createDevApp(config: DevAppConfig): Promise<DevApp>
 
 interface DevAppConfig {
-  root: string             // Vite root — the app directory
+  root: string             // the app directory (must reach node_modules)
   machinesDir: string
   routesDir: string
   staticDir?: string
@@ -28,16 +28,20 @@ interface DevAppConfig {
 
 interface DevApp {
   fetch(request: Request): Response | Promise<Response>
-  vite: ViteDevServer
+  vite: ViteDevServer | undefined  // deprecated — see below
   dispatchToApp(machine: MachineDef, event: EventOf<typeof machine>): Promise<{ committed: boolean }>
   listen(port: number): Promise<void>
   close(): Promise<void>
 }
 ```
 
-The dev server. Embeds Vite in middleware mode so `.stator` and TS modules compile on the way in, loads machines, routes, and the framework runtime itself through `vite.ssrLoadModule` (one shared module instance — the same pattern Astro and SvelteKit use), and injects each route's scoped component CSS and island scripts into `<head>` at render time.
+The dev server. Your app runs natively from its **source tree**, exactly as `stator start` runs a build: `.stator` files compile on import (in Node's module loader), machines, routes, and middleware are discovered from their real paths, and islands are bundled behind the same seam the production build uses — served from memory on the production URLs with the production `<head>` shape. There is no bundler in the server path, so dev and prod share one module graph and one compile path, and `import.meta.url`-relative paths in app code (a SQLite file, a data dir) mean the same thing in both.
 
-On a relevant source change it re-discovers, rebuilds, and tells the browser to reload. Session state is governed by the same rule as production: a machine whose code changed starts fresh on its next request (its snapshot carries the hash of the code that wrote it — see [What survives a deploy](/guides/persistence/#what-survives-a-deploy)); everything else keeps its state, cart contents and all. Nothing clears your store on a save.
+On a source change the server recompiles what changed and re-evaluates exactly the changed modules and their transitive importers — everything else keeps its module instance, so a `lib/db.ts` that opens a connection at top level runs once per session, not once per edit — then reloads connected browsers over a small SSE channel. A failed rebuild keeps the last good graph serving and shows the compile error, with its code frame, in a full-screen overlay.
+
+Session state is governed by the same rule as production: a machine whose code changed starts fresh on its next request (its snapshot carries the hash of the code that wrote it — see [What survives a deploy](/guides/persistence/#what-survives-a-deploy)); everything else keeps its state, cart contents and all. Nothing clears your store on a save.
+
+**Transitional:** `STATOR_VITE_DEV=1` boots the previous Vite-embedded dev server instead, kept for one minor as an escape hatch — if something forces you onto it, please open an issue. `DevApp.vite` is deprecated: it is `undefined` on the native dev server (with a one-time warning) and will be removed in the next major; under the escape hatch it is still the real `ViteDevServer`.
 
 The **inspector toolbar** is injected by default (`dev: { inspector: false }` disables it): a drawer that shows the wire itself — one row per outgoing event (↑) and incoming patch envelope (↓), including patches arriving over a live route's SSE channel with their apply time. It's the fastest way to see exactly which slots a dispatch touched. Production apps can opt in with `dev: { inspector: true }` on [`createApp`](/reference/server/#createapp) — demo sites want the wire visible.
 
