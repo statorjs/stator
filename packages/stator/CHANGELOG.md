@@ -1,5 +1,28 @@
 # @statorjs/stator
 
+## 2.6.0
+
+### Minor Changes
+
+- f1f8482: `meta.session` on effects. For session machines, every effect — entry and transition — now receives the session it runs for: `meta.session.id` and `meta.session.claims<T>()`, the same app-defined claims middleware reads with `stator(c).claims()`. It is what lets an entry effect reload a durable fact by identity on a fresh start, after TTL expiry, or after a snapshot reset — `loadCart(meta.session.claims<Me>().userId)` — with no client round trip. App machines have no session and client islands run no host, so `meta.session` is `undefined` there. The engine stays session-unaware: `EffectInvocation.run(signal, session?)` merges whatever the host passes.
+- f1f8482: `stator dev` now runs your app natively — the same way production runs it. The dev server no longer embeds Vite: `.stator` files compile on import in Node's module loader, your app runs from its **source tree** (so `import.meta.url`-relative paths — a SQLite file, a data dir — mean the same thing in dev as in prod), and islands bundle behind the same seam the production build uses, served from memory on the production URLs with the production `<head>` shape. The dev/prod divergence class this closes is structural: there is no second module graph for a file to load twice into, no transform that runs in dev and vanishes in prod.
+
+  The loop got faster and more precise with it. An edit re-evaluates exactly the changed modules and their importers — a `lib/db.ts` that opens a connection at top level runs once per session, not once per edit — and a failed rebuild keeps the last good build serving while the compile error (code frame included) shows in an overlay. Live reload arrives over a small SSE channel instead of Vite's HMR socket.
+
+  Fixed alongside: both dev servers recreated the default in-memory session store on every machine-touching rebuild, silently resetting **all** sessions even when no machine's code changed. The store now lives as long as the dev process, so the snapshot hydration policy does what it promises in dev: only the machines whose code actually changed start fresh, everything else carries over — cart contents and all.
+
+  Transitional surface: `STATOR_VITE_DEV=1` keeps the previous Vite-embedded dev server for one minor as an escape hatch (if something forces you onto it, please open an issue). `DevApp.vite` is deprecated — `undefined` on the native server with a one-time warning, removed in the next major. App code, config, and the CLI surface are unchanged.
+
+- f1f8482: Sessions never outlive the code that made them. Every persisted machine snapshot is now stamped with a hash of the machine's code — the machine file plus every module it reaches, tree-shaken — and hydration discards a snapshot whose hash no longer matches the running machine, starting that machine fresh (logged once per machine, then at 10, 100, …). A renamed state can no longer strand a session in a state the chart doesn't have, and a session can no longer keep running under guards it wasn't created under. The rule is identical in development and production and for every Store.
+
+  **This release resets all persisted machine state once**, because existing snapshots carry no hash. From here on, a machine's sessions reset only when that machine's code changes, and `stator build` prints which machines each deploy resets (`machine code changed — sessions reset on deploy for: …`). Machine state is working state with a TTL, not persistence: anything whose loss would be an incident belongs in your own store, written by an effect and reloaded by an entry effect — see the persistence guide.
+
+  Mechanics: `stator build` hashes every machine in one esbuild pass and fails the build if a machine's closure can't be bundled (so an import problem surfaces in CI, not at a production boot); the hashes ship in `stator-manifest.json` and `stator start` consumes them. `createApp` accepts `machineHashes` (`loadProductionHead(dist).machines`); without it, machines are hashed live at boot, as the dev servers do. `Snapshot` gains optional `format` and `code` fields; `BuildResult` gains `machines`, `machineHashMs`, `resetMachines`. `persist: true` app machines follow the same rule: they survive restarts while their code is unchanged.
+
+### Patch Changes
+
+- ff3067d: Stack traces and island debugging now resolve to source. The `stator` CLI opts the process into Node's sourcemap application (the runtime equivalent of `--enable-source-maps`) — the inline maps the loader pipeline already emitted now actually reach server stack traces, in `stator dev` and `stator start` alike. TS frames resolve exactly; a `.stator` frame resolves to the compiled server module (right file, generated lines). And the dev server bundles islands with inline sourcemaps, so browser devtools show your island source instead of bundled output — production bundles still ship unmapped (`sourcemap` is a dev-only option on the `bundleIslands` seam).
+
 ## 2.5.1
 
 ### Patch Changes
