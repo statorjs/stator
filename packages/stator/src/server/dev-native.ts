@@ -280,7 +280,11 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   const islandFiles = (): string[] => [...infos].filter(([, i]) => i.isClient).map(([f]) => f)
   const rebundleIslands = async (): Promise<void> => {
     const entries = islandFiles().map((file) => ({ rel: sourceId(root, file).id, file }))
-    islands = entries.length ? await bundleIslands({ root, machinesDir, entries }) : EMPTY_BUNDLE
+    // Inline sourcemaps in dev: browser devtools show island SOURCE, and the
+    // in-memory bundle stays self-contained (no `.map` files to serve).
+    islands = entries.length
+      ? await bundleIslands({ root, machinesDir, entries, sourcemap: true })
+      : EMPTY_BUNDLE
     assetBodies.clear()
     for (const a of islands.assets) assetBodies.set(`/static/assets/${a.fileName}`, a.source)
     islandGraph = new Set(islands.modules)

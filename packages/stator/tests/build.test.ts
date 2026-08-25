@@ -86,9 +86,11 @@ describe('build: buildApp', () => {
     expect(manifest.routes['routes/stepper.ts']).toEqual([url])
     expect(manifest.routes['routes/index.ts']).toBeUndefined()
 
-    // The hashed asset exists on disk under the served static dir.
+    // The hashed asset exists on disk under the served static dir — and ships
+    // UNMAPPED (inline sourcemaps are a dev-only seam option).
     const assetPath = join(outDir, url!.replace('/static/', 'static/'))
     expect(await exists(assetPath)).toBe(true)
+    expect(await readFile(assetPath, 'utf8')).not.toContain('sourceMappingURL')
   })
 
   it('stubs server-machine imports in the browser bundle', async () => {

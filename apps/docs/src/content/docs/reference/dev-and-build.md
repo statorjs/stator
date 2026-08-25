@@ -39,6 +39,8 @@ The dev server. Your app runs natively from its **source tree**, exactly as `sta
 
 On a source change the server recompiles what changed and re-evaluates exactly the changed modules and their transitive importers — everything else keeps its module instance, so a `lib/db.ts` that opens a connection at top level runs once per session, not once per edit — then reloads connected browsers over a small SSE channel. A failed rebuild keeps the last good graph serving and shows the compile error, with its code frame, in a full-screen overlay.
 
+Sourcemaps work on both planes: the CLI opts the process into Node's sourcemap application, so server stack traces resolve to your TS source (a `.stator` frame resolves to its compiled server module), and dev island bundles carry inline maps so browser devtools show island source. Production island bundles ship unmapped.
+
 Session state is governed by the same rule as production: a machine whose code changed starts fresh on its next request (its snapshot carries the hash of the code that wrote it — see [What survives a deploy](/guides/persistence/#what-survives-a-deploy)); everything else keeps its state, cart contents and all. Nothing clears your store on a save.
 
 **Transitional:** `STATOR_VITE_DEV=1` boots the previous Vite-embedded dev server instead, kept for one minor as an escape hatch — if something forces you onto it, please open an issue. `DevApp.vite` is deprecated: it is `undefined` on the native dev server (with a one-time warning) and will be removed in the next major; under the escape hatch it is still the real `ViteDevServer`.
