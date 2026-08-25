@@ -58,4 +58,55 @@ A crash loses only the cache, not committed state.
 
 ## What persists
 
-Only `lifecycle: 'session'` machines are stored. App machines live in process memory and re-seed on boot — see [Sessions and state](/concepts/sessions-and-state/).
+Only `lifecycle: 'session'` machines are stored through the session `Store`. App machines live in process memory and re-seed on boot unless they opt in with `persist: true`, which saves them through the `AppStore` — see [Sessions and state](/concepts/sessions-and-state/).
+
+## What survives a deploy
+
+Machine state is **working state with a TTL, not persistence**. Stator keeps a session's machines across requests, live connections, and deploys that leave their code untouched, and lets them go when the session expires, when a server with no configured store restarts, or when the machine's code has changed.
+
+That last rule is the one to design around: **sessions never outlive the code that made them.** Every persisted snapshot carries a hash of the machine's code — the machine file and every module it reaches, tree-shaken — and a snapshot whose hash no longer matches the running machine is discarded at the next hydration. The machine starts fresh, exactly as it would for a new session, and a line is logged. A guard you rewrote can never run against state it would not have allowed, and a state you renamed can never strand a session. The rule is the same in `stator dev` (a save resets the affected machines on their next request) and in production (a deploy resets the machines whose code changed — `stator build` prints which), and it holds for every `Store`.
+
+So anything whose loss would be an incident is a **durable fact**, and durable facts belong in your own database, written by an effect and read back by an entry effect when the machine starts — for a new session, after TTL expiry, and after a reset alike. The entry effect knows *whose* data to load from `meta.session`: the session id and its claims, the same claims middleware reads with [`stator(c).claims()`](/guides/middleware/):
+
+```ts
+type Me = { userId: string }
+
+export default defineMachine({
+  name: 'CartMachine',
+  lifecycle: 'session',
+  context: { items: [] as Item[] },
+  initial: 'loading',
+  states: {
+    loading: {
+      // Runs on every fresh start — new session, expired session, snapshot
+      // reset — and rebuilds the working copy from the durable cart.
+      entry: async (_ctx, meta): Promise<CartEvents> => {
+        const me = meta.session?.claims<Me>()
+        const cart = me ? await loadCart(me.userId) : null
+        return cart ? { type: 'LOADED', cart } : { type: 'EMPTY' }
+      },
+      on: {
+        LOADED: { to: 'ready', do: (ctx, ev) => { ctx.items = ev.cart.items } },
+        EMPTY: 'ready',
+      },
+    },
+    ready: {
+      on: {
+        ADD: {
+          do: (ctx, ev) => { ctx.items.push(ev.item) },
+          effect: async (ctx, _ev, meta) => {
+            await saveCart(meta.session!.claims<Me>()!.userId, ctx.items)
+            return null
+          },
+        },
+      },
+    },
+  },
+})
+```
+
+With that shape a reset is a cache miss: deploys, restarts, TTL expiry, a flushed Redis, and a second replica all become the same non-event. Effects run after the commit, never inline, so the first render of a fresh machine shows its `loading` state and the `LOADED` completion lands moments later — over SSE on a [live route](/guides/realtime-sse/), or on the next request otherwise. That is the ordinary entry-effect rhythm, and it needs nothing from the client. `meta.session` is set for session machines only; app machines and client islands have none.
+
+`persist: true` app machines follow the same rule: they survive restarts while the machine's code is unchanged. A shared tally or counter that must outlive a code change is a durable fact too.
+
+What resets a machine, precisely: any change to code that can execute as part of it — states, defaults, guards, actions, effects, selectors, and the used exports of anything it imports — plus a framework upgrade. A machine that imports another machine is reset when that machine changes too — an import may carry values (a default mirrored into context), not only identity. What does not reset: comments and formatting, exports nothing in the machine uses, and anything that is not code — environment variables, database contents, config.

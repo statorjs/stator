@@ -37,3 +37,24 @@ jobs:
       - run: node scripts/check-scaffold-range.mjs
       - run: pnpm typecheck
       - run: pnpm test
+
+  # The native (Vite-free) dev server owns its watch→compile→reload loop, so it
+  # must be proven on every OS — file watching (chokidar) and path handling
+  # diverge across macOS, Linux, and Windows. This boots `stator dev` and asserts
+  # live reload on a route and a machine edit on each.
+  native-dev:
+    name: native dev loop (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/native-dev-smoke.mjs

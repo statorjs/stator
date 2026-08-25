@@ -1,7 +1,7 @@
 {
   "name": "@statorjs/stator",
   "version": "2.5.1",
-  "description": "Server-canonical web framework: business logic in composable state machines, UI as a thin renderer binding machine outputs to DOM positions. Ships TypeScript source (Vite/tsx-native by design).",
+  "description": "Server-canonical web framework: business logic in composable state machines, UI as a thin renderer binding machine outputs to DOM positions. Ships TypeScript source, loaded natively by its own toolchain — no build step.",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -17,8 +17,7 @@
     "state-machine",
     "ssr",
     "sse",
-    "islands",
-    "vite"
+    "islands"
   ],
   "files": [
     "src",
@@ -78,6 +77,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.0",
+    "chokidar": "^4.0.3",
     "esbuild": "^0.24.0",
     "hono": "^4.6.0",
     "ioredis": "^5.10.1",

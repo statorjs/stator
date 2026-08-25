@@ -34,6 +34,8 @@ interface CreateAppConfig {
   trustedOrigins?: string[]             // cross-site WRITE allowlist (exact or *.wildcard)
   cors?: { origins?: string[]; credentials?: boolean }  // cross-origin READ policy
   headExtras?: (filePath: string) => string | Promise<string>
+  buildId?: string                      // per-build id for the reload handshake
+  machineHashes?: Record<string, string> // loadProductionHead(dist).machines
   middlewareFile?: string               // path to the app's middleware.ts
 }
 
@@ -46,7 +48,7 @@ interface StatorApp {
 }
 ```
 
-The production entry point. Discovers machines and routes from the given directories, boots app-lifecycle machines, wires cross-machine effects, and serves over Hono. `fetch` is the raw handler for tests; `store` is what you hand to [`dispatchToApp`](#dispatchtoapp) for server-originated events. In production, spread [`loadProductionHead`](/reference/dev-and-build/#loadproductionhead)'s result (`headExtras` + `buildId`) into the config. The dev server serves the wire inspector toolbar by default; `dev: { inspector: true }` opts a production app in (demo sites want the wire visible).
+The production entry point. Discovers machines and routes from the given directories, boots app-lifecycle machines, wires cross-machine effects, and serves over Hono. `fetch` is the raw handler for tests; `store` is what you hand to [`dispatchToApp`](#dispatchtoapp) for server-originated events. In production, pass [`loadProductionHead`](/reference/dev-and-build/#loadproductionhead)'s result into the config (`headExtras`, `buildId`, and `machines` as `machineHashes` — a machine missing from the supplied hashes is a boot error; omit `machineHashes` and machines are hashed live at boot). The dev server serves the wire inspector toolbar by default; `dev: { inspector: true }` opts a production app in (demo sites want the wire visible).
 
 ## defineMachine
 
@@ -192,7 +194,7 @@ function stator(c: Context): StatorContext  // resolved config on the request co
 
 ## Lower-level exports
 
-Plumbing the framework itself runs on. Exported because the dev server and tests load the runtime through Vite, not because your app should need them — and held to the **Toolchain** tier of the [stability policy](/reference/overview/#stability-policy): these may change in a minor.
+Plumbing the framework itself runs on. Exported because compiled `.stator` output and the framework's own tooling import them, not because your app should need them — and held to the **Toolchain** tier of the [stability policy](/reference/overview/#stability-policy): these may change in a minor.
 
 - `MachineStore` — the machine registry + actor manager behind `StatorApp.store`.
 - `findPollLoops` (+ `PollLoopFinding`) — the dev-plane lint that detects self-rescheduling poll loops on session machines (an `after` timer whose event cycles back and re-arms it); the dev server runs it at boot and logs findings.

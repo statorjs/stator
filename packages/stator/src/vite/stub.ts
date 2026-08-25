@@ -20,7 +20,10 @@ import type { Plugin } from 'vite'
  * discovery already imports them all).
  */
 
-const STUB_PREFIX = '\0stator-machine-stub:'
+/** Virtual-id prefix of a stubbed server-machine import (exported so the
+ *  island bundler can map a stub back to the machine file it stands for). */
+export const MACHINE_STUB_PREFIX = '\0stator-machine-stub:'
+const STUB_PREFIX = MACHINE_STUB_PREFIX
 
 export function machineStub(opts: { machinesDir: string }): Plugin {
   const machinesDir = resolve(opts.machinesDir)

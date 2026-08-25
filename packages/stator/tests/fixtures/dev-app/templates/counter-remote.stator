@@ -1,0 +1,16 @@
+<counter-remote>
+  <button on:click={bump}>remote +</button>
+</counter-remote>
+
+<script>
+  import CounterMachine from '../machines/counter.ts'
+
+  // Native-dev fixture: an island that imports a SERVER machine. In the browser
+  // bundle the import must collapse to its `{ name }` stub — the machine body
+  // (selectors, the "count is" label) must never ship.
+  export class CounterRemote extends StatorElement {
+    async bump() {
+      await dispatch(CounterMachine, { type: 'INCREMENT' })
+    }
+  }
+</script>

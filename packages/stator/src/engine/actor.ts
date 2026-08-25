@@ -160,7 +160,8 @@ export function createActor<C extends object, E extends EventObject, S extends s
       effectId,
       kind: 'entry',
       stateKey,
-      run: (signal) => Promise.resolve(entry(ctxSnapshot, { effectId, signal })),
+      run: (signal, session) =>
+        Promise.resolve(entry(ctxSnapshot, { effectId, signal, ...(session ? { session } : {}) })),
     }
     if (opts.onEffect) {
       opts.onEffect(invocation)
@@ -289,8 +290,14 @@ export function createActor<C extends object, E extends EventObject, S extends s
           machineName: def.name,
           effectId,
           kind: 'transition',
-          run: (signal) =>
-            Promise.resolve(effect(ctxSnapshot, evSnapshot as never, { effectId, signal })),
+          run: (signal, session) =>
+            Promise.resolve(
+              effect(ctxSnapshot, evSnapshot as never, {
+                effectId,
+                signal,
+                ...(session ? { session } : {}),
+              }),
+            ),
         }
         if (opts.onEffect) {
           opts.onEffect(invocation)

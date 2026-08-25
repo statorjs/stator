@@ -1,35 +1,7 @@
-import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
 import { transform } from 'esbuild'
 import type { Plugin } from 'vite'
-import {
-  CompileError,
-  type CompileResult,
-  compile,
-  componentImportSpecifier,
-  declaredRegions,
-  splitStator,
-} from '../compiler/index.ts'
-
-/** Build a region resolver for a file: maps a component identifier used in
- *  `file` to the named regions its imported `.stator` declares. Reads sibling
- *  files synchronously (resolution happens mid-compile). Returns null when the
- *  identifier isn't a `.stator` default import or the file can't be read. */
-function regionResolverFor(file: string, source: string) {
-  const { frontmatter } = splitStator(source)
-  return (componentName: string): Set<string> | null => {
-    const spec = componentImportSpecifier(frontmatter, componentName)
-    if (!spec) return null
-    const target = spec.startsWith('.') ? resolve(dirname(file), spec) : null
-    if (!target) return null
-    try {
-      return declaredRegions(readFileSync(target, 'utf8'))
-    } catch {
-      return null
-    }
-  }
-}
+import { CompileError, type CompileResult, compile, regionResolverFor } from '../compiler/index.ts'
 
 /** Map a `CompileError` to a Vite/Rollup-friendly error so the dev overlay and
  *  terminal show file:line:column with a code frame. */
@@ -57,8 +29,16 @@ function toViteError(err: unknown): unknown {
  * The plugin does no CSS or JSX parsing itself — that's all in the compiler.
  */
 
+/** A `.stator` module id: the extension proper, optionally followed by a query.
+ *  Precise on purpose — `x.stator.client.ts` / `x.stator.ts` (compiled output
+ *  in a dist tree) must NOT match, or the bundler would recompile them. */
+const STATOR_ID = /\.stator(?:\?|$)/
+
 const STYLE_QUERY = 'stator&type=style&lang.css'
-const CLIENT_QUERY = 'stator&type=client'
+/** Query that selects a `.stator` file's generated client entry module (the
+ *  island's `<script>`); `bundleIslands` feeds island sources to Vite as
+ *  `<file>?${CLIENT_QUERY}` so one plugin serves dev and build alike. */
+export const CLIENT_QUERY = 'stator&type=client'
 
 export function stator(): Plugin {
   const cache = new Map<string, CompileResult>()
@@ -87,7 +67,7 @@ export function stator(): Plugin {
     name: 'vite-plugin-stator',
 
     resolveId(id, importer) {
-      if (!id.includes('.stator')) return null
+      if (!STATOR_ID.test(id)) return null
       const qIdx = id.indexOf('?')
       const path = qIdx === -1 ? id : id.slice(0, qIdx)
       const query = qIdx === -1 ? '' : id.slice(qIdx)
@@ -99,7 +79,7 @@ export function stator(): Plugin {
     },
 
     async load(id) {
-      if (!id.includes('.stator')) return null
+      if (!STATOR_ID.test(id)) return null
       const qIdx = id.indexOf('?')
       const file = qIdx === -1 ? id : id.slice(0, qIdx)
       const query = qIdx === -1 ? '' : id.slice(qIdx + 1)

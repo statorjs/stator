@@ -55,6 +55,7 @@ export { buildHonoApp } from './http.ts'
 export type { InstanceHandle } from './instance-proxy.ts'
 export { createInstanceProxy, defForProxy } from './instance-proxy.ts'
 export { logger, scopedLogger, setLogLevel } from './logger.ts'
+export { codeHashOf, codeInputsOf } from './machine-hash.ts'
 export { MachineStore } from './machine-store.ts'
 export type { MiddlewareDefinition } from './middleware.ts'
 export {

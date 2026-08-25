@@ -1,0 +1,17 @@
+<wasm-probe>
+  <span ref:out>…</span>
+</wasm-probe>
+
+<script>
+  // Asset-handling fixture: a `.wasm` referenced by URL, not imported. The
+  // island bundler must emit the file (hashed) and rewrite the URL — the
+  // framework-agnostic idiom the "Styling and assets" guide documents.
+  const wasmUrl = new URL('./probe.wasm', import.meta.url)
+  export class WasmProbe extends StatorElement {
+    async connectedCallback() {
+      super.connectedCallback()
+      const { instance } = await WebAssembly.instantiateStreaming(fetch(wasmUrl))
+      this.refs.out.textContent = instance ? 'ok' : 'no'
+    }
+  }
+</script>

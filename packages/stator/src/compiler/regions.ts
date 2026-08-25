@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
 import ts from 'typescript'
 import { splitStator } from './split.ts'
 
@@ -76,4 +78,32 @@ export function componentImportSpecifier(
     }
   }
   return null
+}
+
+/**
+ * Build a region resolver for a file: maps a component identifier used in
+ * `file` to the named regions its imported `.stator` declares, so `compile()`
+ * can reject a `child="x"` the callee never declares. Reads sibling files
+ * synchronously (resolution happens mid-compile). Returns null when the
+ * identifier isn't a `.stator` default import or the file can't be read.
+ *
+ * Shared by every compile path — the Vite plugin, `buildApp`, and the native
+ * dev loader — so the check is identical in dev and prod.
+ */
+export function regionResolverFor(
+  file: string,
+  source: string,
+): (componentName: string) => Set<string> | null {
+  const { frontmatter } = splitStator(source)
+  return (componentName) => {
+    const spec = componentImportSpecifier(frontmatter, componentName)
+    if (!spec) return null
+    const target = spec.startsWith('.') ? resolve(dirname(file), spec) : null
+    if (!target) return null
+    try {
+      return declaredRegions(readFileSync(target, 'utf8'))
+    } catch {
+      return null
+    }
+  }
 }

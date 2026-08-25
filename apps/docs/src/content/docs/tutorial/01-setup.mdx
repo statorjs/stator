@@ -109,7 +109,7 @@ Now install dependencies and run `stator check` — it generates the `.stator` t
 
 ## The dev server
 
-`stator dev` boots the dev server, auto-discovering `machines/`, `routes/`, and `static/`. For the tutorial the default in-memory store is fine — we'll add a `stator.config.ts` for Redis in [step 7](/tutorial/07-persisting-state/). During development, Vite compiles `.stator` files as they're requested — there's no separate build step to run while you work.
+`stator dev` boots the dev server, auto-discovering `machines/`, `routes/`, and `static/`. For the tutorial the default in-memory store is fine — we'll add a `stator.config.ts` for Redis in [step 7](/tutorial/07-persisting-state/). During development, `.stator` files compile as they're imported — there's no separate build step to run while you work, and your app runs from its source tree exactly as it will in production.
 
 ## Run it
 

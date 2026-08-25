@@ -61,6 +61,18 @@ export type Guard<C, E extends EventObject, R = Record<string, any>> = (
 export interface EffectMeta {
   effectId: string
   signal?: AbortSignal
+  /** The session this effect runs for — set by the server host for SESSION
+   *  machines only (app machines and client islands have none). Lets an entry
+   *  effect reload a durable fact by identity after a fresh start or a
+   *  snapshot reset, with no client round trip: `loadCart(meta.session.claims<Me>().userId)`. */
+  session?: EffectSession
+}
+
+/** The session an effect runs for. `claims` mirrors `stator(c).claims<T>()`:
+ *  the app-defined claims as of the moment the effect started, or `undefined`. */
+export interface EffectSession {
+  readonly id: string
+  claims<T = unknown>(): T | undefined
 }
 
 /**
@@ -127,7 +139,9 @@ export interface EffectInvocation {
   kind: 'entry' | 'transition'
   /** The owning state — set for entry effects, for exit-abort targeting. */
   stateKey?: string
-  run: (signal?: AbortSignal) => Promise<EventObject | null>
+  /** Run the effect. The host passes the abort signal and, for session
+   *  machines, the session — merged into the effect's `meta`. */
+  run: (signal?: AbortSignal, session?: EffectSession) => Promise<EventObject | null>
 }
 
 /** Object form of a transition. A bare `Action` is sugar for `{ do: fn }`.
@@ -216,6 +230,15 @@ export interface Snapshot<C> {
    *  effect (the load role is re-runnable by contract) instead of leaving the
    *  machine wedged waiting for a completion that died with another process. */
   pendingEntry?: { effectId: string }
+  /** Snapshot format version, stamped by the host on persist. Absent ⇒ the
+   *  original (current) format. Lets the shape itself evolve (hierarchy in
+   *  `value`) with a known-old snapshot recognisable as such. */
+  format?: number
+  /** Code hash of the machine that wrote this snapshot, stamped by the host on
+   *  persist. Hydration rejects a snapshot whose hash differs from the running
+   *  machine's — sessions never outlive the code that made them. Absent
+   *  (pre-existing snapshots) ⇒ mismatch. */
+  code?: string
 }
 
 export type Lifecycle = 'app' | 'session'

@@ -90,7 +90,7 @@ Server machines imported in client code collapse to identity stubs (`{ name }`) 
 
 - **Custom isomorphic engine** — flat typed state graphs (`to`/`when`/`do`/ `emit`/`effect`), mutation-syntax actions over `structuredClone` drafts, declared emits, snapshot persistence. Runs identically server- and client-side; a few KB, not a statechart library.
 - **Engine effects** — async I/O declared on transitions, host-scheduled after commit. The session lock is never held during I/O; completions re-enter the normal event path and reach live pages over SSE. At-most-once, non-durable in 1.0 (durability rides the 1.x inbox).
-- **`.stator` compiler + Vite plugin** — SFCs compile to server render modules (and client modules for islands); scoped CSS; dev server with live-reload, compile-error overlays with code frames, and an auto-injected inspector toolbar.
+- **`.stator` compiler + native dev server** — SFCs compile to server render modules (and client modules for islands) on import; scoped CSS; a live-reload dev loop that runs your app from its source tree exactly as production runs a build, with compile-error overlays (code frames included) and an auto-injected inspector toolbar.
 - **Production build** — `buildApp` compiles to a `dist/` of plain TS served with no Vite, bundles islands to hashed assets with a route→island manifest, and `loadProductionHead` injects the right script tags per route.
 - **Keyed `each`** — `each(items, fn, { key })` emits per-item insert/remove/move patches from a server-side diff; rows keep identity (focus, transitions) across reorders. `read(item, …)` makes a row field live — text or attribute — patching in place without re-rendering the row.
 - **Wire protocol** — documented in [`WIRE.md`](./WIRE.md); a single shared module both sides typecheck against.
@@ -109,7 +109,7 @@ packages/stator/         # the framework (@statorjs/stator)
     server/              # routing, HTTP, SSE, stores, effects, dispatch
     template/            # html`...`, read, each, when/match, directives
     compiler/            # .stator → server module + client module
-    vite/                # Vite plugin + machine-import stubbing
+    vite/                # island-bundling internals (Vite impl behind the bundleIslands seam)
     build/               # production build + head injection
     client/              # page runtime + island runtime (StatorElement)
     wire/                # the patch/directive protocol, shared by both sides
@@ -132,6 +132,7 @@ Where this is going — and why each item earned its place — lives in [ROADMAP
 - **Templates must parse as TSX** — a permanent design constraint (it's what makes the compiler and LSP cheap). No modifier syntax (`on:click.prevent`); compose typed wrappers instead.
 - **App machines are emit-driven** from sessions (plus `dispatchToApp` from server code); there is no direct client→app dispatch yet.
 - **`subscribes:` is callback-shaped.** Declarative source/predicate/transform subscriptions are 1.x.
+- **Machine state is working state.** Sessions never outlive the code that made them: a change to a machine's code resets its sessions at the next hydration, in dev and prod alike. Durable facts belong in your own store, written by effects and reloaded on entry.
 
 ## Scripts
 

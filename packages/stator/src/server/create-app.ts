@@ -84,6 +84,10 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
   /** Build identifier for the deploy-aware reload handshake. `stator start`
    *  passes the id baked into the build manifest; absent → no handshake. */
   buildId?: string
+  /** Machine code hashes from the build manifest (`loadProductionHead(dist).machines`),
+   *  keyed by file relative to `machinesDir`. Omitted ⇒ hashed live at boot;
+   *  a discovered machine missing from a supplied map is a boot error. */
+  machineHashes?: Readonly<Record<string, string>>
 }
 
 export interface StatorApp {
@@ -120,7 +124,9 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
   // the scoped children (http/sse/…), which a bare `logger.level =` would miss.
   setLogLevel(process.env.LOG_LEVEL ?? resolved.logLevel ?? 'warn')
   setSessionSameSite(resolved.sameSite ?? 'Lax')
-  const { defs } = await discoverMachines(machinesDir)
+  const { defs } = await discoverMachines(machinesDir, undefined, {
+    ...(config.machineHashes ? { hashes: config.machineHashes } : {}),
+  })
   const sessionStore = resolved.session ?? new InMemoryStore()
   const store = new MachineStore(defs, sessionStore, {
     sessionTtlSeconds: resolved.sessionTtlSeconds,

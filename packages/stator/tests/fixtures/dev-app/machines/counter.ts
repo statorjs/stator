@@ -1,4 +1,5 @@
 import { defineMachine } from '@statorjs/stator/server'
+import { STEP } from '../lib/counter-step.ts'
 
 type Events = { type: 'INCREMENT' }
 
@@ -12,7 +13,7 @@ export default defineMachine({
     idle: {
       on: {
         INCREMENT: (ctx) => {
-          ctx.count += 1
+          ctx.count += STEP
         },
       },
     },

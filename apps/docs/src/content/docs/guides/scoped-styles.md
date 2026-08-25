@@ -41,3 +41,7 @@ Scoped rules match classes composed at runtime by [`class:list`](/guides/directi
 ## The `stator-inspector` layer (dev only)
 
 The only cascade layer Stator itself declares is `stator-inspector` — where the dev inspector injects its own styles. It's deliberately the **lowest-priority** layer: your app's styles are unlayered, and unlayered author styles beat every `@layer`, so your styles always win and the inspector can never override the page it's inspecting. You'll only ever encounter it if your app also uses `@layer` and you're reasoning about ordering — declare your layers however you like; the inspector never competes with unlayered rules. It's never present in production.
+
+## Beyond the component
+
+Scoped blocks are for the component. A design system, a reset, or Tailwind belong in a global stylesheet served from `static/` — and there is no bundler plugin in the way. See [Styling and assets](/guides/styling-and-assets/).

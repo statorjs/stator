@@ -1,0 +1,16 @@
+---
+import type CarryCounterMachine from '../machines/counter.ts'
+import type { InstanceOf } from '@statorjs/stator/template'
+const { counter } = Stator.props<{ counter: InstanceOf<typeof CarryCounterMachine> }>()
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>dev-carryover</title>
+  </head>
+  <body>
+    <p class="label">{read(counter, c => c.label)}</p>
+    <button on:click={() => counter.send({ type: 'INCREMENT' })}>+</button>
+  </body>
+</html>

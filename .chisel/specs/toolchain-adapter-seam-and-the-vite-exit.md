@@ -2,7 +2,7 @@
 title: Toolchain adapter seam and the Vite exit
 status: draft
 created: 2026-08-15
-updated: 2026-08-15
+updated: 2026-08-23
 area: tooling
 ---
 
@@ -150,6 +150,98 @@ One story per minor; middleware+security co-cut so the middleware API is validat
 
 env (2.4) and version (2.5) are the two targeted fixes — independent of each other and of the Vite exit (2.6), which is why they now ship ahead of it.
 
+## Spike D — native server dev loop, no Vite (2026-08-20)
+
+Prototyped the whole D server path against `examples/minimal` (server templates, **zero islands** — isolates the server loop): compile (`.stator`→`.ts`) → discover+wire+serve → edit → recompile → re-import → serve the change, with Vite never invoked. Harness ran under a copy of the shipped esbuild loader (`packages/stator/src/cli/loader.js`) registered via `module.register`, exactly as the `stator` bin does. Result: **D is feasible, and the one hard part (incremental module invalidation) is solved by the shipped loader plus one addition.**
+
+**What the spike proved:**
+
+1. **The server compiles and serves with no Vite.** `buildApp` compiles `minimal` in ~11ms cold with `islands = 0`, so its Vite branch (`buildClientAssets`, gated on `islands.length > 0`) is never entered. Wiring the compiled output through the *public* server API — `discoverMachines(dir, loader)` → `MachineStore` + `wireAppEffects` + `bootAppMachines` → `discoverRoutes(dir, loader)` → `buildHonoApp` — renders the page (`GET /` → 200, correct SSR). This is just `stator build` + `stator start`'s existing Vite-free path, run in a loop.
+
+2. **Incremental invalidation is the only real gap, and the shipped loader already tolerates the fix.** The current Vite dev server gets module invalidation for free from `vite.ssrLoadModule`'s graph (this is *the fence*). The native equivalent is a cache-busting import: `import(pathToFileURL(file) + '?v=' + version)`. The shipped loader needs **no change** to accept it — its extension check tests `new URL(url).pathname` (strips the `?v=` query) and `fileURLToPath` ignores the query, so a cache-busted URL transforms and reads the real file.
+
+3. **Entry-only cache-bust is insufficient — transitive edits stay stale.** Bumping `?v=` on the discovered entry (route/machine) re-imports *that module* fresh, but its static transitive imports (`route.stator.ts` → `import Layout from '../templates/layout.stator.ts'`) carry no query, so they resolve to the **cached** copy. Measured: a route-file edit surfaces (recompile ~4–5ms); a `route→layout` template edit does **not**.
+
+4. **The fix is `?v=` propagation through `resolve`, scoped to app source.** Adding ~6 lines to the loader's `resolve` hook — inherit the importer's `?v=` onto app-relative children — makes the whole graph re-import fresh, and the transitive edit surfaces. **Critical constraint discovered the hard way:** propagation MUST stop at `node_modules` / the framework package. Versioning framework internals (e.g. `template/read.ts?v=3`) forks their singletons — the route's `read()` ran against a second render-context instance and 500'd. This is the **same dual-instance hazard as the Vite fence**, reappearing from the other side: the owned loop trades "framework loaded twice across two module systems" for "framework must be loaded exactly once, so version only app files." In an installed app the boundary is literally `node_modules`; scope propagation there.
+
+5. **Compiled output imports `@statorjs/stator` by bare specifier**, so the dev loop must run the build output from **within the project's `node_modules` resolution** (as `stator start` does). An out-of-tree build dir fails with `ERR_MODULE_NOT_FOUND`. Not a constraint, just a wiring fact for where the dev-build dir lives.
+
+**Design consequences for 2.6:**
+
+- **The native loader = shipped esbuild loader + scoped `?v=` propagation in `resolve` + `.stator` compile-on-`load`.** The spike used AOT (`buildApp` writes `.stator.ts` siblings, then the loader transforms the `.ts`); folding compile into the loader's `load` hook (read `.stator` → `compile()` → esbuild) removes the disk round-trip and is the productionizing step. Note this is exactly the "`.stator` `node:test` loader hook" the shipped `loader.js` header already anticipates.
+- **Invalidation model — two options, (a) proven here:** (a) in-process graph-wide `?v=` propagation scoped to the app dir — fast (~4–5ms recompile on `minimal`), matches today's *rebuild-without-restart* behaviour (`dev-server.test.ts:264` "live-reloads a template edit without a restart"), leaks superseded module versions into the ESM registry (dev-acceptable; bound with a periodic worker-recycle). (b) worker/process restart per change — what `tsx watch` does; robust and simpler (no version bookkeeping) but higher latency and drops in-memory app-machine state. Given Stator's no-HMR shape hard-reloads the browser regardless, (b) is a viable fallback, but (a) is proven and preserves the current no-restart feel.
+- **Islands are untouched by this spike** (`minimal` has none) and keep bundling through Vite behind `bundleIslands` — consistent with D. Spike 1 (esbuild `splitting` for islands, the D→E gate) remains separate and open.
+
+Method is cheap to reproduce (~10 min): copy an island-free example, `buildApp` it, wire the public server API with a cache-busting loader, edit a route then a transitive template, assert both surface. The scoped-propagation loader diff is the whole novelty.
+
+## Stages 1–5 on `feat/vite-exit` (2026-08-21)
+
+D is implemented behind `STATOR_NATIVE_DEV=1` (`stator dev`), in four stages. Stages 1–3 built the loop on a **mirror**: `buildApp` copied the app into `.stator-dev/<pid>/`, the server ran from the copy. Review of that branch found the mirror load-bearing in the wrong way — it silently changed `import.meta.url` semantics for app code (`examples/with-auth` created its SQLite file *inside* the throwaway mirror and lost it on exit), ignored every non-code edit (`static/*.svg`, `data/*.json`), compiled every template twice per full build, and carried a PID sweep + self-ignoring `.gitignore` to manage its own cruft. Stage 4 removed it.
+
+**Stage 4 — no mirror, compile in the loader, a real seam.**
+
+- `dev-loader.mjs` compiles `.stator` on `load` (framework compiler → esbuild) and runs the server from the **source tree**. `import.meta.url` is truthful in dev, `static/` is served in place, data files are read live. `?v=` propagation now covers `.js`/`.mjs` app modules too, and the boundary is both an app-root allowlist AND a `node_modules` denylist (pnpm realpaths the framework *out* of node_modules, a flat install leaves it *inside* the app root — each check covers the case the other misses).
+- `sourceId(base, file)` is the one place the compile identity (`id` → scope hash, `kind`) is derived; the loader (hooks thread), the dev server's CSS scan (main thread), and `buildApp` all use it, so markup compiled on one thread matches CSS scoped on another.
+- `bundleIslands` (`build/islands.ts`) is now a real function boundary — Lock 1. Pure inputs→outputs: island entries in (a `.stator` source or a prebuilt client entry); emitted files, rel→URL map, and the set of source modules that went in, out. Nothing is written or served inside it: `buildApp` writes the files under `dist/static/assets/`, the dev server holds them in memory and serves them (and the concatenated scoped CSS) on the production URLs with the production `<head>` shape. The Vite implementation is ~60 lines; E is swapping that one export. `routeIslandMap` (route → reachable islands) is shared the same way.
+- The `modules` set the seam returns drives rebundling: an island rebundles only when an edit touches a module the last bundle contained, a file became an island, or the file set changed. Measured on `weather` (7 islands): a route edit is a ~190 ms write→visible path with no bundler involved; an island edit rebundles in ~125 ms server-side.
+- Parity items ported from the Vite dev server: the `findPollLoops` lint; compile errors now cross the loader thread as plain text carrying `file:line:column` + code frame (`formatCompileError`), so the overlay shows the frame; cross-file named-region validation (`regionResolverFor`) runs on **every** compile path — previously it ran only in Vite dev, so a bad `child="x"` passed `stator build` silently. The `public/`-shadows-data-route warning is intentionally not ported: only Vite served `public/` at the root, so the shadow no longer exists in dev (nor ever did in prod).
+- Tests: `tests/dev-native.test.ts` mirrors `dev-server.test.ts` case for case (render + scoped CSS + patches, raw Response passthrough, island shell + bundled script, machine stubbing in the bundle vs whole machine on SSR, data GET routes, param+extension routes, live reload) plus the native-only guarantees (`import.meta.url` under the fixture, dev reload client instead of `/@vite/client`). It drives the CLI in a subprocess because vitest's module runner intercepts `import()` and the loader hooks would never see it. `scripts/native-dev-smoke.mjs` runs on the three-OS CI matrix against `examples/minimal` (server loop) and the island fixture (bundle + per-route script injection).
+
+**Stage 5 (2026-08-21) — importer-only invalidation + watch floor.** Whole-graph `?v=` propagation re-evaluated every app module on every edit: measured on `weather`, RSS went 326 → 584 MB over 200 edits (~1.3–2.9 MB/edit, still climbing) — and every `lib/` module's top-level side effects (a DB handle, a timer) re-ran per edit. Replaced with per-file versions: the dev server keeps a static reverse import graph (regex read of relative specifiers, rebuilt on structural changes, patched per edited file), bumps the changed files **and their transitive importers**, pushes the new versions to the loader over a `MessagePort` (acknowledged before re-import), and the loader stamps each app-local module with its own `?v=` at resolve time. Result: 332 → 411 MB over 500 edits, flat from ~150 on (~160 KB/edit amortised, the edited subtree only); an unrelated edit no longer re-runs a `lib/` module (tested: `lib/instance.ts` keeps its instance id across a template edit, changes when itself edited). Paths are realpath'd throughout (Node realpaths module URLs; the version map must key on what the loader sees). Watch floor tuned `awaitWriteFinish` 80→20 ms + debounce 40→20 ms: `minimal` route edit → visible median 80 ms (10 samples, 60–89), from ~190. Known limit: the graph is static, so a dynamically-imported app module is invalidated only when itself edited, not via its importers.
+
+**SSE fan-out coverage (2026-08-21):** the fixture's env-gated `boot.ts` BUMPs the app tally on a timer; `dev-native.test.ts` opens `/__sse` for the live `/tally` route through the CLI subprocess and asserts a non-zero push arrives — server-originated dispatch and the SSE registry share one module instance, the property the Vite fence broke.
+
+~~**Still open before the flag flips to default:** docs that still describe `stator dev` as Vite-backed (Phase 0 below), and the Windows leg of the CI matrix (unverified until the branch is pushed).~~ **Resolved 2026-08-23:** the branch PR's CI ran the native-dev loop green on macOS, Linux, AND Windows; the docs moved with Phase 1 below.
+
+## E implementation plan (2026-08-21)
+
+**Governing rule (decided 2026-08-21): Stator never exposes a bundler plugin surface.** No `vite.plugins`, no `esbuild.plugins`, no user `vite.config.*` — in D or E. A plugin the user configured would apply only to the island leaf and silently miss every server template (the Tailwind-through-`@tailwindcss/vite` failure), which is the one dev/prod divergence the whole exit exists to kill. Every "can I add a plugin" request is answered with a non-bundler mechanism that works identically on both tiers (Tailwind over source globs, image optimization as a server route, WASM as plain asset handling). Under this rule the bundler is an implementation detail of one export — which is what makes E a swap rather than a migration, and what makes the half-state (Vite kept, Vite visible) the one configuration to avoid.
+
+Inventory of what references Vite today: code — `server/dev.ts` (the Vite dev server), `vite/{index,plugin,stub}.ts`, `build/islands.ts` (impl #1); tests — `dev-server.test.ts`, `vite-plugin.test.ts`, fixture `dev-vite-config/`; packaging — peer dep `^6 || ^7`, devDep, the `vite` keyword, the `/vite` subpath export, the package description; scaffolds — every `examples/*/package.json` + `apps/store` carry `vite ^6` (these are what `create-stator` copies, see ROADMAP "devDeps drift"); docs — 8 pages (`reference/overview` stability table lists `/dev` as "Vite-embedded" and `/vite` as Internal, `reference/dev-and-build` documents `DevApp.vite`, `reference/cli`, `guides/production`, `tutorial/01-setup`, `reference/server` "Lower-level exports" rationale, `guides/testing`, `changelog`); README (3 lines); ROADMAP (the exit entry, the `/server` runtime-tier split, the devDeps-drift entry).
+
+### Phase 0 — close the affordance (ships with or before the default flip; no behaviour change) — DONE 2026-08-21
+
+- Drop the `vite` keyword and reword the package description (`"Ships TypeScript source (Vite/tsx-native by design)"` → native loader).
+- `vite/index.ts` header stops saying "add it to `plugins`"; `reference/overview` stability table: `/vite` is removed from the public table (Internal tier → no import path promised), `/dev` loses "Vite-embedded".
+- New guide page — *Styling and assets without a bundler*: the rule above stated for users, with the three recipes (Tailwind CLI over `routes/ templates/` globs → `static/tailwind.css` linked from the layout; images as a server route with ETag/304; WASM via `new URL('./x.wasm', import.meta.url)` + fetch/instantiate). Cross-link from `guides/client-components`.
+- Acceptance: `grep -ri vite apps/docs/src` hits only the changelog and the production guide's "no Vite at runtime" line. *(Phase 0 as shipped removes the invitation — keyword, header, stability table, the guide `guides/styling-and-assets` with cross-links from client-components and scoped-styles. The remaining "Vite-backed" descriptions of `stator dev` are accurate until the default flips and move with Phase 1.)*
+
+### Phase 1 — flip the default to native (2.6.0) — DONE 2026-08-23
+
+Prerequisites, each with a test: ~~bound `?v=` growth~~ **done (Stage 5: importer-only invalidation, 332 → 411 MB over 500 edits on `weather`, flat from ~150)**; ~~tune the watch floor~~ **done (20/20 ms; `minimal` write→visible median 80 ms)**; ~~native coverage for `dispatchToApp` + SSE fan-out~~ **done (env-gated fixture `boot.ts` + `/__sse` assertion in `dev-native.test.ts`)**; ~~Windows CI leg green on the smoke~~ **done (branch PR CI, all three OSes)**.
+
+As shipped: `server/dev.ts` is now the dispatcher (holds `DevAppConfig`/`DevApp`, boots native by default, lazily imports the Vite impl — renamed to `dev-vite.ts` — under `STATOR_VITE_DEV=1`, kept one minor); `createNativeDevApp` is a deprecated alias that always boots native; `DevApp.vite` is a deprecated getter returning `undefined` with a one-time warning (`withDeprecatedVite`, unit-tested; removed in the 3.0 batch — it is the only observable surface the exit touches, and `/dev` is Stable tier). `STATOR_NATIVE_DEV` is gone (it never shipped). Docs moved off the Vite frame (cli, dev-and-build, tutorial/01, overview stability + packaging, server lower-level exports, README). Changeset: minor (`native-dev-default`).
+
+Landed with the flip, found reviewing it: **the session carry-over bug** — both dev servers created the default `InMemoryStore` inside `rebuildStore`, so any machine-touching edit reset ALL sessions in the default config, contradicting the hydration policy's "no hash change → sessions carry over" log line. Fixed by hoisting the store to one instance per dev process; carry-over tests on both loops (the Vite-path test on its own `dev-carryover` fixture — both suites watch `dev-app`, so a persistence assertion there would race the other suite's machine edits).
+
+Known cost, accepted: in-process `createDevApp` under vitest cannot run the native path (vitest's module runner intercepts `import()`, bypassing the loader hooks), so the six example/store wire-test suites pin `STATOR_VITE_DEV=1` with a comment. They migrate to the CLI-subprocess harness (the `dev-native.test.ts` pattern) in Phase 3 — added to its inventory below.
+
+### Phase 2 — Spike 1 and the esbuild bundler (the E gate, behind a switch)
+
+- `build/islands-esbuild.ts`: implementation #2 of `IslandBundler`. `esbuild.build({ entryPoints, bundle: true, splitting: true, format: 'esm', write: false, metafile: true, entryNames: '[name]-[hash]', chunkNames: 'chunks/[name]-[hash]', assetNames: '[name]-[hash]', loader: { '.css': 'css', '.svg|.png|.wasm|…': 'file' } })` with two plugins: `.stator` → `onResolve`/`onLoad` that compiles the client entry (the `CLIENT_QUERY` job), and `machineStub` → `onResolve` filtered to `machinesDir` into a stub namespace whose `onLoad` imports the machine for `{ name }` (the existing Vite stub's logic, ~40 lines). `modules` from `metafile.inputs`, `islandUrls` from `metafile.outputs[*].entryPoint`. The `.client.ts` prebuilt-entry form `buildApp` uses works unchanged.
+- Selection: `bundleIslands` dispatches on `STATOR_ISLAND_BUNDLER=esbuild|vite` (default vite until the gate passes, then esbuild). Both implementations run the same contract tests: `build.test.ts`, `dev-native.test.ts`, the smoke.
+- The gate, each item a test or a recorded measurement on `weather` (7 islands): (1) asset emit + hashed URL rewrite via `new URL(…, import.meta.url)` resolves from a served island — **verified for impl #1 (2026-08-21)** by the `wasm-probe` fixture island + `dev-native.test.ts` (hashed `.wasm` served as `application/wasm`); the seam now pins `assetsInlineLimit: 0` so assets are always files, the contract impl #2 must match; (2) one worker-hosted WASM island end-to-end (Squoosh shape); (3) Tailwind-over-globs recipe works with the native dev server (no plugin involved — proves the Phase 0 guide); (4) split *quality*: count shared chunks, depth of the import waterfall per route, CSS emitted per island, compared against the Vite output; (5) the native-TS-strip item is closed — N/A, the esbuild loader carries full TS; (6) revert path: the Vite implementation stays in-tree for one release behind the switch.
+- Decision record: add a "Spike 1 results" section here with the numbers; E is committed only if (1)–(4) pass.
+
+### Phase 3 — remove Vite (the minor after the gate passes)
+
+- Delete `server/dev-vite.ts` (the transitional Vite impl — `server/dev.ts` stays as the dispatcher-turned-plain-entry, losing the `STATOR_VITE_DEV` branch and the deprecated `vite` getter's Vite half); delete `vite/` (its `CLIENT_QUERY`/stub concerns now live in `islands-esbuild.ts`); delete `build/islands-vite.ts` (the current impl #1, moved out of `islands.ts` in Phase 2); delete `tests/vite-plugin.test.ts` (replaced by esbuild-plugin tests in Phase 2), `tests/dev-server.test.ts` (its cases already live in `dev-native.test.ts`) with fixtures `dev-vite-config/` and `dev-carryover/` (fold the carry-over case into `dev-native.test.ts` if not already equivalent — it already has one).
+- Migrate the six pinned wire-test suites off in-process `createDevApp` (`examples/{registration,with-auth,live-poll,indie-blog,guestbook}` + `apps/store`) to the CLI-subprocess harness (`dev-native.test.ts` pattern) — they pin `STATOR_VITE_DEV=1` today because vitest's module runner bypasses the native loader hooks.
+- Packaging: remove the peer dep, the devDep, the `/vite` export; `vitest` stays (test runner, unrelated). Remove `vite` from every `examples/*/package.json` and `apps/store` — this also resolves the ROADMAP "devDeps drift" ceiling (Vite 8) by removing the dependency rather than chasing the peer range; `scripts/check-scaffold-range.mjs` gets a guard that no example reintroduces it.
+- Docs/README/ROADMAP: README "What's here" + Layout (`vite/` line), the 8 docs pages, ROADMAP exit entry → shipped, the `/server` runtime-tier split entry re-motivated (its ~45 plumbing symbols were public *because* the Vite module graph needed them importable — after E they can move to a `server/runtime` subpath without a dev-server seam to protect).
+- Semver: minor. Non-breaking by the 2.5.1 argument (no user-configurable Vite surface survived into 2.6); `DevApp.vite` was already a deprecated `undefined` from Phase 1. Changeset + CHANGELOG story: "one toolchain".
+
+### Phase 4 — what E unlocks (separate specs, evidence-gated)
+
+- Compiler-derived client-dispatch allowlist rides the owned build (ROADMAP entry; `.chisel/docs/client-dispatch-allowlist.md`).
+- `/server` runtime-tier split to a structural subpath (free while external usage is zero).
+- Tailwind first-class (`stator dev`/`build` run the CLI over globs and link the output) — only if the Phase 0 recipe logs friction in a real app.
+
+### Risks and the stop conditions
+
+- **Split quality (Phase 2 gate 4) is the only technical unknown.** esbuild's splitting is ESM-only and coarser than Rollup's; with few, leaf-shaped islands it is expected to be fine, and the switch means a bad result costs nothing but the spike. If `weather` shows per-island duplication of the runtime, stop at D with Vite invisible — that is a complete, stable end state under the governing rule.
+- **Scope creep is the real failure mode.** Island HMR, a plugin API, asset pipelines — any of these turns "own the dev loop" into "own a bundler". The answer to each is architectural (leaf islands, hard reload, non-bundler recipes), recorded here so the next request doesn't re-litigate it.
+
 ## Alternatives Considered
 
 - **Buy Vite (stay), keep E reachable** — the prior lean (2026-08-14), driven by sole-maintainer robustness fear. Superseded by the current decision to exit, because platform maturity (Node native TS + watch) and Stator's no-HMR shape shrink the owned surface that motivated "buy."
@@ -159,7 +251,7 @@ env (2.4) and version (2.5) are the two targeted fixes — independent of each o
 ## Open Questions
 
 - Spike 1 result: is esbuild `splitting` shared-chunk output acceptable for real multi-island apps, or does the runtime duplicate per island?
-- Exact shape of the watch loop / error-overlay Stator owns in D (reuses existing compile-error code frames).
+- ~~Exact shape of the watch loop / error-overlay Stator owns in D.~~ **Settled** — Spike D (scoped `?v=` propagation) and Stage 4 (compile-in-loader from the source tree, chokidar watch, in-memory islands, code-frame overlay); see the stages section above for what remains before the default flips.
 - `machineStub` (island machine-import stubbing) as an esbuild `onResolve`/ `onLoad` plugin; route→island manifest as an esbuild metafile.
 - Whether `tsx` is dropped for Node-native TS at the same time or stays a swappable adapter until the min-Node floor rises.
 

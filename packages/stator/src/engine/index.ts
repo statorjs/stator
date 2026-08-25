@@ -19,6 +19,7 @@ export type {
   Effect,
   EffectInvocation,
   EffectMeta,
+  EffectSession,
   EmitDeclaration,
   EmitsConfig,
   EntryEffect,
