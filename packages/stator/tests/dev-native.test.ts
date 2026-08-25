@@ -130,10 +130,20 @@ describe('native dev server: .stator end to end, no Vite', () => {
     const asset = await get(m![1]!)
     expect(asset.status).toBe(200)
     expect(asset.headers.get('content-type')).toContain('javascript')
-    expect(await asset.text()).toContain('tick-counter')
+    const code = await asset.text()
+    expect(code).toContain('tick-counter')
+    // Dev bundles carry an INLINE sourcemap (browser devtools show island
+    // source; the in-memory bundle stays self-contained). Prod bundles don't.
+    expect(code).toContain('sourceMappingURL=data:application/json')
     // A route that reaches no island gets no island script.
     const api = await (await get('/tally')).text()
     expect(api).not.toContain('/static/assets/')
+  })
+
+  it('applies sourcemaps to server stack traces (the CLI opts the process in)', async () => {
+    const res = await get('/maps.json')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ enabled: true })
   })
 
   it('stubs a server-machine import in the island bundle but renders with the whole machine', async () => {

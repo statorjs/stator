@@ -23,5 +23,14 @@ if (typeof register !== 'function') {
 
 register('./loader.js', import.meta.url)
 
+// Apply sourcemaps to stack traces. Every transform in the owned pipeline (the
+// TS loader above, the dev loader's `.stator` compile) already EMITS an inline
+// map, but V8 ignores maps when capturing stacks unless the process opts in —
+// this is the runtime equivalent of `--enable-source-maps`, which a bin script
+// can't put on its own invocation. Covers dev and `stator start` alike.
+// (`.stator` traces resolve to the compiled server module — right file,
+// generated lines — until the compiler emits its own map to compose.)
+process.setSourceMapsEnabled?.(true)
+
 // The real CLI is TypeScript, transformed on import by the loader just registered.
 await import('./run.ts')

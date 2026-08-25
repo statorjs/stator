@@ -50,6 +50,11 @@ export interface BundleIslandsOptions {
   entries: IslandEntry[]
   /** URL prefix the assets are served under. Default `/static/assets/`. */
   publicPath?: string
+  /** Seam contract: `true` appends an INLINE sourcemap to each emitted chunk
+   *  (a `sourceMappingURL=data:` comment — self-contained, so in-memory dev
+   *  serving needs no extra `.map` routes and browser devtools show island
+   *  source). Default off — production bundles ship unmapped. */
+  sourcemap?: boolean
 }
 
 export type IslandBundler = (opts: BundleIslandsOptions) => Promise<IslandBundle>
@@ -92,6 +97,7 @@ export const bundleIslands: IslandBundler = async (opts) => {
       // as a data: URL — deterministic for callers and identical to what an
       // esbuild implementation (file loader) produces.
       assetsInlineLimit: 0,
+      sourcemap: opts.sourcemap ? 'inline' : false,
       rollupOptions: {
         input,
         output: {
