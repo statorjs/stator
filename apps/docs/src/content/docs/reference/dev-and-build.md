@@ -49,7 +49,7 @@ The **inspector toolbar** is injected by default (`dev: { inspector: false }` di
 
 If the requested port is taken, the dev server shifts to the next free one (and probes a free HMR websocket port) instead of failing — two Stator apps run side by side without ceremony. Production `listen` fails with a one-line message instead; an operator wants the collision, not a silent shift.
 
-`dispatchToApp` is the dev counterpart of [`StatorApp.dispatchToApp`](/reference/server/#dispatchtoapp): it follows the current store across rebuilds and runs through the Vite-loaded runtime, so SSE fan-out reaches live connections. Don't import the standalone `dispatchToApp` in dev server code — that's a second module instance whose connection registry is empty, so the dispatch commits but the fan-out reaches nobody.
+`dispatchToApp` is the dev counterpart of [`StatorApp.dispatchToApp`](/reference/server/#dispatchtoapp): it follows the current store across rebuilds, so SSE fan-out reaches live connections. Prefer it (or `boot.ts`'s `ctx.dispatchToApp`) over importing the standalone `dispatchToApp` — the dev server rebuilds its store on machine edits, and the standalone form doesn't follow it.
 
 ## buildApp
 
