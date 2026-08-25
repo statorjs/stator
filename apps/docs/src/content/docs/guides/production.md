@@ -19,7 +19,7 @@ The build:
 1. copies `machines/`, `routes/`, `templates/`, `static/` into `dist/`,
 2. compiles each `.stator` to a sibling `.ts` and rewrites imports,
 3. concatenates scoped CSS into `dist/static/components.css`,
-4. bundles every [client island](/guides/client-components/) through one Vite pass into hashed assets under `dist/static/assets/`, stubbing any server-machine imports down to `{ name }` so server code never reaches a browser bundle,
+4. bundles every [client island](/guides/client-components/) through one bundler pass into hashed assets under `dist/static/assets/`, stubbing any server-machine imports down to `{ name }` so server code never reaches a browser bundle,
 5. walks each route's import graph and writes `dist/stator-manifest.json` — which islands each route needs, plus the per-build id.
 
 `stator start` loads that manifest to link `components.css` and inject each route's island scripts, and stamps the build id into live pages so the deploy-aware [reload handshake](/guides/realtime-sse/) can reload a page left on an older build. It runs your `stator.config.ts` exactly as dev does — same store, same session policy.
