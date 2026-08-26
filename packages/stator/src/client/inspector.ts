@@ -124,8 +124,13 @@ const snapshotOf = (p: InspectPayloadDesc, m: MachineDesc): SnapshotDesc | null 
 const leafOf = (m: MachineDesc, snap: SnapshotDesc | null | undefined): string =>
   snap ? (snap.value[snap.value.length - 1] ?? m.initial) : m.initial
 
+/** Stale = a PERSISTED snapshot stamped by different machine code (absent
+ *  stamp included — a pre-policy snapshot also resets on hydration). Session
+ *  machines only: an app machine's snapshot is the live actor's, which never
+ *  carries the persist-time `code` stamp and can't be stale — it is, by
+ *  construction, running the current code. */
 const isStale = (m: MachineDesc, snap: SnapshotDesc | null | undefined): boolean =>
-  Boolean(snap && m.hash && snap.code !== m.hash)
+  m.lifecycle === 'session' && Boolean(snap && m.hash && snap.code !== m.hash)
 
 /** Events the machine accepts in `leaf`: the state's own handlers plus the
  *  machine-level fallbacks the state doesn't shadow — actor.send's lookup. */
