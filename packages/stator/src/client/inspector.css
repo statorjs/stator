@@ -328,6 +328,23 @@
   color: #6a6a6a;
   border-style: dashed;
 }
+/* Cross-link chips: machine selectors (buttons) and route links (anchors). */
+button.stator-inspector-chip {
+  font: inherit;
+  font-size: 0.72rem;
+  background: transparent;
+  cursor: pointer;
+}
+a.stator-inspector-chip {
+  text-decoration: none;
+}
+.stator-inspector-chip--link {
+  color: #c586c0;
+}
+.stator-inspector-chip--link:hover {
+  background: #1c1c1c;
+  text-decoration: underline;
+}
 .stator-inspector-chip-guard {
   color: #9cdcfe;
   margin-left: 0.15rem;

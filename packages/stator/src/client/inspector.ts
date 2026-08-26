@@ -161,13 +161,36 @@ function navRow(m: MachineDesc, p: InspectPayloadDesc, active: boolean): string 
   </button>`
 }
 
-function machineDetail(m: MachineDesc, snap: SnapshotDesc | null | undefined): string {
+/** A cross-link chip selecting a machine's detail — wired up after render. */
+const machineChip = (name: string): string =>
+  `<button type="button" class="stator-inspector-chip stator-inspector-chip--link" data-machine="${escapeHtml(name)}">${escapeHtml(name)}</button>`
+
+const isNavigable = (r: InspectPayloadDesc['routes'][number]): boolean =>
+  r.methods.GET !== undefined && !/[:*]/.test(r.urlPath)
+
+function machineDetail(
+  m: MachineDesc,
+  snap: SnapshotDesc | null | undefined,
+  payload: InspectPayloadDesc,
+): string {
   const leaf = leafOf(m, snap)
   const context = snap ? snap.context : m.context
   const chips = acceptedEvents(m, leaf)
     .map(
       (e) =>
         `<span class="stator-inspector-chip${e.serverOnly ? ' stator-inspector-chip--server' : ''}" title="${e.serverOnly ? 'server-only — clients may not dispatch this' : 'dispatchable'}${e.guarded ? '; guarded' : ''}">${escapeHtml(e.type)}${e.guarded ? '<span class="stator-inspector-chip-guard">?</span>' : ''}</span>`,
+    )
+    .join('')
+  // The graph glue: which machines this one reads, and which routes read it.
+  // Navigable routes render as real links (go look at the page showing this
+  // machine); parameterized ones stay text.
+  const reads = m.reads.map(machineChip).join('')
+  const readBy = payload.routes
+    .filter((r) => Object.values(r.methods).some((meth) => meth.reads.includes(m.name)))
+    .map((r) =>
+      isNavigable(r)
+        ? `<a class="stator-inspector-chip stator-inspector-chip--link" href="${escapeHtml(r.urlPath)}">${escapeHtml(r.urlPath)}</a>`
+        : `<span class="stator-inspector-chip">${escapeHtml(r.urlPath)}</span>`,
     )
     .join('')
   return `<div class="stator-inspector-detail-head">
@@ -177,6 +200,8 @@ function machineDetail(m: MachineDesc, snap: SnapshotDesc | null | undefined): s
       ${isStale(m, snap) ? `<span class="stator-inspector-stale" title="${STALE_TITLE}">stale</span>` : ''}
     </div>
     <div class="stator-inspector-accepts">accepts ${chips || '<span class="stator-inspector-dim">nothing in this state</span>'}</div>
+    ${reads ? `<div class="stator-inspector-accepts">reads ${reads}</div>` : ''}
+    <div class="stator-inspector-accepts">read by ${readBy || '<span class="stator-inspector-dim">no routes</span>'}</div>
     <pre class="stator-inspector-context${snap ? '' : ' stator-inspector-context--initial'}">${escapeHtml(JSON.stringify(context, null, 2))}</pre>`
 }
 
@@ -186,9 +211,7 @@ function routesDetail(payload: InspectPayloadDesc): string {
       const methods = Object.entries(r.methods)
         .map(([method, m]) => {
           const reads = m.reads.length
-            ? m.reads
-                .map((n) => `<span class="stator-inspector-chip">${escapeHtml(n)}</span>`)
-                .join('')
+            ? m.reads.map(machineChip).join('')
             : '<span class="stator-inspector-dim">no reads</span>'
           return `<span class="stator-inspector-route-method">${escapeHtml(method)}·${escapeHtml(m.kind)}${m.live ? '·live' : ''}</span> ${reads}`
         })
@@ -196,8 +219,7 @@ function routesDetail(payload: InspectPayloadDesc): string {
       // A static GET route is navigable — render it as a real link (cmd-click
       // works; the toolbar's persisted state survives the navigation). A
       // parameterized path has no concrete URL to offer.
-      const navigable = r.methods.GET !== undefined && !/[:*]/.test(r.urlPath)
-      const path = navigable
+      const path = isNavigable(r)
         ? `<a class="stator-inspector-route-path" href="${escapeHtml(r.urlPath)}">${escapeHtml(r.urlPath)}</a>`
         : `<span class="stator-inspector-route-path">${escapeHtml(r.urlPath)}</span>`
       return `<div class="stator-inspector-route">${path}<span>${methods}</span></div>`
@@ -327,7 +349,7 @@ function mount(): void {
     const detail =
       selected === ROUTES_SELECTION || !selectedMachine
         ? routesDetail(payload)
-        : machineDetail(selectedMachine, snapshotOf(payload, selectedMachine))
+        : machineDetail(selectedMachine, snapshotOf(payload, selectedMachine), payload)
     // Re-render in place, keeping each pane's scroll position (live refreshes
     // arrive on every patch batch — a jumping pane would be unusable).
     const prevNav = machinesEl.querySelector('.stator-inspector-mnav')
@@ -339,16 +361,25 @@ function mount(): void {
     const detailEl = machinesEl.querySelector('.stator-inspector-mdetail')
     if (navEl) navEl.scrollTop = navScroll
     if (detailEl) detailEl.scrollTop = detailScroll
+    const select = (name: string): void => {
+      selected = name
+      try {
+        localStorage.setItem(SELECTED_KEY, selected)
+      } catch {}
+      if (lastPayload) renderMachines(lastPayload)
+    }
     for (const row of Array.from(
       machinesEl.querySelectorAll<HTMLButtonElement>('.stator-inspector-mnav-row'),
     )) {
-      row.addEventListener('click', () => {
-        selected = 'routes' in row.dataset ? ROUTES_SELECTION : (row.dataset.name ?? '')
-        try {
-          localStorage.setItem(SELECTED_KEY, selected)
-        } catch {}
-        if (lastPayload) renderMachines(lastPayload)
-      })
+      row.addEventListener('click', () =>
+        select('routes' in row.dataset ? ROUTES_SELECTION : (row.dataset.name ?? '')),
+      )
+    }
+    // Cross-link chips (route reads, a machine's own reads) select that machine.
+    for (const chip of Array.from(
+      machinesEl.querySelectorAll<HTMLButtonElement>('button[data-machine]'),
+    )) {
+      chip.addEventListener('click', () => select(chip.dataset.machine ?? ''))
     }
   }
   const refreshMachines = (): void => {
