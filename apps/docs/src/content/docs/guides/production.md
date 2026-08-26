@@ -5,7 +5,7 @@ sidebar:
   order: 14
 ---
 
-Dev runs through Vite (`stator dev`); production doesn't. `stator build` compiles everything ahead of time, and `stator start` serves the result with no Vite in the process.
+Development and production run your app the same way — the difference is when compilation happens. `stator dev` compiles on import from your source tree; `stator build` compiles everything ahead of time, and `stator start` serves the result with no bundler in the process.
 
 ```bash
 stator build    # compile the app to dist/ (runs `stator check` first)
