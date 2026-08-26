@@ -49,6 +49,7 @@ Key grounding: almost everything needed is already introspectable at runtime. A 
 
 - **`stator inspect [MachineName]`** — one-shot CLI: walk defs from cwd (`discoverMachines` + `describeMachine`), print the chart as text — states, events, guards/effects, `serverOnly`, selectors, lifecycle. No running server required for the SHAPE half.
 - **`stator viz [MachineName]`** — the same description formatted as a Mermaid `stateDiagram-v2` block ("paste the diagram anywhere" — the seed the introspection doc identified).
+- **Machines tab layout rework** *(settled by first-use feedback, 2026-08-25)*: the flat card stack hides machines below the drawer fold (scroller-in-scroller) and wastes the right half of the width. Direction: **master-detail** — a left nav listing every machine with lifecycle and *live current state* inline (all rows always visible; states-in-list is what preserves the watch-two-machines-transition-together use single-select would otherwise lose), grouped **"Your session"** first, **"App (process-global)"** second, routes as a bottom section; the right pane shows the selected machine's context/accepts/detail. Plus a draggable drawer height (persisted like the open/tab state). Decided along the way: an app machine shows its *whole* context even when the app's own design aggregates cross-session data into it (Desksmith's `AdminMachine`) — filtering it would require app semantics the framework doesn't have and would show a context that doesn't exist; the answer is the section label, and it's dev-only anyway.
 
 ## Open questions
 
