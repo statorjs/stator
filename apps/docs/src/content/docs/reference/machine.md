@@ -148,6 +148,16 @@ states: {
 
 Each `after` entry dispatches `send` after `delay` ms in the state — armed on entry, cancelled on exit. Host-scheduled and in-memory: a restart drops armed timers (a host restoring a snapshot re-arms with elapsed credit via `enteredAt`). Durable schedules are deferred work.
 
+## describeMachine
+
+```ts
+function describeMachine(def: AnyMachineDef): MachineDescription
+```
+
+Serializes a machine def to plain JSON-able data — the def *is* the statechart, and this walks it: states, per-event transition candidates (`to`, guard/action/effect presence, emit names), entry effects and `after` timers (`delay` reported as its number, or `'dynamic'` for a context-dependent one), machine-level fallback handlers, the handled-event list, `serverOnly`, emit and selector names, `reads`/`subscribes` (as machine names), and the initial context. Closures stay opaque — a guard or effect reports presence, never its body. Pure and side-effect free; it never invokes app code.
+
+This is the introspection substrate: the dev inspector's [Machines tab](/reference/dev-and-build/#createdevapp) is built on it, and it's the walk to reach for when building your own tooling over a machine's shape. `MachineDescription`, `StateDescription`, and `TransitionDescription` are exported alongside it.
+
 ## Lower-level exports
 
 Type-level plumbing, exported for tooling and advanced typing:

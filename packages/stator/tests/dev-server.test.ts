@@ -146,6 +146,18 @@ describe('dev server: .stator end to end', () => {
     expect(await asset.text()).toContain('stator-inspector')
   })
 
+  it('serves machine-state inspection at /@stator/inspect (hatch parity)', async () => {
+    app ??= await createDevApp({
+      root,
+      machinesDir: resolve(root, 'machines'),
+      routesDir: resolve(root, 'routes'),
+    })
+    const res = await app.fetch(new Request('http://localhost/@stator/inspect'))
+    expect(res.status).toBe(200)
+    const payload = (await res.json()) as { machines: Array<{ name: string }> }
+    expect(payload.machines.map((m) => m.name)).toContain('CounterMachine')
+  })
+
   it('can disable the inspector via config', async () => {
     const noInspector = await createDevApp({
       root,

@@ -1,13 +1,25 @@
 /**
  * Stator dev inspector — a framework-owned, dev-only observability toolbar.
  *
- * Auto-injected by `createDevApp` (never in production). It subscribes to the
- * public `stator:*` CustomEvent contract the client runtime dispatches on
- * `window` and renders a bottom drawer with one row per outgoing event (↑) and
- * per incoming patch batch (↓), plus a brief flash on each patched element.
+ * Auto-injected by `createDevApp` (never in production). Two tabs in a
+ * height-adjustable drawer (drag the top edge; the size persists):
  *
- * It depends on nothing but that event contract — the same surface any external
- * devtool would use. Self-contained: it injects its own styles.
+ * - **Wire** subscribes to the public `stator:*` CustomEvent contract the
+ *   client runtime dispatches on `window` and renders one row per outgoing
+ *   event (↑) and per incoming patch batch (↓), plus a brief flash on each
+ *   patched element.
+ * - **Machines** fetches `/@stator/inspect` — the dev server's cookie-scoped
+ *   state endpoint — into a master-detail view: a nav listing every machine
+ *   with its live state (your session's machines first, then app-lifecycle
+ *   machines, which are process-global and labeled as such — their context is
+ *   whatever the app aggregates there), and a detail pane with the selected
+ *   machine's context and accepted events. The endpoint exists only on the
+ *   dev server, so on a production page that opted into the toolbar the tab
+ *   degrades to a notice.
+ *
+ * The wire tab depends on nothing but the public event contract — the same
+ * surface any external devtool would use. Self-contained: it injects its own
+ * styles.
  *
  * The widget is a `<stator-inspector>` custom element with a shadow root
  * (the Astro-dev-toolbar / vite-error-overlay pattern): the inspected app's
@@ -21,10 +33,59 @@ import inspectorCss from './inspector.css'
 import flashCss from './inspector-flash.css'
 
 const STORAGE_KEY = 'stator:inspector:open'
+const TAB_KEY = 'stator:inspector:tab'
+const HEIGHT_KEY = 'stator:inspector:height'
+const SELECTED_KEY = 'stator:inspector:machine'
+const ROUTES_SELECTION = '@routes' // storage sentinel; machine names are identifiers
 const MAX_ENTRIES = 40
 const FLASH_MS = 1200
+const REFRESH_DEBOUNCE_MS = 250
+const MIN_DRAWER_PX = 140
 
 const w = window as unknown as { __statorInspectorMounted?: boolean }
+
+/** Structural mirror of the server's InspectPayload — the toolbar depends on
+ *  the wire shape, not the server module. */
+interface TransitionDesc {
+  to?: string
+  guarded: boolean
+  action: boolean
+  emits: string[]
+  effect: boolean
+}
+interface StateDesc {
+  on: Record<string, TransitionDesc[]>
+  entry: boolean
+  after: Array<{ delay: number | 'dynamic'; send: string }>
+}
+interface MachineDesc {
+  name: string
+  lifecycle: 'app' | 'session'
+  persist: boolean
+  initial: string
+  states: Record<string, StateDesc>
+  on: Record<string, TransitionDesc[]>
+  events: string[]
+  serverOnly: string[]
+  selectors: string[]
+  reads: string[]
+  context: unknown
+  hash?: string
+}
+interface SnapshotDesc {
+  value: string[]
+  context: unknown
+  code?: string
+}
+interface InspectPayloadDesc {
+  machines: MachineDesc[]
+  session: Record<string, SnapshotDesc | null>
+  app: Record<string, SnapshotDesc>
+  routes: Array<{
+    urlPath: string
+    methods: Record<string, { kind: string; reads: string[]; live?: boolean }>
+  }>
+}
 
 function escapeHtml(s: unknown): string {
   if (s == null) return ''
@@ -57,6 +118,116 @@ function formatEventParams(event: Record<string, unknown>): string {
   return keys.map((k) => `${k}=${JSON.stringify(rest[k])}`).join(' ')
 }
 
+const snapshotOf = (p: InspectPayloadDesc, m: MachineDesc): SnapshotDesc | null | undefined =>
+  m.lifecycle === 'session' ? p.session[m.name] : p.app[m.name]
+
+const leafOf = (m: MachineDesc, snap: SnapshotDesc | null | undefined): string =>
+  snap ? (snap.value[snap.value.length - 1] ?? m.initial) : m.initial
+
+/** Stale = a PERSISTED snapshot stamped by different machine code (absent
+ *  stamp included — a pre-policy snapshot also resets on hydration). Session
+ *  machines only: an app machine's snapshot is the live actor's, which never
+ *  carries the persist-time `code` stamp and can't be stale — it is, by
+ *  construction, running the current code. */
+const isStale = (m: MachineDesc, snap: SnapshotDesc | null | undefined): boolean =>
+  m.lifecycle === 'session' && Boolean(snap && m.hash && snap.code !== m.hash)
+
+/** Events the machine accepts in `leaf`: the state's own handlers plus the
+ *  machine-level fallbacks the state doesn't shadow — actor.send's lookup. */
+function acceptedEvents(
+  m: MachineDesc,
+  leaf: string,
+): Array<{ type: string; serverOnly: boolean; guarded: boolean }> {
+  const stateOn = m.states[leaf]?.on ?? {}
+  const merged: Record<string, TransitionDesc[]> = { ...m.on, ...stateOn }
+  return Object.keys(merged)
+    .sort()
+    .map((type) => ({
+      type,
+      serverOnly: m.serverOnly.includes(type),
+      guarded: (merged[type] ?? []).every((t) => t.guarded),
+    }))
+}
+
+const STALE_TITLE =
+  'the persisted snapshot was written by different machine code — this session resets on its next request'
+
+function navRow(m: MachineDesc, p: InspectPayloadDesc, active: boolean): string {
+  const snap = snapshotOf(p, m)
+  const leaf = leafOf(m, snap)
+  return `<button type="button" class="stator-inspector-mnav-row${active ? ' stator-inspector-mnav-row--active' : ''}" data-name="${escapeHtml(m.name)}">
+    <span class="stator-inspector-mnav-name">${escapeHtml(m.name)}</span>
+    <span class="stator-inspector-mnav-state">${escapeHtml(leaf)}${isStale(m, snap) ? `<span class="stator-inspector-stale" title="${STALE_TITLE}">!</span>` : ''}</span>
+  </button>`
+}
+
+/** A cross-link chip selecting a machine's detail — wired up after render. */
+const machineChip = (name: string): string =>
+  `<button type="button" class="stator-inspector-chip stator-inspector-chip--link" data-machine="${escapeHtml(name)}">${escapeHtml(name)}</button>`
+
+const isNavigable = (r: InspectPayloadDesc['routes'][number]): boolean =>
+  r.methods.GET !== undefined && !/[:*]/.test(r.urlPath)
+
+function machineDetail(
+  m: MachineDesc,
+  snap: SnapshotDesc | null | undefined,
+  payload: InspectPayloadDesc,
+): string {
+  const leaf = leafOf(m, snap)
+  const context = snap ? snap.context : m.context
+  const chips = acceptedEvents(m, leaf)
+    .map(
+      (e) =>
+        `<span class="stator-inspector-chip${e.serverOnly ? ' stator-inspector-chip--server' : ''}" title="${e.serverOnly ? 'server-only — clients may not dispatch this' : 'dispatchable'}${e.guarded ? '; guarded' : ''}">${escapeHtml(e.type)}${e.guarded ? '<span class="stator-inspector-chip-guard">?</span>' : ''}</span>`,
+    )
+    .join('')
+  // The graph glue: which machines this one reads, and which routes read it.
+  // Navigable routes render as real links (go look at the page showing this
+  // machine); parameterized ones stay text.
+  const reads = m.reads.map(machineChip).join('')
+  const readBy = payload.routes
+    .filter((r) => Object.values(r.methods).some((meth) => meth.reads.includes(m.name)))
+    .map((r) =>
+      isNavigable(r)
+        ? `<a class="stator-inspector-chip stator-inspector-chip--link" href="${escapeHtml(r.urlPath)}">${escapeHtml(r.urlPath)}</a>`
+        : `<span class="stator-inspector-chip">${escapeHtml(r.urlPath)}</span>`,
+    )
+    .join('')
+  return `<div class="stator-inspector-detail-head">
+      <span class="stator-inspector-machine">${escapeHtml(m.name)}</span>
+      <span class="stator-inspector-badge">${m.lifecycle}${m.persist ? ' · persist' : ''}</span>
+      <span class="stator-inspector-state">${escapeHtml(leaf)}${snap ? '' : ' <span class="stator-inspector-dim">(initial — not touched this session)</span>'}</span>
+      ${isStale(m, snap) ? `<span class="stator-inspector-stale" title="${STALE_TITLE}">stale</span>` : ''}
+    </div>
+    <div class="stator-inspector-accepts">accepts ${chips || '<span class="stator-inspector-dim">nothing in this state</span>'}</div>
+    ${reads ? `<div class="stator-inspector-accepts">reads ${reads}</div>` : ''}
+    <div class="stator-inspector-accepts">read by ${readBy || '<span class="stator-inspector-dim">no routes</span>'}</div>
+    <pre class="stator-inspector-context${snap ? '' : ' stator-inspector-context--initial'}">${escapeHtml(JSON.stringify(context, null, 2))}</pre>`
+}
+
+function routesDetail(payload: InspectPayloadDesc): string {
+  const rows = payload.routes
+    .map((r) => {
+      const methods = Object.entries(r.methods)
+        .map(([method, m]) => {
+          const reads = m.reads.length
+            ? m.reads.map(machineChip).join('')
+            : '<span class="stator-inspector-dim">no reads</span>'
+          return `<span class="stator-inspector-route-method">${escapeHtml(method)}·${escapeHtml(m.kind)}${m.live ? '·live' : ''}</span> ${reads}`
+        })
+        .join('<br>')
+      // A static GET route is navigable — render it as a real link (cmd-click
+      // works; the toolbar's persisted state survives the navigation). A
+      // parameterized path has no concrete URL to offer.
+      const path = isNavigable(r)
+        ? `<a class="stator-inspector-route-path" href="${escapeHtml(r.urlPath)}">${escapeHtml(r.urlPath)}</a>`
+        : `<span class="stator-inspector-route-path">${escapeHtml(r.urlPath)}</span>`
+      return `<div class="stator-inspector-route">${path}<span>${methods}</span></div>`
+    })
+    .join('')
+  return `<div class="stator-inspector-detail-head"><span class="stator-inspector-machine">Routes</span><span class="stator-inspector-badge">url → reads</span></div>${rows || '<p class="stator-inspector-empty">No routes discovered.</p>'}`
+}
+
 function mount(): void {
   // Flash styles decorate APP elements, so they can't live in the widget's
   // shadow — they're document-level, in `@layer stator-inspector` (see
@@ -80,17 +251,26 @@ function mount(): void {
       <span aria-hidden="true">{ }</span> Inspect
     </button>
     <section class="stator-inspector-drawer" aria-label="Stator inspector" hidden>
+      <div class="stator-inspector-grip" title="Drag to resize"></div>
       <header class="stator-inspector-header">
         <span class="stator-inspector-title"><span class="stator-inspector-dot" aria-hidden="true"></span> Stator inspector</span>
+        <nav class="stator-inspector-tabs" aria-label="Inspector tabs">
+          <button class="stator-inspector-tab" type="button" data-tab="wire">Wire</button>
+          <button class="stator-inspector-tab" type="button" data-tab="machines">Machines</button>
+        </nav>
         <span class="stator-inspector-legend">
           <span class="stator-inspector-key stator-inspector-key--up">↑ event</span>
           <span class="stator-inspector-key stator-inspector-key--down">↓ patches</span>
         </span>
         <button class="stator-inspector-clear" type="button" title="Clear log">clear</button>
+        <button class="stator-inspector-refresh" type="button" title="Refresh machine state" hidden>refresh</button>
         <button class="stator-inspector-close" type="button" aria-label="Close inspector">×</button>
       </header>
       <div class="stator-inspector-body">
         <p class="stator-inspector-empty">Interact with the page to see events and patches.</p>
+      </div>
+      <div class="stator-inspector-machines" hidden>
+        <p class="stator-inspector-empty">Loading machine state…</p>
       </div>
     </section>`
   document.body.appendChild(root)
@@ -98,7 +278,141 @@ function mount(): void {
   const q = (sel: string) => shadow.querySelector(sel) as HTMLElement
   const drawer = q('.stator-inspector-drawer')
   const body = q('.stator-inspector-body')
+  const machinesEl = q('.stator-inspector-machines')
   const toggle = q('.stator-inspector-toggle')
+  const legend = q('.stator-inspector-legend')
+  const clearBtn = q('.stator-inspector-clear')
+  const refreshBtn = q('.stator-inspector-refresh')
+  const grip = q('.stator-inspector-grip')
+
+  // ── Drawer resize: drag the top edge; height persists ────────────────────
+  const clampHeight = (h: number): number =>
+    Math.min(Math.max(h, MIN_DRAWER_PX), Math.round(window.innerHeight * 0.85))
+  const applyHeight = (h: number): void => {
+    drawer.style.height = `${clampHeight(h)}px`
+    drawer.style.maxHeight = 'none'
+  }
+  try {
+    const stored = Number.parseInt(localStorage.getItem(HEIGHT_KEY) ?? '', 10)
+    if (Number.isFinite(stored)) applyHeight(stored)
+  } catch {}
+  grip.addEventListener('pointerdown', (e: PointerEvent) => {
+    e.preventDefault()
+    grip.setPointerCapture(e.pointerId)
+    const move = (ev: PointerEvent) => applyHeight(window.innerHeight - ev.clientY)
+    const up = () => {
+      grip.removeEventListener('pointermove', move)
+      grip.removeEventListener('pointerup', up)
+      try {
+        localStorage.setItem(HEIGHT_KEY, String(Number.parseInt(drawer.style.height, 10)))
+      } catch {}
+    }
+    grip.addEventListener('pointermove', move)
+    grip.addEventListener('pointerup', up)
+  })
+
+  // ── Machines tab: fetch + master-detail render ───────────────────────────
+  let refreshTimer: number | undefined
+  let lastPayload: InspectPayloadDesc | undefined
+  let selected: string = ((): string => {
+    try {
+      return localStorage.getItem(SELECTED_KEY) ?? ''
+    } catch {
+      return ''
+    }
+  })()
+
+  const renderMachines = (payload: InspectPayloadDesc): void => {
+    lastPayload = payload
+    // Your session's machines first — they're what you came to see.
+    const session = payload.machines.filter((m) => m.lifecycle === 'session')
+    const appMachines = payload.machines.filter((m) => m.lifecycle === 'app')
+    // A stored selection may name a machine that no longer exists.
+    const names = new Set(payload.machines.map((m) => m.name))
+    if (selected !== ROUTES_SELECTION && !names.has(selected)) {
+      selected = session[0]?.name ?? appMachines[0]?.name ?? ROUTES_SELECTION
+    }
+    const section = (label: string, machines: MachineDesc[]): string =>
+      machines.length
+        ? `<div class="stator-inspector-mnav-head">${label}</div>${machines.map((m) => navRow(m, payload, selected === m.name)).join('')}`
+        : ''
+    const nav = `<nav class="stator-inspector-mnav">
+      ${section('your session', session)}
+      ${section('app · process-global', appMachines)}
+      <div class="stator-inspector-mnav-head">pages</div>
+      <button type="button" class="stator-inspector-mnav-row${selected === ROUTES_SELECTION ? ' stator-inspector-mnav-row--active' : ''}" data-routes>
+        <span class="stator-inspector-mnav-name">Routes</span>
+        <span class="stator-inspector-mnav-state">${payload.routes.length}</span>
+      </button>
+    </nav>`
+    const selectedMachine = payload.machines.find((m) => m.name === selected)
+    const detail =
+      selected === ROUTES_SELECTION || !selectedMachine
+        ? routesDetail(payload)
+        : machineDetail(selectedMachine, snapshotOf(payload, selectedMachine), payload)
+    // Re-render in place, keeping each pane's scroll position (live refreshes
+    // arrive on every patch batch — a jumping pane would be unusable).
+    const prevNav = machinesEl.querySelector('.stator-inspector-mnav')
+    const prevDetail = machinesEl.querySelector('.stator-inspector-mdetail')
+    const navScroll = prevNav?.scrollTop ?? 0
+    const detailScroll = prevDetail?.scrollTop ?? 0
+    machinesEl.innerHTML = `${nav}<div class="stator-inspector-mdetail">${detail}</div>`
+    const navEl = machinesEl.querySelector('.stator-inspector-mnav')
+    const detailEl = machinesEl.querySelector('.stator-inspector-mdetail')
+    if (navEl) navEl.scrollTop = navScroll
+    if (detailEl) detailEl.scrollTop = detailScroll
+    const select = (name: string): void => {
+      selected = name
+      try {
+        localStorage.setItem(SELECTED_KEY, selected)
+      } catch {}
+      if (lastPayload) renderMachines(lastPayload)
+    }
+    for (const row of Array.from(
+      machinesEl.querySelectorAll<HTMLButtonElement>('.stator-inspector-mnav-row'),
+    )) {
+      row.addEventListener('click', () =>
+        select('routes' in row.dataset ? ROUTES_SELECTION : (row.dataset.name ?? '')),
+      )
+    }
+    // Cross-link chips (route reads, a machine's own reads) select that machine.
+    for (const chip of Array.from(
+      machinesEl.querySelectorAll<HTMLButtonElement>('button[data-machine]'),
+    )) {
+      chip.addEventListener('click', () => select(chip.dataset.machine ?? ''))
+    }
+  }
+  const refreshMachines = (): void => {
+    fetch('/@stator/inspect', { headers: { Accept: 'application/json' } })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
+      .then((payload: InspectPayloadDesc) => renderMachines(payload))
+      .catch(() => {
+        machinesEl.innerHTML =
+          '<p class="stator-inspector-empty">State inspection is served by the dev server only — this page has the wire toolbar without it.</p>'
+      })
+  }
+  const scheduleRefresh = (): void => {
+    if (drawer.hidden || machinesEl.hidden) return
+    window.clearTimeout(refreshTimer)
+    refreshTimer = window.setTimeout(refreshMachines, REFRESH_DEBOUNCE_MS)
+  }
+
+  // ── Tabs ─────────────────────────────────────────────────────────────────
+  const tabs = Array.from(shadow.querySelectorAll<HTMLButtonElement>('.stator-inspector-tab'))
+  const setTab = (tab: string) => {
+    try {
+      localStorage.setItem(TAB_KEY, tab)
+    } catch {}
+    const machines = tab === 'machines'
+    body.hidden = machines
+    machinesEl.hidden = !machines
+    legend.hidden = machines
+    clearBtn.hidden = machines
+    refreshBtn.hidden = !machines
+    for (const t of tabs) t.classList.toggle('stator-inspector-tab--active', t.dataset.tab === tab)
+    if (machines) refreshMachines()
+  }
+  for (const t of tabs) t.addEventListener('click', () => setTab(t.dataset.tab ?? 'wire'))
 
   const setOpen = (open: boolean) => {
     try {
@@ -106,16 +420,23 @@ function mount(): void {
     } catch {}
     ;(drawer as HTMLElement).hidden = !open
     ;(toggle as HTMLElement).hidden = open
+    if (open && !machinesEl.hidden) refreshMachines()
   }
   let initiallyOpen = true
   try {
     initiallyOpen = localStorage.getItem(STORAGE_KEY) !== 'false'
   } catch {}
+  let initialTab = 'wire'
+  try {
+    initialTab = localStorage.getItem(TAB_KEY) === 'machines' ? 'machines' : 'wire'
+  } catch {}
+  setTab(initialTab)
   setOpen(initiallyOpen)
 
   toggle.addEventListener('click', () => setOpen(true))
   q('.stator-inspector-close').addEventListener('click', () => setOpen(false))
-  q('.stator-inspector-clear').addEventListener('click', () => {
+  refreshBtn.addEventListener('click', refreshMachines)
+  clearBtn.addEventListener('click', () => {
     body.innerHTML = '<p class="stator-inspector-empty">Log cleared.</p>'
   })
 
@@ -185,6 +506,8 @@ function mount(): void {
       </div>`,
       (e as CustomEvent).detail,
     )
+    // Patches mean state moved — keep the Machines tab current while visible.
+    scheduleRefresh()
   })
 
   window.addEventListener('stator:patch-applied', (e: Event) => {

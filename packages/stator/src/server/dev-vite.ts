@@ -203,6 +203,7 @@ export async function createViteDevApp(config: DevAppConfig): Promise<DevApp> {
       staticDir: config.staticDir,
       headExtras,
       inspector: inspectorOn,
+      inspect: true,
       trustedOrigins: resolved.trustedOrigins,
       sameSite: resolved.sameSite,
       origin: resolved.origin,

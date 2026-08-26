@@ -11,6 +11,12 @@ export { createActor } from './actor.ts'
 export type { DefineMachineConfig } from './define-machine.ts'
 export { defineMachine } from './define-machine.ts'
 export type {
+  MachineDescription,
+  StateDescription,
+  TransitionDescription,
+} from './describe.ts'
+export { describeMachine } from './describe.ts'
+export type {
   Action,
   ActionHelpers,
   AfterEntry,
