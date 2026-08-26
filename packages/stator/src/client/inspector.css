@@ -359,6 +359,12 @@
 .stator-inspector-route-path {
   color: #c586c0;
 }
+a.stator-inspector-route-path {
+  text-decoration: none;
+}
+a.stator-inspector-route-path:hover {
+  text-decoration: underline;
+}
 .stator-inspector-route-method {
   color: #888;
   font-size: 0.72rem;

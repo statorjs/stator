@@ -193,7 +193,14 @@ function routesDetail(payload: InspectPayloadDesc): string {
           return `<span class="stator-inspector-route-method">${escapeHtml(method)}·${escapeHtml(m.kind)}${m.live ? '·live' : ''}</span> ${reads}`
         })
         .join('<br>')
-      return `<div class="stator-inspector-route"><span class="stator-inspector-route-path">${escapeHtml(r.urlPath)}</span><span>${methods}</span></div>`
+      // A static GET route is navigable — render it as a real link (cmd-click
+      // works; the toolbar's persisted state survives the navigation). A
+      // parameterized path has no concrete URL to offer.
+      const navigable = r.methods.GET !== undefined && !/[:*]/.test(r.urlPath)
+      const path = navigable
+        ? `<a class="stator-inspector-route-path" href="${escapeHtml(r.urlPath)}">${escapeHtml(r.urlPath)}</a>`
+        : `<span class="stator-inspector-route-path">${escapeHtml(r.urlPath)}</span>`
+      return `<div class="stator-inspector-route">${path}<span>${methods}</span></div>`
     })
     .join('')
   return `<div class="stator-inspector-detail-head"><span class="stator-inspector-machine">Routes</span><span class="stator-inspector-badge">url → reads</span></div>${rows || '<p class="stator-inspector-empty">No routes discovered.</p>'}`
