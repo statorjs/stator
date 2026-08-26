@@ -58,7 +58,7 @@ const TEMPLATES = [
 const FIRST_PARTY = 'gh:statorjs/stator/examples'
 /** Scaffolded apps get a real semver for the framework (the examples
  *  themselves use workspace linking in-repo). Bumped with releases. */
-const STATOR_RANGE = '^2.6.0'
+const STATOR_RANGE = '^2.7.0'
 
 const { values: flags, positionals } = parseArgs({
   allowPositionals: true,
