@@ -58,6 +58,8 @@ Reach for something else if you need heavy **offline / local-first** behavior, m
 Stator ships today:
 
 - The custom isomorphic engine (with [async effects](/guides/effects/)), typed machine-mediated dispatch, the `.stator` compiler, server rendering with slot patches, [keyed lists](/guides/keyed-lists/), client islands with a [production build](/guides/production/), file-based routing, API routes, per-session persistence (in-memory or Redis), [opt-in app-machine persistence](/guides/app-machines/), server-originated dispatch for webhooks and cron, and **opt-in SSE with cross-session fan-out on a single replica**.
+- Its own toolchain: the [`stator` CLI](/reference/cli/) with a first-class [`stator.config.ts`](/reference/config/), a [native dev server](/reference/dev-and-build/) that runs your app the way production does, and a dev inspector showing the wire and every machine's live state.
+- The security substrate: a [`middleware.ts` seam](/guides/middleware/) with framework defaults, session identity primitives (claims, rotation, [sealed cookies](/recipes/sealed-state/)), [`serverOnly` events](/recipes/server-only-events/), and a [`boot.ts` hook](/recipes/startup-and-background-work/) for long-lived server sources.
 
 Deferred, each with a designed path:
 

@@ -51,7 +51,7 @@ The tab is laid out master-detail — machines listed with their live state (you
 
 The Machines tab is fed by `GET /@stator/inspect`, a dev-server-only endpoint scoped to the caller's own session cookie — handy with `curl` too. Production never serves it: machine context is working state and may hold anything. Production apps can still opt into the toolbar with `dev: { inspector: true }` on [`createApp`](/reference/server/#createapp) — demo sites want the wire visible — and there the Machines tab degrades to a notice.
 
-If the requested port is taken, the dev server shifts to the next free one (and probes a free HMR websocket port) instead of failing — two Stator apps run side by side without ceremony. Production `listen` fails with a one-line message instead; an operator wants the collision, not a silent shift.
+If the requested port is taken, the dev server shifts to the next free one instead of failing — two Stator apps run side by side without ceremony. Production `listen` fails with a one-line message instead; an operator wants the collision, not a silent shift.
 
 `dispatchToApp` is the dev counterpart of [`StatorApp.dispatchToApp`](/reference/server/#dispatchtoapp): it follows the current store across rebuilds, so SSE fan-out reaches live connections. Prefer it (or `boot.ts`'s `ctx.dispatchToApp`) over importing the standalone `dispatchToApp` — the dev server rebuilds its store on machine edits, and the standalone form doesn't follow it.
 
@@ -78,7 +78,7 @@ interface BuildResult {
 }
 ```
 
-The production build: compiles the app to a `dist/` of plain `.ts` that `createApp` + tsx serve with **no Vite at runtime**. It copies the app dirs, compiles each `*.stator` to a sibling `*.stator.ts`, rewrites `.stator` import specifiers, and concatenates scoped CSS into `dist/static/components.css`. When the app has client components, every island entry is bundled in one Vite build (hashed assets, server-machine imports stubbed to `{ name }`) and `dist/stator-manifest.json` maps each route file to the island script URLs it reaches:
+The production build: compiles the app to a `dist/` of plain `.ts` that `stator start` serves with **no Vite at runtime**. It copies the app dirs, compiles each `*.stator` to a sibling `*.stator.ts`, rewrites `.stator` import specifiers, and concatenates scoped CSS into `dist/static/components.css`. When the app has client components, every island entry is bundled in one Vite build (hashed assets, server-machine imports stubbed to `{ name }`) and `dist/stator-manifest.json` maps each route file to the island script URLs it reaches:
 
 ```ts
 interface StatorManifest {
