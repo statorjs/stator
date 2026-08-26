@@ -1,6 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import type { Rollup } from 'vite'
 
 /**
  * The island-bundling seam — Lock 1 of the Vite exit (spec
@@ -59,89 +58,23 @@ export interface BundleIslandsOptions {
 
 export type IslandBundler = (opts: BundleIslandsOptions) => Promise<IslandBundle>
 
-const norm = (p: string): string => p.replace(/\\/g, '/')
-const stripQuery = (id: string): string => {
-  const q = id.indexOf('?')
-  return q === -1 ? id : id.slice(0, q)
-}
-
-/** Implementation #1: one Vite build over every island entry. Vite is imported
- *  lazily — server-only apps never load it. */
+/**
+ * The seam's one export: dispatches to an implementation. Vite (impl #1,
+ * `islands-vite.ts`) is the default; `STATOR_ISLAND_BUNDLER=esbuild` selects
+ * impl #2 (`islands-esbuild.ts`, the Option E candidate — Spike 1). Both run
+ * the same contract tests; the default flips (and #1 is deleted) when the
+ * Phase 2 gate in the toolchain-adapter spec passes.
+ */
 export const bundleIslands: IslandBundler = async (opts) => {
-  const [{ build: viteBuild }, { CLIENT_QUERY, MACHINE_STUB_PREFIX, machineStub, stator }] =
-    await Promise.all([import('vite'), import('../vite/index.ts')])
-  const publicPath = opts.publicPath ?? '/static/assets/'
-
-  const input: Record<string, string> = {}
-  const byFile = new Map<string, IslandEntry>()
-  for (const entry of opts.entries) {
-    const file = resolve(entry.file)
-    input[entry.rel.replace(/\.stator$/, '').replace(/[\\/]/g, '_')] = file.endsWith('.stator')
-      ? `${file}?${CLIENT_QUERY}`
-      : file
-    byFile.set(norm(file), entry)
+  const choice = process.env.STATOR_ISLAND_BUNDLER ?? 'vite'
+  if (choice === 'esbuild') {
+    const { bundleIslandsEsbuild } = await import('./islands-esbuild.ts')
+    return bundleIslandsEsbuild(opts)
   }
-
-  const result = await viteBuild({
-    root: opts.root,
-    // Assets referenced by URL from island code (`new URL(...)`, CSS `url()`)
-    // render against `base`, so it must be where the assets are served from.
-    base: publicPath,
-    logLevel: 'warn',
-    configFile: false,
-    plugins: [stator(), machineStub({ machinesDir: resolve(opts.machinesDir) })],
-    build: {
-      write: false,
-      // Seam contract: a URL-referenced asset (`new URL('./x.wasm',
-      // import.meta.url)`) is always emitted as a hashed FILE, never inlined
-      // as a data: URL — deterministic for callers and identical to what an
-      // esbuild implementation (file loader) produces.
-      assetsInlineLimit: 0,
-      sourcemap: opts.sourcemap ? 'inline' : false,
-      rollupOptions: {
-        input,
-        output: {
-          entryFileNames: '[name]-[hash].js',
-          chunkFileNames: 'chunks/[name]-[hash].js',
-          assetFileNames: '[name]-[hash][extname]',
-        },
-      },
-    },
-  })
-  const outputs = (Array.isArray(result) ? result : [result]).filter(
-    (r): r is Rollup.RollupOutput => 'output' in r,
-  )
-
-  const islandUrls: Record<string, string> = {}
-  const assets: IslandAsset[] = []
-  const modules = new Set<string>()
-  const sourcePathOf = (id: string): string | null => {
-    const raw = id.startsWith(MACHINE_STUB_PREFIX) ? id.slice(MACHINE_STUB_PREFIX.length) : id
-    if (raw.startsWith('\0')) return null
-    return norm(stripQuery(raw))
-  }
-  for (const out of outputs) {
-    for (const item of out.output) {
-      if (item.type === 'chunk') {
-        assets.push({ fileName: item.fileName, source: item.code })
-        for (const id of Object.keys(item.modules)) {
-          const p = sourcePathOf(id)
-          if (p) modules.add(p)
-        }
-        if (item.isEntry && item.facadeModuleId) {
-          const entry = byFile.get(norm(stripQuery(item.facadeModuleId)))
-          if (entry) islandUrls[entry.rel] = publicPath + item.fileName
-        }
-      } else {
-        assets.push({ fileName: item.fileName, source: item.source })
-      }
-    }
-  }
-  for (const entry of opts.entries) {
-    if (!islandUrls[entry.rel])
-      throw new Error(`stator: island "${entry.rel}" missing from the bundle output`)
-  }
-  return { islandUrls, assets, modules: [...modules] }
+  if (choice !== 'vite')
+    throw new Error(`stator: unknown STATOR_ISLAND_BUNDLER "${choice}" (vite | esbuild)`)
+  const { bundleIslandsVite } = await import('./islands-vite.ts')
+  return bundleIslandsVite(opts)
 }
 
 /**

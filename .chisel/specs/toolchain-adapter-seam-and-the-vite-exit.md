@@ -223,6 +223,27 @@ Known cost, accepted: in-process `createDevApp` under vitest cannot run the nati
 - The gate, each item a test or a recorded measurement on `weather` (7 islands): (1) asset emit + hashed URL rewrite via `new URL(…, import.meta.url)` resolves from a served island — **verified for impl #1 (2026-08-21)** by the `wasm-probe` fixture island + `dev-native.test.ts` (hashed `.wasm` served as `application/wasm`); the seam now pins `assetsInlineLimit: 0` so assets are always files, the contract impl #2 must match; (2) one worker-hosted WASM island end-to-end (Squoosh shape); (3) Tailwind-over-globs recipe works with the native dev server (no plugin involved — proves the Phase 0 guide); (4) split *quality*: count shared chunks, depth of the import waterfall per route, CSS emitted per island, compared against the Vite output; (5) the native-TS-strip item is closed — N/A, the esbuild loader carries full TS; (6) revert path: the Vite implementation stays in-tree for one release behind the switch.
 - Decision record: add a "Spike 1 results" section here with the numbers; E is committed only if (1)–(4) pass.
 
+## Spike 1 results — esbuild island splitting (2026-08-26, branch `spike/esbuild-islands`)
+
+**Headline answer: the runtime dedupes.** With `splitting: true`, esbuild puts the client runtime in ONE shared chunk imported by every island entry — no per-island duplication (verified by counting distinctive runtime marker strings across all emitted chunks: each appears exactly once in the whole output). The stop condition in "Risks" above does not trigger.
+
+**What was built** (as Phase 2 specifies): `build/islands-esbuild.ts` (impl #2 of `IslandBundler` — `.stator` client compile as an `onLoad`, machine stubbing as an `onResolve` into a stub namespace with the Vite stub's exact `{ name }` logic, `modules` from `metafile.inputs`, `islandUrls` from `metafile.outputs[*].entryPoint`); impl #1 moved verbatim to `build/islands-vite.ts`; `bundleIslands` is now the dispatcher on `STATOR_ISLAND_BUNDLER=esbuild|vite`, default vite. Comparison harness: `scripts/spike-esbuild-islands.ts` (runs both impls over an app's islands, reports per-file raw+gzip bytes, chunk layout, runtime-marker counts, islandUrls/modules parity).
+
+**Numbers** (minified, no sourcemaps; gzip totals):
+
+- `weather` (7 islands, the densest consumer): Vite 10 files, 23.0 kB / 10.6 kB gz, runtime split across two shared chunks (dispatch 4.4 kB + element 5.7 kB + a trivial third); esbuild 9 files, **21.4 kB / 9.5 kB gz (−10% gz)**, runtime in one 10.4 kB shared chunk + a trivial second. Import waterfall depth is 1 from the entry either way.
+- `apps/store` (1 island): Vite 15.5 kB / 6.1 kB gz; esbuild **14.5 kB / 5.8 kB gz**.
+- Cold bundle time, single run, indicative: weather 541 ms (Vite) vs **23 ms** (esbuild); store 42 ms vs 11 ms. Matters for the dev loop's rebundle path (today ~125 ms server-side on an island edit).
+- Contract parity: `islandUrls` keys identical on both impls. The `modules` list is a strict superset under esbuild (+4–5 files — `engine/types`, barrel indexes — inputs Rollup tree-shakes out of its module list); superset is the safe direction for the dev watcher (conservative rebundles), and output bytes show the extra inputs are still shaken from the code.
+
+**The one contract gap found, and closed in impl #2:** esbuild does not rewrite `new URL('./x.wasm', import.meta.url)` to an emitted asset (Vite/Rollup do). Caught by `dev-native.test.ts`'s `wasm-probe` fixture — the exact seam contract gate (1) names. Fix: a load-stage rewrite in impl #2 turning each string-literal relative `new URL(spec, import.meta.url)` into a file-loader import (hashed emit, public URL export) — the same static-literal-only limit Vite has. Test green after.
+
+**Correctness evidence:** the full package suite (664 tests) runs green with impl #2 swapped in as the only bundler (one unrelated SSE-timing flake, passing in isolation), and the three island-touching suites (`dev-native`, `build`, `resource` — 28 tests) pass under the switch in **both** positions. Real-browser execution of esbuild-bundled island code has independent precedent: the store's `picker.browser.mjs` harness has always bundled the compiled client module with esbuild for its Chrome run.
+
+**Gate status:** (1) URL-asset emit — **pass** (wasm-probe, both impls); (4) split quality — **pass** (fewer chunks, smaller output, no duplication, equal waterfall depth); (5) N/A as recorded; (6) revert path — in place (the switch, Vite impl in-tree). Outstanding before committing E: (2) a worker-hosted WASM island end-to-end (Squoosh shape — also the one idiom `guides/styling-and-assets` flags as never exercised in tests), and (3) the Tailwind-over-globs recipe on the native dev server (bundler-independent, but it proves the Phase 0 guide). CSS *imported by island code* is untested in both impls — no example does it; scoped CSS ships server-side via `components.css` — noted, not gated.
+
+**Verdict: provisional GO for E.** The only technical unknown named in "Risks" (split quality) resolved in esbuild's favor on every measured axis; E proceeds once gates (2) and (3) run.
+
 ### Phase 3 — remove Vite (the minor after the gate passes)
 
 - Delete `server/dev-vite.ts` (the transitional Vite impl — `server/dev.ts` stays as the dispatcher-turned-plain-entry, losing the `STATOR_VITE_DEV` branch and the deprecated `vite` getter's Vite half); delete `vite/` (its `CLIENT_QUERY`/stub concerns now live in `islands-esbuild.ts`); delete `build/islands-vite.ts` (the current impl #1, moved out of `islands.ts` in Phase 2); delete `tests/vite-plugin.test.ts` (replaced by esbuild-plugin tests in Phase 2), `tests/dev-server.test.ts` (its cases already live in `dev-native.test.ts`) with fixtures `dev-vite-config/` and `dev-carryover/` (fold the carry-over case into `dev-native.test.ts` if not already equivalent — it already has one).
@@ -250,9 +271,9 @@ Known cost, accepted: in-process `createDevApp` under vitest cannot run the nati
 
 ## Open Questions
 
-- Spike 1 result: is esbuild `splitting` shared-chunk output acceptable for real multi-island apps, or does the runtime duplicate per island?
+- ~~Spike 1 result: is esbuild `splitting` shared-chunk output acceptable for real multi-island apps, or does the runtime duplicate per island?~~ **Settled 2026-08-26** — dedupes into one shared chunk, smaller and faster than Vite on every measured axis; see "Spike 1 results" above. Remaining before E commits: gates (2) worker-WASM and (3) Tailwind-over-globs.
 - ~~Exact shape of the watch loop / error-overlay Stator owns in D.~~ **Settled** — Spike D (scoped `?v=` propagation) and Stage 4 (compile-in-loader from the source tree, chokidar watch, in-memory islands, code-frame overlay); see the stages section above for what remains before the default flips.
-- `machineStub` (island machine-import stubbing) as an esbuild `onResolve`/ `onLoad` plugin; route→island manifest as an esbuild metafile.
+- ~~`machineStub` (island machine-import stubbing) as an esbuild `onResolve`/ `onLoad` plugin; route→island manifest as an esbuild metafile.~~ **Settled** — both exist in `islands-esbuild.ts` (Spike 1).
 - Whether `tsx` is dropped for Node-native TS at the same time or stays a swappable adapter until the min-Node floor rises.
 
 ## Implementation Notes
