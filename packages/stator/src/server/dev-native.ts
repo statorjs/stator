@@ -382,6 +382,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       staticDir,
       headExtras,
       inspector: inspectorOn,
+      inspect: true,
       trustedOrigins: resolved.trustedOrigins,
       sameSite: resolved.sameSite,
       origin: resolved.origin,

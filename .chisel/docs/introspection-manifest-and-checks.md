@@ -2,6 +2,8 @@
 
 Two unscheduled, evidence-gated developer-tooling ideas that share one substrate. Captured here so the concrete scenarios and boundaries aren't lost; the ROADMAP carries the one-line index entries that link here.
 
+> **Status (2026-08-25)**: the devtools thread activated post-Vite-exit. The runtime half of the substrate shipped — `describeMachine(def)` + the dev-only `/@stator/inspect` route + the toolbar's Machines tab (spec: `machine-state-inspection-describe-dev-inspect-route-toolbar-state-view`), which is the SHAPE-lite + STATE slice of this doc's vision. The build-time manifest, statechart viz, and `stator check` below stay gated on their original triggers; a new consumer of the same substrate is recorded in `agent-readable-routes-affordances-from-the-state-graph` (draft).
+
 ## The shared substrate
 
 Stator's declarative surfaces are already, mostly, data the compiler computes:

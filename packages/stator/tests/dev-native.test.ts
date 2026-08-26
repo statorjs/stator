@@ -193,6 +193,23 @@ describe('native dev server: .stator end to end, no Vite', () => {
     expect(await asset.text()).toContain('stator-inspector')
   })
 
+  it('serves machine-state inspection at /@stator/inspect', async () => {
+    const res = await get('/@stator/inspect')
+    expect(res.status).toBe(200)
+    const payload = (await res.json()) as {
+      machines: Array<{ name: string; lifecycle: string; hash?: string }>
+      app: Record<string, { value: string[] }>
+      routes: Array<{ urlPath: string }>
+    }
+    const names = payload.machines.map((m) => m.name).sort()
+    expect(names).toContain('CounterMachine')
+    expect(names).toContain('TallyMachine')
+    // App machines are live-snapshotted; hashes come from the running defs.
+    expect(payload.app.TallyMachine?.value.length).toBeGreaterThan(0)
+    expect(payload.machines.every((m) => typeof m.hash === 'string')).toBe(true)
+    expect(payload.routes.some((r) => r.urlPath === '/')).toBe(true)
+  })
+
   it('boot-originated dispatchToApp fans out to a live SSE connection', async () => {
     // The fixture's boot.ts BUMPs the app tally every 200 ms (env-gated). Open
     // the live route's stream and expect a push: the dispatch and the SSE

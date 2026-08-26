@@ -9,6 +9,7 @@ import { applyRenderedEffects, runApiRoute } from './api-route.ts'
 import { crossSiteGuard } from './csrf.ts'
 import { scheduleSessionEffects } from './effects.ts'
 import { record, replayFor } from './event-dedupe.ts'
+import { buildInspectPayload } from './inspect.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import type { MiddlewareDefinition } from './middleware.ts'
@@ -36,6 +37,11 @@ export interface HttpConfig {
   /** Serve the dev inspector asset at `/@stator/inspector.js`. The dev server
    *  sets this and injects the script tag; production leaves it off. */
   inspector?: boolean
+  /** Serve the state-inspection endpoint at `/@stator/inspect` — the caller's
+   *  own session's machine snapshots plus the machine/route catalog. Only the
+   *  dev servers set this; production never does (machine context is working
+   *  state and may hold anything), even when it opts into the wire toolbar. */
+  inspect?: boolean
   /** SSE heartbeat interval in ms (default 25s). Tests shorten it. */
   ssePingMs?: number
   /** Origins allowed to make cross-site writes despite the guard (exact or
@@ -243,6 +249,22 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       c.header('Content-Type', 'application/javascript; charset=utf-8')
       c.header('Cache-Control', 'no-cache')
       return c.body(inspectorJs)
+    })
+  }
+
+  // Dev state inspection — cookie-scoped to the caller's own session (the
+  // request bridge above established it). See server/inspect.ts for the
+  // privacy stance; the flag is dev-server-only by construction.
+  if (config.inspect) {
+    app.get('/@stator/inspect', async (c) => {
+      const payload = await buildInspectPayload({
+        store: config.store,
+        routes: config.routes,
+        sessionId: getSessionState(c)?.sid,
+        buildId: config.buildId,
+      })
+      c.header('Cache-Control', 'no-cache')
+      return c.json(payload)
     })
   }
 

@@ -52,6 +52,8 @@ export {
 export { scheduleSessionEffects, wireAppEffects } from './effects.ts'
 export type { HttpConfig } from './http.ts'
 export { buildHonoApp } from './http.ts'
+export type { InspectPayload, InspectRoute, InspectRouteMethod } from './inspect.ts'
+export { buildInspectPayload } from './inspect.ts'
 export type { InstanceHandle } from './instance-proxy.ts'
 export { createInstanceProxy, defForProxy } from './instance-proxy.ts'
 export { logger, scopedLogger, setLogLevel } from './logger.ts'

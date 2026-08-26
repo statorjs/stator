@@ -1,13 +1,21 @@
 /**
  * Stator dev inspector — a framework-owned, dev-only observability toolbar.
  *
- * Auto-injected by `createDevApp` (never in production). It subscribes to the
- * public `stator:*` CustomEvent contract the client runtime dispatches on
- * `window` and renders a bottom drawer with one row per outgoing event (↑) and
- * per incoming patch batch (↓), plus a brief flash on each patched element.
+ * Auto-injected by `createDevApp` (never in production). Two tabs:
  *
- * It depends on nothing but that event contract — the same surface any external
- * devtool would use. Self-contained: it injects its own styles.
+ * - **Wire** subscribes to the public `stator:*` CustomEvent contract the
+ *   client runtime dispatches on `window` and renders one row per outgoing
+ *   event (↑) and per incoming patch batch (↓), plus a brief flash on each
+ *   patched element.
+ * - **Machines** fetches `/@stator/inspect` — the dev server's cookie-scoped
+ *   state endpoint — and shows every machine's current state, context, and
+ *   the events its current state accepts. The endpoint exists only on the
+ *   dev server, so on a production page that opted into the toolbar the tab
+ *   degrades to a notice.
+ *
+ * The wire tab depends on nothing but the public event contract — the same
+ * surface any external devtool would use. Self-contained: it injects its own
+ * styles.
  *
  * The widget is a `<stator-inspector>` custom element with a shadow root
  * (the Astro-dev-toolbar / vite-error-overlay pattern): the inspected app's
@@ -21,10 +29,55 @@ import inspectorCss from './inspector.css'
 import flashCss from './inspector-flash.css'
 
 const STORAGE_KEY = 'stator:inspector:open'
+const TAB_KEY = 'stator:inspector:tab'
 const MAX_ENTRIES = 40
 const FLASH_MS = 1200
+const REFRESH_DEBOUNCE_MS = 250
 
 const w = window as unknown as { __statorInspectorMounted?: boolean }
+
+/** Structural mirror of the server's InspectPayload — the toolbar depends on
+ *  the wire shape, not the server module. */
+interface TransitionDesc {
+  to?: string
+  guarded: boolean
+  action: boolean
+  emits: string[]
+  effect: boolean
+}
+interface StateDesc {
+  on: Record<string, TransitionDesc[]>
+  entry: boolean
+  after: Array<{ delay: number | 'dynamic'; send: string }>
+}
+interface MachineDesc {
+  name: string
+  lifecycle: 'app' | 'session'
+  persist: boolean
+  initial: string
+  states: Record<string, StateDesc>
+  on: Record<string, TransitionDesc[]>
+  events: string[]
+  serverOnly: string[]
+  selectors: string[]
+  reads: string[]
+  context: unknown
+  hash?: string
+}
+interface SnapshotDesc {
+  value: string[]
+  context: unknown
+  code?: string
+}
+interface InspectPayloadDesc {
+  machines: MachineDesc[]
+  session: Record<string, SnapshotDesc | null>
+  app: Record<string, SnapshotDesc>
+  routes: Array<{
+    urlPath: string
+    methods: Record<string, { kind: string; reads: string[]; live?: boolean }>
+  }>
+}
 
 function escapeHtml(s: unknown): string {
   if (s == null) return ''
@@ -57,6 +110,65 @@ function formatEventParams(event: Record<string, unknown>): string {
   return keys.map((k) => `${k}=${JSON.stringify(rest[k])}`).join(' ')
 }
 
+/** Events the machine accepts in `leaf`: the state's own handlers plus the
+ *  machine-level fallbacks the state doesn't shadow — actor.send's lookup. */
+function acceptedEvents(
+  m: MachineDesc,
+  leaf: string,
+): Array<{ type: string; serverOnly: boolean; guarded: boolean }> {
+  const stateOn = m.states[leaf]?.on ?? {}
+  const merged: Record<string, TransitionDesc[]> = { ...m.on, ...stateOn }
+  return Object.keys(merged)
+    .sort()
+    .map((type) => ({
+      type,
+      serverOnly: m.serverOnly.includes(type),
+      guarded: (merged[type] ?? []).every((t) => t.guarded),
+    }))
+}
+
+function machineCard(m: MachineDesc, snap: SnapshotDesc | null | undefined): string {
+  const leaf = snap ? (snap.value[snap.value.length - 1] ?? m.initial) : m.initial
+  const stale = Boolean(snap && m.hash && snap.code !== m.hash)
+  const context = snap ? snap.context : m.context
+  const chips = acceptedEvents(m, leaf)
+    .map(
+      (e) =>
+        `<span class="stator-inspector-chip${e.serverOnly ? ' stator-inspector-chip--server' : ''}" title="${e.serverOnly ? 'server-only — clients may not dispatch this' : 'dispatchable'}${e.guarded ? '; guarded' : ''}">${escapeHtml(e.type)}${e.guarded ? '<span class="stator-inspector-chip-guard">?</span>' : ''}</span>`,
+    )
+    .join('')
+  return `<div class="stator-inspector-card">
+    <div class="stator-inspector-summary stator-inspector-card-head">
+      <span class="stator-inspector-machine">${escapeHtml(m.name)}</span>
+      <span class="stator-inspector-badge">${m.lifecycle}${m.persist ? ' · persist' : ''}</span>
+      <span class="stator-inspector-state">${escapeHtml(leaf)}${snap ? '' : ' <span class="stator-inspector-dim">(initial — not touched this session)</span>'}</span>
+      ${stale ? '<span class="stator-inspector-stale" title="the persisted snapshot was written by different machine code — this session resets on its next request">stale</span>' : ''}
+    </div>
+    <div class="stator-inspector-card-body">
+      <div class="stator-inspector-accepts">accepts ${chips || '<span class="stator-inspector-dim">nothing in this state</span>'}</div>
+      <pre class="stator-inspector-context${snap ? '' : ' stator-inspector-context--initial'}">${escapeHtml(JSON.stringify(context, null, 2))}</pre>
+    </div>
+  </div>`
+}
+
+function routeRows(payload: InspectPayloadDesc): string {
+  return payload.routes
+    .map((r) => {
+      const methods = Object.entries(r.methods)
+        .map(([method, m]) => {
+          const reads = m.reads.length
+            ? m.reads
+                .map((n) => `<span class="stator-inspector-chip">${escapeHtml(n)}</span>`)
+                .join('')
+            : '<span class="stator-inspector-dim">no reads</span>'
+          return `<span class="stator-inspector-route-method">${escapeHtml(method)}·${escapeHtml(m.kind)}${m.live ? '·live' : ''}</span> ${reads}`
+        })
+        .join('<br>')
+      return `<div class="stator-inspector-route"><span class="stator-inspector-route-path">${escapeHtml(r.urlPath)}</span><span>${methods}</span></div>`
+    })
+    .join('')
+}
+
 function mount(): void {
   // Flash styles decorate APP elements, so they can't live in the widget's
   // shadow — they're document-level, in `@layer stator-inspector` (see
@@ -82,15 +194,23 @@ function mount(): void {
     <section class="stator-inspector-drawer" aria-label="Stator inspector" hidden>
       <header class="stator-inspector-header">
         <span class="stator-inspector-title"><span class="stator-inspector-dot" aria-hidden="true"></span> Stator inspector</span>
+        <nav class="stator-inspector-tabs" aria-label="Inspector tabs">
+          <button class="stator-inspector-tab" type="button" data-tab="wire">Wire</button>
+          <button class="stator-inspector-tab" type="button" data-tab="machines">Machines</button>
+        </nav>
         <span class="stator-inspector-legend">
           <span class="stator-inspector-key stator-inspector-key--up">↑ event</span>
           <span class="stator-inspector-key stator-inspector-key--down">↓ patches</span>
         </span>
         <button class="stator-inspector-clear" type="button" title="Clear log">clear</button>
+        <button class="stator-inspector-refresh" type="button" title="Refresh machine state" hidden>refresh</button>
         <button class="stator-inspector-close" type="button" aria-label="Close inspector">×</button>
       </header>
       <div class="stator-inspector-body">
         <p class="stator-inspector-empty">Interact with the page to see events and patches.</p>
+      </div>
+      <div class="stator-inspector-machines" hidden>
+        <p class="stator-inspector-empty">Loading machine state…</p>
       </div>
     </section>`
   document.body.appendChild(root)
@@ -98,7 +218,62 @@ function mount(): void {
   const q = (sel: string) => shadow.querySelector(sel) as HTMLElement
   const drawer = q('.stator-inspector-drawer')
   const body = q('.stator-inspector-body')
+  const machinesEl = q('.stator-inspector-machines')
   const toggle = q('.stator-inspector-toggle')
+  const legend = q('.stator-inspector-legend')
+  const clearBtn = q('.stator-inspector-clear')
+  const refreshBtn = q('.stator-inspector-refresh')
+
+  // ── Machines tab: fetch + render ─────────────────────────────────────────
+  let refreshTimer: number | undefined
+  const renderMachines = (payload: InspectPayloadDesc): void => {
+    const cards = payload.machines
+      .map((m) =>
+        machineCard(m, m.lifecycle === 'session' ? payload.session[m.name] : payload.app[m.name]),
+      )
+      .join('')
+    machinesEl.innerHTML = `${cards || '<p class="stator-inspector-empty">No machines discovered.</p>'}
+      <div class="stator-inspector-routes-head">routes</div>
+      ${routeRows(payload)}`
+    // Context toggles: clicking a card head collapses/expands its body.
+    for (const head of Array.from(machinesEl.querySelectorAll('.stator-inspector-card-head'))) {
+      head.addEventListener('click', () => {
+        const cardBody = head.nextElementSibling as HTMLElement | null
+        if (cardBody) cardBody.hidden = !cardBody.hidden
+      })
+    }
+  }
+  const refreshMachines = (): void => {
+    fetch('/@stator/inspect', { headers: { Accept: 'application/json' } })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
+      .then((payload: InspectPayloadDesc) => renderMachines(payload))
+      .catch(() => {
+        machinesEl.innerHTML =
+          '<p class="stator-inspector-empty">State inspection is served by the dev server only — this page has the wire toolbar without it.</p>'
+      })
+  }
+  const scheduleRefresh = (): void => {
+    if (drawer.hidden || machinesEl.hidden) return
+    window.clearTimeout(refreshTimer)
+    refreshTimer = window.setTimeout(refreshMachines, REFRESH_DEBOUNCE_MS)
+  }
+
+  // ── Tabs ─────────────────────────────────────────────────────────────────
+  const tabs = Array.from(shadow.querySelectorAll<HTMLButtonElement>('.stator-inspector-tab'))
+  const setTab = (tab: string) => {
+    try {
+      localStorage.setItem(TAB_KEY, tab)
+    } catch {}
+    const machines = tab === 'machines'
+    body.hidden = machines
+    machinesEl.hidden = !machines
+    legend.hidden = machines
+    clearBtn.hidden = machines
+    refreshBtn.hidden = !machines
+    for (const t of tabs) t.classList.toggle('stator-inspector-tab--active', t.dataset.tab === tab)
+    if (machines) refreshMachines()
+  }
+  for (const t of tabs) t.addEventListener('click', () => setTab(t.dataset.tab ?? 'wire'))
 
   const setOpen = (open: boolean) => {
     try {
@@ -106,16 +281,23 @@ function mount(): void {
     } catch {}
     ;(drawer as HTMLElement).hidden = !open
     ;(toggle as HTMLElement).hidden = open
+    if (open && !machinesEl.hidden) refreshMachines()
   }
   let initiallyOpen = true
   try {
     initiallyOpen = localStorage.getItem(STORAGE_KEY) !== 'false'
   } catch {}
+  let initialTab = 'wire'
+  try {
+    initialTab = localStorage.getItem(TAB_KEY) === 'machines' ? 'machines' : 'wire'
+  } catch {}
+  setTab(initialTab)
   setOpen(initiallyOpen)
 
   toggle.addEventListener('click', () => setOpen(true))
   q('.stator-inspector-close').addEventListener('click', () => setOpen(false))
-  q('.stator-inspector-clear').addEventListener('click', () => {
+  refreshBtn.addEventListener('click', refreshMachines)
+  clearBtn.addEventListener('click', () => {
     body.innerHTML = '<p class="stator-inspector-empty">Log cleared.</p>'
   })
 
@@ -185,6 +367,8 @@ function mount(): void {
       </div>`,
       (e as CustomEvent).detail,
     )
+    // Patches mean state moved — keep the Machines tab current while visible.
+    scheduleRefresh()
   })
 
   window.addEventListener('stator:patch-applied', (e: Event) => {
