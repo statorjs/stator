@@ -64,6 +64,27 @@ The main fear about dropping Vite is losing its client-island plugin ecosystem. 
 - **Image optimization** → a runtime server endpoint (a generic image route taking options as query params, cached with the ETag/304 conditional-GET Stator already ships), NOT a build-time plugin. Vite plugins were never the tool for the *server* version of this, and image state lives on the server anyway.
 - **WASM** (viz libs, Squoosh-style in-browser codecs) → asset handling, not transformation. Vite's WASM support decomposes into: emit+hash the `.wasm` and rewrite its URL (esbuild's `file` loader + the `new URL(import.meta.url)` idiom cover it), a trivial `?init` fetch/instantiate helper, and correct `application/wasm` dev MIME. The one rough edge is Worker-hosted WASM (Squoosh's shape) — esbuild handles the URL idiom with more manual wiring. WASM needs the bundler's built-in *asset* handling (esbuild has it) + web-standard APIs (framework-agnostic), NOT a third-party plugin. Forward: the WASM ESM-integration proposal drops the bundler from the path once browsers ship it.
 - **Tailwind** → a file-scanning global-CSS generator, decoupled from the module graph (it works with Rails/Django/PHP for this reason). Pointed at source globs (server templates *and* islands), it emits one stylesheet Stator links in every head — the exact slot `components.css` already uses. Needs no Vite; the standalone CLI/PostCSS is the correct server-first setup. The "misses server classes" failure is a footgun of wiring Tailwind through the `@tailwindcss/vite` *island* plugin (content scoped to the island graph, CSS delivery coupled to island loading) — which the exit nudges people OFF of. Stator can offer this first-class (run Tailwind over globs in `dev`/`build`, link the output).
+- **Fonts** → files plus CSS; no bundler is involved anywhere, in any framework — `next/font` is a build-time fetch-and-emit, not a bundler transform. The jobs a font tool automates: self-hosting, `@font-face` generation, preload injection, metrics-adjusted fallbacks (`size-adjust`/`ascent-override`, the CLS half that makes `next/font`/fontaine genuinely valuable), subsetting. All expressible by hand today (the styling-and-assets guide carries the recipe as of 2026-08-26); the first-class shape, if evidence demands it, is a `fonts` declaration consumed at build/dev that emits the css and per-route preloads through the head pipeline `loadProductionHead` already owns — with fallback-metrics generation as the part worth first-classing.
+
+#### The full plugin map (2026-08-26) — the standing answer to "can I add a plugin"
+
+Every common Vite-plugin ask lands on one of three non-bundler mechanisms: **(a)** a runtime server route, **(b)** a framework-run build/dev step emitting into `static/` (the Tailwind-over-globs pattern generalized), **(c)** template/head helpers. The precedent worth naming: Next and Astro already route around their own bundlers for the two hardest cases — `next/image` is a runtime route, `next/font` is a build step, Astro's `_image` is an endpoint — because assets-by-URL is the natural shape. Stator starts there.
+
+| Ask | Mechanism | Status |
+|---|---|---|
+| Images (resize/format/CLS) | (a) image route + (c) `<Image>` dimension helper | Route shape designed in the guide; evidence-gated |
+| Fonts | (b) css/preload generation + (c) head injection | Recipe in the guide; first-class evidence-gated |
+| Tailwind / Sass / PostCSS | (b) CLI over globs | Recipe shipped; first-class is Phase 4 |
+| WASM / URL assets | seam asset contract | Shipped both impls (Spike 1 closed the esbuild half) |
+| SVG components / icons | server templates render SVG natively; `raw()` | No mechanism needed |
+| Env / define | `.env` → `process.env` | Shipped 2.4 |
+| PWA / service worker | static manifest + a non-island client entry through the seam | Recipe; tiny seam extension if ever demanded |
+| Precompression | (b) build step: brotli/gzip `dist/static/` | Unclaimed, cheap |
+| Bundle analysis | esbuild metafile → `stator build --analyze` | Near-free once E lands |
+| Markdown content | server-side reads at render (indie-blog does it) | De facto solved |
+| Legacy browser targets | — | Non-goal |
+
+What the esbuild route changes: nothing here gets harder, two things get easier — the metafile makes an analyzer a freebie, and once `stator dev`/`build` own the whole loop, mechanism (b) steps have a first-class home as pipeline stages instead of processes coordinated around Vite's lifecycle. That is the structural payoff of the exit for this whole table.
 
 Pattern: image/WASM/Tailwind all *look* like client-island bundler-ecosystem needs and all resolve to non-bundler mechanisms in a server-first model. Each is a specific, testable line on the owned-pipeline checklist, not an open-ended ecosystem loss.
 
