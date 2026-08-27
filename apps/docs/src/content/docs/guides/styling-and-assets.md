@@ -1,6 +1,6 @@
 ---
 title: Styling and assets
-description: "Global CSS, Tailwind, images, and WASM without a bundler plugin — why there is none, and what to do instead."
+description: "Global CSS, Tailwind, fonts, images, and WASM without a bundler plugin — why there is none, and what to do instead."
 sidebar:
   order: 3.5
 ---
@@ -55,6 +55,48 @@ pnpm add -D tailwindcss @tailwindcss/cli
 ```
 
 Run `css` beside `stator dev` (a second terminal, or a `concurrently` script). Because the scan covers `routes/` and `templates/`, a class used only in a server template is generated — the thing the island-plugin setup gets wrong.
+
+## Fonts
+
+A webfont is files plus CSS — no bundler is involved anywhere in the pipeline. What font tooling in other frameworks actually automates is self-hosting, `@font-face` generation, preload tags, and fallback metrics; all four are a few lines you own here.
+
+Put the font files in `static/fonts/` — variable-weight `woff2` is usually the only format you need, and a [Fontsource](https://fontsource.org) package is the standard place to get them. A small copy script keeps the package as the source of truth (the `indie-blog` example's `scripts/sync-fonts.mjs` is the whole pattern: resolve the package, copy the latin variable files, run it from `predev`/`prebuild` and gitignore the output). Then declare the faces in your global stylesheet:
+
+```css
+@font-face {
+  font-family: 'Inter Variable';
+  src: url('/static/fonts/inter-variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  --sans: 'Inter Variable', system-ui, sans-serif;
+}
+```
+
+Preload the face your first paint uses, in the layout `<head>` — note `crossorigin` is required on font preloads even for same-origin files:
+
+```html
+<link rel="preload" href="/static/fonts/inter-variable.woff2" as="font" type="font/woff2" crossorigin>
+```
+
+`font-display: swap` means text renders immediately in the fallback and swaps when the font arrives. The layout shift that swap causes is tamed by a metrics-adjusted fallback — a second `@font-face` for a local system font with `size-adjust`/`ascent-override`/`descent-override` matched to the webfont, so the swap changes glyphs but not geometry. The numbers come from font metrics: [`@capsizecss/metrics`](https://github.com/seek-oss/capsize) publishes them per family, and the [fontaine](https://github.com/unjs/fontaine) formula turns them into overrides (`size-adjust` = the ratio of average character widths, then divide each vertical metric by it). Worked example — Literata falling back to Georgia, from the `indie-blog` example:
+
+```css
+@font-face {
+  font-family: 'Literata Fallback';
+  src: local('Georgia');
+  size-adjust: 107.67%;
+  ascent-override: 109.31%;
+  descent-override: 28.61%;
+  line-gap-override: 0%;
+}
+```
+
+Stack it between the webfont and the raw system font: `font-family: 'Literata Variable', 'Literata Fallback', Georgia, serif`. Generating these numbers automatically is the part that becomes first-class here when a real app's log demands it.
+
+Like everything in `static/`, font files are immutable in practice — put long-lived cache headers on them at the CDN or proxy.
 
 ## Images and files
 
