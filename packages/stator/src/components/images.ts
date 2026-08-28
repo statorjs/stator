@@ -96,10 +96,27 @@ export function Image(props: ImageProps): HtmlFragment {
   />`
 }
 
+/** An art-directed source: under `media`, serve a different GEOMETRY — an
+ *  `aspect` (width/height) the endpoint cover-crops to. Both crop axes must
+ *  land on the width allowlist, so pick aspects whose `round(w / aspect)` hits
+ *  allowlisted values (1 always works; with the default widths so do 2, 3,
+ *  1/2, 4/3 at some widths — off-allowlist heights are skipped per width). */
+export interface PictureSource {
+  media: string
+  /** width / height. `1` = square crop. */
+  aspect: number
+  sizes?: string
+  widths?: number[]
+}
+
 export type PictureProps = ImageProps & {
   /** Modern-format `<source>` chain, most-preferred first. The stored format
    *  stays the `<img>` fallback. */
   formats?: ImageFormat[]
+  /** Art direction — this is where `<picture>` earns its difficulty: each
+   *  entry crosses with every format (media × type sources, most specific
+   *  first), and the plain-format chain follows for non-matching viewports. */
+  sources?: PictureSource[]
 }
 
 const SOURCE_TYPES: Record<ImageFormat, string> = {
@@ -109,19 +126,69 @@ const SOURCE_TYPES: Record<ImageFormat, string> = {
   avif: 'image/avif',
 }
 
+/** Cropped srcset for an art-directed source: every allowlisted candidate
+ *  width whose derived height is ALSO allowlisted (the endpoint's crop bound)
+ *  and that stays below the intrinsic width. */
+function croppedSrcset(
+  src: string,
+  format: ImageFormat | undefined,
+  widths: number[],
+  aspect: number,
+  intrinsicWidth: number,
+): string | null {
+  const base = withFormat(src, format)
+  const entries = widths
+    .filter((w) => w < intrinsicWidth)
+    .map((w) => ({ w, h: Math.round(w / aspect) }))
+    .filter(({ h }) => widths.includes(h))
+    .map(({ w, h }) => `${base}?w=${w}&h=${h} ${w}w`)
+  return entries.length > 0 ? entries.join(', ') : null
+}
+
 export function Picture(props: PictureProps): HtmlFragment {
-  const { formats = ['avif', 'webp'], ...imageProps } = props
-  const sources = isRemote(props.src)
-    ? []
-    : formats
-        .map((format) => ({ format, resolved: getImage({ ...props, format }) }))
-        .filter((s) => s.resolved.srcset !== null)
-  if (sources.length === 0) return Image(imageProps)
+  const { formats = ['avif', 'webp'], sources: artSources = [], ...imageProps } = props
+  if (isRemote(props.src)) return Image(imageProps)
+
+  const storedExt = props.src.slice(props.src.lastIndexOf('.') + 1).toLowerCase() as ImageFormat
+  const widths = props.widths ?? DEFAULT_WIDTHS
   const sizes = props.sizes ?? '100vw'
+
+  // Art-directed sources come FIRST (the browser takes the first media+type
+  // match), each crossed with every modern format plus the stored format —
+  // without the stored-format row, a browser supporting none of the modern
+  // formats would fall past the media condition to the uncropped fallback.
+  const art = artSources.flatMap((source) =>
+    [...formats, storedExt]
+      .filter((f, i, all) => all.indexOf(f) === i && f in SOURCE_TYPES)
+      .map((format) => ({
+        media: source.media,
+        format: format as ImageFormat,
+        srcset: croppedSrcset(
+          props.src,
+          format as ImageFormat,
+          source.widths ?? widths,
+          source.aspect,
+          props.width,
+        ),
+        sizes: source.sizes ?? sizes,
+      }))
+      .filter((s) => s.srcset !== null),
+  )
+  const plain = formats
+    .map((format) => ({
+      media: undefined,
+      format,
+      srcset: getImage({ ...props, format }).srcset,
+      sizes,
+    }))
+    .filter((s) => s.srcset !== null)
+
+  const all = [...art, ...plain]
+  if (all.length === 0) return Image(imageProps)
   return html`<picture
-    >${sources.map(
+    >${all.map(
       (s) =>
-        html`<source type="${SOURCE_TYPES[s.format]}" srcset="${s.resolved.srcset}" sizes="${sizes}" />`,
+        html`<source media="${s.media ?? undefined}" type="${SOURCE_TYPES[s.format]}" srcset="${s.srcset}" sizes="${s.sizes}" />`,
     )}${Image(imageProps)}</picture
   >`
 }

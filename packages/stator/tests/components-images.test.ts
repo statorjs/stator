@@ -82,3 +82,43 @@ describe('<Picture>', () => {
     expect(tiny).not.toContain('<picture')
   })
 })
+
+describe('<Picture> art direction', () => {
+  it('crosses media sources with every format plus the stored format, before the plain chain', () => {
+    const html = rendered(() =>
+      Picture({
+        src: '/media/x.jpg',
+        width: 1600,
+        height: 900,
+        alt: 'x',
+        sources: [{ media: '(max-width: 30rem)', aspect: 1, sizes: '100vw' }],
+      }),
+    )
+    // Art-directed rows carry media + cropped w&h URLs (square: h === w).
+    expect(html).toContain('media="(max-width: 30rem)"')
+    expect(html).toContain('/media/x.avif?w=400&amp;h=400 400w')
+    expect(html).toContain('/media/x.webp?w=400&amp;h=400 400w')
+    // The stored format is art-directed too — otherwise a browser with no
+    // modern-format support would fall through the media condition entirely.
+    expect(html).toContain('/media/x.jpg?w=400&amp;h=400 400w')
+    // Plain format chain still present (no media), and AFTER the art rows.
+    expect(html.indexOf('media=')).toBeLessThan(html.indexOf('/media/x.avif?w=400 400w'))
+  })
+
+  it('skips candidate widths whose derived crop height misses the allowlist', () => {
+    const html = rendered(() =>
+      Picture({
+        src: '/media/x.jpg',
+        width: 2000,
+        height: 1000,
+        alt: 'x',
+        sources: [{ media: '(min-width: 60rem)', aspect: 2 }],
+      }),
+    )
+    // aspect 2: only w=800 (h=400) and w=1600 (h=800) land on the allowlist.
+    expect(html).toContain('/media/x.avif?w=800&amp;h=400 800w')
+    expect(html).toContain('/media/x.avif?w=1600&amp;h=800 1600w')
+    expect(html).not.toContain('w=400&amp;h=200')
+    expect(html).not.toContain('w=1200&amp;h=600')
+  })
+})
