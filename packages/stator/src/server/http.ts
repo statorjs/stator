@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { dirname, extname, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
@@ -282,6 +282,38 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         return c.text('forbidden', 403)
       }
       try {
+        const st = await stat(full)
+        if (!st.isFile()) return c.text('not found', 404)
+
+        // Caching contract: `/static/assets/*` is the framework's hashed-output
+        // namespace (island bundles, emitted URL assets) — content-addressed by
+        // construction, so a year of `immutable` is correct. Everything else
+        // under `/static/` is user files with stable names: always revalidate,
+        // but revalidation is a bodyless 304 (ETag from size+mtime, plus
+        // Last-Modified for validators that only speak dates).
+        const etag = `"${st.size.toString(16)}-${Math.trunc(st.mtimeMs).toString(16)}"`
+        c.header(
+          'Cache-Control',
+          rel.startsWith('assets/')
+            ? 'public, max-age=31536000, immutable'
+            : 'public, max-age=0, must-revalidate',
+        )
+        c.header('ETag', etag)
+        c.header('Last-Modified', st.mtime.toUTCString())
+
+        const inm = c.req.header('if-none-match')
+        if (inm) {
+          if (inm.split(',').some((t) => t.trim().replace(/^W\//, '') === etag)) {
+            return c.body(null, 304)
+          }
+        } else {
+          const ims = Date.parse(c.req.header('if-modified-since') ?? '')
+          // HTTP dates have second precision; compare mtime truncated to match.
+          if (!Number.isNaN(ims) && Math.trunc(st.mtimeMs / 1000) * 1000 <= ims) {
+            return c.body(null, 304)
+          }
+        }
+
         const buf = await readFile(full)
         c.header('Content-Type', contentTypeFor(rel))
         return c.body(buf)
@@ -684,10 +716,13 @@ export function contentTypeFor(path: string): string {
   if (ext === '.png') return 'image/png'
   if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg'
   if (ext === '.webp') return 'image/webp'
+  if (ext === '.avif') return 'image/avif'
   if (ext === '.gif') return 'image/gif'
   if (ext === '.ico') return 'image/x-icon'
   if (ext === '.wasm') return 'application/wasm'
   if (ext === '.woff2') return 'font/woff2'
   if (ext === '.woff') return 'font/woff'
+  if (ext === '.ttf') return 'font/ttf'
+  if (ext === '.otf') return 'font/otf'
   return 'application/octet-stream'
 }

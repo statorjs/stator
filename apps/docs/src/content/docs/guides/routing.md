@@ -21,6 +21,15 @@ routes/product/[id].stator   →   /product/p1   →   params.id === "p1"
 
 More specific routes win over param routes (`/product/new` beats `/product/[id]`).
 
+A `[...name]` segment is a catch-all: it must be the last segment, matches zero or more segments, and captures the raw remainder — slashes included:
+
+```
+routes/media/[...path].ts   →   /media/2026/08/x.jpg   →   params.path === "2026/08/x.jpg"
+                            →   /media                 →   params.path === ""
+```
+
+Specificity per segment runs static > extension-suffixed param (`[id].json`) > param > catch-all, so `/media/pinned.ts` and `/media/[id].ts` both win before the catch-all sees anything. A catch-all can't carry an extension suffix (`[...path].jpg` is a discovery error) — parse the extension from the captured remainder instead, and return a `Response` with an explicit `Content-Type`.
+
 ## Query and request
 
 Access the request in frontmatter via `Stator.request`:

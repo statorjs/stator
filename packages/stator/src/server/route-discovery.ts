@@ -41,10 +41,12 @@ export interface DiscoveredRoute {
  * Walk the routes directory recursively and build URL patterns from file
  * paths. Conventions:
  *
- *   - `routes/foo.ts`         → `/foo`
- *   - `routes/foo/index.ts`   → `/foo`
- *   - `routes/foo/[id].ts`    → `/foo/:id`  (path param `id`)
- *   - `routes/[a]/[b].ts`     → `/:a/:b`
+ *   - `routes/foo.ts`           → `/foo`
+ *   - `routes/foo/index.ts`     → `/foo`
+ *   - `routes/foo/[id].ts`      → `/foo/:id`   (path param `id`)
+ *   - `routes/[a]/[b].ts`       → `/:a/:b`
+ *   - `routes/foo/[...rest].ts` → `/foo/*rest` (catch-all: terminal, matches
+ *     zero+ segments, param is the raw remainder incl. slashes)
  *
  * Files may export any combination of `GET`/`POST`/`PUT`/`PATCH`/`DELETE`.
  * GET is a `defineRoute` (page renderer) or a `defineApiRoute` declaring

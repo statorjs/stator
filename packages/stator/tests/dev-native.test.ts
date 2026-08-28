@@ -273,6 +273,17 @@ describe('native dev server: .stator end to end, no Vite', () => {
     expect(await page.text()).toContain('page abc')
   })
 
+  it('a catch-all captures the multi-segment remainder, matches zero segments, and yields to a static sibling', async () => {
+    const deep = await get('/files/2026/08/x.jpg')
+    expect(deep.status).toBe(200)
+    expect(await deep.json()).toEqual({ path: '2026/08/x.jpg' })
+    const zero = await get('/files')
+    expect(zero.status).toBe(200)
+    expect(await zero.json()).toEqual({ path: '' })
+    const pinned = await get('/files/pinned')
+    expect(await pinned.json()).toEqual({ pinned: true })
+  })
+
   it('live-reloads a template edit without a restart', async () => {
     // Edits `remote-page.stator`, not `page.stator`: the Vite dev-server test
     // live-edits the latter and vitest runs files in parallel on this fixture.
