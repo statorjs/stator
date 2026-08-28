@@ -16,7 +16,9 @@ const error =
       ? 'Sign in first.'
       : query.error === 'content'
         ? 'A post needs content, under 20,000 characters.'
-        : null
+        : query.error === 'photo'
+          ? 'Photos are JPEG/PNG/WebP/AVIF/GIF under 10MB, and need alt text.'
+          : null
 ---
 <Layout title="Admin">
   {when(read(owner, (o) => !o.authed), () => (
@@ -41,9 +43,14 @@ const error =
       {error ? <p role="alert">{error}</p> : null}
 
       <h2>compose</h2>
-      <form method="post" action="/admin/publish" data-compose>
+      <form method="post" action="/admin/publish" enctype="multipart/form-data" data-compose>
         <input type="text" name="title" placeholder="Title (leave empty for a note)" aria-label="Title" maxlength="120" />
         <textarea name="content" placeholder="Write. Links you include get webmentions on publish." aria-label="Content" required maxlength="20000"></textarea>
+        <label>
+          photo (optional — makes this a photo post)
+          <input type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/avif,image/gif" />
+        </label>
+        <input type="text" name="photo_alt" placeholder="Photo alt text (required with a photo)" aria-label="Photo alt text" maxlength="300" />
         <button type="submit">publish</button>
       </form>
 

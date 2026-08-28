@@ -13,6 +13,15 @@ function title(p: PostRow): string {
   return p.title ?? p.content.slice(0, 60).replace(/\s+\S*$/, '…')
 }
 
+/** Item HTML: the photo (absolute URL — readers resolve against anything)
+ *  ahead of the rendered content. */
+function itemHtml(p: PostRow): string {
+  const photo = p.photo_path
+    ? `<img src="${escapeHtml(`${SITE_ORIGIN}/media/${p.photo_path}`)}" alt="${escapeHtml(p.photo_alt ?? '')}">`
+    : ''
+  return photo + renderContent(p.content)
+}
+
 export function renderRss(posts: PostRow[]): string {
   const items = posts
     .map(
@@ -21,7 +30,7 @@ export function renderRss(posts: PostRow[]): string {
       <link>${escapeHtml(postUrl(p.slug))}</link>
       <guid>${escapeHtml(postUrl(p.slug))}</guid>
       <pubDate>${new Date(p.published_at).toUTCString()}</pubDate>
-      <description>${escapeHtml(renderContent(p.content))}</description>
+      <description>${escapeHtml(itemHtml(p))}</description>
     </item>`,
     )
     .join('\n')
@@ -46,7 +55,7 @@ export function renderAtom(posts: PostRow[]): string {
     <link href="${escapeHtml(postUrl(p.slug))}"/>
     <id>${escapeHtml(postUrl(p.slug))}</id>
     <updated>${new Date(p.updated_at).toISOString()}</updated>
-    <content type="html">${escapeHtml(renderContent(p.content))}</content>
+    <content type="html">${escapeHtml(itemHtml(p))}</content>
   </entry>`,
     )
     .join('\n')
@@ -74,7 +83,7 @@ export function renderJsonFeed(posts: PostRow[]): string {
         id: postUrl(p.slug),
         url: postUrl(p.slug),
         ...(p.title ? { title: p.title } : {}),
-        content_html: renderContent(p.content),
+        content_html: itemHtml(p),
         date_published: new Date(p.published_at).toISOString(),
         date_modified: new Date(p.updated_at).toISOString(),
       })),

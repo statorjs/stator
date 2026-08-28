@@ -1,6 +1,7 @@
 import { defineApiRoute } from '@statorjs/stator/server'
 import { contentError, discoverKind, outboundLinks, slugify } from '../../lib/content.ts'
 import { createPost, postBySlug } from '../../lib/db.ts'
+import { photoError, saveOriginal } from '../../lib/media.ts'
 import { SYNDICATION_TARGETS, postUrl } from '../../lib/site.ts'
 import OwnerMachine from '../../machines/owner.ts'
 
@@ -18,22 +19,39 @@ export const POST = defineApiRoute({
     const form = await request.formData()
     const titleRaw = String(form.get('title') ?? '').trim()
     const content = String(form.get('content') ?? '')
+    // Multipart delivers the photo as a File; the urlencoded no-photo form has
+    // no entry at all. An empty file input still submits a zero-byte part.
+    const photoEntry = form.get('photo')
+    const photo = photoEntry instanceof File && photoEntry.size > 0 ? photoEntry : null
+    const photoAlt = String(form.get('photo_alt') ?? '').trim()
     if (contentError(content)) {
       return { directives: [{ type: 'navigate', to: '/admin?error=content' }] }
+    }
+    if (photo && photoError(photo, photoAlt)) {
+      return { directives: [{ type: 'navigate', to: '/admin?error=photo' }] }
     }
 
     // Auth probe: a zero-target publish still must prove the session. The
     // RETRY_TARGET guard requires `authed` and a bogus key commits nothing
-    // downstream (the outbox's own guard drops it).
+    // downstream (the outbox's own guard drops it). Runs BEFORE any disk
+    // write — an unauthenticated request must not store bytes.
     const probe = await dispatch(OwnerMachine, { type: 'RETRY_TARGET', key: '@auth-probe' })
     if (!probe.committed) {
       return { directives: [{ type: 'navigate', to: '/admin?error=not-signed-in' }] }
     }
 
-    const kind = discoverKind(titleRaw, content)
+    const kind = discoverKind(titleRaw, content, photo !== null)
     let slug = slugify(titleRaw !== '' ? titleRaw : content.slice(0, 40))
     if (postBySlug(slug)) slug = `${slug}-${Date.now().toString(36)}`
-    const post = createPost({ slug, kind, title: titleRaw === '' ? null : titleRaw, content })
+    const photoPath = photo ? await saveOriginal(photo, slug) : null
+    const post = createPost({
+      slug,
+      kind,
+      title: titleRaw === '' ? null : titleRaw,
+      content,
+      photo_path: photoPath,
+      photo_alt: photo ? photoAlt : null,
+    })
 
     const targets = [...outboundLinks(content), ...SYNDICATION_TARGETS]
     for (const target of targets) {

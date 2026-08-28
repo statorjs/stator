@@ -14,6 +14,11 @@ const { post, mentions } = Stator.props<{
   {post.title ? (
     <h2 class="p-name"><a class="u-url" href={`/posts/${post.slug}`}>{post.title}</a></h2>
   ) : null}
+  {post.photo_path ? (
+    <a class="u-url" href={`/posts/${post.slug}`}>
+      <img class="u-photo" src={`/media/${post.photo_path}`} alt={post.photo_alt ?? ''} loading="lazy" decoding="async" />
+    </a>
+  ) : null}
   <div class="e-content">{raw(renderContent(post.content))}</div>
   <p>
     <a class="u-url" href={`/posts/${post.slug}`}>
@@ -42,6 +47,13 @@ const { post, mentions } = Stator.props<{
     color: var(--accent);
   }
   div :global(p) {
+    margin: 0 0 0.7rem;
+  }
+  img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
     margin: 0 0 0.7rem;
   }
   p {

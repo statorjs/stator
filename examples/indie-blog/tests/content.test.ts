@@ -12,6 +12,11 @@ describe('post-type discovery', () => {
     expect(discoverKind('A Title', 'body')).toBe('article')
     expect(discoverKind('   ', 'just a note')).toBe('note')
   })
+
+  it('a photo wins over both — titled or not', () => {
+    expect(discoverKind('A Title', 'caption', true)).toBe('photo')
+    expect(discoverKind('', 'caption', true)).toBe('photo')
+  })
 })
 
 describe('slugify', () => {

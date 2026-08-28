@@ -18,6 +18,9 @@ if (!post) Stator.response.status = 404
   {post ? (
     <article class="h-entry">
       {post.title ? <h1 class="p-name">{post.title}</h1> : null}
+      {post.photo_path ? (
+        <img class="u-photo" src={`/media/${post.photo_path}`} alt={post.photo_alt ?? ''} decoding="async" />
+      ) : null}
       <div class="e-content">{raw(renderContent(post.content))}</div>
       <p>
         <a class="p-author h-card" href={`${SITE_ORIGIN}/`}>{AUTHOR_NAME}</a>
@@ -47,6 +50,13 @@ if (!post) Stator.response.status = 404
     font-weight: 700;
     letter-spacing: -0.02em;
     margin: 0 0 0.8rem;
+  }
+  img.u-photo {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin: 0 0 0.9rem;
   }
   div :global(p) {
     margin: 0 0 0.8rem;
