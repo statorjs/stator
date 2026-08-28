@@ -1,0 +1,41 @@
+---
+import { getImage } from '../lib/images.ts'
+import type { ImageFormat } from '../lib/images.ts'
+import type { PostRow } from '../lib/db.ts'
+import Image from './image.stator'
+
+/**
+ * `<Picture post={post} />` — modern-format sources over the variant endpoint
+ * with the stored format as the `<img>` fallback. The URL's extension is the
+ * delivery contract (the endpoint transcodes to honor it), so each `<source>`
+ * is just `getImage` asked for a different format.
+ */
+const { post, priority = false, formats = ['avif', 'webp'] } = Stator.props<{
+  post: PostRow
+  priority?: boolean
+  formats?: ImageFormat[]
+}>()
+
+const sizes = '(max-width: 44rem) 100vw, 44rem'
+const sources = post.photo_path
+  ? formats
+      .map((format) => ({
+        format,
+        resolved: getImage({
+          src: post.photo_path as string,
+          width: post.photo_width,
+          height: post.photo_height,
+          format,
+        }),
+      }))
+      .filter((s) => s.resolved.srcset !== null)
+  : []
+---
+{post.photo_path ? (
+  <picture>
+    {each(sources, (s) => (
+      <source type={`image/${s.format === 'jpg' ? 'jpeg' : s.format}`} srcset={s.resolved.srcset ?? ''} sizes={sizes} />
+    ))}
+    <Image post={post} priority={priority} />
+  </picture>
+) : null}

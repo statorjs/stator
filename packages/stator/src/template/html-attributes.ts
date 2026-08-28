@@ -92,11 +92,14 @@ export interface ElementSpecificAttributes {
     autocomplete?: string
     inputmode?: string
     autofocus?: boolean
+    accept?: string
+    multiple?: boolean
   }
   label: { for?: string }
   form: {
     action?: string
     method?: 'get' | 'post' | 'GET' | 'POST' | 'dialog'
+    enctype?: 'application/x-www-form-urlencoded' | 'multipart/form-data' | 'text/plain'
     novalidate?: boolean
   }
   select: {
@@ -123,7 +126,11 @@ export interface ElementSpecificAttributes {
     alt?: string
     width?: number | string
     height?: number | string
+    srcset?: string
+    sizes?: string
     loading?: 'eager' | 'lazy'
+    decoding?: 'sync' | 'async' | 'auto'
+    fetchpriority?: 'high' | 'low' | 'auto'
   }
 }
 

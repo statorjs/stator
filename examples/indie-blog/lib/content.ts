@@ -2,14 +2,15 @@
  * Content rules — pure functions, tested, no framework imports.
  *
  * Post-type discovery, simplified from the W3C algorithm the IndieWeb uses:
- * named content is an article, unnamed content is a note. (The full
- * algorithm also checks photos, replies, likes — add branches as your posts
- * grow kinds.)
+ * a post with a photo is a photo, named content is an article, unnamed
+ * content is a note. (The full algorithm also checks replies and likes —
+ * add branches as your posts grow kinds.)
  */
 
 import type { PostKind } from './db.ts'
 
-export function discoverKind(title: string, _content: string): PostKind {
+export function discoverKind(title: string, _content: string, hasPhoto = false): PostKind {
+  if (hasPhoto) return 'photo'
   return title.trim() === '' ? 'note' : 'article'
 }
 
