@@ -4,6 +4,12 @@ This root file carries the release *stories*. As of create-stator 1.2.0, mechani
 
 Versioning: the 0.9 line is the release-candidate surface for 1.0. Per the project's versioning decision, **1.0.0 ships only after the proving demo validates the API without breaking changes**. Subpaths `server`, `machine`, `template`, `client`, `dev`, `build`, and `components` are treated as stable from 0.9.0; `compiler` and `vite` are internal and may change in minors.
 
+## @statorjs/stator 2.8.0 — 2026-08-27
+
+The serving layer learns to cache. Static responses carried no caching headers at all, so every repeat request paid for the full body. Now the framework's hashed-output namespace — `/static/assets/*`, island bundles and emitted URL assets — ships `immutable` for a year, safe because a content-addressed URL can never change its bytes, and every other static file answers revalidation with a bodyless 304 (`ETag` + `Last-Modified`), so a font or stylesheet costs its bytes once per actual change. AVIF images and TTF/OTF fonts get real content types instead of octet-stream. The dev servers keep serving `no-cache` — an edit always shows.
+
+Also surfaced: catch-all route params. `routes/media/[...path].ts` matches zero or more segments with the raw remainder in `params.path` — they have worked since route discovery shipped, but neither the docs nor the source ever said so; now both do, with the first integration test. And the island-bundling seam gained its second implementation: `STATOR_ISLAND_BUNDLER=esbuild` bundles islands through esbuild with code splitting — experimental and off by default, with the measurements that make it the Vite exit's endpoint candidate recorded in the toolchain spec.
+
 ## @statorjs/stator 2.7.0 — 2026-08-25
 
 The dev inspector now inspects machines, not just wire traffic. The toolbar gains a **Machines** tab: a nav listing every machine with its live state inline — your session's machines first, then the process-global app machines, then the route table with each route's `reads` — beside a detail pane showing the selected machine's context and the events its current state accepts, server-only and guarded ones marked. It is a navigable graph, not two lists: a route's `reads` chips jump to that machine's detail, a machine's detail names the routes that read it, and static GET routes render as real links. And when a persisted snapshot was written by different machine code, a `stale` chip says the session starts fresh on its next request — the working-state policy made visible instead of inferred from logs.

@@ -71,7 +71,7 @@
     </a>
 
     <nav class="nav">
-      <span class="nav__meta">REV 2.7</span>
+      <span class="nav__meta">REV 2.8</span>
       <a href="https://docs.statorjs.dev" class="nav__link">Docs</a>
       <a href="https://demo.statorjs.dev" class="nav__link">Demo</a>
       <a href="https://github.com/statorjs/stator" class="nav__link">Source</a>
@@ -103,7 +103,7 @@
 
     <!-- HERO -->
     <section class="hero">
-      <p class="hero__spec">DOC-002 · v2.7 · released</p>
+      <p class="hero__spec">DOC-002 · v2.8 · released</p>
       <h1 class="hero__title">
         <span class="hero__title-line">Render HTML</span>
         <span class="hero__title-line">where your</span>
@@ -129,7 +129,7 @@
       <div class="poc">
         <p class="poc__label">/* RELEASED */</p>
         <p class="poc__text">
-          What this is: released software, now at 2.7 — on npm today via
+          What this is: released software, now at 2.8 — on npm today via
           <code class="inline">pnpm create stator</code>, with docs at
           <a href="https://docs.statorjs.dev" class="link">docs.statorjs.dev</a>
           and a deployed reference demo at
@@ -479,7 +479,7 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
       <div class="prose">
         <p>
           The fastest way to evaluate a framework is to know its edges. Here are
-          ours, plainly: what's shipped as of 2.7, what's planned next, and what
+          ours, plainly: what's shipped as of 2.8, what's planned next, and what
           Stator is deliberately <em>not</em> going to do.
         </p>
       </div>
@@ -493,6 +493,7 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
             <li>Import-location server/client boundary, compiler-enforced</li>
             <li>State machines with typed events, guards, actions, selectors</li>
             <li>Client machines + custom elements; <code class="inline">read()</code> / <code class="inline">on:</code> / <code class="inline">ref:</code></li>
+            <li>HTTP caching for static files — hashed assets served immutable, everything else ETag-revalidated with bodyless 304s (2.8)</li>
             <li>Machine inspection — a Machines tab in the dev toolbar with every machine's live state, context, accepted events, and route cross-links, on a public <code class="inline">describeMachine()</code> substrate (2.7)</li>
             <li>Native dev server — <code class="inline">stator dev</code> runs your app from its source tree exactly as production runs a build, one module graph, no dev-only transforms, source-mapped traces (2.6)</li>
             <li>Working-state policy — sessions never outlive the code that made them: snapshots carry their machine's code hash, a mismatch resets, and <code class="inline">stator build</code> prints what each deploy resets (2.6)</li>
@@ -662,7 +663,7 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
 
   <footer class="footer">
     <div class="footer__row">
-      <span class="footer__cell">STATOR · v2.7.0</span>
+      <span class="footer__cell">STATOR · v2.8.0</span>
       <span class="footer__cell">DOC-002</span>
       <span class="footer__cell">REV. 2026.08</span>
     </div>
