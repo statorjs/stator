@@ -48,13 +48,13 @@ const error =
 
       <h2>compose</h2>
       <form method="post" action="/admin/publish" enctype="multipart/form-data" data-compose>
-        <input type="text" name="title" placeholder="Title (leave empty for a note)" aria-label="Title" maxlength="120" />
-        <textarea name="content" placeholder="Write. Links you include get webmentions on publish." aria-label="Content" required maxlength="20000"></textarea>
+        <input type="text" name="title" placeholder="Title (leave empty for a note)" aria-label="Title" maxlength="120" value={read(owner, (o) => o.draft?.title ?? '')} />
+        <textarea name="content" placeholder="Write. Links you include get webmentions on publish." aria-label="Content" required maxlength="20000">{read(owner, (o) => o.draft?.content ?? '')}</textarea>
         <label>
-          photo (optional — makes this a photo post)
+          photo (optional — makes this a photo post{read(owner, (o) => (o.draft ? ' — re-pick your file' : ''))})
           <input type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/avif,image/gif" />
         </label>
-        <input type="text" name="photo_alt" placeholder="Photo alt text (required with a photo)" aria-label="Photo alt text" maxlength="300" />
+        <input type="text" name="photo_alt" placeholder="Photo alt text (required with a photo)" aria-label="Photo alt text" maxlength="300" value={read(owner, (o) => o.draft?.photoAlt ?? '')} />
         <button type="submit">publish</button>
       </form>
 
