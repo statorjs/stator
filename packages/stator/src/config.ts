@@ -89,6 +89,25 @@ export interface StatorConfig {
      *  Precedence: `LOG_LEVEL` env > this > default. */
     level?: LogLevel
   }
+  /** Image serving. Present → the framework mounts an image endpoint over
+   *  `dir` (originals + on-demand variants: the URL's extension is the
+   *  delivery format, `?w=` resizes from the allowlist). Absent → no routes,
+   *  no transformer loaded — image-free apps pay nothing. */
+  images?: {
+    /** Directory holding the original images (dated subpaths welcome) —
+     *  runtime-written data like a SQLite file, NOT under `static/` (builds
+     *  recreate `dist/static`). Relative paths resolve against the cwd. */
+    dir: string
+    /** URL prefix the endpoint serves under. Default: `/<basename(dir)>`
+     *  (`dir: 'media'` → `/media`). */
+    path?: string
+    /** The `?w=` allowlist, and the default `srcset` widths `getImage`
+     *  emits. An allowlist because an open resize parameter is a
+     *  denial-of-service invitation. Default: `[400, 800, 1200, 1600]`. */
+    widths?: number[]
+    /** Swap the transformer (default: sharp). See `ImageTransformer`. */
+    transformer?: import('./server/images.ts').ImageTransformer
+  }
   // observers?: Observer[] — top-level when the observability spec lands.
 }
 

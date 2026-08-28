@@ -12,6 +12,7 @@ import { discoverMachines } from './discovery.ts'
 import { wireAppEffects } from './effects.ts'
 import { loadDotenv } from './env.ts'
 import { buildHonoApp } from './http.ts'
+import { type ImageTransformer, resolveImagesConfig } from './images.ts'
 import { logger, setLogLevel } from './logger.ts'
 import { MachineStore } from './machine-store.ts'
 import { discoverMiddleware } from './middleware.ts'
@@ -59,6 +60,15 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
     /** Minimum level to emit. Default: `warn` in production, `info` in dev.
      *  `LOG_LEVEL` env takes precedence over this. */
     level?: LogLevel
+  }
+  /** Image serving — present mounts the image endpoint over `images.dir`
+   *  (extension = delivery format, `?w=` allowlist, disk-cached variants).
+   *  Absent → no routes, no transformer loaded. Mirrors `StatorConfig.images`. */
+  images?: {
+    dir: string
+    path?: string
+    widths?: number[]
+    transformer?: ImageTransformer
   }
   /** Origins allowed to make cross-site writes despite the CSRF guard (exact or
    *  wildcard-subdomain). Mirrors `StatorConfig.trustedOrigins`. */
@@ -143,7 +153,9 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     : undefined
   const bootDef = config.bootFile ? await discoverBoot(config.bootFile) : undefined
   const inspector = resolved.inspector
+  const images = config.images ? resolveImagesConfig(config.images) : undefined
   const app = await buildHonoApp({
+    images,
     routes,
     store,
     staticDir,

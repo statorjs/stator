@@ -29,6 +29,7 @@ import { discoverMachines } from './discovery.ts'
 import { wireAppEffects } from './effects.ts'
 import { loadDotenv } from './env.ts'
 import { buildHonoApp, contentTypeFor } from './http.ts'
+import { resolveImagesConfig } from './images.ts'
 import { logger, setLogLevel } from './logger.ts'
 import { codeHashOf, codeInputsOf } from './machine-hash.ts'
 import { MachineStore } from './machine-store.ts'
@@ -111,6 +112,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   const machinesDir = real(resolve(config.machinesDir))
   const routesDir = real(resolve(config.routesDir))
   const staticDir = config.staticDir ? real(resolve(config.staticDir)) : resolve(root, 'static')
+  const images = config.images ? resolveImagesConfig(config.images) : undefined
   // One build-id per dev process, as the Vite dev server did — rebuilds reload
   // through the dev channel, a restart is a new id for the SSE reconnect handshake.
   const buildId = randomUUID()
@@ -377,6 +379,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
     const middleware = await discoverMiddleware(resolve(root, 'middleware.ts'), bust)
     await remapRoutes()
     app = await buildHonoApp({
+      images,
       routes,
       store,
       staticDir,

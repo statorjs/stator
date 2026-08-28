@@ -52,6 +52,13 @@ export {
 export { scheduleSessionEffects, wireAppEffects } from './effects.ts'
 export type { HttpConfig } from './http.ts'
 export { buildHonoApp } from './http.ts'
+export type { ImageTransformer, ResolvedImagesConfig } from './images.ts'
+export {
+  DEFAULT_IMAGE_WIDTHS,
+  probeImage,
+  resolveImagesConfig,
+  sharpTransformer,
+} from './images.ts'
 export type { InspectPayload, InspectRoute, InspectRouteMethod } from './inspect.ts'
 export { buildInspectPayload } from './inspect.ts'
 export type { InstanceHandle } from './instance-proxy.ts'

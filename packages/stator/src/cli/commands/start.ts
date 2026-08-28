@@ -24,6 +24,7 @@ export async function run(ctx: CliContext): Promise<void> {
     persistence: config.persistence,
     sessions: config.sessions,
     realtime: config.realtime,
+    images: config.images,
     trustedOrigins: config.trustedOrigins,
     origin: config.origin,
     host: config.host,

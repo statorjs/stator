@@ -47,6 +47,12 @@ interface StatorConfig {
     inspector?: boolean // dev inspector toolbar. Default: on in dev
   }
 
+  images?: {
+    dir: string          // originals directory (runtime data, NOT static/); mounts the endpoint
+    path?: string        // URL prefix; default '/' + basename(dir)
+    widths?: number[]    // ?w= allowlist + default srcset widths; default [400, 800, 1200, 1600]
+    transformer?: ImageTransformer  // swap sharp for another implementation
+  }
   logging?: {
     level?: 'silent' | 'error' | 'warn' | 'info' | 'debug' // Default: warn (prod) / info (dev). LOG_LEVEL env wins
   }

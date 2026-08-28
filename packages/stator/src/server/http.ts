@@ -9,6 +9,7 @@ import { applyRenderedEffects, runApiRoute } from './api-route.ts'
 import { crossSiteGuard } from './csrf.ts'
 import { scheduleSessionEffects } from './effects.ts'
 import { record, replayFor } from './event-dedupe.ts'
+import { type ResolvedImagesConfig, serveImage } from './images.ts'
 import { buildInspectPayload } from './inspect.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
@@ -30,6 +31,9 @@ export interface HttpConfig {
   routes: DiscoveredRoute[]
   store: MachineStore
   staticDir?: string
+  /** Resolved image-serving config — present mounts the endpoint at
+   *  `images.path` (see server/images.ts). */
+  images?: ResolvedImagesConfig
   /** Optional hook to inject extra `<head>` HTML for a GET route, keyed by the
    *  route's file path. The dev server uses this to inline collected scoped CSS
    *  (SSR head injection). Inserted at the `</head>` boundary. */
@@ -321,6 +325,18 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         return c.text('not found', 404)
       }
     })
+  }
+
+  if (config.images) {
+    const images = config.images
+    app.get(`${images.path}/*`, (c) =>
+      serveImage(
+        images,
+        decodeURIComponent(c.req.path.slice(images.path.length + 1)),
+        c.req.query('w'),
+        c.req.header('if-none-match') ?? null,
+      ),
+    )
   }
 
   // SSE endpoint. The connection's runtime + renderState stay alive for
