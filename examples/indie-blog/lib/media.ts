@@ -23,10 +23,13 @@ export function mediaDir(): string {
   return resolve(process.env.INDIE_BLOG_MEDIA ?? 'media')
 }
 
+/** Returns an error CODE (`photo-type` / `photo-size` / `photo-alt`) so the
+ *  desk can show the specific problem — a blank alt field shouldn't read like
+ *  a format rejection. */
 export function photoError(file: File, alt: string): string | null {
-  if (!EXT_BY_TYPE[file.type]) return 'Photos must be JPEG, PNG, WebP, AVIF, or GIF.'
-  if (file.size > MAX_PHOTO_BYTES) return 'Photos fit in 10MB.'
-  if (alt.trim() === '') return 'A photo needs alt text.'
+  if (!EXT_BY_TYPE[file.type]) return 'photo-type'
+  if (file.size > MAX_PHOTO_BYTES) return 'photo-size'
+  if (alt.trim() === '') return 'photo-alt'
   return null
 }
 

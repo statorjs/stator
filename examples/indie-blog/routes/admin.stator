@@ -16,9 +16,13 @@ const error =
       ? 'Sign in first.'
       : query.error === 'content'
         ? 'A post needs content, under 20,000 characters.'
-        : query.error === 'photo'
-          ? 'Photos are JPEG/PNG/WebP/AVIF/GIF under 10MB, and need alt text.'
-          : null
+        : query.error === 'photo-type'
+          ? 'Photos must be JPEG, PNG, WebP, AVIF, or GIF.'
+          : query.error === 'photo-size'
+            ? 'Photos fit in 10MB.'
+            : query.error === 'photo-alt'
+              ? 'A photo needs alt text — describe what the picture shows.'
+              : null
 ---
 <Layout title="Admin">
   {when(read(owner, (o) => !o.authed), () => (
