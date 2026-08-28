@@ -12,9 +12,11 @@ import { basename, dirname, join, resolve, sep } from 'node:path'
  * delivery format** (request `x.webp` of a stored `x.jpg` and the endpoint
  * converts — it never lies about an extension; there is no Accept-header or
  * user-agent negotiation, ever), `?w=` resizes to an allowlisted width, and
- * variants cache on disk beside the originals (`.variants/`), regenerated
- * when the original is newer. GIFs serve as originals only — animation does
- * not survive naive resizing.
+ * `?w=&h=` cover-crops to an exact box — BOTH dimensions must come from the
+ * allowlist, so the variant space stays bounded (widths² at worst, never an
+ * open crop parameter). Variants cache on disk beside the originals
+ * (`.variants/`), regenerated when the original is newer. GIFs serve as
+ * originals only — animation does not survive naive resizing.
  */
 
 /**
@@ -26,10 +28,12 @@ export interface ImageTransformer {
   /** Intrinsic dimensions. Called at WRITE time by app upload handlers (via
    *  `probeImage`), never during a render — dimensions are data, not IO. */
   probe(bytes: Uint8Array): Promise<{ width: number | null; height: number | null }>
-  /** Resize (optional) and/or re-encode to `format`. `width` never enlarges. */
+  /** Resize (optional) and/or re-encode to `format`. Width alone never
+   *  enlarges; width+height is an exact cover-cropped box (art direction
+   *  needs predictable geometry, so enlargement is allowed there). */
   transform(
     input: Uint8Array,
-    opts: { width?: number; format: 'jpeg' | 'png' | 'webp' | 'avif' },
+    opts: { width?: number; height?: number; format: 'jpeg' | 'png' | 'webp' | 'avif' },
   ): Promise<Uint8Array>
 }
 
@@ -44,7 +48,9 @@ export function sharpTransformer(): ImageTransformer {
     async transform(input, opts) {
       const { default: sharp } = await import('sharp')
       let pipeline = sharp(input)
-      if (opts.width !== undefined) {
+      if (opts.width !== undefined && opts.height !== undefined) {
+        pipeline = pipeline.resize({ width: opts.width, height: opts.height, fit: 'cover' })
+      } else if (opts.width !== undefined) {
         pipeline = pipeline.resize({ width: opts.width, withoutEnlargement: true })
       }
       return new Uint8Array(await pipeline.toFormat(opts.format).toBuffer())
@@ -128,6 +134,7 @@ export async function serveImage(
   config: ResolvedImagesConfig,
   rel: string,
   widthParam: string | undefined,
+  heightParam: string | undefined,
   ifNoneMatch: string | null,
 ): Promise<Response> {
   let width: number | undefined
@@ -135,6 +142,14 @@ export async function serveImage(
     width = Number(widthParam)
     if (!config.widths.includes(width)) {
       return new Response(`w must be one of ${config.widths.join(', ')}`, { status: 400 })
+    }
+  }
+  let height: number | undefined
+  if (heightParam !== undefined) {
+    // A crop needs both axes, each from the allowlist — the DoS bound.
+    height = Number(heightParam)
+    if (width === undefined || !config.widths.includes(height)) {
+      return new Response(`h requires w, both from ${config.widths.join(', ')}`, { status: 400 })
     }
   }
 
@@ -147,7 +162,8 @@ export async function serveImage(
   if (!original) return new Response('not found', { status: 404 })
 
   let file: string
-  const sameFormat = IMAGE_CONTENT_TYPES[original.ext] === contentType && width === undefined
+  const sameFormat =
+    IMAGE_CONTENT_TYPES[original.ext] === contentType && width === undefined && height === undefined
   if (sameFormat) {
     file = original.full
   } else {
@@ -157,7 +173,7 @@ export async function serveImage(
     const cache = join(
       config.dir,
       '.variants',
-      `${rel.slice(0, dot)}-${width ?? 'orig'}.${requestedExt}`,
+      `${rel.slice(0, dot)}-${width ?? 'orig'}${height !== undefined ? `x${height}` : ''}.${requestedExt}`,
     )
     const fresh = existsSync(cache) && statSync(cache).mtimeMs >= statSync(original.full).mtimeMs
     if (!fresh) {
@@ -165,7 +181,7 @@ export async function serveImage(
         requestedExt === 'jpg' ? 'jpeg' : (requestedExt as 'jpeg' | 'png' | 'webp' | 'avif')
       const out = await config.transformer.transform(
         new Uint8Array(await readFile(original.full)),
-        { width, format },
+        { width, height, format },
       )
       mkdirSync(dirname(cache), { recursive: true })
       const { writeFile } = await import('node:fs/promises')

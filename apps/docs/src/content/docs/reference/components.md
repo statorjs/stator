@@ -53,10 +53,18 @@ type ImageProps = ImageDims & {
 }
 
 type PictureProps = ImageProps & {
-  formats?: ImageFormat[]  // <source> chain, default ['avif', 'webp']
+  formats?: ImageFormat[]        // <source> chain, default ['avif', 'webp']
+  sources?: PictureSource[]      // art direction — different geometry per media condition
+}
+
+interface PictureSource {
+  media: string     // e.g. '(max-width: 30rem)'
+  aspect: number    // width / height of the crop; 1 = square
+  sizes?: string
+  widths?: number[]
 }
 ```
 
-`<Image>` emits one `<img>` with `width`/`height` always present (the browser reserves the aspect-ratio box before any bytes load), a `srcset` over the [image endpoint](/guides/styling-and-assets/#images) for endpoint-served sources, `loading="lazy"` + `decoding="async"` defaults, and the `priority` escape hatch (`eager` + `fetchpriority="high"`) for the one above-the-fold image — lazy-loading a hero is the classic self-inflicted LCP regression. `<Picture>` wraps it in modern-format `<source>` elements with the stored format as fallback, and collapses to a plain `<img>` when no source applies (a remote URL, or an image smaller than every candidate width). `getImage()` is the pure resolver beneath both — pass it the same options and place the returned `src`/`srcset`/`width`/`height` in your own markup.
+`<Image>` emits one `<img>` with `width`/`height` always present (the browser reserves the aspect-ratio box before any bytes load), a `srcset` over the [image endpoint](/guides/styling-and-assets/#images) for endpoint-served sources, `loading="lazy"` + `decoding="async"` defaults, and the `priority` escape hatch (`eager` + `fetchpriority="high"`) for the one above-the-fold image — lazy-loading a hero is the classic self-inflicted LCP regression. `<Picture>` wraps it in modern-format `<source>` elements with the stored format as fallback, and collapses to a plain `<img>` when no source applies (a remote URL, or an image smaller than every candidate width). `sources` is art direction — the genuinely hard mode of `<picture>`: each entry serves a different *geometry* under its media condition (the endpoint cover-crops via `?w=&h=`), crossed with every format *including the stored one* (without that row, a browser with no modern-format support would fall past the media condition to the uncropped fallback). Both crop axes must land on the width allowlist, so pick aspects whose derived heights hit allowlisted values — square (`aspect: 1`) always works; off-allowlist heights are skipped per candidate width rather than erroring. `getImage()` is the pure resolver beneath both — pass it the same options and place the returned `src`/`srcset`/`width`/`height` in your own markup.
 
 Remote URLs (`http…`) render untouched: no srcset, no proxying, no transforms — and they require dimensions exactly like everything else, which is what keeps every `<Image>` CLS-safe by construction. GIFs render as originals only.

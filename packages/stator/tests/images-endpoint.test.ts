@@ -74,3 +74,23 @@ describe('image endpoint', () => {
     )
   })
 })
+
+describe('image endpoint: crops', () => {
+  it('w+h cover-crops to the exact box; h alone or off-allowlist is a 400', async () => {
+    const app = await boot({ dir: mediaDir(), path: '/media' })
+    const crop = await app.fetch(
+      new Request('http://localhost/media/2026/08/probe.webp?w=400&h=400'),
+    )
+    expect(crop.status).toBe(200)
+    const { default: sharp } = await import('sharp')
+    const meta = await sharp(new Uint8Array(await crop.arrayBuffer())).metadata()
+    expect(meta.width).toBe(400)
+    expect(meta.height).toBe(400)
+    expect(
+      (await app.fetch(new Request('http://localhost/media/2026/08/probe.png?h=400'))).status,
+    ).toBe(400)
+    expect(
+      (await app.fetch(new Request('http://localhost/media/2026/08/probe.png?w=400&h=999'))).status,
+    ).toBe(400)
+  })
+})

@@ -334,6 +334,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         images,
         decodeURIComponent(c.req.path.slice(images.path.length + 1)),
         c.req.query('w'),
+        c.req.query('h'),
         c.req.header('if-none-match') ?? null,
       ),
     )
