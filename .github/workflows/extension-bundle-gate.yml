@@ -21,9 +21,14 @@ jobs:
 
       - name: Did the extension's input trees change?
         id: scope
+        # The prefix list must cover the bundle's TRUE import graph, not just
+        # the obvious trees — the compiler reaches into `wire/` (island
+        # markers), which shipped outside the original list. To re-derive the
+        # list after compiler/LS changes: run the `build:server` esbuild
+        # command with `--metafile` and list its non-node_modules inputs.
         run: |
           changed="$(git diff --name-only origin/${{ github.base_ref }}...HEAD)"
-          if echo "$changed" | grep -qE '^(editors/vscode/|packages/language-server/src/|packages/stator/src/compiler/)'; then
+          if echo "$changed" | grep -qE '^(editors/vscode/|packages/language-server/src/|packages/stator/src/compiler/|packages/stator/src/wire/)'; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"
