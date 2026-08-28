@@ -29,3 +29,7 @@ Verification effects fetch over real HTTP, so the wire test listens on a port an
 ## 6. Deferred by decision, logged for the next cut (2026-08-10)
 
 Mention updates/deletes (the spec allows re-sent mentions to modify earlier ones — the starter dedupes), a real mf2 parser (classification is regex-lite), and re-verification timers. None blocked the loop; all are good second-PR material alongside Micropub and the IndieAuth provider.
+
+## 7. A5 baseline: every anonymous read mints a session (2026-08-27, measured) — THE CACHING EVIDENCE
+
+Measured on the production path (`stator build` + `stator start`, in-memory store, empty index — render cost is the floor, not typical): cold GET / 11.7ms; warm anonymous median 0.4ms, p95 1.1ms; sessioned median 0.3ms. The load-bearing numbers: **500/500 cookie-less GETs carried Set-Cookie (100% mint a session)** and process RSS grew **~36KB per anonymous request** (+17.8MB over 500). Extrapolated: a crawler or a cookie-stripping CDN doing 100k requests parks ~3.5GB of session state until the 24h TTL. Script: `examples/indie-blog/scripts/measure-read-path.mjs`. This is the quantified case for lazy session establishment + derived Cache-Control (the read-path spec): the render is already fast — the cost is the state we mint for visitors who never needed any.
