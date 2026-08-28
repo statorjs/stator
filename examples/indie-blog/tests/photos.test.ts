@@ -134,8 +134,12 @@ describe('compose draft recovery', () => {
       await fetch(`${base}/admin`, { headers: { Cookie: `stator_sid=${sid}` } })
     ).text()
     expect(bounced).toContain('value="Draft Title"')
-    expect(bounced).toContain('Typed words.')
     expect(bounced).toContain('re-pick your file')
+    // The textarea pre-fill must be RAW text — a live-slot wrapper inside
+    // RCDATA renders as literal markup (the bug that shipped first).
+    const textarea = bounced.match(/<textarea[^>]*>([\s\S]*?)<\/textarea>/)?.[1] ?? ''
+    expect(textarea).toContain('Typed words.')
+    expect(textarea).not.toContain('data-slot')
 
     await publish(sid, { title: 'Draft Title', content: 'Typed words.', photo_alt: 'alt' }, photo)
     const after = await (

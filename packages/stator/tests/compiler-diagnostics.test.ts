@@ -87,3 +87,29 @@ describe('compiler: defer/machine boundary (build-time gate)', () => {
     expect(() => compile(src, { id: 'p.stator' })).not.toThrow()
   })
 })
+
+describe('RCDATA placement gate', () => {
+  it('rejects read() inside <textarea> — the slot wrapper would render as literal text', () => {
+    expect(() =>
+      compile(
+        `---\nimport M from '../machines/m.ts'\nconst [m] = Stator.reads([M])\n---\n<textarea>{read(m, (x) => x.draft)}</textarea>`,
+        { id: 'routes/t.stator', kind: 'route' },
+      ),
+    ).toThrow(/cannot appear inside <textarea>/)
+  })
+
+  it('rejects each() inside <title>; attribute reads on the element stay legal', () => {
+    expect(() =>
+      compile(
+        `---\nimport M from '../machines/m.ts'\nconst [m] = Stator.reads([M])\n---\n<title>{each(read(m, (x) => x.items), (i) => i)}</title>`,
+        { id: 'routes/t.stator', kind: 'route' },
+      ),
+    ).toThrow(/cannot appear inside <title>/)
+    expect(() =>
+      compile(
+        `---\nimport M from '../machines/m.ts'\nconst [m] = Stator.reads([M])\n---\n<textarea placeholder={read(m, (x) => x.hint)}></textarea>`,
+        { id: 'routes/t.stator', kind: 'route' },
+      ),
+    ).not.toThrow()
+  })
+})
