@@ -20,6 +20,7 @@ export async function run(ctx: CliContext): Promise<void> {
     persistence: config.persistence,
     sessions: config.sessions,
     dev: config.dev,
+    images: config.images,
     trustedOrigins: config.trustedOrigins,
     origin: config.origin,
     cors: config.cors,

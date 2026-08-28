@@ -4,6 +4,12 @@ This root file carries the release *stories*. As of create-stator 1.2.0, mechani
 
 Versioning: the 0.9 line is the release-candidate surface for 1.0. Per the project's versioning decision, **1.0.0 ships only after the proving demo validates the API without breaking changes**. Subpaths `server`, `machine`, `template`, `client`, `dev`, `build`, and `components` are treated as stable from 0.9.0; `compiler` and `vite` are internal and may change in minors.
 
+## @statorjs/stator 2.9.0 — 2026-08-28
+
+Images are part of Stator. One config line — `images: { dir: 'media' }` — mounts an endpoint whose contract is that **the URL's extension is the delivery format**: request `/media/2026/08/x.webp?w=800` and the stored JPEG is converted and resized to honor it, never the other way around, and never by `Accept`-header or user-agent sniffing. Widths come from an allowlist because an open resize parameter is a denial-of-service invitation, variants cache on disk beside the originals, and every response revalidates with a bodyless 304. Transformation is sharp behind a swappable `ImageTransformer` adapter, loaded lazily — an app that doesn't configure images mounts no routes and never loads it.
+
+The render half ships as `<Image>` and `<Picture>` on the components subpath, with `getImage()` as the pure resolver beneath them. Every image gets `width`/`height` (the browser reserves the box before a byte loads), a `srcset` over the endpoint, and lazy loading by default with a `priority` escape hatch for the one above-the-fold image. The rule that makes it all hold: **dimensions are data, not IO** — you probe them once at upload (`probeImage`) and store them, because renders are synchronous and never touch pixels. The whole design was built and proven inside the `indie-blog` example first; this release is that proof promoted, and the example now gets to delete its own version.
+
 ## @statorjs/stator 2.8.0 — 2026-08-27
 
 The serving layer learns to cache. Static responses carried no caching headers at all, so every repeat request paid for the full body. Now the framework's hashed-output namespace — `/static/assets/*`, island bundles and emitted URL assets — ships `immutable` for a year, safe because a content-addressed URL can never change its bytes, and every other static file answers revalidation with a bodyless 304 (`ETag` + `Last-Modified`), so a font or stylesheet costs its bytes once per actual change. AVIF images and TTF/OTF fonts get real content types instead of octet-stream. The dev servers keep serving `no-cache` — an edit always shows.

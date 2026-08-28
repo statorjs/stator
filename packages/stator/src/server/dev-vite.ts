@@ -13,6 +13,7 @@ import { findFreePort, installGracefulShutdown, printDevBanner } from './banner.
 import { resolveAppConfig } from './config-compat.ts'
 import type { DevApp, DevAppConfig } from './dev.ts'
 import { loadDotenv } from './env.ts'
+import { resolveImagesConfig } from './images.ts'
 import { logger, setLogLevel } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
@@ -73,6 +74,7 @@ export async function createViteDevApp(config: DevAppConfig): Promise<DevApp> {
   const loader = (file: string) => vite.ssrLoadModule(file) as Promise<Record<string, unknown>>
 
   const root = resolve(config.root)
+  const images = config.images ? resolveImagesConfig(config.images) : undefined
   const machinesDir = resolve(config.machinesDir)
   const routesDir = resolve(config.routesDir)
   const resolved = resolveAppConfig(config)
@@ -201,6 +203,7 @@ export async function createViteDevApp(config: DevAppConfig): Promise<DevApp> {
       routes,
       store,
       staticDir: config.staticDir,
+      images,
       headExtras,
       inspector: inspectorOn,
       inspect: true,

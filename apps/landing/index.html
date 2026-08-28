@@ -494,6 +494,7 @@ actor.<span class="c-f">send</span>({ type: <span class="c-s">'RUN'</span>, quer
             <li>State machines with typed events, guards, actions, selectors</li>
             <li>Client machines + custom elements; <code class="inline">read()</code> / <code class="inline">on:</code> / <code class="inline">ref:</code></li>
             <li>Live-connection lifecycle — a live page hands its SSE channel back while its tab is hidden and resyncs on return, so tabs left open stop spending the browser's per-origin connection budget (2.9)</li>
+            <li>Images — a config-mounted endpoint (extension = delivery format, allowlisted widths, cached variants) + <code class="inline">&lt;Image&gt;</code>/<code class="inline">&lt;Picture&gt;</code> with CLS-safe dimensions from write-time data (2.9)</li>
             <li>HTTP caching for static files — hashed assets served immutable, everything else ETag-revalidated with bodyless 304s (2.8)</li>
             <li>Machine inspection — a Machines tab in the dev toolbar with every machine's live state, context, accepted events, and route cross-links, on a public <code class="inline">describeMachine()</code> substrate (2.7)</li>
             <li>Native dev server — <code class="inline">stator dev</code> runs your app from its source tree exactly as production runs a build, one module graph, no dev-only transforms, source-mapped traces (2.6)</li>

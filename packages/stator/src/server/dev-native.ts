@@ -29,6 +29,7 @@ import { discoverMachines } from './discovery.ts'
 import { wireAppEffects } from './effects.ts'
 import { loadDotenv } from './env.ts'
 import { buildHonoApp, contentTypeFor } from './http.ts'
+import { resolveImagesConfig } from './images.ts'
 import { logger, setLogLevel } from './logger.ts'
 import { codeHashOf, codeInputsOf } from './machine-hash.ts'
 import { MachineStore } from './machine-store.ts'
@@ -133,6 +134,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   const machinesDir = real(resolve(config.machinesDir))
   const routesDir = real(resolve(config.routesDir))
   const staticDir = config.staticDir ? real(resolve(config.staticDir)) : resolve(root, 'static')
+  const images = config.images ? resolveImagesConfig(config.images) : undefined
   // One build-id per successful BUILD, not per process. Connected pages reload
   // through the dev signal, but a page whose channel was released while it sat
   // in the background (or dropped over a blip) never sees that signal — it
@@ -428,6 +430,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
     const middleware = await discoverMiddleware(resolve(root, 'middleware.ts'), bust)
     await remapRoutes()
     app = await buildHonoApp({
+      images,
       routes,
       store,
       staticDir,
