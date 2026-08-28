@@ -168,7 +168,7 @@ The shapes that cross the server/client boundary, re-exported for API routes and
 ```ts
 interface ImageTransformer {
   probe(bytes: Uint8Array): Promise<{ width: number | null; height: number | null }>
-  transform(input: Uint8Array, opts: { width?: number; format: 'jpeg' | 'png' | 'webp' | 'avif' }): Promise<Uint8Array>
+  transform(input: Uint8Array, opts: { width?: number; height?: number; format: 'jpeg' | 'png' | 'webp' | 'avif' }): Promise<Uint8Array>
 }
 function sharpTransformer(): ImageTransformer   // the default implementation
 function probeImage(bytes: Uint8Array, transformer?: ImageTransformer): Promise<{ width: number | null; height: number | null }>

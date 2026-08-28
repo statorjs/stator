@@ -139,6 +139,7 @@ export function makeScope(prefix: string): Scope {
 }
 
 export interface RenderState {
+  images?: import('./images.ts').ImagesRenderInfo
   sessionId: SessionId
   routeKey: string
   bindings: Map<SlotId, Binding>
@@ -185,6 +186,14 @@ export function createRenderState(sessionId: SessionId, routeKey: string): Rende
 }
 
 let currentRenderState: RenderState | null = null
+
+/** The images config as the render side sees it (set by renderRoute from
+ *  HttpConfig). Components read it so their srcset widths and crop aspects
+ *  can't drift from what the endpoint accepts; null outside a configured
+ *  render (tests, apps without `images`). */
+export function currentImages(): import('./images.ts').ImagesRenderInfo | null {
+  return currentRenderState?.images ?? null
+}
 
 export function getCurrentRenderState(): RenderState | null {
   return currentRenderState

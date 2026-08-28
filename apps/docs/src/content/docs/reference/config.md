@@ -51,6 +51,7 @@ interface StatorConfig {
     dir: string          // originals directory (runtime data, NOT static/); mounts the endpoint
     path?: string        // URL prefix; default '/' + basename(dir)
     widths?: number[]    // ?w= allowlist + default srcset widths; default [400, 800, 1200, 1600]
+    aspectRatios?: number[]  // ?h= crop aspects (w/h); default square, 4:3, 3:2, 16:9 + portrait duals
     transformer?: ImageTransformer  // swap sharp for another implementation
   }
   logging?: {

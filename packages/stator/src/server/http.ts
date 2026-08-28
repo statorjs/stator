@@ -9,7 +9,7 @@ import { applyRenderedEffects, runApiRoute } from './api-route.ts'
 import { crossSiteGuard } from './csrf.ts'
 import { scheduleSessionEffects } from './effects.ts'
 import { record, replayFor } from './event-dedupe.ts'
-import { type ResolvedImagesConfig, serveImage } from './images.ts'
+import { type ImagesRenderInfo, type ResolvedImagesConfig, serveImage } from './images.ts'
 import { buildInspectPayload } from './inspect.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
@@ -158,6 +158,11 @@ function parseRouteKey(
 
 export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   const app = new Hono()
+  // Render-side view of the images config: `<Image>`/`<Picture>` read this
+  // from the render state so their URLs can't drift from the endpoint.
+  const imagesInfo = config.images
+    ? { widths: config.images.widths, aspectRatios: config.images.aspectRatios }
+    : undefined
   const clientJs = await bundleClient()
 
   // Request logger: one line per request with method, path, status, duration.
@@ -329,15 +334,21 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
   if (config.images) {
     const images = config.images
-    app.get(`${images.path}/*`, (c) =>
-      serveImage(
+    app.get(`${images.path}/*`, (c) => {
+      let rel: string
+      try {
+        rel = decodeURIComponent(c.req.path.slice(images.path.length + 1))
+      } catch {
+        return c.text('not found', 404) // malformed percent-encoding is a 404, not a 500
+      }
+      return serveImage(
         images,
-        decodeURIComponent(c.req.path.slice(images.path.length + 1)),
+        rel,
         c.req.query('w'),
         c.req.query('h'),
         c.req.header('if-none-match') ?? null,
-      ),
-    )
+      )
+    })
   }
 
   // SSE endpoint. The connection's runtime + renderState stay alive for
@@ -392,7 +403,9 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
       const runtime = new SessionRuntime(sessionId, config.store)
       await runtime.loadGraph(route.reads)
-      const { renderState } = await renderRoute(route, routeKey, sessionId, runtime, request)
+      const { renderState } = await renderRoute(route, routeKey, sessionId, runtime, request, {
+        images: imagesInfo,
+      })
       const conn = registerConnection({
         sessionId,
         clientId: c.req.query('client'),
@@ -524,6 +537,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         // resolve defer slots here (that would kick their I/O under the lock).
         const { renderState } = await renderRoute(route, routeKey, sessionId, runtime, request, {
           resolveDeferred: false,
+          images: imagesInfo,
         })
 
         const touched = runtime.processEvent(body.machine, body.event)
@@ -591,6 +605,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       config.store,
       config.headExtras,
       config.buildId,
+      imagesInfo,
     )
   })
 
@@ -663,6 +678,7 @@ async function handleGet(
   store: MachineStore,
   headExtras?: (filePath: string) => string | Promise<string>,
   buildId?: string,
+  images?: ImagesRenderInfo,
 ): Promise<Response> {
   {
     const { sessionId } = getOrCreateSessionId(c)
@@ -673,7 +689,7 @@ async function handleGet(
     const runtime = new SessionRuntime(sessionId, store)
     try {
       await runtime.loadGraph(route.reads)
-      const result = await renderRoute(route, routeKey, sessionId, runtime, request)
+      const result = await renderRoute(route, routeKey, sessionId, runtime, request, { images })
       let html = result.html
 
       const headHtml: string[] = []

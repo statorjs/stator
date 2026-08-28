@@ -60,6 +60,22 @@ export function sharpTransformer(): ImageTransformer {
 
 export const DEFAULT_IMAGE_WIDTHS = [400, 800, 1200, 1600]
 
+/** Crop aspect allowlist (width/height): square, the photographic landscape
+ *  trio, and their portrait duals. A crop `?w=&h=` is valid iff `w` is an
+ *  allowlisted width AND `h === round(w / a)` for an allowlisted aspect — the
+ *  variant space stays finite (|widths| x |aspects|) while the aspects people
+ *  actually shoot in (16:9, 3:2, 4:3) all work. (The first cut required
+ *  `h ∈ widths`, which silently forbade every non-square aspect — caught in
+ *  review before the URL grammar froze.) */
+export const DEFAULT_IMAGE_ASPECT_RATIOS = [1, 4 / 3, 3 / 2, 16 / 9, 3 / 4, 2 / 3, 9 / 16]
+
+/** What the render side needs to emit URLs the endpoint will accept — carried
+ *  on the render state so `<Image>`/`<Picture>` can't drift from config. */
+export interface ImagesRenderInfo {
+  widths: number[]
+  aspectRatios: number[]
+}
+
 export const IMAGE_CONTENT_TYPES: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
@@ -71,11 +87,16 @@ export const IMAGE_CONTENT_TYPES: Record<string, string> = {
 
 const TRANSCODE_TARGETS = new Set(['jpg', 'jpeg', 'png', 'webp', 'avif'])
 
+/** Cold-cache stampede guard: N concurrent requests for the same missing
+ *  variant share one encode instead of N. Keyed by cache path. */
+const inflight = new Map<string, Promise<void>>()
+
 export interface ResolvedImagesConfig {
   dir: string
   /** URL prefix (leading slash, no trailing). */
   path: string
   widths: number[]
+  aspectRatios: number[]
   transformer: ImageTransformer
 }
 
@@ -83,6 +104,7 @@ export function resolveImagesConfig(config: {
   dir: string
   path?: string
   widths?: number[]
+  aspectRatios?: number[]
   transformer?: ImageTransformer
 }): ResolvedImagesConfig {
   const dir = resolve(config.dir)
@@ -91,6 +113,7 @@ export function resolveImagesConfig(config: {
     dir,
     path: path.startsWith('/') ? path : `/${path}`,
     widths: config.widths ?? DEFAULT_IMAGE_WIDTHS,
+    aspectRatios: config.aspectRatios ?? DEFAULT_IMAGE_ASPECT_RATIOS,
     transformer: config.transformer ?? sharpTransformer(),
   }
 }
@@ -115,6 +138,9 @@ function resolveOriginal(
 ): { full: string; ext: string } | null {
   const dot = rel.lastIndexOf('.')
   if (dot === -1) return null
+  // No dotfile path segments: keeps the `.variants/` cache (and anything
+  // hidden) unreachable through the endpoint — no variants-of-variants.
+  if (rel.split('/').some((seg) => seg.startsWith('.'))) return null
   const base = rel.slice(0, dot)
   for (const ext of Object.keys(IMAGE_CONTENT_TYPES)) {
     const full = resolve(config.dir, `${base}.${ext}`)
@@ -146,10 +172,12 @@ export async function serveImage(
   }
   let height: number | undefined
   if (heightParam !== undefined) {
-    // A crop needs both axes, each from the allowlist — the DoS bound.
+    // A crop needs both axes: `w` from the width allowlist, `h` derived from
+    // an allowlisted aspect — the finite-variant DoS bound, |widths|x|aspects|.
     height = Number(heightParam)
-    if (width === undefined || !config.widths.includes(height)) {
-      return new Response(`h requires w, both from ${config.widths.join(', ')}`, { status: 400 })
+    const w = width
+    if (w === undefined || !config.aspectRatios.some((a) => height === Math.round(w / a))) {
+      return new Response('h requires w, and w/h must match an allowlisted aspect', { status: 400 })
     }
   }
 
@@ -177,15 +205,22 @@ export async function serveImage(
     )
     const fresh = existsSync(cache) && statSync(cache).mtimeMs >= statSync(original.full).mtimeMs
     if (!fresh) {
-      const format =
-        requestedExt === 'jpg' ? 'jpeg' : (requestedExt as 'jpeg' | 'png' | 'webp' | 'avif')
-      const out = await config.transformer.transform(
-        new Uint8Array(await readFile(original.full)),
-        { width, height, format },
-      )
-      mkdirSync(dirname(cache), { recursive: true })
-      const { writeFile } = await import('node:fs/promises')
-      await writeFile(cache, out)
+      let job = inflight.get(cache)
+      if (!job) {
+        const format =
+          requestedExt === 'jpg' ? 'jpeg' : (requestedExt as 'jpeg' | 'png' | 'webp' | 'avif')
+        job = (async () => {
+          const out = await config.transformer.transform(
+            new Uint8Array(await readFile(original.full)),
+            { width, height, format },
+          )
+          mkdirSync(dirname(cache), { recursive: true })
+          const { writeFile } = await import('node:fs/promises')
+          await writeFile(cache, out)
+        })().finally(() => inflight.delete(cache))
+        inflight.set(cache, job)
+      }
+      await job
     }
     file = cache
   }

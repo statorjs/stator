@@ -24,7 +24,7 @@ const { post, mentions } = Stator.props<{
         alt={post.photo_alt ?? ''}
         sizes="(max-width: 44rem) 100vw, 44rem"
         class="u-photo"
-        sources={[{ media: '(max-width: 30rem)', aspect: 1, sizes: '100vw' }]}
+        sources={[{ media: '(max-width: 30rem)', aspectRatio: 1, sizes: '100vw' }]}
       />
     </a>
   ) : null}

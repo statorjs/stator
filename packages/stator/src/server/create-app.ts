@@ -68,6 +68,7 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
     dir: string
     path?: string
     widths?: number[]
+    aspectRatios?: number[]
     transformer?: ImageTransformer
   }
   /** Origins allowed to make cross-site writes despite the CSRF guard (exact or

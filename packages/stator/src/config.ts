@@ -105,6 +105,10 @@ export interface StatorConfig {
      *  emits. An allowlist because an open resize parameter is a
      *  denial-of-service invitation. Default: `[400, 800, 1200, 1600]`. */
     widths?: number[]
+    /** Crop aspect allowlist (width/height) for `?w=&h=` cover-crops and
+     *  `<Picture>` art direction. Default: square, 4:3, 3:2, 16:9 and their
+     *  portrait duals. The variant space stays |widths| x |aspectRatios|. */
+    aspectRatios?: number[]
     /** Swap the transformer (default: sharp). See `ImageTransformer`. */
     transformer?: import('./server/images.ts').ImageTransformer
   }

@@ -3,9 +3,16 @@ import { getImage, Image, Picture } from '../src/components/images.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import type { HtmlFragment } from '../src/template/types.ts'
 
-/** html`` needs a render context; these components are static, so any works. */
-function rendered(make: () => HtmlFragment): string {
-  return runInRender(createRenderState('test-session', 'GET /'), make).html
+/** html`` needs a render context; these components are static, so any works.
+ *  Pass `images` to simulate rendering inside an app with images configured
+ *  (the endpoint's widths/aspects carried on the render state). */
+function rendered(
+  make: () => HtmlFragment,
+  images?: { widths: number[]; aspectRatios: number[] },
+): string {
+  const state = createRenderState('test-session', 'GET /')
+  state.images = images
+  return runInRender(state, make).html
 }
 
 describe('getImage', () => {
@@ -91,7 +98,7 @@ describe('<Picture> art direction', () => {
         width: 1600,
         height: 900,
         alt: 'x',
-        sources: [{ media: '(max-width: 30rem)', aspect: 1, sizes: '100vw' }],
+        sources: [{ media: '(max-width: 30rem)', aspectRatio: 1, sizes: '100vw' }],
       }),
     )
     // Art-directed rows carry media + cropped w&h URLs (square: h === w).
@@ -105,20 +112,44 @@ describe('<Picture> art direction', () => {
     expect(html.indexOf('media=')).toBeLessThan(html.indexOf('/media/x.avif?w=400 400w'))
   })
 
-  it('skips candidate widths whose derived crop height misses the allowlist', () => {
+  it('photographic aspects emit every candidate width (16:9 was impossible under the first cut)', () => {
     const html = rendered(() =>
       Picture({
         src: '/media/x.jpg',
         width: 2000,
         height: 1000,
         alt: 'x',
-        sources: [{ media: '(min-width: 60rem)', aspect: 2 }],
+        sources: [{ media: '(min-width: 60rem)', aspectRatio: 16 / 9 }],
       }),
     )
-    // aspect 2: only w=800 (h=400) and w=1600 (h=800) land on the allowlist.
-    expect(html).toContain('/media/x.avif?w=800&amp;h=400 800w')
-    expect(html).toContain('/media/x.avif?w=1600&amp;h=800 1600w')
-    expect(html).not.toContain('w=400&amp;h=200')
-    expect(html).not.toContain('w=1200&amp;h=600')
+    expect(html).toContain('/media/x.avif?w=400&amp;h=225 400w')
+    expect(html).toContain('/media/x.avif?w=800&amp;h=450 800w')
+    expect(html).toContain('/media/x.avif?w=1600&amp;h=900 1600w')
+  })
+
+  it('an aspectRatio missing from the configured allowlist throws — never a silent drop', () => {
+    expect(() =>
+      rendered(
+        () =>
+          Picture({
+            src: '/media/x.jpg',
+            width: 2000,
+            height: 1000,
+            alt: 'x',
+            sources: [{ media: '(min-width: 60rem)', aspectRatio: 2.35 }],
+          }),
+        { widths: [400, 800], aspectRatios: [1, 16 / 9] },
+      ),
+    ).toThrow(/aspectRatio 2.35/)
+  })
+
+  it('srcset widths follow the CONFIGURED allowlist from the render state — no drift', () => {
+    const html = rendered(
+      () => Image({ src: '/media/x.jpg', width: 1000, height: 500, alt: 'x' }),
+      { widths: [320, 640, 960], aspectRatios: [1] },
+    )
+    expect(html).toContain('/media/x.jpg?w=320 320w')
+    expect(html).toContain('/media/x.jpg?w=640 640w')
+    expect(html).not.toContain('w=400')
   })
 })
