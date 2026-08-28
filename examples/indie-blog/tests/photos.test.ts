@@ -93,6 +93,16 @@ describe('photo posts over multipart', () => {
     expect(etag).toBeTruthy()
     const revalidated = await fetch(`${base}${src}`, { headers: { 'If-None-Match': etag! } })
     expect(revalidated.status).toBe(304)
+
+    // Intrinsic dimensions were probed at upload and rendered for CLS.
+    expect(html).toMatch(/width="1"[^>]*height="1"|height="1"[^>]*width="1"/)
+
+    // The URL's extension is the delivery format: request the stored PNG as
+    // webp and the endpoint transcodes. An off-allowlist width is a 400.
+    const webp = await fetch(`${base}${src!.replace(/\.png$/, '.webp')}?w=400`)
+    expect(webp.status).toBe(200)
+    expect(webp.headers.get('content-type')).toBe('image/webp')
+    expect((await fetch(`${base}${src}?w=999`)).status).toBe(400)
   })
 
   it('rejects a photo without alt text', async () => {

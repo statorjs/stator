@@ -43,14 +43,16 @@ export const POST = defineApiRoute({
     const kind = discoverKind(titleRaw, content, photo !== null)
     let slug = slugify(titleRaw !== '' ? titleRaw : content.slice(0, 40))
     if (postBySlug(slug)) slug = `${slug}-${Date.now().toString(36)}`
-    const photoPath = photo ? await saveOriginal(photo, slug) : null
+    const saved = photo ? await saveOriginal(photo, slug) : null
     const post = createPost({
       slug,
       kind,
       title: titleRaw === '' ? null : titleRaw,
       content,
-      photo_path: photoPath,
+      photo_path: saved?.rel ?? null,
       photo_alt: photo ? photoAlt : null,
+      photo_width: saved?.width ?? null,
+      photo_height: saved?.height ?? null,
     })
 
     const targets = [...outboundLinks(content), ...SYNDICATION_TARGETS]

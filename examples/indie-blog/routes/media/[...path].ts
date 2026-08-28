@@ -1,18 +1,28 @@
 import { readFile, stat } from 'node:fs/promises'
 import { defineApiRoute } from '@statorjs/stator/server'
-import { mediaFile } from '../../lib/media.ts'
+import { VARIANT_WIDTHS, variantFile } from '../../lib/media.ts'
 
 /**
- * Serve uploaded media by dated catch-all path (`/media/2026/08/slug.jpg`).
- * Raw `Response`s bypass the data-route ETag machinery, so conditional-GET is
- * hand-rolled here: strong ETag from size+mtime, bodyless 304 on a match.
- * (On-demand resized/re-encoded variants — `?w=`, format by extension — are
- * the next step on this route; originals only for now.)
+ * Serve uploaded media by dated catch-all path, with on-demand variants:
+ * the URL's extension is the delivery format (request `x.webp` of a stored
+ * `x.jpg` and the endpoint converts — it never lies about an extension), and
+ * `?w=` resizes to an allowlisted width. Variants cache on disk beside the
+ * originals. Raw `Response`s bypass the data-route ETag machinery, so
+ * conditional-GET is hand-rolled: strong ETag from the served file's
+ * size+mtime, bodyless 304 on a match.
  */
 export const GET = defineApiRoute({
   method: 'GET',
   handler: async (request) => {
-    const media = mediaFile(request.params.path ?? '')
+    const w = request.query.w
+    let width: number | null = null
+    if (w !== undefined) {
+      width = Number(w)
+      if (!VARIANT_WIDTHS.includes(width)) {
+        return new Response(`w must be one of ${VARIANT_WIDTHS.join(', ')}`, { status: 400 })
+      }
+    }
+    const media = await variantFile(request.params.path ?? '', width).catch(() => null)
     if (!media) return new Response('not found', { status: 404 })
     try {
       const st = await stat(media.full)
