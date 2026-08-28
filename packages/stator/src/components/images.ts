@@ -1,3 +1,5 @@
+import { DEFAULT_IMAGE_WIDTHS } from '../server/images.ts'
+import { currentImages } from '../server/render-context.ts'
 import { html } from '../template/html.ts'
 import type { HtmlFragment } from '../template/types.ts'
 
@@ -30,8 +32,9 @@ export type GetImageOptions = ImageDims & {
   /** Delivery format for src/srcset URLs — defaults to the URL's extension. */
   format?: ImageFormat
   /** Candidate srcset widths; filtered to those below the intrinsic width.
-   *  Default `[400, 800, 1200, 1600]` — mirror your `images.widths` config
-   *  if you changed it. */
+   *  Defaults to the CONFIGURED `images.widths` when rendering inside an app
+   *  with images configured (read from the render state — no drift), else the
+   *  shipped default. */
   widths?: number[]
 }
 
@@ -42,7 +45,13 @@ export interface ResolvedImage {
   height: number
 }
 
-const DEFAULT_WIDTHS = [400, 800, 1200, 1600]
+/** Widths for srcset candidates: the explicit prop wins, then the CONFIGURED
+ *  endpoint allowlist (carried on the render state, so components can't emit
+ *  a `?w=` the endpoint rejects), then the shipped default — the same one the
+ *  endpoint defaults to, imported, not copied. */
+function effectiveWidths(explicit: number[] | undefined): number[] {
+  return explicit ?? currentImages()?.widths ?? DEFAULT_IMAGE_WIDTHS
+}
 
 const isRemote = (src: string): boolean => /^[a-z][a-z0-9+.-]*:|^\/\//i.test(src)
 
@@ -62,7 +71,7 @@ export function getImage(opts: GetImageOptions): ResolvedImage {
     return { src: opts.src, srcset: null, width, height }
   }
   const base = withFormat(opts.src, opts.format)
-  const candidates = (opts.widths ?? DEFAULT_WIDTHS).filter((w) => w < width)
+  const candidates = effectiveWidths(opts.widths).filter((w) => w < width)
   const srcset =
     candidates.length > 0 ? candidates.map((w) => `${base}?w=${w} ${w}w`).join(', ') : null
   return { src: base, srcset, width, height }
@@ -97,14 +106,14 @@ export function Image(props: ImageProps): HtmlFragment {
 }
 
 /** An art-directed source: under `media`, serve a different GEOMETRY — an
- *  `aspect` (width/height) the endpoint cover-crops to. Both crop axes must
- *  land on the width allowlist, so pick aspects whose `round(w / aspect)` hits
- *  allowlisted values (1 always works; with the default widths so do 2, 3,
- *  1/2, 4/3 at some widths — off-allowlist heights are skipped per width). */
+ *  `aspectRatio` (width/height) the endpoint cover-crops to. The ratio must be
+ *  on the endpoint's aspect allowlist (`images.aspectRatios`; default covers
+ *  square, 4:3, 3:2, 16:9 and their portrait duals) — an unlisted ratio is a
+ *  render error, not a silently dropped source. */
 export interface PictureSource {
   media: string
-  /** width / height. `1` = square crop. */
-  aspect: number
+  /** width / height of the crop. `1` = square, `16 / 9` = widescreen. */
+  aspectRatio: number
   sizes?: string
   widths?: number[]
 }
@@ -127,21 +136,29 @@ const SOURCE_TYPES: Record<ImageFormat, string> = {
 }
 
 /** Cropped srcset for an art-directed source: every allowlisted candidate
- *  width whose derived height is ALSO allowlisted (the endpoint's crop bound)
- *  and that stays below the intrinsic width. */
+ *  width below the intrinsic width, at `h = round(w / aspectRatio)`. The
+ *  ratio itself is validated against the endpoint's aspect allowlist when a
+ *  configured render provides one — a mismatch is an error (the URLs would
+ *  400), never a silent drop. */
 function croppedSrcset(
   src: string,
   format: ImageFormat | undefined,
   widths: number[],
-  aspect: number,
+  aspectRatio: number,
   intrinsicWidth: number,
 ): string | null {
+  const allowed = currentImages()?.aspectRatios
+  if (allowed && !allowed.some((a) => Math.abs(a - aspectRatio) < 1e-9)) {
+    throw new Error(
+      `stator: <Picture> source aspectRatio ${aspectRatio} is not in images.aspectRatios ` +
+        `(${allowed.map((a) => a.toFixed(4)).join(', ')}) — the endpoint would reject its URLs. ` +
+        `Add it to the config allowlist or use a listed ratio.`,
+    )
+  }
   const base = withFormat(src, format)
   const entries = widths
     .filter((w) => w < intrinsicWidth)
-    .map((w) => ({ w, h: Math.round(w / aspect) }))
-    .filter(({ h }) => widths.includes(h))
-    .map(({ w, h }) => `${base}?w=${w}&h=${h} ${w}w`)
+    .map((w) => `${base}?w=${w}&h=${Math.round(w / aspectRatio)} ${w}w`)
   return entries.length > 0 ? entries.join(', ') : null
 }
 
@@ -150,7 +167,7 @@ export function Picture(props: PictureProps): HtmlFragment {
   if (isRemote(props.src)) return Image(imageProps)
 
   const storedExt = props.src.slice(props.src.lastIndexOf('.') + 1).toLowerCase() as ImageFormat
-  const widths = props.widths ?? DEFAULT_WIDTHS
+  const widths = effectiveWidths(props.widths)
   const sizes = props.sizes ?? '100vw'
 
   // Art-directed sources come FIRST (the browser takes the first media+type
@@ -167,7 +184,7 @@ export function Picture(props: PictureProps): HtmlFragment {
           props.src,
           format as ImageFormat,
           source.widths ?? widths,
-          source.aspect,
+          source.aspectRatio,
           props.width,
         ),
         sizes: source.sizes ?? sizes,
