@@ -171,7 +171,7 @@ interface ImageTransformer {
   transform(input: Uint8Array, opts: { width?: number; format: 'jpeg' | 'png' | 'webp' | 'avif' }): Promise<Uint8Array>
 }
 function sharpTransformer(): ImageTransformer   // the default implementation
-function probeImage(config: ResolvedImagesConfig, bytes: Uint8Array): Promise<{ width: number | null; height: number | null }>
+function probeImage(bytes: Uint8Array, transformer?: ImageTransformer): Promise<{ width: number | null; height: number | null }>
 ```
 
 The transformer seam behind the [image endpoint](/guides/styling-and-assets/#images): pure bytes-in/bytes-out, so the default (sharp, lazy-imported — image-free apps never load it) can be swapped via `images.transformer` in config. The framework owns everything around the adapter — path resolution, the variant disk cache, conditional GET. `probeImage` is for upload handlers: probe intrinsic dimensions **once at write time** and store them beside the file path; renders are synchronous and never do image IO, which is why [`<Image>`](/reference/components/#image--picture) requires dimensions from data.

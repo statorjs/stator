@@ -40,7 +40,7 @@ Root `media/` convention dir (next major); Satori/OG image generation (separate 
 ## Success Criteria
 
 - An app adds `images: { dir: 'media' }` + drops `<Image src… />` in a template and gets variants, srcset, CLS-safe markup, and 304s with no app-level image code.
-- `examples/indie-blog`'s follow-up PR deletes its `lib/media.ts` variant machinery, `lib/images.ts`, and both components in favor of framework surface, with its photo tests still green — the evidence-before-primitives loop closing.
+- ~~`examples/indie-blog`'s follow-up PR deletes its `lib/media.ts` variant machinery, `lib/images.ts`, and both components in favor of framework surface, with its photo tests still green — the evidence-before-primitives loop closing.~~ **PROVEN IN-BRANCH** (Tony's call: ship the dogfood with the feature): the migration rides this PR, all 36 example tests green with original assertions, and it caught four API findings before release (paper-cut log #11 — `probeImage` signature flattened, the root-export gap, config duplication for in-process test boots, plain-node scripts vs raw-TS).
 - An unconfigured app has zero new routes, zero sharp in its module graph, and byte-identical behavior.
 - The dimensions requirement on remote images is a compile error, verified in the template-check tests.
 

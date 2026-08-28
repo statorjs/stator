@@ -30,6 +30,9 @@ beforeAll(async () => {
     machinesDir: join(here, 'machines'),
     routesDir: join(here, 'routes'),
     staticDir: join(here, 'static'),
+    // In-process boots don't read stator.config.ts (the CLI loads it) — pass
+    // the images config the way the config file does.
+    images: { dir: process.env.INDIE_BLOG_MEDIA as string, path: '/media' },
   })
   await app.listen(PORT)
 }, 30_000)
