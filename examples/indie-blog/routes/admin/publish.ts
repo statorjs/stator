@@ -27,8 +27,9 @@ export const POST = defineApiRoute({
     if (contentError(content)) {
       return { directives: [{ type: 'navigate', to: '/admin?error=content' }] }
     }
-    if (photo && photoError(photo, photoAlt)) {
-      return { directives: [{ type: 'navigate', to: '/admin?error=photo' }] }
+    const photoProblem = photo ? photoError(photo, photoAlt) : null
+    if (photoProblem) {
+      return { directives: [{ type: 'navigate', to: `/admin?error=${photoProblem}` }] }
     }
 
     // Auth probe: a zero-target publish still must prove the session. The

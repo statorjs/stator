@@ -111,7 +111,7 @@ describe('photo posts over multipart', () => {
   it('rejects a photo without alt text', async () => {
     const photo = new File([PNG], 'x.png', { type: 'image/png' })
     const result = await publish(sid, { title: '', content: 'No alt.', photo_alt: '' }, photo)
-    expect(result.directives?.[0]?.to).toBe('/admin?error=photo')
+    expect(result.directives?.[0]?.to).toBe('/admin?error=photo-alt')
   })
 
   it('a media path that escapes the dir or has no known extension 404s', async () => {
