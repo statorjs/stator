@@ -4,7 +4,7 @@ The oldest idea on the web, on the newest architecture. One page, shared by ever
 
 ```bash
 pnpm install
-pnpm dev        # http://localhost:3002 — open it in two windows
+pnpm dev        # http://localhost:3000 — open it in two windows
 ```
 
 ## How it works
