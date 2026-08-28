@@ -39,6 +39,50 @@ importers:
 
   apps/landing: {}
 
+  apps/private/build-spike:
+    dependencies:
+      '@statorjs/stator':
+        specifier: workspace:*
+        version: link:../../../packages/stator
+      xstate:
+        specifier: ^5.18.0
+        version: 5.32.6
+    devDependencies:
+      '@types/node':
+        specifier: ^22.7.0
+        version: 22.19.19
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vite:
+        specifier: ^6.0.0
+        version: 6.4.3(@types/node@22.19.19)(tsx@4.21.0)(yaml@2.9.0)
+
+  apps/private/spike:
+    dependencies:
+      '@statorjs/stator':
+        specifier: workspace:*
+        version: link:../../../packages/stator
+      xstate:
+        specifier: ^5.18.0
+        version: 5.32.6
+    devDependencies:
+      '@types/node':
+        specifier: ^22.7.0
+        version: 22.19.19
+      esbuild:
+        specifier: ^0.24.0
+        version: 0.24.2
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   apps/store:
     dependencies:
       '@statorjs/stator':
@@ -148,6 +192,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/stator
     devDependencies:
+      '@fontsource-variable/literata':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@types/node':
         specifier: ^22.7.0
         version: 22.19.19
@@ -1302,6 +1349,9 @@ packages:
 
   '@expressive-code/plugin-text-markers@0.41.7':
     resolution: {integrity: sha512-Ewpwuc5t6eFdZmWlFyeuy3e1PTQC0jFvw2Q+2bpcWXbOZhPLsT7+h8lsSIJxb5mS7wZko7cKyQ2RLYDyK6Fpmw==}
+
+  '@fontsource-variable/literata@5.3.0':
+    resolution: {integrity: sha512-1Jw7xvOcoGyB83lxB2nG4bfNbqtX2/TTbdh9sHAOmU064SvmSdulDtA5RBu5JYWf64fdaKX7xU+z3GO1T2bCHA==}
 
   '@hono/node-server@1.19.14':
     resolution: {integrity: sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw==}
@@ -4844,6 +4894,9 @@ packages:
     resolution: {integrity: sha512-fDlsI/kFEx7gLvbecc0/ohLG50fugQp8ryHzMTuW9vSa1GJ0XYWKnhsUx7oie3G98+r56aTQIUB4kht42R3JvA==}
     engines: {node: '>=4.0'}
 
+  xstate@5.32.6:
+    resolution: {integrity: sha512-WfA8WNrh6r9osuGwVm+aIPM4jmMW2LKHV1Yv9thYpOtL4HVF/kobh95K/O8v2jDCpDmP2EoY+6uvuqHXCZ6ZLw==}
+
   xxhash-wasm@1.1.0:
     resolution: {integrity: sha512-147y/6YNh+tlp6nd/2pWq38i9h6mz/EuQ6njIrmW8D1BS5nCqs0P6DG+m6zTGnNz5I+uhZ0SHxBs9BsPrwcKDA==}
 
@@ -5653,6 +5706,8 @@ snapshots:
   '@expressive-code/plugin-text-markers@0.41.7':
     dependencies:
       '@expressive-code/core': 0.41.7
+
+  '@fontsource-variable/literata@5.3.0': {}
 
   '@hono/node-server@1.19.14(hono@4.12.18)':
     dependencies:
@@ -9885,6 +9940,8 @@ snapshots:
       xmlbuilder: 11.0.1
 
   xmlbuilder@11.0.1: {}
+
+  xstate@5.32.6: {}
 
   xxhash-wasm@1.1.0: {}
 

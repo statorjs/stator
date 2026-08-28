@@ -29,3 +29,11 @@ Verification effects fetch over real HTTP, so the wire test listens on a port an
 ## 6. Deferred by decision, logged for the next cut (2026-08-10)
 
 Mention updates/deletes (the spec allows re-sent mentions to modify earlier ones — the starter dedupes), a real mf2 parser (classification is regex-lite), and re-verification timers. None blocked the loop; all are good second-PR material alongside Micropub and the IndieAuth provider.
+
+## 7. A5 baseline: every anonymous read mints a session (2026-08-27, measured) — THE CACHING EVIDENCE
+
+Measured on the production path (`stator build` + `stator start`, in-memory store, empty index — render cost is the floor, not typical): cold GET / 11.7ms; warm anonymous median 0.4ms, p95 1.1ms; sessioned median 0.3ms. The load-bearing numbers: **500/500 cookie-less GETs carried Set-Cookie (100% mint a session)** and process RSS grew **~36KB per anonymous request** (+17.8MB over 500). Extrapolated: a crawler or a cookie-stripping CDN doing 100k requests parks ~3.5GB of session state until the 24h TTL. Script: `examples/indie-blog/scripts/measure-read-path.mjs`. This is the quantified case for lazy session establishment + derived Cache-Control (the read-path spec): the render is already fast — the cost is the state we mint for visitors who never needed any.
+
+## 8. A1 fonts: the recipe works end-to-end; the metrics step is the real friction (2026-08-27, build)
+
+Self-hosting Literata from `@fontsource-variable/literata` needed: a 15-line copy script (`scripts/sync-fonts.mjs`, wired to `predev`/`prebuild` — the step a `fonts` config would own), hand-written `@font-face` pairs, and the preload with its `crossorigin` gotcha. All fine. The genuine friction was the **metrics-adjusted fallback**: the numbers require external data (`@capsizecss/metrics` — whose org name is non-obvious; the first guess at the package 404'd) plus the fontaine formula applied by hand (size-adjust 107.67%, ascent 109.31%, descent 28.61% for Literata-over-Georgia). This is the part worth first-classing if a `fonts` config ever ships: generate the fallback face, not just copy files. Two more notes: the synced files are gitignored so tests must run the sync themselves (`predev` doesn't cover vitest); and the 2.8 static headers held up — the woff2 serves with `font/woff2` + ETag revalidation out of the box.
