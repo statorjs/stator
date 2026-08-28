@@ -55,3 +55,12 @@ body {
   color: var(--ink);
   background: var(--paper);
 }
+
+/* Photo posts — the framework <Image> carries no styles of its own. */
+article img.u-photo {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 0 0 0.8rem;
+}

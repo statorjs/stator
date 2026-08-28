@@ -89,12 +89,16 @@ export function resolveImagesConfig(config: {
   }
 }
 
-/** Write-time probe for app upload handlers — the render never does this. */
+/** Write-time probe for app upload handlers — the render never does this.
+ *  Defaults to the sharp transformer; pass your configured one if you swapped
+ *  it. (First dogfood finding: an earlier signature took the whole resolved
+ *  config, which apps don't hold — bytes + optional transformer is the shape
+ *  an upload handler actually has in hand.) */
 export async function probeImage(
-  config: ResolvedImagesConfig,
   bytes: Uint8Array,
+  transformer: ImageTransformer = sharpTransformer(),
 ): Promise<{ width: number | null; height: number | null }> {
-  return config.transformer.probe(bytes)
+  return transformer.probe(bytes)
 }
 
 /** Find the stored original for a requested relative path, whatever its

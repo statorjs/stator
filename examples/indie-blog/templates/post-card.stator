@@ -4,7 +4,7 @@ import type { InstanceOf } from '@statorjs/stator/template'
 import { renderContent } from '../lib/content.ts'
 import type { PostRow } from '../lib/db.ts'
 import type MentionsMachine from '../machines/mentions.ts'
-import Image from './image.stator'
+import { Image } from '@statorjs/stator/components'
 
 const { post, mentions } = Stator.props<{
   post: PostRow
@@ -15,9 +15,16 @@ const { post, mentions } = Stator.props<{
   {post.title ? (
     <h2 class="p-name"><a class="u-url" href={`/posts/${post.slug}`}>{post.title}</a></h2>
   ) : null}
-  {post.photo_path ? (
+  {post.photo_path && post.photo_width && post.photo_height ? (
     <a class="u-url" href={`/posts/${post.slug}`}>
-      <Image post={post} />
+      <Image
+        src={`/media/${post.photo_path}`}
+        width={post.photo_width}
+        height={post.photo_height}
+        alt={post.photo_alt ?? ''}
+        sizes="(max-width: 44rem) 100vw, 44rem"
+        class="u-photo"
+      />
     </a>
   ) : null}
   <div class="e-content">{raw(renderContent(post.content))}</div>
