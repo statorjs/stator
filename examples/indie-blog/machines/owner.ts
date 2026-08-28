@@ -1,7 +1,18 @@
 import { defineMachine } from '@statorjs/stator/server'
 import { verifyOwnerPassword } from '../lib/site.ts'
 
-type OwnerContext = { authed: boolean }
+/** A bounced compose submission, stashed so the re-rendered form pre-fills —
+ *  server-canonical draft RECOVERY, not keystroke state (the input still owns
+ *  its draft while typing; this exists only across a validation redirect).
+ *  The photo file itself can't round-trip — browsers forbid pre-filling file
+ *  inputs — so the text survives and the file is re-picked. */
+export interface ComposeDraft {
+  title: string
+  content: string
+  photoAlt: string
+}
+
+type OwnerContext = { authed: boolean; draft: ComposeDraft | null }
 
 type OwnerEvents =
   | { type: 'LOGIN'; password: string }
@@ -10,6 +21,8 @@ type OwnerEvents =
   | { type: 'REJECT_MENTION'; id: string }
   | { type: 'RETRY_TARGET'; key: string }
   | { type: 'PUBLISH_TARGET'; postSlug: string; sourceUrl: string; target: string }
+  | { type: 'STASH_DRAFT'; draft: ComposeDraft }
+  | { type: 'CLEAR_DRAFT' }
 
 /**
  * The owner's session — authentication in a guard, authorization on every
@@ -42,7 +55,7 @@ const OwnerMachine = defineMachine({
     },
   },
 
-  context: { authed: false } as OwnerContext,
+  context: { authed: false, draft: null } as OwnerContext,
   initial: 'idle',
   states: {
     idle: {
@@ -60,12 +73,25 @@ const OwnerMachine = defineMachine({
         REJECT_MENTION: { when: (ctx) => ctx.authed, emit: 'MENTION_REJECTED' },
         RETRY_TARGET: { when: (ctx) => ctx.authed, emit: 'TARGET_RETRIED' },
         PUBLISH_TARGET: { when: (ctx) => ctx.authed, emit: 'TARGET_QUEUED' },
+        STASH_DRAFT: {
+          when: (ctx) => ctx.authed,
+          do: (ctx, ev) => {
+            ctx.draft = ev.draft
+          },
+        },
+        CLEAR_DRAFT: {
+          when: (ctx) => ctx.authed,
+          do: (ctx) => {
+            ctx.draft = null
+          },
+        },
       },
     },
   },
 
   selectors: {
     authed: (ctx) => ctx.authed,
+    draft: (ctx) => ctx.draft,
   },
 })
 
