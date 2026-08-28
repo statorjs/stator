@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -196,5 +196,39 @@ describe('committed reflects actual transitions', () => {
     }
     expect(dropped.committed).toBe(false)
     expect(dropped.patches).toEqual([])
+  })
+})
+
+describe('static caching headers', () => {
+  it('serves user files with revalidation + 304s, and assets/ as immutable', async () => {
+    const staticDir = mkdtempSync(join(tmpdir(), 'stator-static-'))
+    writeFileSync(join(staticDir, 'site.css'), 'body{margin:0}')
+    mkdirSync(join(staticDir, 'assets'))
+    writeFileSync(join(staticDir, 'assets', 'app-AbCd1234.js'), 'export{}')
+    const app = await boot(staticDir)
+
+    const first = await app.fetch(new Request('http://localhost/static/site.css'))
+    expect(first.status).toBe(200)
+    expect(first.headers.get('cache-control')).toBe('public, max-age=0, must-revalidate')
+    const etag = first.headers.get('etag')
+    expect(etag).toMatch(/^"[0-9a-f]+-[0-9a-f]+"$/)
+    expect(first.headers.get('last-modified')).toBeTruthy()
+
+    const revalidated = await app.fetch(
+      new Request('http://localhost/static/site.css', { headers: { 'If-None-Match': etag! } }),
+    )
+    expect(revalidated.status).toBe(304)
+    expect(await revalidated.text()).toBe('')
+
+    const dated = await app.fetch(
+      new Request('http://localhost/static/site.css', {
+        headers: { 'If-Modified-Since': first.headers.get('last-modified')! },
+      }),
+    )
+    expect(dated.status).toBe(304)
+
+    const asset = await app.fetch(new Request('http://localhost/static/assets/app-AbCd1234.js'))
+    expect(asset.status).toBe(200)
+    expect(asset.headers.get('cache-control')).toBe('public, max-age=31536000, immutable')
   })
 })
