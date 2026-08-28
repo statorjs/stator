@@ -4,6 +4,7 @@ import type { InstanceOf } from '@statorjs/stator/template'
 import { renderContent } from '../lib/content.ts'
 import type { PostRow } from '../lib/db.ts'
 import type MentionsMachine from '../machines/mentions.ts'
+import Image from './image.stator'
 
 const { post, mentions } = Stator.props<{
   post: PostRow
@@ -13,6 +14,11 @@ const { post, mentions } = Stator.props<{
 <article class="h-entry">
   {post.title ? (
     <h2 class="p-name"><a class="u-url" href={`/posts/${post.slug}`}>{post.title}</a></h2>
+  ) : null}
+  {post.photo_path ? (
+    <a class="u-url" href={`/posts/${post.slug}`}>
+      <Image post={post} />
+    </a>
   ) : null}
   <div class="e-content">{raw(renderContent(post.content))}</div>
   <p>

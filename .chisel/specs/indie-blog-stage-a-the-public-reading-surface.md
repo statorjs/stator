@@ -50,7 +50,9 @@ Micropub + media endpoint, IndieAuth provider (Stage B — the example README's 
 - Baseline caching numbers recorded; the marker-cookie design note written.
 - Every friction point logged in the paper-cut log with enough detail to adjudicate promotion.
 
-## Decided (2026-08-27, Tony)
+## Decided (2026-08-27/28, Tony)
+
+- **Dimensions doctrine for the framework `<Image>` (2026-08-28, from the layout-jump investigation):** store-owned images resolve intrinsic dimensions at WRITE time (the upload probe — no render IO, no build step needed); any image the store doesn't own (remote URLs) must require declared `width`+`height` or an `aspect-ratio` in its props — as a type-level requirement, not a runtime warning. This is the Astro-era recommendation (local at build, remote declared) upgraded to a compile error. Legacy rows without stored dimensions reproduce the 0px-flash — `scripts/backfill-dimensions.mjs` is the migration shape.
 
 - This stage is the **POC for framework image support**: when images promote, sharp becomes a direct framework dependency behind a **generic transformer adapter** so users can swap the default implementation. The example's `getImage()` seam should anticipate that shape.
 - Transcoding contract confirmed: the stored original may be JPG and a request for `/media/…/x.webp` is served by converting on demand — the endpoint owns conversion, resize, and compression; the delivered bytes always match the requested extension.

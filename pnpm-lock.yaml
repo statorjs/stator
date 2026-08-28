@@ -191,6 +191,9 @@ importers:
       '@statorjs/stator':
         specifier: workspace:*
         version: link:../../packages/stator
+      sharp:
+        specifier: ^0.33.5
+        version: 0.33.5
     devDependencies:
       '@fontsource-variable/literata':
         specifier: ^5.3.0

@@ -28,6 +28,7 @@ pnpm dev
 | `INDIE_BLOG_PASSWORD` | owls-at-dusk | owner password (dev default — set your own) |
 | `INDIE_BLOG_SYNDICATE` | *(empty)* | comma-separated extra webmention targets (Bridgy publish endpoints) |
 | `INDIE_BLOG_DB` | `indie-blog.db` | SQLite path |
+| `INDIE_BLOG_MEDIA` | `media` | uploaded-photo directory (dated subpaths, served under `/media/`) |
 
 ## Layout
 

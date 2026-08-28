@@ -10,7 +10,7 @@ import { DatabaseSync } from 'node:sqlite'
  * (Requires Node 24+, matching the with-auth example.)
  */
 
-export type PostKind = 'note' | 'article'
+export type PostKind = 'note' | 'article' | 'photo'
 
 export interface PostRow {
   id: string
@@ -21,8 +21,18 @@ export interface PostRow {
   title: string | null
   /** Plain text. Paragraphs split on blank lines, URLs autolink at render.
    *  Bring your own markdown renderer if you want one — the starter stays
-   *  dependency-free on purpose. */
+   *  dependency-free on purpose (sharp, for image bytes, is the one
+   *  deliberate exception: there is no bring-your-own for pixels). */
   content: string
+  /** Photo posts: media-relative path (`2026/08/slug.jpg`) served under
+   *  `/media/`, and the required alt text. Null for other kinds. */
+  photo_path: string | null
+  photo_alt: string | null
+  /** Intrinsic dimensions, probed once at upload — write-time data, so the
+   *  synchronous render never does image IO. What makes `<Image>` emit
+   *  width/height (CLS) without a probe. */
+  photo_width: number | null
+  photo_height: number | null
   published_at: number
   updated_at: number
 }
@@ -39,10 +49,24 @@ function conn(): DatabaseSync {
       kind         TEXT NOT NULL,
       title        TEXT,
       content      TEXT NOT NULL,
+      photo_path   TEXT,
+      photo_alt    TEXT,
+      photo_width  INTEGER,
+      photo_height INTEGER,
       published_at INTEGER NOT NULL,
       updated_at   INTEGER NOT NULL
     )
   `)
+  // The photo columns arrived after the first cut; grow an existing DB in
+  // place. SQLite errors on a duplicate column — that's the idempotency check
+  // (this starter has no migration machinery on purpose).
+  for (const col of ['photo_path TEXT', 'photo_alt TEXT', 'photo_width INTEGER', 'photo_height INTEGER']) {
+    try {
+      db.exec(`ALTER TABLE posts ADD COLUMN ${col}`)
+    } catch {
+      /* column exists */
+    }
+  }
   return db
 }
 
@@ -66,14 +90,40 @@ export function postBySlug(slug: string): PostRow | null {
   return (conn().prepare('SELECT * FROM posts WHERE slug = ?').get(slug) ?? null) as PostRow | null
 }
 
-export function createPost(p: Omit<PostRow, 'id' | 'published_at' | 'updated_at'>): PostRow {
+type PhotoFields = 'photo_path' | 'photo_alt' | 'photo_width' | 'photo_height'
+
+export function createPost(
+  p: Omit<PostRow, 'id' | PhotoFields | 'published_at' | 'updated_at'> &
+    Partial<Pick<PostRow, PhotoFields>>,
+): PostRow {
   const now = Date.now()
-  const row: PostRow = { id: genId(), published_at: now, updated_at: now, ...p }
+  const row: PostRow = {
+    id: genId(),
+    photo_path: null,
+    photo_alt: null,
+    photo_width: null,
+    photo_height: null,
+    published_at: now,
+    updated_at: now,
+    ...p,
+  }
   conn()
     .prepare(
-      'INSERT INTO posts (id, slug, kind, title, content, published_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO posts (id, slug, kind, title, content, photo_path, photo_alt, photo_width, photo_height, published_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     )
-    .run(row.id, row.slug, row.kind, row.title, row.content, row.published_at, row.updated_at)
+    .run(
+      row.id,
+      row.slug,
+      row.kind,
+      row.title,
+      row.content,
+      row.photo_path,
+      row.photo_alt,
+      row.photo_width,
+      row.photo_height,
+      row.published_at,
+      row.updated_at,
+    )
   return row
 }
 

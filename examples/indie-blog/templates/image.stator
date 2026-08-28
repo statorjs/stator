@@ -1,0 +1,46 @@
+---
+import { getImage } from '../lib/images.ts'
+import type { PostRow } from '../lib/db.ts'
+
+/**
+ * `<Image post={post} />` — one `<img>` with everything a photo post's image
+ * should carry: intrinsic width/height (CLS), `srcset` over the variant
+ * endpoint, `u-photo` microformats, lazy by default. `priority` is the LCP
+ * escape hatch: eager + fetchpriority=high for the one above-the-fold image
+ * (the post page's own photo) — lazy-loading a hero is the classic
+ * self-inflicted LCP regression.
+ */
+const { post, priority = false, sizes = '(max-width: 44rem) 100vw, 44rem' } = Stator.props<{
+  post: PostRow
+  priority?: boolean
+  sizes?: string
+}>()
+
+const img = post.photo_path
+  ? getImage({ src: post.photo_path, width: post.photo_width, height: post.photo_height })
+  : null
+---
+{img ? (
+  <img
+    class="u-photo"
+    src={img.src}
+    srcset={img.srcset ?? undefined}
+    sizes={img.srcset ? sizes : undefined}
+    alt={post.photo_alt ?? ''}
+    width={img.width ?? undefined}
+    height={img.height ?? undefined}
+    loading={priority ? 'eager' : 'lazy'}
+    fetchpriority={priority ? 'high' : undefined}
+    decoding="async"
+  />
+) : null}
+
+<style>
+  img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin: 0 0 0.8rem;
+  }
+</style>
