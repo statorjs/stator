@@ -1,4 +1,4 @@
-import { defineConfig } from '@statorjs/stator/config'
+import { defineConfig } from '@statorjs/stator'
 
 export default defineConfig({
   // Uploaded photos — runtime data like the SQLite file, outside static/.
