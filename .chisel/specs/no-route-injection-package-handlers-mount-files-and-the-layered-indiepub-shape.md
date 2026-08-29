@@ -43,3 +43,26 @@ Whether a package can ship `.stator` files has never been exercised: compiler re
 The tonysull.co arc runs the experiment in the right order: M4 builds Micropub/IndieAuth in-tree; the subsequent extraction into `@indiepub/*` packages — with a production consumer keeping it honest — is what shows which lines want to be package logic vs tree wiring. No integration surface gets designed ahead of that extraction (the `bind:` lesson).
 
 Non-goals: an `injectRoute` API; config-declared third-party route mounts; any plugin registry.
+
+## Sibling refusal: no host adapters (appended 2026-08-29)
+
+Astro's second big integration surface — host adapters — gets the same answer for the same reasoning skeleton, recorded here because the two refusals reinforce each other.
+
+**Why adapters were load-bearing for Astro.** Its output is a build artifact whose shape must match irreconcilable host runtime contracts: workerd has no Node APIs, Lambda wants a handler export, Vercel wants its routing manifest and function splitting, Node standalone wants an http server. The same app must compile into fundamentally different programs, so an adapter API is the only sane answer. Serverless/edge fragmentation is ~90% of the justification; the conveniences (host image services, KV sessions, env mapping) rode along because the mount point already existed.
+
+**Why that pressure doesn't exist for Stator.** The runtime contract is a resident Node process — in-process SSE registry, machine actors resident in memory, session locks, in-memory timers, `node:sqlite` on a disk. That contract is unportable to serverless *by thesis*, not by omission ("a long-lived server beats queues + cron"); an adapter could only deliver a degraded parallel product that falsifies the core promise (the IndiePub migration exists because Workers' statelessness produced the token-rotation race and the `waitUntil` dropped-syndication post-mortem). Across hosts that can run the real contract (Fly, Railway, Render, VPS, k8s), the "adapter" is a Dockerfile and a `PORT` var — targets differ in ops tooling, not runtime shape. One output format is the dev==prod identity the Vite exit was fought for.
+
+**Where the convenience half goes instead — capability-scoped adapter seams in config, not per-host plugin packages:**
+
+| Astro-adapter convenience | Stator's shape |
+|---|---|
+| Host image optimization | `ImageTransformer` (engine swap) + the deferred `images.resolveUrl` (delivery retarget) |
+| Host KV/session storage | The `Store`/`AppStore` adapter seam |
+| CDN purge hooks | The surrogate-keys layer's future `purge` callback — same pattern |
+| Host env/config mapping | `.env` + config precedence, already generic |
+
+Each seam is narrow, typed, and independently swappable. A "fly adapter" would bundle unrelated things (toml template + Dockerfile + a Store choice) — the shapeless grab-bag the no-plugin-surface rule refuses. What a host package legitimately contains is SCAFFOLDING (`fly.toml`, Dockerfile, docs): `create-stator` template / deploy-recipe territory, files in the user's tree — the same philosophy as the mount-file answer above.
+
+**Costs, stated plainly:** serverless-only hosts (Cloudflare foremost) are out of market — a boundary to write into public docs as a choice, not a hole; and the one-click-deploy DX adapters give Astro is a real onboarding gap whose Stator-shaped fix is deploy scaffolding (e.g. `create stator --deploy fly` emitting the files), cheap, additive, and evidence-gated on people asking.
+
+Non-goals (this section): a host-adapter API; per-host runtime packages; any serverless/edge output mode.
