@@ -127,6 +127,10 @@ export interface StatorConfig {
     aspectRatios?: number[]
     /** Swap the transformer (default: sharp). See `ImageTransformer`. */
     transformer?: import('./server/images.ts').ImageTransformer
+    /** Max concurrent encodes across ALL variants (default: 2). A cold-cache
+     *  gallery page fans out many transforms at once; the semaphore keeps a
+     *  small host from OOMing under AVIF encodes. */
+    concurrency?: number
   }
   // observers?: Observer[] — top-level when the observability spec lands.
 }

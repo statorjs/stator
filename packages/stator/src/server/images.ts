@@ -91,6 +91,32 @@ const TRANSCODE_TARGETS = new Set(['jpg', 'jpeg', 'png', 'webp', 'avif'])
  *  variant share one encode instead of N. Keyed by cache path. */
 const inflight = new Map<string, Promise<void>>()
 
+/** Global encode semaphore — DIFFERENT variants queue behind a small number
+ *  of concurrent transforms. Without it, one cold-cache gallery page fans a
+ *  dozen simultaneous sharp encodes (AVIF is memory-brutal) and OOM-kills a
+ *  small host — found the first hour tonysull.co ran on a 512MB Fly machine.
+ *  Module-level on purpose: the resource being protected (CPU/memory) is
+ *  process-wide, whatever app object serves the request. */
+let activeTransforms = 0
+const transformQueue: Array<() => void> = []
+function acquireTransformSlot(limit: number): Promise<void> {
+  return new Promise((resolve) => {
+    if (activeTransforms < limit) {
+      activeTransforms += 1
+      resolve()
+    } else {
+      transformQueue.push(() => {
+        activeTransforms += 1
+        resolve()
+      })
+    }
+  })
+}
+function releaseTransformSlot(): void {
+  activeTransforms -= 1
+  transformQueue.shift()?.()
+}
+
 export interface ResolvedImagesConfig {
   dir: string
   /** URL prefix (leading slash, no trailing). */
@@ -98,6 +124,8 @@ export interface ResolvedImagesConfig {
   widths: number[]
   aspectRatios: number[]
   transformer: ImageTransformer
+  /** Max concurrent encodes across ALL variants (default 2). */
+  concurrency: number
 }
 
 export function resolveImagesConfig(config: {
@@ -106,6 +134,7 @@ export function resolveImagesConfig(config: {
   widths?: number[]
   aspectRatios?: number[]
   transformer?: ImageTransformer
+  concurrency?: number
 }): ResolvedImagesConfig {
   const dir = resolve(config.dir)
   const path = (config.path ?? `/${basename(dir)}`).replace(/\/$/, '')
@@ -115,6 +144,7 @@ export function resolveImagesConfig(config: {
     widths: config.widths ?? DEFAULT_IMAGE_WIDTHS,
     aspectRatios: config.aspectRatios ?? DEFAULT_IMAGE_ASPECT_RATIOS,
     transformer: config.transformer ?? sharpTransformer(),
+    concurrency: Math.max(1, config.concurrency ?? 2),
   }
 }
 
@@ -210,13 +240,18 @@ export async function serveImage(
         const format =
           requestedExt === 'jpg' ? 'jpeg' : (requestedExt as 'jpeg' | 'png' | 'webp' | 'avif')
         job = (async () => {
-          const out = await config.transformer.transform(
-            new Uint8Array(await readFile(original.full)),
-            { width, height, format },
-          )
-          mkdirSync(dirname(cache), { recursive: true })
-          const { writeFile } = await import('node:fs/promises')
-          await writeFile(cache, out)
+          await acquireTransformSlot(config.concurrency)
+          try {
+            const out = await config.transformer.transform(
+              new Uint8Array(await readFile(original.full)),
+              { width, height, format },
+            )
+            mkdirSync(dirname(cache), { recursive: true })
+            const { writeFile } = await import('node:fs/promises')
+            await writeFile(cache, out)
+          } finally {
+            releaseTransformSlot()
+          }
         })().finally(() => inflight.delete(cache))
         inflight.set(cache, job)
       }
