@@ -198,6 +198,7 @@ export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef>>(
       __isStatorQueryRoute: true,
       reads: config.reads ? [...config.reads] : [],
       handler: config.handler,
+      revision: config.revision,
     }
   }
   return {
@@ -248,6 +249,7 @@ export interface QueryRouteDefinition {
     request: RouteRequest,
     helpers: QueryRouteHelpers,
   ) => Promise<QueryRouteResult> | QueryRouteResult
+  revision?: () => string | number | Promise<string | number>
 }
 
 export interface DefineQueryRouteConfig<TReads extends ReadonlyArray<AnyMachineDef> = readonly []> {
@@ -259,6 +261,12 @@ export interface DefineQueryRouteConfig<TReads extends ReadonlyArray<AnyMachineD
     request: RouteRequest,
     helpers: QueryRouteHelpers<TReads>,
   ) => Promise<QueryRouteResult> | QueryRouteResult
+  /** The revision ledger: a CHEAP fingerprint of everything the body depends
+   *  on (e.g. `() => String(maxUpdatedAt())` — one indexed SELECT). When
+   *  present, the ETag derives from it and a matching `If-None-Match`
+   *  answers 304 WITHOUT invoking the handler — a polling crawler costs the
+   *  fingerprint, not the render. Must change whenever the body could. */
+  revision?: () => string | number | Promise<string | number>
 }
 
 export function isStatorQueryRoute(v: unknown): v is QueryRouteDefinition {

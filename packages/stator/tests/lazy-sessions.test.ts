@@ -137,3 +137,29 @@ describe('layer 3 — derived Cache-Control', () => {
     expect(res.headers.get('cache-control')).toBeNull()
   })
 })
+
+describe('the revision ledger', () => {
+  it('a revision match answers 304 without invoking the handler', async () => {
+    const { state } = await import('./fixtures/routes/revisioned.json.ts')
+    const first = await get(app, '/revisioned.json')
+    expect(first.status).toBe(200)
+    expect(await first.json()).toEqual({ runs: 1 })
+    const etag = first.headers.get('etag')!
+    expect(etag).toMatch(/^"r-/)
+    expect(first.headers.get('cache-control')).toContain('public')
+
+    const probe = await get(app, '/revisioned.json', { 'if-none-match': etag })
+    expect(probe.status).toBe(304)
+    expect(probe.headers.get('etag')).toBe(etag)
+    expect(probe.headers.get('cache-control')).toContain('public')
+    // The whole point: the handler never ran.
+    expect(state.handlerRuns).toBe(1)
+
+    // A revision bump invalidates the token — the next probe renders anew.
+    state.revision = 2
+    const fresh = await get(app, '/revisioned.json', { 'if-none-match': etag })
+    expect(fresh.status).toBe(200)
+    expect(state.handlerRuns).toBe(2)
+    expect(fresh.headers.get('etag')).not.toBe(etag)
+  })
+})
