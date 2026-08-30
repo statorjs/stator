@@ -46,7 +46,14 @@ export interface DevAppConfig {
     dir: string
     path?: string
     widths?: number[]
+    aspectRatios?: number[]
     transformer?: import('./images.ts').ImageTransformer
+    concurrency?: number
+    threads?: number
+    encodeTimeoutMs?: number
+    maxAge?: number
+    staleWhileRevalidate?: number
+    immutable?: boolean
   }
   dev?: {
     /** Auto-inject the dev inspector toolbar. On by default; set false to disable. */

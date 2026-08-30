@@ -145,3 +145,109 @@ describe('image endpoint: encode deadline', () => {
     expect(res.status).toBe(200)
   })
 })
+
+describe('image endpoint: content-hash validators and the freshness dial', () => {
+  // A second real 1x1 PNG with different bytes (one opaque black pixel).
+  const PNG2 = Uint8Array.from(
+    atob(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNgYGD4DwABBAEAX+XLaAAAAABJRU5ErkJggg==',
+    ),
+    (c) => c.charCodeAt(0),
+  )
+
+  it('original ETag is a strong content hash — mtime churn does not bust, byte changes do', async () => {
+    const { utimesSync } = await import('node:fs')
+    const dir = mediaDir()
+    const app = await boot({ dir, path: '/media' })
+    const url = 'http://localhost/media/2026/08/probe.png'
+    const first = await app.fetch(new Request(url))
+    const etag = first.headers.get('etag')!
+    expect(etag).toMatch(/^"[0-9a-f]{16}"$/)
+    // A reseed resets mtimes without changing bytes — the ETag must hold.
+    utimesSync(join(dir, '2026', '08', 'probe.png'), new Date(), new Date())
+    const reseeded = await app.fetch(new Request(url))
+    expect(reseeded.headers.get('etag')).toBe(etag)
+    // A genuine content change under the same URL must bust.
+    writeFileSync(join(dir, '2026', '08', 'probe.png'), PNG2)
+    const changed = await app.fetch(new Request(url))
+    expect(changed.headers.get('etag')).not.toBe(etag)
+  })
+
+  it('variant ETag is weak, and a match 304s before any encode runs', async () => {
+    const { resolveImagesConfig, serveImage } = await import('../src/server/images.ts')
+    let encodes = 0
+    const config = resolveImagesConfig({
+      dir: mediaDir(),
+      path: '/media',
+      transformer: {
+        probe: async () => ({ width: 1, height: 1 }),
+        transform: async () => {
+          encodes += 1
+          return PNG
+        },
+      },
+    })
+    const first = await serveImage(config, '2026/08/probe.webp', '400', undefined, null)
+    expect(first.status).toBe(200)
+    const etag = first.headers.get('etag')!
+    expect(etag).toMatch(/^W\/"[0-9a-f]{16}-400-webp"$/)
+    expect(encodes).toBe(1)
+    // Revalidation answers from the validator alone — no encode, and it would
+    // succeed even if the variant file had never been written.
+    const revalidated = await serveImage(config, '2026/08/probe.webp', '400', undefined, etag)
+    expect(revalidated.status).toBe(304)
+    expect(encodes).toBe(1)
+  })
+
+  it('variant freshness rides the source hash in the filename — changed original re-encodes', async () => {
+    const { resolveImagesConfig, serveImage } = await import('../src/server/images.ts')
+    const dir = mediaDir()
+    let encodes = 0
+    const config = resolveImagesConfig({
+      dir,
+      path: '/media',
+      transformer: {
+        probe: async () => ({ width: 1, height: 1 }),
+        transform: async () => {
+          encodes += 1
+          return PNG
+        },
+      },
+    })
+    await serveImage(config, '2026/08/probe.webp', '400', undefined, null)
+    await serveImage(config, '2026/08/probe.webp', '400', undefined, null)
+    expect(encodes).toBe(1) // cache hit by existence — no mtime comparison
+    writeFileSync(join(dir, '2026', '08', 'probe.png'), PNG2)
+    await serveImage(config, '2026/08/probe.webp', '400', undefined, null)
+    expect(encodes).toBe(2) // new hash → new cache name → miss → re-encode
+  })
+
+  it('the freshness dial: default revalidates, SWR swaps must-revalidate, immutable needs a long maxAge', async () => {
+    const { resolveImagesConfig, serveImage } = await import('../src/server/images.ts')
+    const stub = {
+      probe: async () => ({ width: 1, height: 1 }),
+      transform: async () => PNG,
+    }
+    const cc = async (extra: object) => {
+      const config = resolveImagesConfig({
+        dir: mediaDir(),
+        path: '/media',
+        transformer: stub,
+        ...extra,
+      })
+      const res = await serveImage(config, '2026/08/probe.png', undefined, undefined, null)
+      return res.headers.get('cache-control')
+    }
+    expect(await cc({})).toBe('public, max-age=0, must-revalidate')
+    expect(await cc({ staleWhileRevalidate: 86400 })).toBe(
+      'public, max-age=0, stale-while-revalidate=86400',
+    )
+    expect(await cc({ maxAge: 3600 })).toBe('public, max-age=3600')
+    expect(await cc({ maxAge: 31536000, immutable: true })).toBe(
+      'public, max-age=31536000, immutable',
+    )
+    // immutable without a nonzero maxAge is inert — the no-recovery marker
+    // never rides the revalidation default.
+    expect(await cc({ immutable: true })).toBe('public, max-age=0, must-revalidate')
+  })
+})
