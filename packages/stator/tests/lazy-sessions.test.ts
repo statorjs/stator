@@ -101,16 +101,18 @@ describe('layer 1 — lazy establishment', () => {
 describe('layer 3 — derived Cache-Control', () => {
   it('a provably-anonymous page is cache-marked with the defaults', async () => {
     const res = await get(app, '/board')
-    expect(res.headers.get('cache-control')).toBe('public, s-maxage=60, stale-while-revalidate=300')
+    expect(res.headers.get('cache-control')).toBe(
+      'public, max-age=0, s-maxage=60, stale-while-revalidate=300',
+    )
   })
 
   it('a provably-anonymous data route is cache-marked, 304s included', async () => {
     const res = await get(app, '/feed.xml')
-    expect(res.headers.get('cache-control')).toContain('public, s-maxage=60')
+    expect(res.headers.get('cache-control')).toContain('public, max-age=0, s-maxage=60')
     const etag = res.headers.get('etag')!
     const revalidated = await get(app, '/feed.xml', { 'if-none-match': etag })
     expect(revalidated.status).toBe(304)
-    expect(revalidated.headers.get('cache-control')).toContain('public, s-maxage=60')
+    expect(revalidated.headers.get('cache-control')).toContain('public, max-age=0, s-maxage=60')
   })
 
   it('a session-reading page is never cache-marked', async () => {
