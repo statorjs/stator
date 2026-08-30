@@ -94,3 +94,54 @@ describe('image endpoint: crops', () => {
     ).toBe(400)
   })
 })
+
+describe('image endpoint: encode deadline', () => {
+  it('a slow encode degrades to a 302 at the stored original; the finished variant serves next time', async () => {
+    const { resolveImagesConfig, serveImage } = await import('../src/server/images.ts')
+    // Settles AFTER the deadline — never leave a semaphore slot dangling.
+    let settle!: () => void
+    const gate = new Promise<void>((r) => (settle = r))
+    const config = resolveImagesConfig({
+      dir: mediaDir(),
+      path: '/media',
+      encodeTimeoutMs: 30,
+      transformer: {
+        probe: async () => ({ width: 1, height: 1 }),
+        transform: async () => {
+          await gate
+          return PNG
+        },
+      },
+    })
+
+    const slow = await serveImage(config, '2026/08/probe.webp', '400', undefined, null)
+    expect(slow.status).toBe(302)
+    expect(slow.headers.get('location')).toBe('/media/2026/08/probe.png')
+    // The fallback must never stick in a shared cache.
+    expect(slow.headers.get('cache-control')).toBe('no-store')
+
+    settle()
+    await new Promise((r) => setTimeout(r, 10))
+    const warm = await serveImage(config, '2026/08/probe.webp', '400', undefined, null)
+    expect(warm.status).toBe(200)
+    expect(warm.headers.get('content-type')).toBe('image/webp')
+  })
+
+  it('encodeTimeoutMs: 0 disables the deadline — the request waits', async () => {
+    const { resolveImagesConfig, serveImage } = await import('../src/server/images.ts')
+    const config = resolveImagesConfig({
+      dir: mediaDir(),
+      path: '/media',
+      encodeTimeoutMs: 0,
+      transformer: {
+        probe: async () => ({ width: 1, height: 1 }),
+        transform: async () => {
+          await new Promise((r) => setTimeout(r, 60))
+          return PNG
+        },
+      },
+    })
+    const res = await serveImage(config, '2026/08/probe.webp', '400', undefined, null)
+    expect(res.status).toBe(200)
+  })
+})

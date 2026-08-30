@@ -131,6 +131,15 @@ export interface StatorConfig {
      *  gallery page fans out many transforms at once; the semaphore keeps a
      *  small host from OOMing under AVIF encodes. */
     concurrency?: number
+    /** libvips worker threads per encode (default: sharp's default, which is
+     *  the REPORTED core count — on a shared-cpu host that's the physical
+     *  machine's, so a fractional vCPU fans out 8+ encoder threads. Set `1`
+     *  on small hosts.) */
+    threads?: number
+    /** Per-request encode deadline in ms (default: 15000; 0 disables). Past
+     *  it the response 302s to the stored original — real pixels now — while
+     *  the encode keeps filling the variant cache for the next request. */
+    encodeTimeoutMs?: number
   }
   // observers?: Observer[] — top-level when the observability spec lands.
 }
