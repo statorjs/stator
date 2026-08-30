@@ -37,16 +37,27 @@ export interface ImageTransformer {
   ): Promise<Uint8Array>
 }
 
-/** Impl #1: sharp, imported lazily so image-free processes never load it. */
-export function sharpTransformer(): ImageTransformer {
+/** Impl #1: sharp, imported lazily so image-free processes never load it.
+ *  `threads` caps the libvips worker pool (process-global — libvips has one
+ *  pool). sharp's default is the REPORTED core count, which on a shared-cpu
+ *  host is the physical machine's (8+ on Fly shared-cpu-1x) — every encode
+ *  then fans out that many threads' worth of encoder buffers and CPU demand
+ *  on a fractional vCPU. A big AVIF encode under that fan-out is what
+ *  swap-thrashed a 512MB host into a lockup. 0 = leave sharp's default. */
+export function sharpTransformer(threads = 0): ImageTransformer {
+  const load = async () => {
+    const { default: sharp } = await import('sharp')
+    if (threads > 0) sharp.concurrency(threads)
+    return sharp
+  }
   return {
     async probe(bytes) {
-      const { default: sharp } = await import('sharp')
+      const sharp = await load()
       const meta = await sharp(bytes).metadata()
       return { width: meta.width ?? null, height: meta.height ?? null }
     },
     async transform(input, opts) {
-      const { default: sharp } = await import('sharp')
+      const sharp = await load()
       let pipeline = sharp(input)
       if (opts.width !== undefined && opts.height !== undefined) {
         pipeline = pipeline.resize({ width: opts.width, height: opts.height, fit: 'cover' })
@@ -134,6 +145,12 @@ export interface ResolvedImagesConfig {
   transformer: ImageTransformer
   /** Max concurrent encodes across ALL variants (default 2). */
   concurrency: number
+  /** libvips worker threads per encode (default 0 = sharp's default). */
+  threads: number
+  /** Encode deadline per request (default 15000ms; 0 disables). Past it the
+   *  response degrades to a 302 at the stored original — honest bytes now —
+   *  while the encode keeps filling the cache for the next request. */
+  encodeTimeoutMs: number
 }
 
 export function resolveImagesConfig(config: {
@@ -143,16 +160,21 @@ export function resolveImagesConfig(config: {
   aspectRatios?: number[]
   transformer?: ImageTransformer
   concurrency?: number
+  threads?: number
+  encodeTimeoutMs?: number
 }): ResolvedImagesConfig {
   const dir = resolve(config.dir)
   const path = (config.path ?? `/${basename(dir)}`).replace(/\/$/, '')
+  const threads = Math.max(0, config.threads ?? 0)
   return {
     dir,
     path: path.startsWith('/') ? path : `/${path}`,
     widths: config.widths ?? DEFAULT_IMAGE_WIDTHS,
     aspectRatios: config.aspectRatios ?? DEFAULT_IMAGE_ASPECT_RATIOS,
-    transformer: config.transformer ?? sharpTransformer(),
+    transformer: config.transformer ?? sharpTransformer(threads),
     concurrency: Math.max(1, config.concurrency ?? 2),
+    threads,
+    encodeTimeoutMs: Math.max(0, config.encodeTimeoutMs ?? 15_000),
   }
 }
 
@@ -262,6 +284,31 @@ export async function serveImage(
           }
         })().finally(() => inflight.delete(cache))
         inflight.set(cache, job)
+      }
+      // The on-demand contract is "first requester sees a SMALL delay" —
+      // enforce it. A pathological encode (large AVIF on a starved host) can
+      // take 30s+ or swap-thrash the machine; past the deadline this request
+      // degrades to the stored original (a redirect, so the Content-Type
+      // stays honest) while the encode keeps running to fill the cache. The
+      // browser renders real pixels now; the next visitor gets the variant.
+      if (config.encodeTimeoutMs > 0) {
+        const finished = await new Promise<boolean>((done) => {
+          const timer = setTimeout(() => done(false), config.encodeTimeoutMs)
+          const settle = () => {
+            clearTimeout(timer)
+            done(true) // rejection included — the `await job` below rethrows it
+          }
+          job.then(settle, settle)
+        })
+        if (!finished) {
+          return new Response(null, {
+            status: 302,
+            headers: {
+              Location: `${config.path}/${rel.slice(0, dot)}.${original.ext}`,
+              'Cache-Control': 'no-store',
+            },
+          })
+        }
       }
       await job
     }
