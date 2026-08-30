@@ -124,7 +124,7 @@ export async function runQueryRoute(
       try {
         res.headers.set(
           'cache-control',
-          `public, s-maxage=${caching.sMaxAge}, stale-while-revalidate=${caching.staleWhileRevalidate}`,
+          `public, max-age=0, s-maxage=${caching.sMaxAge}, stale-while-revalidate=${caching.staleWhileRevalidate}`,
         )
       } catch {
         // Immutable headers (proxied Response) — the handler's call.

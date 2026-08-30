@@ -781,7 +781,7 @@ async function handleGet(
       ) {
         c.header(
           'Cache-Control',
-          `public, s-maxage=${caching.sMaxAge}, stale-while-revalidate=${caching.staleWhileRevalidate}`,
+          `public, max-age=0, s-maxage=${caching.sMaxAge}, stale-while-revalidate=${caching.staleWhileRevalidate}`,
         )
       }
 
