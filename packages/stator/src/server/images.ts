@@ -103,9 +103,26 @@ export const IMAGE_CONTENT_TYPES: Record<string, string> = {
   webp: 'image/webp',
   avif: 'image/avif',
   gif: 'image/gif',
+  svg: 'image/svg+xml',
 }
 
 const TRANSCODE_TARGETS = new Set(['jpg', 'jpeg', 'png', 'webp', 'avif'])
+
+/** Originals-only formats: served verbatim, never a transcode SOURCE either.
+ *  GIF because animation doesn't survive naive resizing; SVG because it's a
+ *  vector document, not pixels — nothing to probe, resize, or rasterize
+ *  (found via an imported favicon living in the media store, where an
+ *  uploading admin legitimately puts it). */
+const ORIGINAL_ONLY_SOURCES = new Set(['gif', 'svg'])
+
+/** SVG is the one format that can execute script when navigated to directly
+ *  (fine inside <img>/favicon contexts, which ignore scripts). Serve it like
+ *  GitHub serves avatars: scripts and external loads neutralized, inline
+ *  styles allowed, sniffing pinned. */
+const SVG_SECURITY_HEADERS = {
+  'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'",
+  'X-Content-Type-Options': 'nosniff',
+}
 
 /** Cold-cache stampede guard: N concurrent requests for the same missing
  *  variant share one encode instead of N. Keyed by cache path. */
@@ -312,6 +329,7 @@ export async function serveImage(
     'Content-Type': contentType,
     ETag: etag,
     'Cache-Control': cacheControlValue(config),
+    ...(requestedExt === 'svg' ? SVG_SECURITY_HEADERS : undefined),
   }
   // Early 304 — validators derive from the ORIGINAL, so a match answers
   // before any encode work (or even a variant file) exists.
@@ -324,7 +342,7 @@ export async function serveImage(
   if (sameFormat) {
     file = original.full
   } else {
-    if (!TRANSCODE_TARGETS.has(requestedExt) || original.ext === 'gif') {
+    if (!TRANSCODE_TARGETS.has(requestedExt) || ORIGINAL_ONLY_SOURCES.has(original.ext)) {
       return new Response('not found', { status: 404 })
     }
     // The source-hash lives IN the cache filename: freshness is a pure
