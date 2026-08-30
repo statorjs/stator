@@ -62,6 +62,21 @@ export async function runQueryRoute(
   // Lazy layer 1: only session-machine reads establish; an app-only data
   // route (a feed, a sitemap) renders sessionless and stays CDN-cacheable.
   const needsSession = route.reads.some((def) => def.lifecycle === 'session')
+
+  // The revision ledger: when the route declares a cheap fingerprint, the
+  // ETag derives from it and a match answers 304 BEFORE the handler — the
+  // designed upgrade the body-hash ETag always pointed at. The fingerprint
+  // runs outside any session machinery, so the derived-caching proof holds.
+  let revisionEtag: string | undefined
+  if (route.revision) {
+    const rev = await route.revision()
+    revisionEtag = `"r-${createHash('sha1').update(String(rev)).digest('base64url').slice(0, 16)}"`
+    if ((c.req.header('if-none-match') ?? '').includes(revisionEtag)) {
+      const notModified = new Response(null, { status: 304, headers: { ETag: revisionEtag } })
+      applyDerivedCaching(c, notModified, { caching, needsSession })
+      return notModified
+    }
+  }
   const sessionId = needsSession
     ? getOrCreateSessionId(c).sessionId
     : (peekSessionId(c) ?? '@anonymous')
@@ -108,31 +123,50 @@ export async function runQueryRoute(
     }
 
     const res = synthesizeDataResponse(c, result)
-    // Layer 3 — derived Cache-Control, same proof as pages: no session reads
-    // declared, no session use/claims read while handling, handler set
-    // nothing itself. Applied to 200 and 304 alike (a 304's headers update
-    // the cached entry's lifetime).
-    const use = sessionUse(c)
-    if (
-      caching &&
-      !needsSession &&
-      !use.used &&
-      !use.claimsRead &&
-      res.status < 400 &&
-      !res.headers.has('cache-control')
-    ) {
+    // A revision route's responses carry the revision ETag (overriding the
+    // body hash) so the cheap 304 path and full responses validate against
+    // one token.
+    if (revisionEtag) {
       try {
-        res.headers.set(
-          'cache-control',
-          `public, max-age=0, s-maxage=${caching.sMaxAge}, stale-while-revalidate=${caching.staleWhileRevalidate}`,
-        )
+        res.headers.set('etag', revisionEtag)
       } catch {
         // Immutable headers (proxied Response) — the handler's call.
       }
     }
+    applyDerivedCaching(c, res, { caching, needsSession })
     return res
   } finally {
     runtime.dispose()
+  }
+}
+
+/** Layer 3 — derived Cache-Control, same proof as pages: no session reads
+ *  declared, no session use/claims read while handling, handler set nothing
+ *  itself. Applied to 200 and 304 alike (a 304's headers update the cached
+ *  entry's lifetime). */
+function applyDerivedCaching(
+  c: Context,
+  res: Response,
+  opts: { caching?: { sMaxAge: number; staleWhileRevalidate: number }; needsSession: boolean },
+): void {
+  const use = sessionUse(c)
+  if (
+    !opts.caching ||
+    opts.needsSession ||
+    use.used ||
+    use.claimsRead ||
+    res.status >= 400 ||
+    res.headers.has('cache-control')
+  ) {
+    return
+  }
+  try {
+    res.headers.set(
+      'cache-control',
+      `public, max-age=0, s-maxage=${opts.caching.sMaxAge}, stale-while-revalidate=${opts.caching.staleWhileRevalidate}`,
+    )
+  } catch {
+    // Immutable headers (proxied Response) — the handler's call.
   }
 }
 
