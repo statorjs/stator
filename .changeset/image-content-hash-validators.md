@@ -1,0 +1,5 @@
+---
+"@statorjs/stator": minor
+---
+
+Image responses validate by content, not coincidence. ETags are now a hash of the original's bytes — strong for originals, weak (`W/"…"`) for variants, whose bytes may drift across encoder upgrades while the pixels stay the same. Reseeding or copying media no longer busts every visitor's cache (mtime is demoted from identity to a memo key), a changed original busts correctly at the next revalidation, and a variant's `If-None-Match` answers `304` before any encode runs — even if the variant was never encoded at all. Variant cache files carry the source hash in their name, so freshness is a pure existence check. The freshness policy becomes a dial: `images.maxAge` (default `0` — every use revalidates, today's behavior), `images.staleWhileRevalidate` (render instantly from cache, revalidate in the background — a changed image heals on the next view), and `images.immutable` (appends the no-recovery marker to a long maxAge; only for apps whose image URLs are write-once by construction).
