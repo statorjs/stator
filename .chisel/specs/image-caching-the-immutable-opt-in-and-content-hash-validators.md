@@ -12,11 +12,13 @@ Recorded 2026-08-30 from the tonysull.co staging soak. The image endpoint emits 
 
 A second, independent defect hides in the current validator: the ETag is `size-mtime` of the served FILE. Every volume reseed (tar/sftp resets mtimes) silently changes every ETag and busts every visitor's cache of every image, and every variant re-encode does the same for that variant, even when bytes are identical. The freshness check for variants (`cache.mtime >= original.mtime`) has the dual failure: an mtime-preserving copy can leave a stale variant looking fresh.
 
-## Part A — `images.immutable: true` (the opt-in assertion)
+## Part A — a freshness DIAL, not an immutable boolean (adjudicated 2026-08-30)
 
-One boolean on the images config. It is the APP asserting a contract the framework cannot infer: "the bytes behind an image URL never change; replacement means a new URL." When set, 200s (originals and variants) emit `public, max-age=31536000, immutable` instead of the revalidation default. ETags stay (harmless, and useful for cold-cache conditional requests). The encode-deadline 302 keeps its `no-store` — a temporary fallback must never stick anywhere.
+First cut proposed a boolean `images.immutable: true` → `public, max-age=31536000, immutable`. Tony rejected adopting it, and the reasoning generalizes: the failure mode of a year-long immutable response is UNRECOVERABLE from the server — no header un-caches it, and the `?v=` retrofit is URL churn apologizing for a header you can't take back. The regret asymmetry is the design fact: under-caching costs RTTs you can measure and tune; over-caching costs correctness you can only wait out. A boolean whose wrong setting has no recovery path is the wrong shape for the knob.
 
-Why opt-in and not default: an app that overwrites `avatar.jpg` in place would serve year-stale images to every prior visitor with no recourse — no header can un-cache an `immutable` response. The docs sentence is the contract: enable this only if your upload path generates fresh names, and treat enabling it as promising that forever.
+The reshape: `images.maxAge` (seconds, default 0 — today's exact behavior preserved) and `images.staleWhileRevalidate` (seconds, default 0). Emission: `maxAge 0` + no SWR → today's `public, max-age=0, must-revalidate`; SWR > 0 → `public, max-age=<a>, stale-while-revalidate=<s>` (must-revalidate dropped — it forbids exactly what SWR permits); an `immutable` marker is appended ONLY when the app additionally passes `immutable: true` on top of a long maxAge — kept in the design space for the truly content-addressed, carrying the no-recovery warning in its docs sentence. The encode-deadline 302 keeps `no-store` regardless.
+
+The sweet spot this exposes — and the likely tonysull.co posture — is `max-age: 0, staleWhileRevalidate: 86400`: repeat views render instantly from cache, the browser revalidates in the background, and with Part B's hash validators that revalidation is CORRECT (an in-place change heals on the next view, not never). Bounded regret: the worst case is one stale render followed by self-repair. It also rhymes deliberately with the read path's derived `Cache-Control` on HTML — the same SWR philosophy on both surfaces.
 
 ## Part B — content-hash validators (replaces size-mtime)
 
@@ -32,7 +34,7 @@ The only design that gets BOTH long TTLs and in-place busting: `getImage` stamps
 
 ## Sequencing
 
-Parts A+B ride `feat/framework-images` while 2.9.0 is unreleased — header and validator semantics are contract surface, cheaper to settle before the freeze than after. tonysull.co adopts `immutable: true` at next deploy (write-once uploads; CDN-less, so the browser-cache win is the whole win) and the soak becomes the evidence. Part C parks with its named trigger.
+Parts A+B ride `feat/framework-images` while 2.9.0 is unreleased — header and validator semantics are contract surface, cheaper to settle before the freeze than after. tonysull.co's candidate posture is the SWR dial (`staleWhileRevalidate: 86400`, maxAge 0) rather than immutable — instant repeat views, background self-healing, bounded regret — decided on soak evidence; CDN-less on Fly, the browser-cache win is the whole win. Part B lands regardless of any dial setting (it is a correctness fix to the validators, not a caching policy). Part C parks with its named trigger.
 
 ## Open questions
 
