@@ -34,6 +34,7 @@ interface NestedReads {
   host?: string
   secret?: string
   cors?: { origins?: readonly string[]; credentials?: boolean }
+  caching?: { sMaxAge?: number; staleWhileRevalidate?: number } | false
 }
 
 /** The flat internal values `createApp`/`createDevApp` actually consume. */
@@ -51,6 +52,8 @@ export interface ResolvedAppConfig {
   /** Signed-cookie signing key. `config.secret` ?? `STATOR_SECRET`. */
   secret?: string
   cors?: { origins: readonly string[]; credentials: boolean }
+  /** Derived Cache-Control knobs; `false` disables emission entirely. */
+  caching?: { sMaxAge?: number; staleWhileRevalidate?: number } | false
 }
 
 /**
@@ -93,5 +96,6 @@ export function resolveAppConfig(config: NestedReads & DeprecatedFlatConfig): Re
           credentials: config.cors.credentials ?? false,
         }
       : undefined,
+    caching: config.caching,
   }
 }

@@ -12,7 +12,7 @@ import type {
   QueryRouteResult,
   RouteContext,
 } from './routing.ts'
-import { getOrCreateSessionId } from './session.ts'
+import { getOrCreateSessionId, peekSessionId, sessionUse } from './session.ts'
 import { withSessionLock } from './session-lock.ts'
 import { SessionRuntime } from './session-runtime.ts'
 
@@ -56,8 +56,15 @@ export async function runQueryRoute(
   /** Path params from the framework's own matcher (the GET catch-all
    *  bypasses Hono's per-route param extraction). */
   params?: Record<string, string>,
+  /** Layer-3 derived Cache-Control values (absent → never emitted). */
+  caching?: { sMaxAge: number; staleWhileRevalidate: number },
 ): Promise<Response> {
-  const { sessionId } = getOrCreateSessionId(c)
+  // Lazy layer 1: only session-machine reads establish; an app-only data
+  // route (a feed, a sitemap) renders sessionless and stays CDN-cacheable.
+  const needsSession = route.reads.some((def) => def.lifecycle === 'session')
+  const sessionId = needsSession
+    ? getOrCreateSessionId(c).sessionId
+    : (peekSessionId(c) ?? '@anonymous')
   const request = params
     ? { ...buildRouteRequest(c, discovered.paramNames), params }
     : buildRouteRequest(c, discovered.paramNames)
@@ -100,7 +107,30 @@ export async function runQueryRoute(
       scheduleSessionEffects(runtime, store, sessionId)
     }
 
-    return synthesizeDataResponse(c, result)
+    const res = synthesizeDataResponse(c, result)
+    // Layer 3 — derived Cache-Control, same proof as pages: no session reads
+    // declared, no session use/claims read while handling, handler set
+    // nothing itself. Applied to 200 and 304 alike (a 304's headers update
+    // the cached entry's lifetime).
+    const use = sessionUse(c)
+    if (
+      caching &&
+      !needsSession &&
+      !use.used &&
+      !use.claimsRead &&
+      res.status < 400 &&
+      !res.headers.has('cache-control')
+    ) {
+      try {
+        res.headers.set(
+          'cache-control',
+          `public, s-maxage=${caching.sMaxAge}, stale-while-revalidate=${caching.staleWhileRevalidate}`,
+        )
+      } catch {
+        // Immutable headers (proxied Response) — the handler's call.
+      }
+    }
+    return res
   } finally {
     runtime.dispose()
   }

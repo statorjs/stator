@@ -33,8 +33,8 @@ afterAll(async () => {
 
 describe('the /p/:id.json results route', () => {
   it('serves a created poll as JSON, voter sessions withheld', async () => {
-    const page = await app.fetch(new Request('http://test/new'))
-    const cookie = page.headers.get('set-cookie')!.split(';')[0]!
+    // Lazy sessions: the page GET sets no cookie; a presented sid resumes.
+    const cookie = `stator_sid=${crypto.randomUUID()}`
     const form = new URLSearchParams({ question: 'Tabs or spaces?' })
     form.append('option', 'Tabs')
     form.append('option', 'Spaces')
