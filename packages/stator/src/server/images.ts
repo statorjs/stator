@@ -53,7 +53,15 @@ export function sharpTransformer(): ImageTransformer {
       } else if (opts.width !== undefined) {
         pipeline = pipeline.resize({ width: opts.width, withoutEnlargement: true })
       }
-      return new Uint8Array(await pipeline.toFormat(opts.format).toBuffer())
+      // AVIF effort 2 (sharp's default is 4): the encoder's CPU/density
+      // trade, NOT a visual-quality knob. On-demand serving means a real
+      // visitor is waiting on the first encode — measured 16s at effort 4 on
+      // a shared-cpu host vs a few seconds at 2, for files a few percent
+      // larger. A build step would choose density; an on-demand endpoint
+      // chooses the visitor.
+      const encoded =
+        opts.format === 'avif' ? pipeline.avif({ effort: 2 }) : pipeline.toFormat(opts.format)
+      return new Uint8Array(await encoded.toBuffer())
     },
   }
 }
