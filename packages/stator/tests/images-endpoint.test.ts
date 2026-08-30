@@ -294,3 +294,29 @@ describe('image endpoint: svg passthrough', () => {
     expect((await app.fetch(new Request('http://localhost/media/2026/photo.svg'))).status).toBe(404)
   })
 })
+
+describe('image transformer: EXIF orientation', () => {
+  it('probe reports display dims; transform bakes the rotation in and drops the tag', async () => {
+    const { sharpTransformer } = await import('../src/server/images.ts')
+    const { default: sharp } = await import('sharp')
+    // A 40x20 jpeg stamped orientation 6 (90° CW) — displays as 20x40.
+    const stored = await sharp({
+      create: { width: 40, height: 20, channels: 3, background: '#456789' },
+    })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer()
+    const t = sharpTransformer()
+
+    // The CLS box must be the DISPLAY box, not the stored raster.
+    expect(await t.probe(new Uint8Array(stored))).toEqual({ width: 20, height: 40 })
+
+    // A transformed variant is upright pixels with no orientation tag left
+    // to die in transit.
+    const out = await t.transform(new Uint8Array(stored), { format: 'jpeg' })
+    const meta = await sharp(out).metadata()
+    expect(meta.orientation).toBeUndefined()
+    expect(meta.width).toBe(20)
+    expect(meta.height).toBe(40)
+  })
+})
