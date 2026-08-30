@@ -52,4 +52,4 @@ Server-canonical flips the SSG trade: metadata is always live (no rebuild stalen
 
 ## Sequencing
 
-Recipe (Tier 0) → `revision()` on data routes (small, two consumer classes waiting) → `Stator.head` (own design round on the merge rules, shared shape with the components note) → `staticRoutePaths()`+`sitemapXml()` when a second app copies the recipe (the promotion bar).
+Recipe (Tier 0) → `revision()` on data routes (LANDED 2026-08-30 — framework `2639b8f`, dogfooded on tonysull.co feeds + sitemap; page-route support waits on a compiler-collected `Stator.revision()` surface, deliberately not rushed pre-cutover) → `Stator.head` (own design round on the merge rules, shared shape with the components note) → `staticRoutePaths()`+`sitemapXml()` when a second app copies the recipe (the promotion bar).
