@@ -251,3 +251,46 @@ describe('image endpoint: content-hash validators and the freshness dial', () =>
     expect(await cc({ immutable: true })).toBe('public, max-age=0, must-revalidate')
   })
 })
+
+describe('image endpoint: svg passthrough', () => {
+  const SVG = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+
+  function svgDir(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'stator-svg-'))
+    mkdirSync(join(dir, '2026'), { recursive: true })
+    writeFileSync(join(dir, '2026', 'mark.svg'), SVG)
+    writeFileSync(join(dir, '2026', 'photo.png'), PNG)
+    return dir
+  }
+
+  it('serves the original with neutralizing security headers and a strong ETag', async () => {
+    const app = await boot({ dir: svgDir(), path: '/media' })
+    const res = await app.fetch(new Request('http://localhost/media/2026/mark.svg'))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('image/svg+xml')
+    expect(res.headers.get('content-security-policy')).toBe(
+      "default-src 'none'; style-src 'unsafe-inline'",
+    )
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff')
+    const etag = res.headers.get('etag')!
+    expect(etag).toMatch(/^"[0-9a-f]{16}"$/)
+    const revalidated = await app.fetch(
+      new Request('http://localhost/media/2026/mark.svg', { headers: { 'If-None-Match': etag } }),
+    )
+    expect(revalidated.status).toBe(304)
+    expect(revalidated.headers.get('content-security-policy')).toBeTruthy()
+  })
+
+  it('never resizes, rasterizes, or vectorizes — variants refused in every direction', async () => {
+    const app = await boot({ dir: svgDir(), path: '/media' })
+    // ?w= on an svg: allowlisted width, but svg is an originals-only source.
+    expect(
+      (await app.fetch(new Request('http://localhost/media/2026/mark.webp?w=400'))).status,
+    ).toBe(404)
+    expect(
+      (await app.fetch(new Request('http://localhost/media/2026/mark.svg?w=400'))).status,
+    ).toBe(404)
+    // A raster original never fabricates an svg.
+    expect((await app.fetch(new Request('http://localhost/media/2026/photo.svg'))).status).toBe(404)
+  })
+})
