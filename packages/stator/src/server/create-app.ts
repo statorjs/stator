@@ -73,6 +73,9 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
     concurrency?: number
     threads?: number
     encodeTimeoutMs?: number
+    maxAge?: number
+    staleWhileRevalidate?: number
+    immutable?: boolean
   }
   /** Origins allowed to make cross-site writes despite the CSRF guard (exact or
    *  wildcard-subdomain). Mirrors `StatorConfig.trustedOrigins`. */

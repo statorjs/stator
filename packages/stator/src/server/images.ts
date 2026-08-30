@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, statSync } from 'node:fs'
-import { readFile, stat } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 
 /**
@@ -110,6 +111,34 @@ const TRANSCODE_TARGETS = new Set(['jpg', 'jpeg', 'png', 'webp', 'avif'])
  *  variant share one encode instead of N. Keyed by cache path. */
 const inflight = new Map<string, Promise<void>>()
 
+/** sha1-16 of an original's bytes, memoized per path with `(size, mtime)` as
+ *  the recompute key — mtime demoted from identity to cache hint, its correct
+ *  role. Same shape and truncation as the query-route `revision()` ledger. */
+const hashCache = new Map<string, { size: number; mtimeMs: number; hash: string }>()
+function originalHash(full: string): string {
+  const st = statSync(full)
+  const hit = hashCache.get(full)
+  if (hit && hit.size === st.size && hit.mtimeMs === st.mtimeMs) return hit.hash
+  const hash = createHash('sha1').update(readFileSync(full)).digest('hex').slice(0, 16)
+  hashCache.set(full, { size: st.size, mtimeMs: st.mtimeMs, hash })
+  return hash
+}
+
+/** The freshness dial (spec: image-caching, adjudicated 2026-08-30 — a dial,
+ *  not an immutable boolean, because over-caching has no server-side
+ *  recovery). Defaults preserve the conservative revalidation contract;
+ *  `staleWhileRevalidate` trades must-revalidate for background self-healing
+ *  (SWR forbids what must-revalidate demands, so they never co-emit);
+ *  `immutable` appends only on top of an explicit long maxAge. */
+function cacheControlValue(config: ResolvedImagesConfig): string {
+  const { maxAge, staleWhileRevalidate: swr, immutable } = config
+  if (maxAge === 0 && swr === 0) return 'public, max-age=0, must-revalidate'
+  let value = `public, max-age=${maxAge}`
+  if (swr > 0) value += `, stale-while-revalidate=${swr}`
+  if (immutable && maxAge > 0) value += ', immutable'
+  return value
+}
+
 /** Global encode semaphore — DIFFERENT variants queue behind a small number
  *  of concurrent transforms. Without it, one cold-cache gallery page fans a
  *  dozen simultaneous sharp encodes (AVIF is memory-brutal) and OOM-kills a
@@ -151,6 +180,14 @@ export interface ResolvedImagesConfig {
    *  response degrades to a 302 at the stored original — honest bytes now —
    *  while the encode keeps filling the cache for the next request. */
   encodeTimeoutMs: number
+  /** Freshness lifetime in seconds (default 0 = revalidate every use). */
+  maxAge: number
+  /** Serve-stale window in seconds (default 0). >0 lets a cache render its
+   *  copy instantly and revalidate in the background — bounded regret. */
+  staleWhileRevalidate: number
+  /** Append `immutable` to a long maxAge — the no-recovery marker; only for
+   *  apps whose image URLs are write-once by construction. */
+  immutable: boolean
 }
 
 export function resolveImagesConfig(config: {
@@ -162,6 +199,9 @@ export function resolveImagesConfig(config: {
   concurrency?: number
   threads?: number
   encodeTimeoutMs?: number
+  maxAge?: number
+  staleWhileRevalidate?: number
+  immutable?: boolean
 }): ResolvedImagesConfig {
   const dir = resolve(config.dir)
   const path = (config.path ?? `/${basename(dir)}`).replace(/\/$/, '')
@@ -175,6 +215,9 @@ export function resolveImagesConfig(config: {
     concurrency: Math.max(1, config.concurrency ?? 2),
     threads,
     encodeTimeoutMs: Math.max(0, config.encodeTimeoutMs ?? 15_000),
+    maxAge: Math.max(0, config.maxAge ?? 0),
+    staleWhileRevalidate: Math.max(0, config.staleWhileRevalidate ?? 0),
+    immutable: config.immutable ?? false,
   }
 }
 
@@ -249,22 +292,52 @@ export async function serveImage(
   const original = resolveOriginal(config, rel)
   if (!original) return new Response('not found', { status: 404 })
 
-  let file: string
+  // Content-hash validators (spec: image-caching). ETags are per-URL and the
+  // transform params ARE the URL, so hash(original) is the complete entropy;
+  // the params suffix on variants is labeling for humans, not identity. The
+  // encoder is deliberately excluded (an upgrade must not mass-bust visually
+  // identical pixels) — which breaks the byte-identity promise a strong ETag
+  // makes, so variants carry WEAK validators; originals stay strong.
+  let hash: string
+  try {
+    hash = originalHash(original.full)
+  } catch {
+    return new Response('not found', { status: 404 })
+  }
   const sameFormat =
     IMAGE_CONTENT_TYPES[original.ext] === contentType && width === undefined && height === undefined
+  const sizeLabel = `${width ?? 'orig'}${height !== undefined ? `x${height}` : ''}`
+  const etag = sameFormat ? `"${hash}"` : `W/"${hash}-${sizeLabel}-${requestedExt}"`
+  const headers = {
+    'Content-Type': contentType,
+    ETag: etag,
+    'Cache-Control': cacheControlValue(config),
+  }
+  // Early 304 — validators derive from the ORIGINAL, so a match answers
+  // before any encode work (or even a variant file) exists.
+  const bare = etag.replace(/^W\//, '')
+  if (ifNoneMatch?.split(',').some((t) => t.trim().replace(/^W\//, '') === bare)) {
+    return new Response(null, { status: 304, headers })
+  }
+
+  let file: string
   if (sameFormat) {
     file = original.full
   } else {
     if (!TRANSCODE_TARGETS.has(requestedExt) || original.ext === 'gif') {
       return new Response('not found', { status: 404 })
     }
+    // The source-hash lives IN the cache filename: freshness is a pure
+    // existence check — a changed original hashes to a different name and
+    // simply misses. (Replaces mtime comparison, which mtime-preserving and
+    // mtime-resetting copies each fooled in one direction. Stale-hash
+    // siblings are identifiable garbage for a future `stator images gc`.)
     const cache = join(
       config.dir,
       '.variants',
-      `${rel.slice(0, dot)}-${width ?? 'orig'}${height !== undefined ? `x${height}` : ''}.${requestedExt}`,
+      `${rel.slice(0, dot)}-${hash.slice(0, 8)}-${sizeLabel}.${requestedExt}`,
     )
-    const fresh = existsSync(cache) && statSync(cache).mtimeMs >= statSync(original.full).mtimeMs
-    if (!fresh) {
+    if (!existsSync(cache)) {
       let job = inflight.get(cache)
       if (!job) {
         const format =
@@ -316,16 +389,6 @@ export async function serveImage(
   }
 
   try {
-    const st = await stat(file)
-    const etag = `"${st.size.toString(16)}-${Math.trunc(st.mtimeMs).toString(16)}"`
-    const headers = {
-      'Content-Type': contentType,
-      ETag: etag,
-      'Cache-Control': 'public, max-age=0, must-revalidate',
-    }
-    if (ifNoneMatch?.split(',').some((t) => t.trim().replace(/^W\//, '') === etag)) {
-      return new Response(null, { status: 304, headers })
-    }
     return new Response(new Uint8Array(await readFile(file)), { headers })
   } catch {
     return new Response('not found', { status: 404 })

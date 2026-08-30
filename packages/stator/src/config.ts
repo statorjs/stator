@@ -140,6 +140,18 @@ export interface StatorConfig {
      *  it the response 302s to the stored original — real pixels now — while
      *  the encode keeps filling the variant cache for the next request. */
     encodeTimeoutMs?: number
+    /** Freshness lifetime in seconds (default: 0 — every use revalidates via
+     *  the content-hash ETag; a cheap 304 per image per view). */
+    maxAge?: number
+    /** Serve-stale window in seconds (default: 0). >0 emits
+     *  `stale-while-revalidate` — repeat views render instantly from cache
+     *  while the browser revalidates in the background; a changed image heals
+     *  on the NEXT view. The bounded-regret middle of the dial. */
+    staleWhileRevalidate?: number
+    /** Appends `immutable` to a nonzero maxAge. NO server-side recovery
+     *  exists once an immutable response is cached — only for apps whose
+     *  image URLs are write-once by construction (replacement = new URL). */
+    immutable?: boolean
   }
   // observers?: Observer[] — top-level when the observability spec lands.
 }
