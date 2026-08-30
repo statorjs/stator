@@ -55,11 +55,23 @@ export function sharpTransformer(threads = 0): ImageTransformer {
     async probe(bytes) {
       const sharp = await load()
       const meta = await sharp(bytes).metadata()
-      return { width: meta.width ?? null, height: meta.height ?? null }
+      // Report DISPLAY dimensions: EXIF orientations 5-8 transpose the
+      // raster, and these dims feed width/height attributes (the CLS box)
+      // for pixels that transform() serves upright — raw stored dims would
+      // reserve a sideways box for every portrait phone photo.
+      const swap = (meta.orientation ?? 1) >= 5
+      return {
+        width: (swap ? meta.height : meta.width) ?? null,
+        height: (swap ? meta.width : meta.height) ?? null,
+      }
     },
     async transform(input, opts) {
       const sharp = await load()
-      let pipeline = sharp(input)
+      // rotate() with no args bakes the EXIF orientation into the pixels
+      // (and re-encoding drops the tag) — without it every variant of a
+      // portrait phone photo comes out sideways, because encoders write the
+      // raster as stored and the orientation tag is what dies in transit.
+      let pipeline = sharp(input).rotate()
       if (opts.width !== undefined && opts.height !== undefined) {
         pipeline = pipeline.resize({ width: opts.width, height: opts.height, fit: 'cover' })
       } else if (opts.width !== undefined) {
