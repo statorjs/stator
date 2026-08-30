@@ -39,7 +39,10 @@ afterAll(async () => {
 })
 
 function sidOf(res: Response): string | null {
-  return res.headers.get('set-cookie')?.match(/stator_sid=([^;]+)/)?.[1] ?? null
+  // Lazy sessions can establish AND rotate in one request (login), emitting
+  // two stator_sid Set-Cookies — the LAST one is the live sid (browser rule).
+  const matches = [...(res.headers.get('set-cookie') ?? '').matchAll(/stator_sid=([^;,\s]+)/g)]
+  return matches.at(-1)?.[1] ?? null
 }
 
 function postForm(path: string, sid: string, fields: Record<string, string>) {

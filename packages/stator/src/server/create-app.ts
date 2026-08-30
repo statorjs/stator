@@ -99,6 +99,9 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
    *  keyed by file relative to `machinesDir`. Omitted ⇒ hashed live at boot;
    *  a discovered machine missing from a supplied map is a boot error. */
   machineHashes?: Readonly<Record<string, string>>
+  /** Derived Cache-Control (cacheable read path, layer 3). Defaults on with
+   *  modest values (60s / 300s); `false` disables emission. */
+  caching?: { sMaxAge?: number; staleWhileRevalidate?: number } | false
 }
 
 export interface StatorApp {
@@ -175,6 +178,16 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     buildId: config.buildId,
     cors: resolved.cors,
     middleware,
+    // Layer-3 derived Cache-Control: on by default with modest values; the
+    // whole block set to `false` disables. (createDevApp never passes it —
+    // dev pages must always re-render while editing.)
+    caching:
+      resolved.caching === false
+        ? undefined
+        : {
+            sMaxAge: resolved.caching?.sMaxAge ?? 60,
+            staleWhileRevalidate: resolved.caching?.staleWhileRevalidate ?? 300,
+          },
   })
 
   return {

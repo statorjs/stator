@@ -83,6 +83,22 @@ export interface StatorConfig {
    *  Opt in per route/app with the `cors()` middleware; `origins` defaults to
    *  `trustedOrigins`. */
   cors?: { origins?: string[]; credentials?: boolean }
+  /** Derived Cache-Control (the cacheable read path, layer 3): on GET
+   *  responses the framework can PROVE anonymous-identical — every declared
+   *  read app-lifecycle, no session use or claims read while handling — it
+   *  emits `Cache-Control: public, s-maxage, stale-while-revalidate` so a
+   *  CDN can absorb anonymous traffic. Hand-set headers always win; pages
+   *  that read session machines are never marked. On by default under
+   *  `stator start` (60s / 300s); set to `false` to disable; dev never
+   *  emits (editing must always re-render). */
+  caching?:
+    | {
+        /** Shared-cache lifetime in seconds. Default: 60. */
+        sMaxAge?: number
+        /** Serve-stale-while-refreshing window in seconds. Default: 300. */
+        staleWhileRevalidate?: number
+      }
+    | false
   /** Logging policy. */
   logging?: {
     /** Minimum level to emit. Default: `warn` in production, `info` in dev.

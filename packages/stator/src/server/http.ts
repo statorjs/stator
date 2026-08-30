@@ -20,7 +20,14 @@ import { renderRoute } from './render.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
 import { buildRouteRequest } from './route-request.ts'
 import { isStatorQueryRoute, type RouteDefinition } from './routing.ts'
-import { CLAIMS_KEY, getOrCreateSessionId, getSessionState } from './session.ts'
+import {
+  CLAIMS_KEY,
+  getOrCreateSessionId,
+  getSessionState,
+  peekSessionId,
+  resumeSession,
+  sessionUse,
+} from './session.ts'
 import { withSessionLock } from './session-lock.ts'
 import { SessionRuntime } from './session-runtime.ts'
 import { fanOut, registerConnection, unregisterConnection } from './sse.ts'
@@ -68,7 +75,17 @@ export interface HttpConfig {
   /** The app's discovered `middleware.ts` definition (if any). `withDefaults`
    *  controls whether the framework security stack is prepended. */
   middleware?: MiddlewareDefinition
+  /** Layer-3 derived Cache-Control: emitted on GET responses the framework can
+   *  PROVE anonymous-identical (no session reads declared, no session use or
+   *  claims read while handling, nothing hand-set). Absent → never emitted
+   *  (the dev servers leave it off so editing always re-renders). */
+  caching?: { sMaxAge: number; staleWhileRevalidate: number }
 }
+
+/** Placeholder sid for session-free page renders — `loadGraph` loads only
+ *  session-lifecycle machines, so on app-only routes this never reaches the
+ *  store; it exists to keep SessionRuntime's signature honest. */
+const ANONYMOUS_SID = '@anonymous'
 
 const eventSchema = z.object({
   machine: z.string(),
@@ -188,10 +205,13 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   })
 
   // Context bridge — expose resolved config to every middleware (cors, app
-  // middleware) that follows, off `stator(c)`. Runs first. Also establishes the
-  // session once and eager-loads its claims (for a returning session), so the
-  // whole request shares one sid + claims snapshot; dirty claims persist at the
-  // end, to the current (possibly rotated) sid.
+  // middleware) that follows, off `stator(c)`. Runs first. Sessions are LAZY
+  // (the cacheable-read-path layer 1): an arriving cookie RESUMES its session
+  // (claims eager-loaded, no cookie write), but first contact establishes
+  // nothing — creation happens only at a dispatch, a session-machine read, an
+  // SSE connect, or an explicit session op. Anonymous reads therefore carry
+  // no Set-Cookie and stay CDN-cacheable. Dirty claims persist at the end,
+  // to the current (possibly rotated or just-established) sid.
   app.use('*', async (c, next) => {
     c.set('stator', {
       origin: config.origin,
@@ -203,14 +223,15 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     c.set('statorStore', config.store)
     // Stash the signing key so the cookie jar's signed methods can reach it.
     if (config.secret !== undefined) c.set('statorSecret', config.secret)
-    const { sessionId, isNew } = getOrCreateSessionId(c)
-    const session = getSessionState(c)
-    if (!isNew && session) {
-      session.claims = (await config.store.persistence.get(sessionId, CLAIMS_KEY)) ?? undefined
+    sessionUse(c)
+    const resumed = resumeSession(c)
+    if (resumed) {
+      resumed.claims = (await config.store.persistence.get(resumed.sid, CLAIMS_KEY)) ?? undefined
     }
     await next()
-    // Same session object (rotation mutates `.sid` in place), so persist to the
-    // current — possibly rotated — id.
+    // Re-read: the session may have been established mid-request. Rotation
+    // mutates `.sid` in place, so this persists to the current id.
+    const session = getSessionState(c)
     if (session?.claimsDirty) {
       await config.store.persistence.set(session.sid, CLAIMS_KEY, session.claims, {
         ttlSeconds: config.store.sessionTtlSeconds,
@@ -269,7 +290,9 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       const payload = await buildInspectPayload({
         store: config.store,
         routes: config.routes,
-        sessionId: getSessionState(c)?.sid,
+        // Inspecting IS session use — the route shows the caller's own
+        // session, so establish one for a first-contact dev visit.
+        sessionId: getOrCreateSessionId(c).sessionId,
         buildId: config.buildId,
       })
       c.header('Cache-Control', 'no-cache')
@@ -595,7 +618,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     // Brand decides the GET plane: data routes never touch the HTML path
     // (no client-runtime injection, no live meta — a raw Response out).
     if (isStatorQueryRoute(getRoute)) {
-      return runQueryRoute(c, matched.route, getRoute, config.store, matched.params)
+      return runQueryRoute(c, matched.route, getRoute, config.store, matched.params, config.caching)
     }
     return handleGet(
       c,
@@ -606,6 +629,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       config.headExtras,
       config.buildId,
       imagesInfo,
+      config.caching,
     )
   })
 
@@ -679,9 +703,17 @@ async function handleGet(
   headExtras?: (filePath: string) => string | Promise<string>,
   buildId?: string,
   images?: ImagesRenderInfo,
+  caching?: { sMaxAge: number; staleWhileRevalidate: number },
 ): Promise<Response> {
   {
-    const { sessionId } = getOrCreateSessionId(c)
+    // Lazy layer 1: only a session-machine read forces establishment. An
+    // app-only (or read-free) page renders against the resumed sid when a
+    // cookie arrived, or an inert placeholder — loadGraph loads session
+    // machines only, so the placeholder never reaches the store.
+    const needsSession = route.reads.some((def) => def.lifecycle === 'session')
+    const sessionId = needsSession
+      ? getOrCreateSessionId(c).sessionId
+      : (peekSessionId(c) ?? ANONYMOUS_SID)
     const literalPath = c.req.path
     const routeKey = `GET ${literalPath}`
     const request = { ...buildRouteRequest(c, discovered.paramNames), params }
@@ -731,6 +763,26 @@ async function handleGet(
       if (entryFired.size > 0) {
         await runtime.persistTouched(entryFired)
         scheduleSessionEffects(runtime, store, sessionId)
+      }
+
+      // Layer 3 — derived Cache-Control: the page is PROVABLY anonymous-
+      // identical (no session reads declared, no session use or claims read
+      // during handling) and the route didn't hand-set the header. The
+      // framework says what it can prove; hand-set always wins.
+      const use = sessionUse(c)
+      if (
+        caching &&
+        !needsSession &&
+        !use.used &&
+        !use.claimsRead &&
+        result.response.status < 300 &&
+        result.response.cookies.length === 0 &&
+        !result.response.headers.has('cache-control')
+      ) {
+        c.header(
+          'Cache-Control',
+          `public, s-maxage=${caching.sMaxAge}, stale-while-revalidate=${caching.staleWhileRevalidate}`,
+        )
       }
 
       return c.html(html)
