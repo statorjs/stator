@@ -1,9 +1,10 @@
 export type {
   GetImageOptions,
-  ImageDims,
   ImageFormat,
+  ImageLoading,
   ImageProps,
   PictureProps,
+  PictureSource,
   ResolvedImage,
 } from './images.ts'
 export { getImage, Image, Picture } from './images.ts'
