@@ -52,6 +52,7 @@ async function openSse(app: StatorApp, routeKey: string, cookie: string, clientI
   // ONE persistent pump appends to the buffer; readUntil only polls it.
   // (Racing reader.read() against timers abandons reads, and a subsequent
   // overlapping read() throws — the old harness silently died that way.)
+  let ended = false
   const pump = (async () => {
     try {
       while (true) {
@@ -62,8 +63,13 @@ async function openSse(app: StatorApp, routeKey: string, cookie: string, clientI
     } catch {
       // stream closed/aborted — fine
     }
+    ended = true
   })()
   return {
+    /** True once the response body has ended — i.e. the SERVER hung up. */
+    get ended(): boolean {
+      return ended
+    },
     /** Poll until `predicate(buffer)` or timeout; returns the buffer. */
     async readUntil(predicate: (text: string) => boolean, timeoutMs = 3000): Promise<string> {
       const deadline = Date.now() + timeoutMs
@@ -325,6 +331,73 @@ describe('SSE: session-machine live reads', () => {
     } finally {
       sse.close()
     }
+  })
+})
+
+describe('SSE: connection hygiene', () => {
+  it('evicts a superseded connection from the same page-load', async () => {
+    const app = await boot()
+    const before = activeConnectionCount()
+    const cookie = await cookieFor(app, '/board')
+
+    // A half-open socket the server never saw abort: the page reconnects with
+    // the same page-load identity, and the corpse would otherwise stay
+    // registered forever — pinning a SessionRuntime and taking a slice of
+    // every fan-out.
+    const first = await openSse(app, 'GET /board', cookie, 'page-1')
+    const second = await openSse(app, 'GET /board', cookie, 'page-1')
+    try {
+      await second.readUntil((t) => t.includes(': open'))
+      // Still one: the replacement took the slot rather than adding to it...
+      await vi.waitFor(() => expect(activeConnectionCount()).toBe(before + 1))
+      // ...and the evicted one was actually hung up on, not just forgotten.
+      await vi.waitFor(() => expect(first.ended).toBe(true))
+    } finally {
+      first.close()
+      second.close()
+    }
+    await vi.waitFor(() => expect(activeConnectionCount()).toBe(before))
+  })
+
+  it('unregisters a client that disconnects during the connect-time render', async () => {
+    const app = await boot()
+    const before = activeConnectionCount()
+    const cookie = await cookieFor(app, '/board')
+
+    // The abort lands while the handler is still between registerConnection
+    // and parking on `finished` — the ': open' flush and the initial sync.
+    // Hono fires abort subscribers exactly once, at abort time, so a listener
+    // registered after that window never runs and the connection stays in the
+    // registry for the life of the process, pinning its SessionRuntime and
+    // taking a slice of every fan-out.
+    for (let i = 0; i < 5; i++) {
+      const sse = await openSse(app, 'GET /board', cookie, `flap-${i}`)
+      sse.close()
+    }
+
+    await vi.waitFor(() => expect(activeConnectionCount()).toBe(before))
+  })
+
+  it('keeps connections from different page-loads on the same route', async () => {
+    const app = await boot()
+    const before = activeConnectionCount()
+    const cookie = await cookieFor(app, '/board')
+
+    // Two real tabs of one session — distinct identities, so eviction must
+    // NOT fire: both stay registered and neither gets hung up on.
+    const a = await openSse(app, 'GET /board', cookie, 'page-a')
+    const b = await openSse(app, 'GET /board', cookie, 'page-b')
+    try {
+      await a.readUntil((t) => t.includes(': open'))
+      await b.readUntil((t) => t.includes(': open'))
+      await vi.waitFor(() => expect(activeConnectionCount()).toBe(before + 2))
+      expect(a.ended).toBe(false)
+      expect(b.ended).toBe(false)
+    } finally {
+      a.close()
+      b.close()
+    }
+    await vi.waitFor(() => expect(activeConnectionCount()).toBe(before))
   })
 })
 

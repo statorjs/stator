@@ -33,7 +33,10 @@ import { logger, setLogLevel } from './logger.ts'
 import { codeHashOf, codeInputsOf } from './machine-hash.ts'
 import { MachineStore } from './machine-store.ts'
 import { discoverMiddleware } from './middleware.ts'
+import type { DiscoveredRoute } from './route-discovery.ts'
 import { discoverRoutes } from './route-discovery.ts'
+import { isStatorQueryRoute } from './routing.ts'
+import { broadcastEnvelope } from './sse.ts'
 import { InMemoryStore } from './store.ts'
 
 /**
@@ -71,10 +74,29 @@ export interface NativeDevApp {
   close: () => Promise<void>
 }
 
-// The dev browser client (replaces Vite's `/@vite/client`): reconnecting-EventSource
-// that reloads on a successful rebuild and renders a full-screen overlay with the
-// message on a build failure, so a compile error is visible instead of a frozen page.
-const DEV_CLIENT_SCRIPT = `(()=>{let o;const show=(m)=>{if(o)o.remove();o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:2147483647;margin:0;padding:24px;overflow:auto;background:#1a1015;color:#f8d7da;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap';o.textContent='stator \\u2014 build failed\\n\\n'+m;document.body.appendChild(o)};const es=new EventSource('/__stator_dev');es.onmessage=(e)=>{let m;try{m=JSON.parse(e.data)}catch{return}if(m.type==='reload')location.reload();else if(m.type==='error')show(m.message)}})()`
+// The dev browser client (replaces Vite's `/@vite/client`): reloads on a successful
+// rebuild and renders a full-screen overlay with the message on a build failure, so
+// a compile error is visible instead of a frozen page.
+//
+// Transport depends on the page. A `live: true` page already holds a /__sse stream,
+// so the dev signals ride it and this script opens NOTHING — a second event-stream
+// would take a second slot from the browser's six-per-origin pool (shared across
+// every tab in the profile), and two-per-tab is what wedges a dev session at three
+// tabs. Reload arrives there as the wire protocol's own directive, applied by the
+// page runtime; only the dev-only error overlay needs listening for. Pages without
+// a live channel keep their own /__stator_dev stream — still one per tab.
+const DEV_OVERLAY = `let o;const show=(m)=>{if(o)o.remove();o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:2147483647;margin:0;padding:24px;overflow:auto;background:#1a1015;color:#f8d7da;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap';o.textContent='stator \\u2014 build failed\\n\\n'+m;document.body.appendChild(o)};const go=(m)=>{if(m.type==='reload')location.reload();else if(m.type==='error')show(m.message)};`
+
+/** A page route (not a data route) declared `live: true` — the pages that hold
+ *  a /__sse stream, and so need no second one for dev signals. */
+const isLiveRoute = (def: DiscoveredRoute['GET']): boolean =>
+  def !== undefined && !isStatorQueryRoute(def) && def.live === true
+
+/** `live` pages piggyback on /__sse; everything else opens /__stator_dev. */
+const devClientScript = (live: boolean): string =>
+  live
+    ? `(()=>{${DEV_OVERLAY}window.addEventListener('stator:live-message',(e)=>{const d=e.detail&&e.detail.envelope&&e.detail.envelope.dev;if(d)go(d)})})()`
+    : `(()=>{${DEV_OVERLAY}const es=new EventSource('/__stator_dev');es.onmessage=(e)=>{let m;try{m=JSON.parse(e.data)}catch{return}go(m)}})()`
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'tests', 'test', '__tests__'])
 const APP_EXT = /\.(stator|ts|tsx|mts|cts|js|mjs)$/
@@ -111,9 +133,13 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   const machinesDir = real(resolve(config.machinesDir))
   const routesDir = real(resolve(config.routesDir))
   const staticDir = config.staticDir ? real(resolve(config.staticDir)) : resolve(root, 'static')
-  // One build-id per dev process, as the Vite dev server did — rebuilds reload
-  // through the dev channel, a restart is a new id for the SSE reconnect handshake.
-  const buildId = randomUUID()
+  // One build-id per successful BUILD, not per process. Connected pages reload
+  // through the dev signal, but a page whose channel was released while it sat
+  // in the background (or dropped over a blip) never sees that signal — it
+  // reconnects later carrying the id it was rendered against, and the /__sse
+  // handshake is the only thing that can tell it its slot-ID map is stale. A
+  // per-process id would answer "same build" to a page from three rebuilds ago.
+  let buildId = randomUUID()
 
   // Loaders, BEFORE the first app import. The CLI's TS loader first — a no-op
   // extra link when the CLI already registered it, required when the dev server
@@ -166,6 +192,11 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
     import(`${pathToFileURL(file).href}?v=${versions.get(file) ?? 1}`)
 
   // ── Dev live-reload channel (replaces Vite's `/@vite/client` HMR socket) ────
+  // Only pages WITHOUT a live channel open this. A `live: true` page already
+  // holds a /__sse stream, and its dev signals ride that one instead — a
+  // second event-stream would spend another slot from the browser's six-per-
+  // origin pool (shared across every tab in the profile), which is what wedges
+  // a multi-tab dev session at three tabs.
   const reloadClients = new Set<ReadableStreamDefaultController<Uint8Array>>()
   const enc = new TextEncoder()
   type DevMessage = { type: 'reload' } | { type: 'error'; message: string }
@@ -178,15 +209,29 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
         reloadClients.delete(c)
       }
     }
+    // Live pages: a reload rides the wire protocol's own directive (the page
+    // runtime applies it with no dev-specific code), an error rides a `dev`
+    // key the production runtime ignores and the dev client picks up off
+    // `stator:live-message`.
+    void broadcastEnvelope(
+      msg.type === 'reload' ? { directives: [{ type: 'reload' }] } : { dev: msg },
+    )
   }
-  const devReloadResponse = (): Response =>
-    new Response(
+  const devReloadResponse = (): Response => {
+    let mine: ReadableStreamDefaultController<Uint8Array> | undefined
+    return new Response(
       new ReadableStream<Uint8Array>({
         start(controller) {
+          mine = controller
           controller.enqueue(enc.encode(': connected\n\n'))
           reloadClients.add(controller)
         },
-        // A closed stream's controller throws on the next enqueue and is pruned then.
+        // Disconnect arrives as a stream cancel; without this the controller
+        // lingers until the next broadcast's enqueue throws, and this channel
+        // has no heartbeat to provoke one.
+        cancel() {
+          if (mine) reloadClients.delete(mine)
+        },
       }),
       {
         headers: {
@@ -197,6 +242,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
         },
       },
     )
+  }
 
   // ── Source scan: scoped CSS + island-ness of every `.stator` ───────────────
   // The loader compiles each `.stator` into its server module on import; this
@@ -304,7 +350,12 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       if (url) head.push(`<script type="module" src="${url}"></script>`)
     }
     if (inspectorOn) head.push('<script src="/@stator/inspector.js" defer></script>')
-    head.push(`<script>${DEV_CLIENT_SCRIPT}</script>`)
+    // Liveness is decided HERE, not sniffed from the DOM: headExtras is injected
+    // ahead of the `stator-live` meta, so a script querying for it would always
+    // find nothing and open a redundant stream.
+    const abs = resolve(routeFile)
+    const live = routes.some((r) => resolve(r.filePath) === abs && isLiveRoute(r.GET))
+    head.push(`<script>${devClientScript(live)}</script>`)
     return head.join('\n')
   }
 
@@ -435,6 +486,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
         machinesChanged = await rebuildStore()
         storeRebuilt = true
       }
+      buildId = randomUUID()
       await rebuildServer()
       broadcast({ type: 'reload' })
       logger.info(

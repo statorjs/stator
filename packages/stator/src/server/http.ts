@@ -376,6 +376,26 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       const runtime = new SessionRuntime(sessionId, config.store)
       await runtime.loadGraph(route.reads)
       const { renderState } = await renderRoute(route, routeKey, sessionId, runtime, request)
+
+      // The handler parks on `finished` until the connection ends. Both ways
+      // out resolve it: the client aborting, and the server hanging up on a
+      // superseded connection. A server-side `stream.close()` does NOT raise
+      // onAbort, so without the second path an evicted connection would leave
+      // its heartbeat interval running for the life of the process.
+      //
+      // Subscribe BEFORE registering — and before the ': open' flush and the
+      // initial sync below. Hono fires its abort subscribers exactly once, at
+      // abort time (utils/stream.ts), so a listener added after the client has
+      // already gone is never called: the connection would sit in the registry
+      // for the life of the process, pinning its SessionRuntime and taking a
+      // slice of every fan-out. A page that opens the channel and immediately
+      // navigates away hits that window every time.
+      let finish!: () => void
+      const finished = new Promise<void>((resolveFn) => {
+        finish = resolveFn
+      })
+      stream.onAbort(() => finish())
+
       const conn = registerConnection({
         sessionId,
         clientId: c.req.query('client'),
@@ -386,6 +406,10 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         renderState,
         send: async (data: string) => {
           await stream.writeSSE({ data })
+        },
+        close: () => {
+          void stream.close()
+          finish()
         },
       })
 
@@ -415,9 +439,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       }, config.ssePingMs ?? 25_000)
 
       try {
-        await new Promise<void>((resolveFn) => {
-          stream.onAbort(() => resolveFn())
-        })
+        await finished
       } finally {
         clearInterval(keepAlive)
         unregisterConnection(conn.id)
