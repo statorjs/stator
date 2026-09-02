@@ -277,6 +277,47 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
   }
   checkNoReadInDefer(fragment, false)
 
+  // Build-time gate for RCDATA elements: inside <textarea> and <title> the
+  // parser treats children as RAW TEXT — a live-slot <span> (text-position
+  // read()) or a region comment marker (each/when/match/defer) is rendered as
+  // literal markup instead of becoming an element. Found in the wild: a
+  // textarea pre-filled via read() displayed `<span data-slot="…"></span>` to
+  // the user. Attributes on the element itself stay legal (attribute patches
+  // need no wrapper) — the gate covers children only.
+  const RCDATA_BINDINGS = new Set(['read', 'each', 'when', 'match', 'defer'])
+  const checkNoBindingInRcdata = (node: ts.Node, rcdataTag: string | null): void => {
+    if (
+      rcdataTag &&
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      RCDATA_BINDINGS.has(node.expression.text)
+    ) {
+      const callee = node.expression.text
+      throw new CompileError(
+        `stator: ${callee}() cannot appear inside <${rcdataTag}> — its content is raw text ` +
+          `(RCDATA), so the ${callee === 'read' ? 'live-slot wrapper' : 'region markers'} would ` +
+          `render as literal markup. Interpolate a static value instead (a selector property ` +
+          `like {machine.someSelector}, or a frontmatter constant); if the value must be live, ` +
+          `bind an attribute or use an island.`,
+        loc(node),
+      )
+    }
+    if (ts.isJsxElement(node)) {
+      const opening = node.openingElement
+      const tagName = ts.isIdentifier(opening.tagName) ? opening.tagName.text : null
+      const isRcdata = tagName === 'textarea' || tagName === 'title'
+      // Attributes keep the OUTER context; children enter the RCDATA scope.
+      checkNoBindingInRcdata(opening, rcdataTag)
+      for (const child of node.children) {
+        checkNoBindingInRcdata(child, isRcdata ? tagName : rcdataTag)
+      }
+      checkNoBindingInRcdata(node.closingElement, rcdataTag)
+      return
+    }
+    ts.forEachChild(node, (child) => checkNoBindingInRcdata(child, rcdataTag))
+  }
+  checkNoBindingInRcdata(fragment, null)
+
   // Build-time gate for item-read placement: a `read(<item>, …)` binding is
   // OWNED by its each() row — the row render supplies the item and collects the
   // binding, and the list's recompute is what re-diffs it. Three positions break

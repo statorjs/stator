@@ -217,7 +217,8 @@ describe('native dev server: .stator end to end, no Vite', () => {
     // broke, and the one the native server has by construction.
     const page = await get('/tally')
     expect(page.status).toBe(200)
-    const cookie = page.headers.get('set-cookie')!.split(';')[0]!
+    // Lazy sessions: the app-machine page sets no cookie; mint a sid.
+    const cookie = `stator_sid=${crypto.randomUUID()}`
     const abort = new AbortController()
     const res = await get(`/__sse?route=${encodeURIComponent('GET /tally')}`, {
       headers: { Cookie: cookie },

@@ -1,6 +1,6 @@
 import type { Context } from 'hono'
 import { type CookieJar, cookieJar } from './cookies.ts'
-import { getSessionState, rotateSessionNow } from './session.ts'
+import { getOrCreateSessionId, getSessionState, rotateSessionNow, sessionUse } from './session.ts'
 import type { Store } from './store.ts'
 
 /**
@@ -64,25 +64,34 @@ const DEFAULT: StatorConfigData = { trustedOrigins: [], sameSite: 'Lax' }
  */
 export function stator(c: Context): StatorContext {
   const cfg = c.get('stator') ?? DEFAULT
-  const session = getSessionState(c)
   return {
     origin: cfg.origin,
     trustedOrigins: cfg.trustedOrigins,
     sameSite: cfg.sameSite,
     cors: cfg.cors,
+    // Live reads (not a captured snapshot): the session may be established
+    // mid-request, after this context object was built.
     get sid() {
-      return session?.sid ?? ''
+      return getSessionState(c)?.sid ?? ''
     },
     claims<T = unknown>(): T | undefined {
-      return session?.claims as T | undefined
+      // A claims READ is a peek — it never establishes (an anonymous /admin
+      // probe redirects without minting state) — but it does make the
+      // response claims-dependent, so layer 3 marks it unprovable.
+      sessionUse(c).claimsRead = true
+      return getSessionState(c)?.claims as T | undefined
     },
     setClaims(claims: unknown): void {
+      // Writing claims is an explicit session op — an establishment trigger.
+      getOrCreateSessionId(c)
+      const session = getSessionState(c)
       if (session) {
         session.claims = claims
         session.claimsDirty = true
       }
     },
     clearClaims(): void {
+      const session = getSessionState(c)
       if (session) {
         session.claims = undefined
         session.claimsDirty = true

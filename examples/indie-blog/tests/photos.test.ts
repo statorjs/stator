@@ -30,6 +30,9 @@ beforeAll(async () => {
     machinesDir: join(here, 'machines'),
     routesDir: join(here, 'routes'),
     staticDir: join(here, 'static'),
+    // In-process boots don't read stator.config.ts (the CLI loads it) — pass
+    // the images config the way the config file does.
+    images: { dir: process.env.INDIE_BLOG_MEDIA as string, path: '/media' },
   })
   await app.listen(PORT)
 }, 30_000)
@@ -55,8 +58,9 @@ async function publish(sid: string, fields: Record<string, string>, photo?: File
   return (await res.json()) as { directives?: Array<{ type: string; to: string }> }
 }
 
+let sid: string
+
 describe('photo posts over multipart', () => {
-  let sid: string
 
   beforeAll(async () => {
     const first = await fetch(`${base}/admin`)
@@ -108,7 +112,7 @@ describe('photo posts over multipart', () => {
   it('rejects a photo without alt text', async () => {
     const photo = new File([PNG], 'x.png', { type: 'image/png' })
     const result = await publish(sid, { title: '', content: 'No alt.', photo_alt: '' }, photo)
-    expect(result.directives?.[0]?.to).toBe('/admin?error=photo')
+    expect(result.directives?.[0]?.to).toBe('/admin?error=photo-alt')
   })
 
   it('a media path that escapes the dir or has no known extension 404s', async () => {
@@ -119,5 +123,28 @@ describe('photo posts over multipart', () => {
   it('a plain urlencoded publish still works (no photo entry at all)', async () => {
     const result = await publish(sid, { title: 'Words', content: 'Just words.', photo_alt: '' })
     expect(result.directives?.[0]?.to).toMatch(/^\/posts\/words/)
+  })
+})
+
+describe('compose draft recovery', () => {
+  it('a validation bounce keeps the typed fields; a successful publish clears them', async () => {
+    const photo = new File([PNG], 'x.png', { type: 'image/png' })
+    await publish(sid, { title: 'Draft Title', content: 'Typed words.', photo_alt: '' }, photo)
+    const bounced = await (
+      await fetch(`${base}/admin`, { headers: { Cookie: `stator_sid=${sid}` } })
+    ).text()
+    expect(bounced).toContain('value="Draft Title"')
+    expect(bounced).toContain('re-pick your file')
+    // The textarea pre-fill must be RAW text — a live-slot wrapper inside
+    // RCDATA renders as literal markup (the bug that shipped first).
+    const textarea = bounced.match(/<textarea[^>]*>([\s\S]*?)<\/textarea>/)?.[1] ?? ''
+    expect(textarea).toContain('Typed words.')
+    expect(textarea).not.toContain('data-slot')
+
+    await publish(sid, { title: 'Draft Title', content: 'Typed words.', photo_alt: 'alt' }, photo)
+    const after = await (
+      await fetch(`${base}/admin`, { headers: { Cookie: `stator_sid=${sid}` } })
+    ).text()
+    expect(after).not.toContain('value="Draft Title"')
   })
 })

@@ -12,6 +12,7 @@ import { discoverMachines } from './discovery.ts'
 import { wireAppEffects } from './effects.ts'
 import { loadDotenv } from './env.ts'
 import { buildHonoApp } from './http.ts'
+import { type ImageTransformer, resolveImagesConfig } from './images.ts'
 import { logger, setLogLevel } from './logger.ts'
 import { MachineStore } from './machine-store.ts'
 import { discoverMiddleware } from './middleware.ts'
@@ -60,6 +61,22 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
      *  `LOG_LEVEL` env takes precedence over this. */
     level?: LogLevel
   }
+  /** Image serving — present mounts the image endpoint over `images.dir`
+   *  (extension = delivery format, `?w=` allowlist, disk-cached variants).
+   *  Absent → no routes, no transformer loaded. Mirrors `StatorConfig.images`. */
+  images?: {
+    dir: string
+    path?: string
+    widths?: number[]
+    aspectRatios?: number[]
+    transformer?: ImageTransformer
+    concurrency?: number
+    threads?: number
+    encodeTimeoutMs?: number
+    maxAge?: number
+    staleWhileRevalidate?: number
+    immutable?: boolean
+  }
   /** Origins allowed to make cross-site writes despite the CSRF guard (exact or
    *  wildcard-subdomain). Mirrors `StatorConfig.trustedOrigins`. */
   trustedOrigins?: readonly string[]
@@ -88,6 +105,9 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
    *  keyed by file relative to `machinesDir`. Omitted ⇒ hashed live at boot;
    *  a discovered machine missing from a supplied map is a boot error. */
   machineHashes?: Readonly<Record<string, string>>
+  /** Derived Cache-Control (cacheable read path, layer 3). Defaults on with
+   *  modest values (60s / 300s); `false` disables emission. */
+  caching?: { sMaxAge?: number; staleWhileRevalidate?: number } | false
 }
 
 export interface StatorApp {
@@ -143,7 +163,9 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     : undefined
   const bootDef = config.bootFile ? await discoverBoot(config.bootFile) : undefined
   const inspector = resolved.inspector
+  const images = config.images ? resolveImagesConfig(config.images) : undefined
   const app = await buildHonoApp({
+    images,
     routes,
     store,
     staticDir,
@@ -162,6 +184,16 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     buildId: config.buildId,
     cors: resolved.cors,
     middleware,
+    // Layer-3 derived Cache-Control: on by default with modest values; the
+    // whole block set to `false` disables. (createDevApp never passes it —
+    // dev pages must always re-render while editing.)
+    caching:
+      resolved.caching === false
+        ? undefined
+        : {
+            sMaxAge: resolved.caching?.sMaxAge ?? 60,
+            staleWhileRevalidate: resolved.caching?.staleWhileRevalidate ?? 300,
+          },
   })
 
   return {

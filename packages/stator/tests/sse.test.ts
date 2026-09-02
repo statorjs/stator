@@ -29,9 +29,10 @@ async function boot(): Promise<StatorApp> {
   })
 }
 
-async function cookieFor(app: StatorApp, path: string): Promise<string> {
-  const res = await app.fetch(new Request(`http://localhost${path}`))
-  return res.headers.get('set-cookie')!.split(';')[0]!
+async function cookieFor(_app: StatorApp, _path: string): Promise<string> {
+  // Lazy sessions: anonymous page GETs no longer set cookies. A presented
+  // sid resumes verbatim (pre-existing semantics), so tests mint their own.
+  return `stator_sid=${crypto.randomUUID()}`
 }
 
 /** Open the SSE stream and return an accumulating reader. `close()` aborts

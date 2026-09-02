@@ -163,6 +163,19 @@ interface WireEnvelope { patches?: Patch[]; directives?: Directive[] }
 
 The shapes that cross the server/client boundary, re-exported for API routes and custom tooling: `Patch`, `PatchTarget`, `SlotTarget`, `ElementTarget`, `WireEnvelope`. Slot targets address `data-slot` positions; element targets address `data-stator-id` identities. The keyed-list ops (`insert`/`remove`/`move`) index element children sequentially — each op assumes the previous ops in the batch have been applied.
 
+## Images
+
+```ts
+interface ImageTransformer {
+  probe(bytes: Uint8Array): Promise<{ width: number | null; height: number | null }>
+  transform(input: Uint8Array, opts: { width?: number; height?: number; format: 'jpeg' | 'png' | 'webp' | 'avif' }): Promise<Uint8Array>
+}
+function sharpTransformer(): ImageTransformer   // the default implementation
+function probeImage(bytes: Uint8Array, transformer?: ImageTransformer): Promise<{ width: number | null; height: number | null }>
+```
+
+The transformer seam behind the [image endpoint](/guides/styling-and-assets/#images): pure bytes-in/bytes-out, so the default (sharp, lazy-imported — image-free apps never load it) can be swapped via `images.transformer` in config. The framework owns everything around the adapter — path resolution, the variant disk cache, conditional GET. `probeImage` is for upload handlers: probe intrinsic dimensions **once at write time** and store them beside the file path; renders are synchronous and never do image IO, which is why [`<Image>`](/reference/components/#image--picture) requires dimensions from data. EXIF orientation is normalized on both sides of the seam: `probeImage` reports *display* dimensions for transposing orientations, and the default transformer bakes the rotation into every variant's pixels — stored dims and served bytes agree by construction.
+
 ## logger
 
 ```ts

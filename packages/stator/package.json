@@ -27,6 +27,10 @@
     "stator": "./src/cli/stator.js"
   },
   "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
     "./server": {
       "types": "./src/server/index.ts",
       "default": "./src/server/index.ts"
@@ -85,6 +89,7 @@
     "postcss": "^8.5.15",
     "postcss-selector-parser": "^7.1.4",
     "schema-dts": "^1.1.5",
+    "sharp": "^0.33.5",
     "typescript": "^5.6.0",
     "zod": "^3.23.0"
   },

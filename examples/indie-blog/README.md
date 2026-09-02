@@ -5,7 +5,7 @@ A personal blog where the IndieWeb protocols run in-process. Posts carry microfo
 ```bash
 pnpm install
 pnpm dev
-# open http://localhost:3007 — sign in at /admin (dev password: owls-at-dusk)
+# open http://localhost:3000 — sign in at /admin (dev password: owls-at-dusk)
 ```
 
 ## What it teaches
@@ -22,7 +22,7 @@ pnpm dev
 
 | env | default | |
 |---|---|---|
-| `INDIE_BLOG_ORIGIN` | `http://localhost:3007` | absolute origin; webmention targets must live under it |
+| `INDIE_BLOG_ORIGIN` | `http://localhost:3000` | absolute origin; webmention targets must live under it |
 | `INDIE_BLOG_NAME` | An Indie Blog | site title |
 | `INDIE_BLOG_AUTHOR` | The Author | h-card name |
 | `INDIE_BLOG_PASSWORD` | owls-at-dusk | owner password (dev default — set your own) |

@@ -13,9 +13,9 @@ async function boot(): Promise<StatorApp> {
   })
 }
 
-async function cookieFor(app: StatorApp, path: string): Promise<string> {
-  const res = await app.fetch(new Request(`http://localhost${path}`))
-  return res.headers.get('set-cookie')!.split(';')[0]!
+async function cookieFor(_app: StatorApp, _path: string): Promise<string> {
+  // Lazy sessions: anonymous GETs set no cookie; tests mint their own sid.
+  return `stator_sid=${crypto.randomUUID()}`
 }
 
 async function postIncrement(app: StatorApp, cookie: string, eventId?: string): Promise<Response> {

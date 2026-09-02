@@ -95,6 +95,8 @@ export interface RenderRouteOptions {
    *  passes false: it runs under the session lock and must not kick defer I/O;
    *  its defer slots emit inert placeholders that the diff never touches. */
   resolveDeferred?: boolean
+  /** Endpoint widths/aspects for `<Image>`/`<Picture>` (see RenderState.images). */
+  images?: import('./images.ts').ImagesRenderInfo
 }
 
 export async function renderRoute(
@@ -107,6 +109,7 @@ export async function renderRoute(
 ): Promise<RenderResult> {
   const state = createRenderState(sessionId, routeKey)
   state.resolveDeferred = opts.resolveDeferred ?? true
+  state.images = opts.images
   const { ctx: responseCtx, effects } = createResponseContext()
   const renderCtx: RouteRenderContext = {
     response: responseCtx,

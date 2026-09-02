@@ -83,11 +83,75 @@ export interface StatorConfig {
    *  Opt in per route/app with the `cors()` middleware; `origins` defaults to
    *  `trustedOrigins`. */
   cors?: { origins?: string[]; credentials?: boolean }
+  /** Derived Cache-Control (the cacheable read path, layer 3): on GET
+   *  responses the framework can PROVE anonymous-identical — every declared
+   *  read app-lifecycle, no session use or claims read while handling — it
+   *  emits `Cache-Control: public, s-maxage, stale-while-revalidate` so a
+   *  CDN can absorb anonymous traffic. Hand-set headers always win; pages
+   *  that read session machines are never marked. On by default under
+   *  `stator start` (60s / 300s); set to `false` to disable; dev never
+   *  emits (editing must always re-render). */
+  caching?:
+    | {
+        /** Shared-cache lifetime in seconds. Default: 60. */
+        sMaxAge?: number
+        /** Serve-stale-while-refreshing window in seconds. Default: 300. */
+        staleWhileRevalidate?: number
+      }
+    | false
   /** Logging policy. */
   logging?: {
     /** Minimum level to emit. Default: `warn` in production, `info` in dev.
      *  Precedence: `LOG_LEVEL` env > this > default. */
     level?: LogLevel
+  }
+  /** Image serving. Present → the framework mounts an image endpoint over
+   *  `dir` (originals + on-demand variants: the URL's extension is the
+   *  delivery format, `?w=` resizes from the allowlist). Absent → no routes,
+   *  no transformer loaded — image-free apps pay nothing. */
+  images?: {
+    /** Directory holding the original images (dated subpaths welcome) —
+     *  runtime-written data like a SQLite file, NOT under `static/` (builds
+     *  recreate `dist/static`). Relative paths resolve against the cwd. */
+    dir: string
+    /** URL prefix the endpoint serves under. Default: `/<basename(dir)>`
+     *  (`dir: 'media'` → `/media`). */
+    path?: string
+    /** The `?w=` allowlist, and the default `srcset` widths `getImage`
+     *  emits. An allowlist because an open resize parameter is a
+     *  denial-of-service invitation. Default: `[400, 800, 1200, 1600]`. */
+    widths?: number[]
+    /** Crop aspect allowlist (width/height) for `?w=&h=` cover-crops and
+     *  `<Picture>` art direction. Default: square, 4:3, 3:2, 16:9 and their
+     *  portrait duals. The variant space stays |widths| x |aspectRatios|. */
+    aspectRatios?: number[]
+    /** Swap the transformer (default: sharp). See `ImageTransformer`. */
+    transformer?: import('./server/images.ts').ImageTransformer
+    /** Max concurrent encodes across ALL variants (default: 2). A cold-cache
+     *  gallery page fans out many transforms at once; the semaphore keeps a
+     *  small host from OOMing under AVIF encodes. */
+    concurrency?: number
+    /** libvips worker threads per encode (default: sharp's default, which is
+     *  the REPORTED core count — on a shared-cpu host that's the physical
+     *  machine's, so a fractional vCPU fans out 8+ encoder threads. Set `1`
+     *  on small hosts.) */
+    threads?: number
+    /** Per-request encode deadline in ms (default: 15000; 0 disables). Past
+     *  it the response 302s to the stored original — real pixels now — while
+     *  the encode keeps filling the variant cache for the next request. */
+    encodeTimeoutMs?: number
+    /** Freshness lifetime in seconds (default: 0 — every use revalidates via
+     *  the content-hash ETag; a cheap 304 per image per view). */
+    maxAge?: number
+    /** Serve-stale window in seconds (default: 0). >0 emits
+     *  `stale-while-revalidate` — repeat views render instantly from cache
+     *  while the browser revalidates in the background; a changed image heals
+     *  on the NEXT view. The bounded-regret middle of the dial. */
+    staleWhileRevalidate?: number
+    /** Appends `immutable` to a nonzero maxAge. NO server-side recovery
+     *  exists once an immutable response is cached — only for apps whose
+     *  image URLs are write-once by construction (replacement = new URL). */
+    immutable?: boolean
   }
   // observers?: Observer[] — top-level when the observability spec lands.
 }

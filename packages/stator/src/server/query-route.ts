@@ -12,7 +12,7 @@ import type {
   QueryRouteResult,
   RouteContext,
 } from './routing.ts'
-import { getOrCreateSessionId } from './session.ts'
+import { getOrCreateSessionId, peekSessionId, sessionUse } from './session.ts'
 import { withSessionLock } from './session-lock.ts'
 import { SessionRuntime } from './session-runtime.ts'
 
@@ -24,6 +24,7 @@ const queryLog = scopedLogger('query')
 const DATA_CONTENT_TYPES: Record<string, string> = {
   '.json': 'application/json; charset=utf-8',
   '.xml': 'application/xml; charset=utf-8',
+  '.atom': 'application/atom+xml; charset=utf-8',
   '.txt': 'text/plain; charset=utf-8',
   '.ics': 'text/calendar; charset=utf-8',
   '.csv': 'text/csv; charset=utf-8',
@@ -55,8 +56,30 @@ export async function runQueryRoute(
   /** Path params from the framework's own matcher (the GET catch-all
    *  bypasses Hono's per-route param extraction). */
   params?: Record<string, string>,
+  /** Layer-3 derived Cache-Control values (absent → never emitted). */
+  caching?: { sMaxAge: number; staleWhileRevalidate: number },
 ): Promise<Response> {
-  const { sessionId } = getOrCreateSessionId(c)
+  // Lazy layer 1: only session-machine reads establish; an app-only data
+  // route (a feed, a sitemap) renders sessionless and stays CDN-cacheable.
+  const needsSession = route.reads.some((def) => def.lifecycle === 'session')
+
+  // The revision ledger: when the route declares a cheap fingerprint, the
+  // ETag derives from it and a match answers 304 BEFORE the handler — the
+  // designed upgrade the body-hash ETag always pointed at. The fingerprint
+  // runs outside any session machinery, so the derived-caching proof holds.
+  let revisionEtag: string | undefined
+  if (route.revision) {
+    const rev = await route.revision()
+    revisionEtag = `"r-${createHash('sha1').update(String(rev)).digest('base64url').slice(0, 16)}"`
+    if ((c.req.header('if-none-match') ?? '').includes(revisionEtag)) {
+      const notModified = new Response(null, { status: 304, headers: { ETag: revisionEtag } })
+      applyDerivedCaching(c, notModified, { caching, needsSession })
+      return notModified
+    }
+  }
+  const sessionId = needsSession
+    ? getOrCreateSessionId(c).sessionId
+    : (peekSessionId(c) ?? '@anonymous')
   const request = params
     ? { ...buildRouteRequest(c, discovered.paramNames), params }
     : buildRouteRequest(c, discovered.paramNames)
@@ -99,9 +122,51 @@ export async function runQueryRoute(
       scheduleSessionEffects(runtime, store, sessionId)
     }
 
-    return synthesizeDataResponse(c, result)
+    const res = synthesizeDataResponse(c, result)
+    // A revision route's responses carry the revision ETag (overriding the
+    // body hash) so the cheap 304 path and full responses validate against
+    // one token.
+    if (revisionEtag) {
+      try {
+        res.headers.set('etag', revisionEtag)
+      } catch {
+        // Immutable headers (proxied Response) — the handler's call.
+      }
+    }
+    applyDerivedCaching(c, res, { caching, needsSession })
+    return res
   } finally {
     runtime.dispose()
+  }
+}
+
+/** Layer 3 — derived Cache-Control, same proof as pages: no session reads
+ *  declared, no session use/claims read while handling, handler set nothing
+ *  itself. Applied to 200 and 304 alike (a 304's headers update the cached
+ *  entry's lifetime). */
+function applyDerivedCaching(
+  c: Context,
+  res: Response,
+  opts: { caching?: { sMaxAge: number; staleWhileRevalidate: number }; needsSession: boolean },
+): void {
+  const use = sessionUse(c)
+  if (
+    !opts.caching ||
+    opts.needsSession ||
+    use.used ||
+    use.claimsRead ||
+    res.status >= 400 ||
+    res.headers.has('cache-control')
+  ) {
+    return
+  }
+  try {
+    res.headers.set(
+      'cache-control',
+      `public, max-age=0, s-maxage=${opts.caching.sMaxAge}, stale-while-revalidate=${opts.caching.staleWhileRevalidate}`,
+    )
+  } catch {
+    // Immutable headers (proxied Response) — the handler's call.
   }
 }
 

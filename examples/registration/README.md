@@ -5,7 +5,7 @@ An event registration desk, and Stator's forms proving ground. One shared roster
 ```bash
 pnpm install
 pnpm dev
-# open http://localhost:3006 — in two windows
+# open http://localhost:3000 — in two windows
 ```
 
 ## What it teaches

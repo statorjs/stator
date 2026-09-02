@@ -4,7 +4,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 
 /** Absolute origin this site is served from — webmention targets must live
  *  under it, and outgoing mentions cite post URLs built on it. */
-export const SITE_ORIGIN = (process.env.INDIE_BLOG_ORIGIN ?? 'http://localhost:3007').replace(
+export const SITE_ORIGIN = (process.env.INDIE_BLOG_ORIGIN ?? 'http://localhost:3000').replace(
   /\/$/,
   '',
 )
