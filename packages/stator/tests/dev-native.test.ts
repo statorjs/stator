@@ -193,6 +193,42 @@ describe('native dev server: .stator end to end, no Vite', () => {
     expect(await asset.text()).toContain('stator-inspector')
   })
 
+  it('opens no second event-stream on a live page — dev signals ride /__sse', async () => {
+    // Two streams per tab is what wedges a dev session at three tabs: the
+    // browser's six-per-origin HTTP/1.1 pool is shared across the profile.
+    const html = await (await get('/live-head')).text()
+    expect(html).toContain('<meta name="stator-live" content="true">')
+    expect(html).not.toContain('/__stator_dev')
+    // It still listens — for the build-error overlay, off the live channel.
+    expect(html).toContain("addEventListener('stator:live-message'")
+    expect(html).toContain('build failed')
+  })
+
+  it('stamps a fresh build id per rebuild so a reconnecting page can detect staleness', async () => {
+    const idOf = async (): Promise<string | undefined> =>
+      /<meta name="stator-build" content="([^"]+)">/.exec(
+        await (await get('/live-head')).text(),
+      )?.[1]
+    const first = await idOf()
+    expect(first).toBeTruthy()
+
+    // Same edit target as the live-reload test below — the file this suite
+    // owns, since the Vite suite watches the same fixture tree in parallel.
+    const file = resolve(root, 'templates/remote-page.stator')
+    const original = await readFile(file, 'utf8')
+    try {
+      await writeFile(file, original.replace('<title>remote</title>', '<title>build-id</title>'))
+      expect(await settleTitle('/remote', 'build-id')).toBe(true)
+      // A per-PROCESS id would answer "same build" here, and a page released
+      // while backgrounded would reconnect onto a stale slot map instead of
+      // being told to reload.
+      expect(await idOf()).not.toBe(first)
+    } finally {
+      await writeFile(file, original)
+      await settleTitle('/remote', 'remote')
+    }
+  }, 20_000)
+
   it('serves machine-state inspection at /@stator/inspect', async () => {
     const res = await get('/@stator/inspect')
     expect(res.status).toBe(200)

@@ -104,13 +104,17 @@ The page runtime marks in-flight and connection state on the DOM so plain CSS ca
 button[data-stator-pending] { opacity: 0.6; pointer-events: none; }
 ```
 
-**`data-stator-connection`** — set on `<html>` for routes with `live: true`, one of `connected`, `disconnected`, or `stale` (the half-open-channel watchdog fired). Absent on non-live routes.
+**`data-stator-connection`** — set on `<html>` for routes with `live: true`, one of `connected`, `disconnected`, `stale` (the half-open-channel watchdog fired), or `idle` (the page released the channel on purpose — see below). Absent on non-live routes.
 
 ```css
 html[data-stator-connection="disconnected"] .offline-banner { display: block; }
 ```
 
-**Window events** — `stator:dispatch-error` fires once per failed dispatch with `{ machine?, event?, phase, status?, timestamp }` (`machine` is absent for enhanced form submits), and `stator:connection-state` fires on every connection transition with `{ state, timestamp }`. Event POSTs are aborted after a 10-second deadline, so a dead-slow connection surfaces as `timeout` instead of hanging on the browser's own limits.
+Hang fault affordances off `disconnected` and `stale` only. `idle` is a deliberate release, not a problem, and styling it like an outage means a banner on every tab switch.
+
+**Proactive release** — a live page hands its connection back when nobody is watching it: 30 seconds after the tab is hidden, immediately on `pagehide` (including a bfcache eviction), and immediately on `freeze`. It reconnects when the tab becomes visible again, on a bfcache restore, and on `resume`. This matters because a browser never reclaims these sockets on its own, and the HTTP/1.1 pool (6 per origin in Chrome) is shared across every tab in the profile — enough idle tabs and *every* request to the origin blocks, not just the live ones. Releasing is safe because reconnect is a full resync; see the [realtime guide](/guides/realtime-sse/).
+
+**Window events** — `stator:dispatch-error` fires once per failed dispatch with `{ machine?, event?, phase, status?, timestamp }` (`machine` is absent for enhanced form submits), `stator:connection-state` fires on every connection transition with `{ state, timestamp }`, and `stator:live-message` fires for every envelope arriving on the live channel with `{ envelope, timestamp }` — the raw wire payload, before the runtime interprets it, for inspectors and devtools. Event POSTs are aborted after a 10-second deadline, so a dead-slow connection surfaces as `timeout` instead of hanging on the browser's own limits.
 
 **Retries** — machine-event POSTs carry a per-dispatch idempotency key and retry network and timeout failures twice (300ms then 1s backoff) before giving up. The server replays a duplicate's original response instead of re-applying it, so a retry after a lost response can't double-commit. Non-2xx responses never retry — the server answered. Enhanced form submits go to arbitrary handlers, so they get the timeout but no automatic retry.
 

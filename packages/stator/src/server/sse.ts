@@ -35,6 +35,9 @@ export interface Connection {
   runtime: SessionRuntime
   renderState: RenderState
   send: (data: string) => Promise<void>
+  /** Tear the underlying stream down from the server side. Supplied by the
+   *  transport; absent in tests that register a bare connection. */
+  close?: () => void
   closed: boolean
 }
 
@@ -44,12 +47,48 @@ let nextId = 0
 export function registerConnection(init: Omit<Connection, 'id' | 'closed'>): Connection {
   const id = `sse${nextId++}`
   const conn: Connection = { ...init, id, closed: false }
+  // A page-load holds at most one channel per route, so an existing
+  // connection with the same (clientId, routeKey) is a corpse whose abort we
+  // never observed — a half-open socket, or a reconnect that raced its own
+  // teardown. Left registered it would pin a SessionRuntime forever and take
+  // a slice of every fan-out. Evict it before the new one lands.
+  if (init.clientId !== undefined) {
+    for (const prior of connections.values()) {
+      if (prior.clientId === init.clientId && prior.routeKey === init.routeKey) {
+        sseLog.debug(
+          { id: prior.id, sid: prior.sessionId, route: prior.routeKey, replacedBy: id },
+          'evicting superseded connection',
+        )
+        unregisterConnection(prior.id)
+        prior.close?.()
+      }
+    }
+  }
   connections.set(id, conn)
   sseLog.debug(
     { id, sid: conn.sessionId, route: conn.routeKey, total: connections.size },
     'connection opened',
   )
   return conn
+}
+
+/**
+ * Push a pre-serialized envelope to every open connection, bypassing the
+ * recompute path. The dev server's rebuild/error signals ride this so a dev
+ * page holds ONE event-stream instead of two — see `dev-native.ts`. Not a
+ * fan-out: no diffing, no baseline advance, no per-connection filtering.
+ */
+export async function broadcastEnvelope(payload: unknown): Promise<void> {
+  if (connections.size === 0) return
+  const data = JSON.stringify(payload)
+  for (const conn of connections.values()) {
+    if (conn.closed) continue
+    try {
+      await conn.send(data)
+    } catch (err) {
+      sseLog.warn({ id: conn.id, err: String(err) }, 'broadcast failed')
+    }
+  }
 }
 
 export function unregisterConnection(id: string): void {

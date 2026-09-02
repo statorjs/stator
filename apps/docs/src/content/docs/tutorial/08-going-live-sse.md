@@ -41,7 +41,7 @@ Picture an `inventory` app-machine with a `remaining` count, displayed via `read
 
 ## Showing the connection state
 
-Live routes carry one more runtime-owned signal: `data-stator-connection` on `<html>`, one of `connected`, `disconnected`, or `stale`. A zero-markup banner in `static/app.css` is all it takes to surface a dropped channel:
+Live routes carry one more runtime-owned signal: `data-stator-connection` on `<html>`, one of `connected`, `disconnected`, `stale`, or `idle`. A zero-markup banner in `static/app.css` is all it takes to surface a dropped channel:
 
 ```css
 /* Bottom edge, so it never fights a sticky header. z-index high on purpose:
@@ -64,12 +64,14 @@ html[data-stator-connection='stale'] body::before {
 
 Stop the dev server while the catalog is open and the banner appears. Start it again and it clears itself — the reconnected channel converges the page in place, which is the next section's story.
 
+Note which two states the selector lists. `idle` is deliberately not one of them: a live page hands its connection back 30 seconds after you switch away from its tab, and takes it up again when you switch back. That's a courtesy to the browser's per-origin connection budget, not a fault — style it like an outage and you get a "connection lost" banner every time someone changes tabs.
+
 ## What is / isn't realtime
 
 Be precise about what you're getting:
 
 - **Opt-in only.** A route is static request/response until you add `// @stator live`.
-- **Reconnect means resync.** If the connection drops or goes stale, the client reopens it and the server's initial sync converges the page in place — no reload, no lost island state. Individual missed frames are never replayed; directives fired during the outage (a `navigate`, say) are gone.
+- **Reconnect means resync.** If the connection drops, goes stale, or is released while the tab is hidden, the client reopens it and the server's initial sync converges the page in place — no reload, no lost island state. Individual missed frames are never replayed, because the channel carries state and the resync is what recovers it.
 - **Single-replica fan-out.** The fan-out is in-process — every connection lives on the same server instance.
 
 :::caution[Single replica]

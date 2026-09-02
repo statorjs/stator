@@ -67,7 +67,17 @@ function init(): void {
   initLiveChannel()
 }
 
+/** The page's one live channel. `initLiveChannel` is NOT idempotent on its
+ *  own — each call mints an EventSource and a watchdog interval — so the
+ *  handle is parked here and a second call tears the first one down. Without
+ *  this a re-entered `init()` stacked channels that nothing could reach,
+ *  each holding a socket against the browser's per-origin cap. */
+let liveChannel: { close(): void } | undefined
+
 function initLiveChannel(): { close(): void } | undefined {
+  liveChannel?.close()
+  liveChannel = undefined
+
   const meta = document.querySelector('meta[name="stator-live"][content="true"]')
   if (!meta) return
 
@@ -83,8 +93,12 @@ function initLiveChannel(): { close(): void } | undefined {
   // (CSS hook for offline banners etc.) plus a `stator:connection-state`
   // event. Change-guarded — EventSource fires `error` on every failed
   // auto-reconnect attempt, and only transitions are worth announcing.
+  //
+  // `idle` is a DELIBERATE release, not a fault, and is deliberately its own
+  // state: apps hang offline banners off `disconnected`/`stale`, and reusing
+  // either would flash "you're offline" every time a tab loses focus.
   let connectionState: string | undefined
-  const setConnectionState = (state: 'connected' | 'disconnected' | 'stale'): void => {
+  const setConnectionState = (state: 'connected' | 'disconnected' | 'stale' | 'idle'): void => {
     if (state === connectionState) return
     connectionState = state
     document.documentElement.setAttribute('data-stator-connection', state)
@@ -103,6 +117,10 @@ function initLiveChannel(): { close(): void } | undefined {
       console.error('stator: malformed SSE message', err)
       return
     }
+    // Raw envelope, before interpretation — the observability seam for
+    // inspectors and for the dev client, which reads its rebuild/error
+    // signals off this instead of opening a second event-stream.
+    emit('stator:live-message', { envelope: data, timestamp: Date.now() })
     if (data.patches) {
       // SSE is server-pushed — no client round-trip to time — so report the
       // apply duration (still the useful "how expensive was this update?").
@@ -142,33 +160,118 @@ function initLiveChannel(): { close(): void } | undefined {
     })
   }
 
+  /** Hand the socket back. `es.close()` also stops EventSource's own
+   *  auto-reconnect, so a released channel stays released until we say
+   *  otherwise. */
+  const release = (): void => {
+    if (!sse) return
+    sse.close()
+    sse = null
+    setConnectionState('idle')
+  }
+
   // Zombie watchdog. A half-open connection (device sleep, silent NAT drop)
   // never fires `error` — EventSource just sits "open" and silent forever,
   // and the page quietly stops being live. The server sends an observable
   // ping every 25s; two missed pings while the page is VISIBLE means the
-  // channel is dead, and a rebuilt connection re-syncs. Hidden tabs wait for
-  // visibility — no churn for pages nobody is watching.
+  // channel is dead, and a rebuilt connection re-syncs. Hidden tabs are
+  // either still in their grace period or already released — neither wants a
+  // staleness reconnect.
   const STALE_MS = 65_000
   const checkStale = (): void => {
-    if (document.hidden) return
+    if (document.hidden || !sse) return
     if (Date.now() - lastSeen > STALE_MS) {
       console.warn('stator: SSE channel stale — reconnecting to re-sync')
       setConnectionState('stale')
       connect()
     }
   }
+
+  // ── Proactive release ────────────────────────────────────────────────────
+  // A live page holds one HTTP/1.1 socket for as long as it is open, and the
+  // browser's per-origin pool (6 in Chrome) is shared across every tab in the
+  // profile — so background tabs spend the foreground tab's budget, and
+  // enough of them wedge every request to the origin. Browsers never reclaim
+  // these on their own: hiding a tab throttles timers but leaves sockets
+  // untouched.
+  //
+  // Releasing is cheap here because reconnect is a full resync: a fresh
+  // /__sse gets the server's initial sync, so a released page converges in
+  // place on return. Nothing durable rides the connection — session state
+  // lives in the Store, `after` timers in a process-wide registry, in-flight
+  // effects in a process-wide map — so dropping one costs a re-render, not a
+  // fact.
+  const HIDDEN_GRACE_MS = 30_000
+  let releaseTimer: ReturnType<typeof setTimeout> | undefined
+
+  const cancelRelease = (): void => {
+    if (releaseTimer === undefined) return
+    clearTimeout(releaseTimer)
+    releaseTimer = undefined
+  }
+
+  const onVisibility = (): void => {
+    if (document.hidden) {
+      // Grace period, not an immediate drop: alt-tabbing away for a moment is
+      // not abandonment, and every reconnect costs a full route render server
+      // side. Hidden-tab timer throttling is 1/s, so this fires ~on time; the
+      // 1/min intensive throttling only starts at 5 minutes, long after.
+      cancelRelease()
+      releaseTimer = setTimeout(release, HIDDEN_GRACE_MS)
+    } else {
+      cancelRelease()
+      if (!sse) connect()
+      else checkStale()
+    }
+  }
+
+  // A frozen tab runs no timers at all, so the grace period would never
+  // elapse — release synchronously on the way in. `resume` fires when the
+  // browser thaws the page without a navigation.
+  const onFreeze = (): void => {
+    cancelRelease()
+    release()
+  }
+  const onResume = (): void => {
+    if (!document.hidden && !sse) connect()
+  }
+
+  // pagehide covers both exits: `persisted` means bfcache (the document
+  // survives, and would otherwise sit in the cache still holding a socket and
+  // pinning a SessionRuntime), plain unload means it's going away. Either way
+  // the connection has no further use. pageshow with `persisted` is the
+  // bfcache restore — reconnect and resync.
+  const onPageHide = (): void => {
+    cancelRelease()
+    release()
+  }
+  const onPageShow = (e: PageTransitionEvent): void => {
+    if (e.persisted && !document.hidden && !sse) connect()
+  }
+
   const watchdog = setInterval(checkStale, 10_000)
-  document.addEventListener('visibilitychange', checkStale)
+  document.addEventListener('visibilitychange', onVisibility)
+  document.addEventListener('freeze', onFreeze)
+  document.addEventListener('resume', onResume)
+  window.addEventListener('pagehide', onPageHide)
+  window.addEventListener('pageshow', onPageShow)
 
   connect()
 
-  return {
+  liveChannel = {
     close(): void {
       clearInterval(watchdog)
-      document.removeEventListener('visibilitychange', checkStale)
+      cancelRelease()
+      document.removeEventListener('visibilitychange', onVisibility)
+      document.removeEventListener('freeze', onFreeze)
+      document.removeEventListener('resume', onResume)
+      window.removeEventListener('pagehide', onPageHide)
+      window.removeEventListener('pageshow', onPageShow)
       sse?.close()
+      sse = null
     },
   }
+  return liveChannel
 }
 
 function handleEvent(e: Event): void {
@@ -323,5 +426,6 @@ if (document.readyState === 'loading') {
 
 // Exported for tests only — the runtime self-initializes above, and the
 // client bundle (esbuild IIFE) ignores exports. Re-calling init() is safe:
-// addEventListener dedupes an identical listener reference.
+// addEventListener dedupes an identical listener reference, and the live
+// channel closes its predecessor before opening a replacement.
 export { init, initLiveChannel }
