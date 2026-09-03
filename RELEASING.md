@@ -39,6 +39,21 @@ That writes `.changeset/<name>.md`. Changesets accumulate on `main`; the version
 
    The extension is `private: true`, so `changeset publish` skips it — but changesets still versioned it and wrote its changelog. The only manual part is the marketplace push, exactly mirroring the npm OTP step.
 
+4. **Update the landing page** (`apps/landing/index.html`) — it is plain HTML with no build step, so these are hand-maintained and nothing bumps them for you. **Six** strings, and `grep -n '2\.8' apps/landing/index.html` (the *outgoing* version) is the way to find them all — some are bare `X.Y`, so a `X.Y.Z` pattern silently misses them:
+
+   | where | shape |
+   | --- | --- |
+   | nav | `REV X.Y` |
+   | hero spec | `DOC-002 · vX.Y · released` |
+   | hero prose | `released software, now at X.Y` |
+   | §6 intro | `what's shipped as of X.Y` |
+   | footer | `STATOR · vX.Y.Z` |
+   | footer | `REV. YYYY.MM` |
+
+   Leave the `(X.Y)` tags inside the `/// SHIPPED` list alone — that list is a per-release ledger, newest first, and those tags are history. Add a new entry at its top for the minor's headline.
+
+   Do this **after** publishing, not before: `netlify.toml` auto-deploys the landing page on every push to `main`, so a bump that merges ahead of `pnpm release` puts a version on the site that isn't on npm yet.
+
 ## How the extension fits changesets
 
 `.changeset/config.json` sets `privatePackages.version: true` so the private extension rides the normal Version-PR flow (bump + changelog), and lists every *other* private package (apps, examples) in `ignore` so they aren't versioned. `scripts/check-ignore-list.mjs` asserts that list stays complete in CI — add a new example, and a missing `ignore` entry fails the build.
