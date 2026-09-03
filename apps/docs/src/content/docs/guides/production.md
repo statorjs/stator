@@ -46,6 +46,7 @@ await app.listen(port)
 ## Deploy checklist
 
 - **Always-on, single instance.** SSE connections need the process running — disable scale-to-zero, and don't scale out (fan-out and app machines are in-process; multi-replica is deferred).
+- **Terminate TLS in front of the app.** Stator serves HTTP/1.1, where browsers allow roughly 6 connections per origin *across every tab in the profile* — enough live tabs and further requests to that origin queue. Any TLS-terminating proxy (Fly, Traefik, nginx, Cloudflare) makes the browser hop HTTP/2, where the live channels multiplex over one connection. Live pages also [release their channel](/guides/realtime-sse/) while their tab is hidden, which is what keeps the HTTP/1.1 case workable.
 - **`REDIS_URL`** for session state that survives deploys (`RedisStore`, optionally wrapped in `CachedStore`), and `RedisAppStore` if you use [persisted app machines](/guides/app-machines/). Wire it in `stator.config.ts`'s `persistence`.
 - **`NODE_ENV=production`** — JSON logs and the `Secure` cookie flag (override with `STATOR_SECURE_COOKIE=1|0` if TLS terminates elsewhere).
 - **`SESSION_TTL_SECONDS`** — per-session idle expiry, default 24h.
