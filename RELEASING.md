@@ -82,6 +82,7 @@ The next Version PR then produces the final `X.Y.0`, with a changelog covering *
 Notes:
 
 - `latest` never moves while in pre mode, so a preview cannot reach anyone who did not ask for `@next`.
+- **create-stator's scaffold range deliberately trails during a preview.** A caret range cannot install a prerelease — `^2.10.0` is not satisfied by `2.10.0-next.0` — so advancing it mid-train would make `pnpm create stator` scaffold an app that cannot install at all. `sync-scaffold-range.mjs` leaves it on the last stable line while `pre.json` exists and advances it when the final ships; `check-scaffold-range.mjs` tolerates the gap for the same reason.
 - Don't hand-edit versions or delete `pre.json` before exiting — it is what makes the final changelog complete.
 - Prereleases are real published versions. A bad `next.N` is unpublishable-in-practice like any other; cut `next.N+1`.
 

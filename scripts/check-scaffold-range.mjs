@@ -3,7 +3,13 @@
 // or `pnpm create stator` scaffolds a range that trails the announced
 // release (missed for 1.5 and 1.6). Compares the range's floor against the
 // framework's current major.minor. Run in CI.
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+
+// During a prerelease the range deliberately trails: it must point at a version
+// that exists on npm, and `^2.10.0` is not satisfied by `2.10.0-next.0`. The
+// invariant resumes at the final release, which is when the sync step advances
+// the range again.
+const preMode = existsSync(new URL('../.changeset/pre.json', import.meta.url))
 
 const { version } = JSON.parse(
   readFileSync(new URL('../packages/stator/package.json', import.meta.url)),
@@ -21,6 +27,14 @@ if (!match) {
 
 const [fwMajor, fwMinor] = version.split('.').map(Number)
 const [rangeMajor, rangeMinor] = [Number(match[1]), Number(match[2])]
+
+if (preMode && (rangeMajor < fwMajor || (rangeMajor === fwMajor && rangeMinor <= fwMinor))) {
+  console.log(
+    `scaffold range: prerelease ${version} — STATOR_RANGE ^${match[1]}.${match[2]} stays on the ` +
+      'last stable line until the final ships.',
+  )
+  process.exit(0)
+}
 
 if (rangeMajor !== fwMajor || rangeMinor !== fwMinor) {
   console.error(
