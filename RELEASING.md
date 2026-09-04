@@ -54,6 +54,37 @@ That writes `.changeset/<name>.md`. Changesets accumulate on `main`; the version
 
    Do this **after** publishing, not before: `netlify.toml` auto-deploys the landing page on every push to `main`, so a bump that merges ahead of `pnpm release` puts a version on the site that isn't on npm yet.
 
+## Preview releases (`next`)
+
+For a minor that changes something you want to *use* before it is permanent — a build-pipeline change, the shape of the deploy artifact — cut previews to npm under the `next` tag first, then finish as one minor.
+
+```sh
+pnpm changeset pre enter next     # writes .changeset/pre.json — commit it
+```
+
+From then on nothing else about the flow changes. Land work with changesets as usual; the Version PR now bumps to `X.Y.0-next.N` instead of `X.Y.0`, and `pnpm release` publishes those under the **`next`** dist-tag:
+
+```sh
+pnpm add @statorjs/stator@next    # preview
+pnpm add @statorjs/stator         # still the stable release — `latest` is untouched
+```
+
+Iterate as many times as you like: land more changesets, merge the Version PR again, publish again — `next.0`, `next.1`, `next.2`. Every accumulated changeset stays recorded in `pre.json`.
+
+When it's ready:
+
+```sh
+pnpm changeset pre exit           # commit the pre.json change
+```
+
+The next Version PR then produces the final `X.Y.0`, with a changelog covering **every** changeset consumed across the previews. That is also when you write the root `CHANGELOG.md` story and update the landing page — once, for the real release, not per preview.
+
+Notes:
+
+- `latest` never moves while in pre mode, so a preview cannot reach anyone who did not ask for `@next`.
+- Don't hand-edit versions or delete `pre.json` before exiting — it is what makes the final changelog complete.
+- Prereleases are real published versions. A bad `next.N` is unpublishable-in-practice like any other; cut `next.N+1`.
+
 ## How the extension fits changesets
 
 `.changeset/config.json` sets `privatePackages.version: true` so the private extension rides the normal Version-PR flow (bump + changelog), and lists every *other* private package (apps, examples) in `ignore` so they aren't versioned. `scripts/check-ignore-list.mjs` asserts that list stays complete in CI — add a new example, and a missing `ignore` entry fails the build.

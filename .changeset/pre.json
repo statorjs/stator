@@ -1,0 +1,24 @@
+{
+  "mode": "pre",
+  "tag": "next",
+  "initialVersions": {
+    "docs": "0.0.0",
+    "landing": "0.0.0",
+    "store": "0.0.0",
+    "stator-vscode": "1.3.0",
+    "stator-example-desksmith": "0.0.0",
+    "stator-example-guestbook": "0.0.6",
+    "stator-example-indie-blog": "0.0.1",
+    "stator-example-live-poll": "0.0.0",
+    "stator-example-minimal": "0.0.0",
+    "stator-example-registration": "0.0.1",
+    "stator-example-stockroom": "0.0.0",
+    "stator-example-todomvc": "0.0.0",
+    "stator-example-weather": "0.0.7",
+    "stator-example-with-auth": "0.0.0",
+    "create-stator": "1.5.2",
+    "@statorjs/language-server": "0.1.31",
+    "@statorjs/stator": "2.9.1"
+  },
+  "changesets": []
+}
