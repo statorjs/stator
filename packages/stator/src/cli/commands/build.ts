@@ -47,6 +47,21 @@ export async function run(ctx: CliContext): Promise<void> {
       )
     }
   }
+  // Layer 2 of the persistence story: whether the config DECLARES a session
+  // store is env-independent, so the build can say this soundly. Which store a
+  // declared one resolves to is not — that depends on the production
+  // environment, which a build machine does not have — so this is a notice
+  // about a shape, never a verdict about a value, and never an error: an app
+  // that wants in-memory made a real choice.
+  if (
+    result.copySet.files.some((f) => f.startsWith('stator.config.')) &&
+    !config.persistence?.session
+  ) {
+    process.stdout.write(
+      '  note: no session store configured — session state will not survive a restart' +
+        ' (see `persistence.session`, or `sessionStore({ redisUrl: process.env.REDIS_URL })`)\n',
+    )
+  }
   if (copySet.unused.length > 0) {
     process.stdout.write(
       `  not copied: ${copySet.unused.join(', ')} — nothing in the app imports or opens them` +

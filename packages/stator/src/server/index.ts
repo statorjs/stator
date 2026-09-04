@@ -136,3 +136,5 @@ export {
 } from './sse.ts'
 export type { Store } from './store.ts'
 export { InMemoryStore } from './store.ts'
+export type { StoreFromEnvOptions } from './store-intent.ts'
+export { appStore, sessionStore } from './store-intent.ts'
