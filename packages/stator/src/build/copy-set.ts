@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from 'node:fs/promises'
 import { builtinModules } from 'node:module'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { build } from 'esbuild'
+import ts from 'typescript'
 import { compile, regionResolverFor } from '../compiler/index.ts'
 
 /**
@@ -55,18 +56,10 @@ const NEVER_SOURCE = new Set(['node_modules', 'dist', 'tests', 'test', '__tests_
 
 const CODE = /\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|stator)$/
 const BUILTIN = new Set([...builtinModules, ...builtinModules.map((m) => `node:${m}`)])
-/** `new URL('./x', import.meta.url)` — invisible to the bundler, so read the
- *  literal directly. Same limit as the client seam: relative string literals.
- *  (Injecting an import instead does NOT work: esbuild's TS loader elides an
- *  import whose binding is unused, so the injected one disappears.) */
-const URL_ASSET_RE = /new\s+URL\(\s*(['"])(\.{1,2}\/[^'"\n]+)\1\s*,\s*import\.meta\.url\s*\)/g
 /** A `node_modules` path segment, either separator. Anything under one is a
  *  dependency, never app source — and a real app's `node_modules` sits INSIDE
  *  its root, so root containment alone cannot tell them apart. */
 const NODE_MODULES = /[\\/]node_modules[\\/]/
-/** `import(` not followed by a string or template literal. */
-const OPAQUE_IMPORT_RE = /(?<![.\w$])import\s*\(\s*([^'"`)\s])/g
-
 const norm = (p: string): string => p.replace(/\\/g, '/')
 
 export interface UntracedImport {
@@ -186,19 +179,67 @@ export async function resolveCopySet(opts: CopySetOptions): Promise<CopySet> {
   const unresolved = new Set<string>()
   const untraced: UntracedImport[] = []
 
-  /** Record the non-import dependencies a source text carries. */
+  /**
+   * The two dependencies a module carries that the bundler's own graph misses,
+   * read from the SYNTAX rather than the text.
+   *
+   * Both used to be regex scans over raw source, which cannot tell code from
+   * prose: a comment explaining why the app avoids `import(name)`, or a string
+   * documenting the pattern, was picked up as a real untraceable import and
+   * failed the build. Found by dogfooding, and the reason this parses. Comments
+   * and string contents are simply not part of the tree.
+   */
   const scan = (text: string, file: string): string => {
-    for (const m of text.matchAll(URL_ASSET_RE)) assets.add(resolve(dirname(file), m[2]!))
-    for (const m of text.matchAll(OPAQUE_IMPORT_RE)) {
-      untraced.push({
-        file: norm(relative(realRoot, file)),
-        line: text.slice(0, m.index).split('\n').length,
-        source: `${text
-          .slice(m.index, m.index + 60)
-          .split('\n')[0]!
-          .trim()}…`,
-      })
+    const sourceFile = ts.createSourceFile(
+      file,
+      text,
+      ts.ScriptTarget.Latest,
+      false,
+      /\.(tsx|jsx)$/.test(file) ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    )
+
+    /** `import.meta.url`. */
+    const isImportMetaUrl = (node: ts.Node): boolean =>
+      ts.isPropertyAccessExpression(node) &&
+      node.name.text === 'url' &&
+      ts.isMetaProperty(node.expression) &&
+      node.expression.keywordToken === ts.SyntaxKind.ImportKeyword
+
+    /** A specifier the bundler can follow: a string literal, or a template —
+     *  esbuild glob-expands one with a fixed prefix, pulling in every match. */
+    const analysable = (node: ts.Node): boolean =>
+      ts.isStringLiteralLike(node) || ts.isTemplateExpression(node)
+
+    const visit = (node: ts.Node): void => {
+      // `new URL('./x', import.meta.url)` — an asset reference no import graph
+      // sees. String-literal specifiers only, the same limit as the client seam.
+      if (ts.isNewExpression(node) && ts.isIdentifier(node.expression)) {
+        if (node.expression.text === 'URL') {
+          const [spec, meta] = node.arguments ?? []
+          if (spec && ts.isStringLiteralLike(spec) && spec.text.startsWith('.')) {
+            if (meta && isImportMetaUrl(meta)) assets.add(resolve(dirname(file), spec.text))
+          }
+        }
+      }
+      // `import(expr)` the bundler cannot follow. It says nothing about these,
+      // so this is the only place they are caught.
+      if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+        const arg = node.arguments[0]
+        if (!arg || !analysable(arg)) {
+          const start = node.getStart(sourceFile)
+          untraced.push({
+            file: norm(relative(realRoot, file)),
+            line: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+            source: `${text
+              .slice(start, start + 60)
+              .split('\n')[0]!
+              .trim()}…`,
+          })
+        }
+      }
+      ts.forEachChild(node, visit)
     }
+    ts.forEachChild(sourceFile, visit)
     return text
   }
 
