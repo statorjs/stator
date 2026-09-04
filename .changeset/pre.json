@@ -22,6 +22,7 @@
   },
   "changesets": [
     "build-copy-set-from-graph",
+    "copy-set-reads-syntax",
     "dist-is-the-artifact",
     "persistence-posture"
   ]
