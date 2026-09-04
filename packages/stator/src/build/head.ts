@@ -20,6 +20,13 @@ export async function loadProductionHead(distDir: string): Promise<{
    *  `machineHashes` so hydration compares against what was built. Absent on
    *  a dist built before hashes existed — `createApp` then hashes live. */
   machines?: Record<string, string>
+  /** The config file the artifact carries, `null` when the app has none, and
+   *  `undefined` when the manifest predates the field — which `stator start`
+   *  reads as "rebuild", since it cannot otherwise tell a config-less app from
+   *  a config that never made the trip. */
+  config?: string | null
+  /** The `@statorjs/stator` version that produced the artifact, if recorded. */
+  statorVersion?: string
 }> {
   const dist = resolve(distDir)
 
@@ -34,6 +41,8 @@ export async function loadProductionHead(distDir: string): Promise<{
   let routes: StatorManifest['routes'] = {}
   let buildId: string | undefined
   let machines: Record<string, string> | undefined
+  let config: string | null | undefined
+  let statorVersion: string | undefined
   try {
     const manifest = JSON.parse(
       await readFile(join(dist, 'stator-manifest.json'), 'utf8'),
@@ -41,6 +50,8 @@ export async function loadProductionHead(distDir: string): Promise<{
     routes = manifest.routes ?? {}
     buildId = manifest.buildId
     machines = manifest.machines
+    config = manifest.config
+    statorVersion = manifest.statorVersion
   } catch {
     // no manifest
   }
@@ -52,5 +63,11 @@ export async function loadProductionHead(distDir: string): Promise<{
       .filter(Boolean)
       .join('\n')
   }
-  return { headExtras, buildId, ...(machines ? { machines } : {}) }
+  return {
+    headExtras,
+    buildId,
+    ...(machines ? { machines } : {}),
+    ...(config !== undefined ? { config } : {}),
+    ...(statorVersion ? { statorVersion } : {}),
+  }
 }

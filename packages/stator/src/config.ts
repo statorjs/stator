@@ -73,6 +73,20 @@ export interface StatorConfig {
     /** Dev inspector toolbar (`dev` only). Default: on. */
     inspector?: boolean
   }
+  /** Production build policy (`build` only). What lands in `dist/` is derived
+   *  from the app's own module graph, so neither field is normally needed. */
+  build?: {
+    /** Extra app-relative paths (directories or files) to copy into `dist/`.
+     *  The escape hatch for what no import graph can see — a directory reached
+     *  through a runtime-built path, say `readFile('data/' + name)`. Anything
+     *  imported, or opened via a literal `new URL(..., import.meta.url)`, is
+     *  already found. */
+    include?: string[]
+    /** What to do about an `import()` whose specifier no static analysis can
+     *  follow. `error` (default) fails the build naming each one, because the
+     *  build cannot know what such a call needs; `warn` ships anyway. */
+    untracedImports?: 'error' | 'warn'
+  }
   /** Origins allowed to make cross-site writes despite the CSRF guard — exact
    *  (`https://app.example.com`) or wildcard-subdomain (`https://*.example.com`).
    *  Same-origin and same-site writes are already allowed; this is for decoupled

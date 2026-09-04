@@ -3,8 +3,12 @@
  * plain `.ts` the runtime serves with no Vite. See `buildApp`.
  */
 
+export type { ArtifactDeps } from './artifact.ts'
+export { writeArtifactDeps } from './artifact.ts'
 export type { BuildConfig, BuildResult, StatorManifest } from './build.ts'
 export { buildApp } from './build.ts'
+export type { CopySet, CopySetOptions, UntracedImport } from './copy-set.ts'
+export { resolveCopySet } from './copy-set.ts'
 export { loadProductionHead } from './head.ts'
 export type {
   BundleIslandsOptions,

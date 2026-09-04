@@ -1,8 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import { dirname, join, relative, resolve, sep } from 'node:path'
+import { cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import { dirname, join, relative, resolve } from 'node:path'
 import { compile, regionResolverFor } from '../compiler/index.ts'
 import { hashMachines } from '../server/machine-hash.ts'
+import { type ArtifactDeps, writeArtifactDeps } from './artifact.ts'
+import { type CopySet, resolveCopySet } from './copy-set.ts'
 import { bundleIslands, routeIslandMap, walkFiles } from './islands.ts'
 import { sourceId } from './source-id.ts'
 
@@ -10,7 +13,9 @@ import { sourceId } from './source-id.ts'
  * Production build: compile a `.stator` app to a `dist/` of plain `.ts` that the
  * existing `createApp` + tsx runtime serves with no Vite.
  *
- *   1. copy machines / routes / templates / static into dist
+ *   1. copy what the app's module graph reaches (see `resolveCopySet`) — the
+ *      directories its routes/machines/hooks import from, the root-level files
+ *      they open, and `static/`
  *   2. compile each `*.stator` → a sibling `*.stator.ts`, delete the `.stator`,
  *      accumulate scoped CSS; for client components also write the generated
  *      client entry as a sibling `*.stator.client.ts`
@@ -34,11 +39,16 @@ export interface BuildConfig {
   root: string
   /** Output directory. Wiped and recreated. */
   outDir: string
-  /** Subdirectories to copy into dist. Defaults to every top-level directory
-   *  in the app root except node_modules, tests, hidden dirs, and the outDir
-   *  itself — machines and routes import freely from sibling dirs (lib/,
-   *  data/), so dist must mirror the app's source shape. */
+  /** Override the copied directories entirely. Normally omitted: the copy set
+   *  is derived from the app's own module graph — see `resolveCopySet`. */
   dirs?: string[]
+  /** Extra app-relative paths to copy verbatim — the escape hatch for what no
+   *  import graph can see (a directory reached through a runtime-built path). */
+  include?: string[]
+  /** What to do about an `import()` no static analysis can follow. `error`
+   *  (the default) fails the build naming each one: a copy set that silently
+   *  omits a lazily-imported module is a production 500. */
+  untracedImports?: 'error' | 'warn'
 }
 
 export interface BuildResult {
@@ -56,6 +66,12 @@ export interface BuildResult {
    *  previous build's manifest — their sessions reset on deploy. `undefined`
    *  when there was no previous manifest to compare against. */
   resetMachines?: string[]
+  /** What the module graph said `dist/` needs, and what it left behind. The
+   *  CLI prints this — a copy set derived from code should be visible, not
+   *  inferred from what shows up in `dist/`. */
+  copySet: CopySet
+  /** How the artifact declares its dependencies, and how to install them. */
+  deps: ArtifactDeps
 }
 
 /** Shape of `dist/stator-manifest.json` (always written — carries `buildId`). */
@@ -71,27 +87,38 @@ export interface StatorManifest {
    *  `stator start` for the snapshot hydration policy; the build fails if a
    *  machine's closure cannot be bundled, so this lands in CI, not at boot. */
   machines: Record<string, string>
+  /** The config file copied into the artifact, or `null` when the app has none.
+   *  `stator start` reads config from the artifact and nowhere else, so it needs
+   *  to tell "this app has no config" from "the config didn't make the trip" —
+   *  the second is a partial copy and must fail loudly rather than silently
+   *  falling back to in-memory persistence. Absent on a dist built before this
+   *  existed, which is itself the signal to rebuild. */
+  config: string | null
+  /** The `@statorjs/stator` version that produced this artifact. */
+  statorVersion: string
 }
 
-const NEVER_COPY = new Set(['node_modules', 'tests', 'test', '__tests__'])
-
-/** Every top-level directory that can hold app source. Machines/routes
- *  import from arbitrary sibling dirs, so dist mirrors the source tree. */
-async function discoverSourceDirs(root: string, outDir: string): Promise<string[]> {
-  const outBase = relative(root, outDir).split(sep)[0]
-  const entries = await readdir(root, { withFileTypes: true })
-  return entries
-    .filter(
-      (e) =>
-        e.isDirectory() && !e.name.startsWith('.') && !NEVER_COPY.has(e.name) && e.name !== outBase,
-    )
-    .map((e) => e.name)
-}
+const statorVersion: string = (
+  createRequire(import.meta.url)('../../package.json') as { version: string }
+).version
 
 export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   const root = resolve(config.root)
   const outDir = resolve(config.outDir)
-  const dirs = config.dirs ?? (await discoverSourceDirs(root, outDir))
+
+  // What dist needs, from the app's own graph rather than a directory denylist.
+  const copySet = await resolveCopySet({ root, include: config.include })
+  if (copySet.untraced.length > 0 && (config.untracedImports ?? 'error') === 'error') {
+    const where = copySet.untraced.map((u) => `  ${u.file}:${u.line}  ${u.source}`).join('\n')
+    throw new Error(
+      `stator build: ${copySet.untraced.length} dynamic import${
+        copySet.untraced.length === 1 ? '' : 's'
+      } cannot be traced, so the build cannot know what to copy:\n${where}\n` +
+        `Use a string literal (or a template literal with a fixed prefix, which is expanded), ` +
+        `list the directories it reaches in \`build.include\`, or set \`build.untracedImports: 'warn'\` to ship anyway.`,
+    )
+  }
+  const dirs = config.dirs ?? copySet.dirs
 
   // Remember the previous build's machine hashes (if any) so the build can
   // report which machines' sessions this deploy resets.
@@ -106,13 +133,19 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
     if (await exists(src)) await cp(src, join(outDir, d), { recursive: true })
   }
 
-  // A root-level middleware.ts is a single file, not a source dir — copy it too
-  // (raw TS, run under tsx/native in prod like the rest of the server).
-  const middlewareSrc = join(root, 'middleware.ts')
-  if (await exists(middlewareSrc)) await cp(middlewareSrc, join(outDir, 'middleware.ts'))
-  // Same for a root-level boot.ts (the once-at-startup hook).
-  const bootSrc = join(root, 'boot.ts')
-  if (await exists(bootSrc)) await cp(bootSrc, join(outDir, 'boot.ts'))
+  // Root-level files the graph reached: the single-file hooks (middleware.ts,
+  // boot.ts, stator.config.*) and any data file a module opens by path — an
+  // `import.meta.url`-relative SQLite file being the case that used to be
+  // missed entirely, since the old copy step only ever handled directories.
+  for (const file of copySet.files) {
+    const src = join(root, file)
+    if (!(await exists(src))) continue
+    const dest = join(outDir, file)
+    // `build.include` may name a nested file, and cp() will not create its
+    // parent for us.
+    if (file.includes('/')) await mkdir(dirname(dest), { recursive: true })
+    await cp(src, dest)
+  }
 
   // Compile every .stator into a sibling .stator.ts; collect CSS and islands.
   // The sources are deleted only after the whole set compiles — cross-file
@@ -169,12 +202,33 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
     ? Object.keys(machines).filter((k) => previous[k] !== machines[k])
     : undefined
 
+  // The dependency half of the artifact: the app's own manifest + lockfile when
+  // it has one, else a pinned manifest. Written after the tree so a generated
+  // package.json cannot be clobbered by the copy step.
+  const deps = await writeArtifactDeps({ root, outDir, packages: copySet.packages })
+
   // Always write the manifest — it carries the build-id even for an app with no
   // islands (a live route without islands still needs the reload handshake).
+  // The config file the artifact carries, by name — `copySet.files` holds it if
+  // the app has one, since the graph walk treats it as an entry point.
+  const configFile = copySet.files.find((f) => /^stator\.config\.(ts|mts|js|mjs)$/.test(f)) ?? null
   const manifest: StatorManifest =
     islands.length > 0
-      ? { buildId: randomUUID(), ...(await buildClientAssets(outDir, islands)), machines }
-      : { buildId: randomUUID(), islands: {}, routes: {}, machines }
+      ? {
+          buildId: randomUUID(),
+          ...(await buildClientAssets(outDir, islands)),
+          machines,
+          config: configFile,
+          statorVersion,
+        }
+      : {
+          buildId: randomUUID(),
+          islands: {},
+          routes: {},
+          machines,
+          config: configFile,
+          statorVersion,
+        }
   await writeFile(join(outDir, 'stator-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
 
   return {
@@ -185,6 +239,8 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
     machines: machineFiles.length,
     machineHashMs,
     ...(resetMachines ? { resetMachines } : {}),
+    copySet,
+    deps,
   }
 }
 

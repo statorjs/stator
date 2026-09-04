@@ -1,4 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": ["src/**/*", "tests/**/*"]
+  "include": ["src/**/*", "tests/**/*"],
+  // Models a separate app with its own tsconfig (declares a `paths` alias).
+  "exclude": ["tests/fixtures/copy-set-app/**"]
 }

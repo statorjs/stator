@@ -38,10 +38,16 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
-  # The native (Vite-free) dev server owns its watch→compile→reload loop, so it
-  # must be proven on every OS — file watching (chokidar) and path handling
-  # diverge across macOS, Linux, and Windows. This boots `stator dev` and asserts
-  # live reload on a route and a machine edit on each.
+  # Stator owns its dev loop AND its build, and both are full of path handling —
+  # so both must be proven on every OS. File watching (chokidar) diverges across
+  # macOS, Linux and Windows; so does resolution, where Windows paths are
+  # case-insensitive, `\` and `/` both separate, and esbuild reports real paths.
+  # The dev smoke boots `stator dev` and asserts live reload on a route and a
+  # machine edit; the build smoke runs `stator build`, checks the copy set that
+  # landed in dist/, and boots it.
+  # NOTE: job id and name are load-bearing if these are required status checks —
+  # renaming them makes branch protection wait forever on a check that no longer
+  # reports. Left as-is deliberately, though this job now covers the build too.
   native-dev:
     name: native dev loop (${{ matrix.os }})
     strategy:
@@ -58,3 +64,4 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: node scripts/native-dev-smoke.mjs
+      - run: node scripts/build-smoke.mjs
