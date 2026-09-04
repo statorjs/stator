@@ -30,8 +30,11 @@ import { compile, regionResolverFor } from '../compiler/index.ts'
  * copying a few unreferenced siblings; the alternative is a dist that is
  * missing files nothing declared.
  *
- * Nothing from `node_modules` is traced or copied. Bare specifiers are recorded
- * (the caller uses them for the artifact's dependency list) and left external.
+ * Nothing from `node_modules` is traced or copied. A bare specifier is recorded
+ * as a direct dependency and left external, so the walk stops there and never
+ * descends into a dependency's own imports — `dist/` holds no `node_modules`,
+ * and the recorded list is the app's own dependency set, which is exactly what
+ * a manifest should declare.
  */
 
 /** Directories whose files are entry points, by framework convention. */
@@ -90,7 +93,13 @@ export interface CopySet {
   files: string[]
   /** Top-level directories present in the root that nothing reached. */
   unused: string[]
-  /** Bare specifiers the graph reached, as package names. */
+  /** Direct dependencies: the package name behind every bare specifier the
+   *  app's own code reached. NOT transitive — a dependency is external, so it
+   *  is never loaded and its own imports are never resolved. That is the right
+   *  granularity for a generated manifest (a package manager resolves
+   *  transitives from each dependency's own package.json) and for checking
+   *  runtime imports against `dependencies` rather than `devDependencies`:
+   *  a type-only import is elided before resolution, so it never lands here. */
   packages: string[]
   /** Reached files outside the app root — impossible to place in `dist/`. */
   external: string[]

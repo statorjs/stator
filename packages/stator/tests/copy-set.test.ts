@@ -117,6 +117,65 @@ describe('copy set: path handling across platforms', () => {
 })
 
 describe('copy set: dependencies', () => {
+  it('records direct dependencies only, never their transitives', async () => {
+    // The graph stops at the first bare specifier: a dependency is marked
+    // external and never loaded, so its own imports are never resolved. That is
+    // the right granularity for a generated manifest — `npm ci` resolves
+    // transitives from each dependency's own package.json, and listing them in
+    // the app's would pin what the app does not own. Nothing here is copied
+    // either way; dist gets no node_modules.
+    const base = await mkdtemp(join(tmpdir(), 'stator-transitive-'))
+    const app = join(base, 'app')
+    const nm = join(app, 'node_modules')
+    const { mkdir } = await import('node:fs/promises')
+    await mkdir(join(app, 'routes'), { recursive: true })
+    await mkdir(join(app, 'machines'), { recursive: true })
+
+    const pkg = async (name: string, files: Record<string, string>, manifest = {}) => {
+      await mkdir(join(nm, name), { recursive: true })
+      await writeFile(
+        join(nm, name, 'package.json'),
+        JSON.stringify({ name, version: '1.0.0', main: 'index.js', ...manifest }),
+      )
+      for (const [f, body] of Object.entries(files)) await writeFile(join(nm, name, f), body)
+    }
+    // `primary` imports `secondary` — the shape of @statorjs/stator importing hono.
+    await pkg('primary', {
+      'index.js': "import { two } from 'secondary'\nexport const one = () => two()\n",
+    })
+    await pkg('secondary', { 'index.js': 'export const two = () => 2\n' })
+    await pkg(
+      '@scope/pkg',
+      { 'sub.js': 'export const four = () => 4\n' },
+      { exports: { './sub': './sub.js' } },
+    )
+    await pkg('typesonly', {
+      'index.js': 'export const x = 1\n',
+      'index.d.ts': 'export declare const x: number\n',
+    })
+
+    await writeFile(
+      join(app, 'routes/index.ts'),
+      `import { defineRoute } from '${resolve(here, '../src/server/index.ts')}'\n` +
+        `import { html } from '${resolve(here, '../src/template/index.ts')}'\n` +
+        `import { one } from 'primary'\n` +
+        `import { four } from '@scope/pkg/sub'\n` +
+        `import type { x } from 'typesonly'\n` +
+        `const t: typeof x = 1\n` +
+        `export const GET = defineRoute({ reads: [], render: () => html\`<p>${'${one() + four() + t}'}</p>\` })\n`,
+    )
+
+    const result = await resolveCopySet({ root: app })
+    expect(result.packages).toContain('primary')
+    expect(result.packages).toContain('@scope/pkg') // a subpath collapses to the package
+    expect(result.packages).not.toContain('secondary') // primary's own dependency
+    // A type-only import is elided before resolution, so it is not a runtime
+    // dependency — which is what makes it safe to check this list against
+    // `dependencies` rather than `devDependencies`.
+    expect(result.packages).not.toContain('typesonly')
+    await rm(base, { recursive: true, force: true })
+  }, 30_000)
+
   it('never traces or copies an in-root node_modules', async () => {
     // The bug this guards, found by running against an app outside this
     // monorepo: a real app's `node_modules` lives INSIDE its root, so root
