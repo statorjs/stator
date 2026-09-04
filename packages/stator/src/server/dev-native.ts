@@ -589,10 +589,11 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
                   cors: resolved.cors,
                 },
               })
-              installGracefulShutdown(async () => {
-                if (teardown) await teardown()
-                await watcher.close()
-                await new Promise<void>((done) => server.close(() => done()))
+              installGracefulShutdown(server, {
+                teardown: async () => {
+                  if (teardown) await teardown()
+                  await watcher.close()
+                },
               })
               resolveFn()
             })

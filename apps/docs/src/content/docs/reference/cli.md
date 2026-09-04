@@ -35,4 +35,12 @@ All commands discover `machines/`, `routes/`, `templates/`, `static/` by convent
 - **`--port <n>`** — listen port for `dev`/`start`. Precedence: `--port` > `$PORT` > `stator.config.ts` `port` > 3000.
 - **`-h`, `--help`** — usage.
 
+## Stopping
+
+`SIGINT` (Ctrl+C) and `SIGTERM` (a deploy rollover, `systemctl stop`, a container stop) drain the server and exit `0` — a signal is a normal stop, not a failure. The drain, in order: stop accepting connections, run the [`boot.ts`](/recipes/startup-and-background-work/) teardown so no source can raise another event, hang up every [live connection](/guides/realtime-sse/), then wait for in-flight requests.
+
+Live connections are **hung up, not waited for**. An SSE response is one request that lasts as long as the page is open, so waiting for every connection to end would mean waiting forever — the process would hang until the platform lost patience and killed it. Dropping a live channel is cheap by design: the browser reconnects and re-syncs from the server's baseline, or reloads if it comes back to a newer build.
+
+**`STATOR_SHUTDOWN_TIMEOUT_MS`** bounds what's left — real request work — and defaults to `5000`. When it expires, remaining sockets are destroyed and the process exits anyway, with a warning naming the deadline. Keep it under your platform's own kill grace (`docker stop` allows 10s; Kubernetes' `terminationGracePeriodSeconds` and systemd's `TimeoutStopSec` are usually longer). A second signal exits immediately without draining.
+
 For a hand-wired entry (an unusual host, an embedded runtime), the CLI's underlying functions — `createApp`, `createDevApp`, `buildApp` — are exported; see [server](/reference/server/) and [dev & build](/reference/dev-and-build/).

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { networkInterfaces } from 'node:os'
 import { logger } from './logger.ts'
+import { type ClosableServer, drainAndClose } from './shutdown.ts'
 
 /**
  * Human-facing startup/exit output for the DEV plane. Production keeps
@@ -89,26 +90,32 @@ export function printStartupNotice(info: { port: number; machines: number; route
 }
 
 /**
- * Exit a server process like a well-mannered CLI: first signal closes
- * cleanly and exits 0 (Ctrl+C is a normal action, not a failure — without
- * this, the process dies 130 and pnpm prints an ELIFECYCLE error banner);
- * a second signal force-quits for anything that hangs in close().
+ * Exit a server process like a well-mannered CLI: first signal drains and exits
+ * 0 (Ctrl+C is a normal action, not a failure — without this, the process dies
+ * 130 and pnpm prints an ELIFECYCLE error banner); a second signal force-quits.
+ *
+ * The drain itself is `drainAndClose` — the server stops accepting, `teardown`
+ * runs (boot teardown, watchers), live connections are hung up, and in-flight
+ * requests get a bounded deadline. Waiting on `server.close()` alone would hang
+ * forever with a single live page open.
  */
-export function installGracefulShutdown(close: () => Promise<void> | void, quiet = false): void {
+export function installGracefulShutdown(
+  server: ClosableServer,
+  opts: { teardown?: () => Promise<void> | void; quiet?: boolean } = {},
+): void {
   let closing = false
-  const handler = (signal: NodeJS.Signals) => {
+  const handler = () => {
     if (closing) process.exit(130)
     closing = true
-    if (!quiet) process.stdout.write(`\n${c.dim('  stopping…')}\n`)
+    if (!opts.quiet) process.stdout.write(`\n${c.dim('  stopping…')}\n`)
     void (async () => {
       try {
-        await close()
+        await drainAndClose(server, { teardown: opts.teardown })
       } catch (err) {
         logger.warn({ err: String(err) }, 'error during shutdown')
       }
       process.exit(0)
     })()
-    void signal
   }
   process.on('SIGINT', handler)
   process.on('SIGTERM', handler)

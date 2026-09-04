@@ -183,11 +183,9 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
             },
           })
           // Ctrl+C / SIGTERM (deploy rollover) exits 0, not 130 — quiet in prod.
-          // Boot teardown runs first (unsubscribe/clear timers), then the server.
-          installGracefulShutdown(async () => {
-            if (teardown) await teardown()
-            await new Promise<void>((done) => server.close(() => done()))
-          }, true)
+          // The server stops accepting before boot teardown runs, so nothing
+          // new arrives while its sources are being unsubscribed.
+          installGracefulShutdown(server, { teardown, quiet: true })
           resolveFn()
         })
         // Production is strict about its port (a collision is a deploy
