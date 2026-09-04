@@ -1,5 +1,14 @@
 #!/bin/sh
 # Lint + format check on STAGED files only (fast). Bypass: git commit --no-verify
+
+# Not in CI. The only commits made there are generated — the changesets action's
+# version bump — and a formatter gate written for humans has no business
+# deciding whether the release train moves. Formatting is still enforced on
+# everything: every PR runs `biome ci .` across the repo, the Version PR
+# included, where a real problem shows up as a clear failure instead of a
+# mysterious hook error inside a bot's `git commit`.
+[ -n "$CI" ] && exit 0
+
 pnpm exec biome check --staged --no-errors-on-unmatched
 status=$?
 if [ $status -ne 0 ]; then
