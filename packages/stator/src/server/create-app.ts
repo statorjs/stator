@@ -18,6 +18,7 @@ import { discoverMiddleware } from './middleware.ts'
 import { discoverRoutes } from './route-discovery.ts'
 import { setSessionSameSite } from './session.ts'
 import { InMemoryStore, type Store } from './store.ts'
+import { persistencePosture } from './store-intent.ts'
 
 export interface CreateAppConfig extends DeprecatedFlatConfig {
   machinesDir: string
@@ -169,7 +170,23 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
       return new Promise((resolveFn) => {
         const server = serve({ fetch: app.fetch, port, hostname: resolved.host }, async () => {
           // Always-on (level-independent) so `warn` prod still confirms boot.
-          printStartupNotice({ port, machines: defs.length, routes: routes.length })
+          // Persistence posture in the notice, and a warning for anything
+          // actually at risk. Silence about in-memory storage is the defect
+          // this closes: the app runs, looks healthy, and loses every session
+          // on restart.
+          const posture = persistencePosture({
+            session: sessionStore,
+            app: store.appStore,
+            machines: defs,
+            production: process.env.NODE_ENV === 'production',
+          })
+          printStartupNotice({
+            port,
+            machines: defs.length,
+            routes: routes.length,
+            persistence: posture.label,
+          })
+          for (const warning of posture.warnings) logger.warn({}, `stator: ${warning}`)
           // Run boot.ts once the server is up — its long-lived work (a poll, a
           // subscription) starts here, not during createApp, so tests that only
           // `app.fetch` never trigger it.

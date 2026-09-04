@@ -1,14 +1,16 @@
 import { defineConfig } from '@statorjs/stator/config'
-import { CachedStore, InMemoryStore, RedisStore, type Store } from '@statorjs/stator/server'
-
-// Cache-in-front-of-Redis when REDIS_URL is set (write-through — a crash loses
-// only the cache, not state); in-memory otherwise (does not survive restart).
-const redisUrl = process.env.REDIS_URL
-const store: Store = redisUrl
-  ? new CachedStore(new RedisStore(redisUrl), { memoryTtlSeconds: 300, maxEntries: 10_000 })
-  : new InMemoryStore()
+import { sessionStore } from '@statorjs/stator/server'
 
 export default defineConfig({
-  persistence: { session: store },
+  // Redis when REDIS_URL is set, in-memory otherwise — so dev and CI need no
+  // Redis, and production says so out loud if the variable is missing rather
+  // than quietly losing every session on restart. Cache-in-front-of-Redis is
+  // write-through: a crash loses the cache, not the state.
+  persistence: {
+    session: sessionStore({
+      redisUrl: process.env.REDIS_URL,
+      cache: { memoryTtlSeconds: 300, maxEntries: 10_000 },
+    }),
+  },
   sessions: { ttlSeconds: Number(process.env.SESSION_TTL_SECONDS ?? 86400) },
 })

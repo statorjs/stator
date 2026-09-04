@@ -56,6 +56,51 @@ persistence: {
 
 A crash loses only the cache, not committed state.
 
+## Choosing from the environment
+
+Most apps want Redis in production and nothing to install locally, which used to mean writing the conditional yourself:
+
+```ts
+// Works, but degrades in silence
+const store = url ? new RedisStore(url) : new InMemoryStore()
+```
+
+The problem isn't the fallback — it's right for development, and right for CI, where a build machine has no business holding production credentials. The problem is that in production it means the app runs, looks healthy, and quietly loses every session on restart. Written this way, the framework cannot tell that outcome from a deliberate choice, so it cannot warn you.
+
+`sessionStore` moves the conditional inside, which is enough to change that:
+
+```ts
+import { sessionStore } from '@statorjs/stator/server'
+
+export default defineConfig({
+  persistence: {
+    session: sessionStore({
+      redisUrl: process.env.REDIS_URL,
+      cache: { memoryTtlSeconds: 300, maxEntries: 10_000 },
+    }),
+  },
+})
+```
+
+A URL means Redis, wherever it comes from — so pointing CI at a test Redis is nothing special, just the variable being set. An absent, empty, or whitespace-only value means in-memory, which is silent in development and, in production, reported by name:
+
+```
+stator: REDIS_URL is empty, so session state is in memory and will not survive a restart
+```
+
+Passing the key is what says you want durability from the environment. Calling `sessionStore()` with nothing — or omitting `persistence.session` entirely — chooses in-memory deliberately, and is never reported. `appStore` does the same for [persisted app machines](/guides/app-machines/). Neither ever refuses to start: persistent storage is assumed to be what you want, never required.
+
+## Knowing what you got
+
+Every startup states the posture, at any log level, so a deploy log never leaves it to inference:
+
+```
+stator v2.10.0 · http://localhost:3000/ · 4 machines · 4 routes · sessions CachedStore
+stator v2.10.0 · http://localhost:3000/ · 4 machines · 4 routes · sessions in-memory
+```
+
+In production, anything actually at risk also logs a warning — session machines on ephemeral storage, or `persist: true` app machines with no durable app store. An app with no session machines has no session state to lose and is left alone. `stator build` says its part too: if your config declares no session store at all, the build notes it, because whether a store is *declared* is knowable from the code while which store it *resolves to* depends on the production environment a build machine doesn't have.
+
 ## What persists
 
 Only `lifecycle: 'session'` machines are stored through the session `Store`. App machines live in process memory and re-seed on boot unless they opt in with `persist: true`, which saves them through the `AppStore` — see [Sessions and state](/concepts/sessions-and-state/).

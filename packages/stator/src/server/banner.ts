@@ -77,11 +77,18 @@ export function printDevBanner(info: {
  * "did it start, and where" is the one thing an operator always wants, distinct
  * from the per-request logs that `warn` intentionally suppresses.
  */
-export function printStartupNotice(info: { port: number; machines: number; routes: number }): void {
+export function printStartupNotice(info: {
+  port: number
+  machines: number
+  routes: number
+  /** Whether state survives a restart. Always shown: a deploy log should not
+   *  have to infer the persistence posture from the absence of a warning. */
+  persistence?: string
+}): void {
   const v = statorVersion()
-  const inv = `${info.machines} machine${info.machines === 1 ? '' : 's'} · ${info.routes} route${
-    info.routes === 1 ? '' : 's'
-  }`
+  const inv = `${info.machines} machine${info.machines === 1 ? '' : 's'} · ${
+    info.routes
+  } route${info.routes === 1 ? '' : 's'}${info.persistence ? ` · ${info.persistence}` : ''}`
   process.stdout.write(
     `  ${c.copper(c.bold('stator'))}${v ? c.dim(` v${v}`) : ''} ${c.dim('·')} ${c.cyan(
       `http://localhost:${info.port}/`,
