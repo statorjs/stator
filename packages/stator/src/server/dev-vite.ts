@@ -306,10 +306,11 @@ export async function createViteDevApp(config: DevAppConfig): Promise<DevApp> {
                   cors: resolved.cors,
                 },
               })
-              installGracefulShutdown(async () => {
-                if (teardown) await teardown()
-                await vite.close()
-                await new Promise<void>((done) => server.close(() => done()))
+              installGracefulShutdown(server, {
+                teardown: async () => {
+                  if (teardown) await teardown()
+                  await vite.close()
+                },
               })
               resolveFn()
             })

@@ -108,6 +108,21 @@ export function activeConnectionCount(): number {
 }
 
 /**
+ * Hang up every open connection — the shutdown path. A live response never ends
+ * on its own, so `server.close()` cannot complete until these do; see
+ * `shutdown.ts` for why they are closed rather than waited on. Returns how many
+ * were open. Each handler's own `finally` unregisters again, harmlessly.
+ */
+export function closeLiveConnections(): number {
+  const open = [...connections.values()]
+  for (const conn of open) {
+    unregisterConnection(conn.id)
+    conn.close?.()
+  }
+  return open.length
+}
+
+/**
  * After a state-changing dispatch settles, iterate every open connection
  * whose route's `reads:` intersects `touched`, recompute against that
  * connection's slot map, and push any resulting patches over its event

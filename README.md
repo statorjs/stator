@@ -165,6 +165,7 @@ fly deploy
 | `LOG_LEVEL` | `debug` / `info` (default) / `warn` / `error`. |
 | `SESSION_TTL_SECONDS` | Per-session idle TTL. Defaults to `86400` (24h). |
 | `STATOR_SECURE_COOKIE` | `1` / `0` — overrides `NODE_ENV` cookie behavior. |
+| `STATOR_SHUTDOWN_TIMEOUT_MS` | Drain deadline for in-flight requests on SIGTERM/SIGINT. Defaults to `5000`. |
 
 The demo's `/admin` route is intentionally open — it exists to demonstrate cross-session SSE, and no PII is collected anywhere (product ids and quantities only).
 
