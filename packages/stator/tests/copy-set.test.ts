@@ -36,7 +36,11 @@ describe('copy set: what the graph reaches', () => {
   })
 
   it('always copies static/, which the framework serves by path', () => {
+    // static/ holds files nothing imports — the framework reads them by URL —
+    // so it can never be discovered by a module graph and is never subject to
+    // it. Present in the source root means present in dist, always.
     expect(set.dirs).toContain('static')
+    expect(set.reached).not.toContain('static/site.css') // not via imports
   })
 
   it('follows a tsconfig paths alias', () => {
@@ -82,6 +86,78 @@ describe('copy set: what the graph reaches', () => {
     // which dist cannot contain — a warning, not a failure.
     expect(set.external.some((f) => f.endsWith('src/server/index.ts'))).toBe(true)
   })
+})
+
+describe('copy set: path handling across platforms', () => {
+  it('contains files under a symlinked root', async () => {
+    // esbuild reports real paths, and on macOS /var is a symlink to
+    // /private/var — so a root spelled through the symlink must still contain
+    // its own files. The same test protects Windows, where paths are
+    // case-insensitive and a drive letter's case need not match ours: a
+    // normalized `startsWith` comparison reports in-root files as external and
+    // dist ends up with nothing but static/.
+    const base = await mkdtemp(join(tmpdir(), 'stator-symlinked-'))
+    const app = join(base, 'app')
+    const { mkdir, cp } = await import('node:fs/promises')
+    await mkdir(app, { recursive: true })
+    for (const dir of ['routes', 'machines', 'lib', 'templates', 'static', 'data', 'aliased']) {
+      await cp(join(root, dir), join(app, dir), { recursive: true })
+    }
+    for (const file of ['tsconfig.json', 'app.data']) {
+      await cp(join(root, file), join(app, file))
+    }
+
+    const result = await resolveCopySet({ root: app })
+    expect(result.dirs).toEqual(expect.arrayContaining(['lib', 'routes', 'static', 'templates']))
+    expect(result.files).toContain('app.data')
+    // The failure mode being guarded: everything classified as external.
+    expect(result.external.filter((f) => f.includes('/app/'))).toEqual([])
+    await rm(base, { recursive: true, force: true })
+  }, 30_000)
+})
+
+describe('copy set: dependencies', () => {
+  it('never traces or copies an in-root node_modules', async () => {
+    // The bug this guards, found by running against an app outside this
+    // monorepo: a real app's `node_modules` lives INSIDE its root, so root
+    // containment alone classifies every dependency as app source. The whole
+    // dependency tree landed in the copy set, and the framework's own
+    // `import(pathToFileURL(file).href)` in route discovery was reported as an
+    // untraceable dynamic import — which would have failed the build for every
+    // app that installs the framework the ordinary way.
+    const base = await mkdtemp(join(tmpdir(), 'stator-deps-'))
+    const app = join(base, 'app')
+    const { mkdir } = await import('node:fs/promises')
+    await mkdir(join(app, 'routes'), { recursive: true })
+    await mkdir(join(app, 'machines'), { recursive: true })
+    await mkdir(join(app, 'node_modules/mypkg'), { recursive: true })
+    await writeFile(
+      join(app, 'node_modules/mypkg/package.json'),
+      JSON.stringify({ name: 'mypkg', version: '1.0.0', main: 'index.js' }),
+    )
+    // A dependency with its own opaque dynamic import — exactly the framework's
+    // shape. It must not be scanned, let alone reported.
+    await writeFile(
+      join(app, 'node_modules/mypkg/index.js'),
+      'export const load = (p) => import(p)\nexport const value = 1\n',
+    )
+    const server = resolve(here, '../src/server/index.ts')
+    const template = resolve(here, '../src/template/index.ts')
+    await writeFile(
+      join(app, 'routes/index.ts'),
+      `import { defineRoute } from '${server}'\n` +
+        `import { html } from '${template}'\n` +
+        `import { value } from 'mypkg'\n` +
+        `export const GET = defineRoute({ reads: [], render: () => html\`<p>${'${value}'}</p>\` })\n`,
+    )
+
+    const result = await resolveCopySet({ root: app })
+    expect(result.dirs).not.toContain('node_modules')
+    expect(result.packages).toContain('mypkg')
+    expect(result.reached.filter((f) => f.includes('node_modules'))).toEqual([])
+    expect(result.untraced).toEqual([])
+    await rm(base, { recursive: true, force: true })
+  }, 30_000)
 })
 
 describe('copy set: untraceable dynamic imports', () => {

@@ -122,7 +122,12 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   // missed entirely, since the old copy step only ever handled directories.
   for (const file of copySet.files) {
     const src = join(root, file)
-    if (await exists(src)) await cp(src, join(outDir, file))
+    if (!(await exists(src))) continue
+    const dest = join(outDir, file)
+    // `build.include` may name a nested file, and cp() will not create its
+    // parent for us.
+    if (file.includes('/')) await mkdir(dirname(dest), { recursive: true })
+    await cp(src, dest)
   }
 
   // Compile every .stator into a sibling .stator.ts; collect CSS and islands.

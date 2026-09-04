@@ -15,5 +15,6 @@ One pass now walks the graph from the entry points the framework itself loads �
 - **`build.include`** in `stator.config.ts` names anything no import graph can see, such as a directory read through a path built at runtime.
 - **An `import()` the build cannot follow now fails the build**, naming each file and line. A string literal is followed; a template literal with a fixed prefix has every match included; only a fully computed specifier is opaque, and a `dist/` built around one is missing a module that some request will reach. Make it analysable, list what it reaches in `build.include`, or set `build.untracedImports: 'warn'`.
 - `resolveCopySet` is exported from `@statorjs/stator/build` for tooling. `BuildConfig.dirs` still overrides the copy set outright.
+- `stator build` is now covered on Windows and macOS in CI, not just Linux — a new build smoke runs beside the dev-loop smoke on all three. Resolution is where platforms diverge, and the failure it guards is silent: get containment wrong and every app file looks external, so the build "succeeds" and ships a `dist/` holding nothing but `static/`.
 
 Upgrading: an app that relied on a directory being copied *incidentally* — never imported, but read at runtime through a computed path — needs it in `build.include`. The build's `not copied:` line tells you which directories are candidates.

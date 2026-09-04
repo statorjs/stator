@@ -57,6 +57,10 @@ const BUILTIN = new Set([...builtinModules, ...builtinModules.map((m) => `node:$
  *  (Injecting an import instead does NOT work: esbuild's TS loader elides an
  *  import whose binding is unused, so the injected one disappears.) */
 const URL_ASSET_RE = /new\s+URL\(\s*(['"])(\.{1,2}\/[^'"\n]+)\1\s*,\s*import\.meta\.url\s*\)/g
+/** A `node_modules` path segment, either separator. Anything under one is a
+ *  dependency, never app source — and a real app's `node_modules` sits INSIDE
+ *  its root, so root containment alone cannot tell them apart. */
+const NODE_MODULES = /[\\/]node_modules[\\/]/
 /** `import(` not followed by a string or template literal. */
 const OPAQUE_IMPORT_RE = /(?<![.\w$])import\s*\(\s*([^'"`)\s])/g
 
@@ -138,6 +142,20 @@ export async function resolveCopySet(opts: CopySetOptions): Promise<CopySet> {
       return root
     }
   })()
+  /**
+   * Is this absolute path inside the app root? `path.relative` is the only
+   * correct test on Windows: paths there are case-insensitive and esbuild's
+   * spelling of a drive letter need not match ours, so comparing normalized
+   * strings with `startsWith` reports a perfectly good in-root file as
+   * external — and across drives `relative` returns an ABSOLUTE path, which a
+   * `..` check alone would miss. (win32's `relative` lowercases before
+   * comparing; posix is unaffected.)
+   */
+  const insideRoot = (abs: string): boolean => {
+    const rel = relative(realRoot, abs)
+    return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel)
+  }
+
   const t0 = performance.now()
 
   const entries: string[] = []
@@ -211,23 +229,30 @@ export async function resolveCopySet(opts: CopySetOptions): Promise<CopySet> {
                 return { path: args.path, external: true }
               }
               const abs = r.path
-              const inRoot = isAbsolute(abs) && norm(abs).startsWith(`${norm(root)}/`)
-              if (!inRoot) {
-                // Outside the app root, so nothing to copy either way — but the
-                // two cases mean different things. A BARE specifier is a
-                // package, however it resolves: a pnpm workspace link resolves
-                // to a real path with no `node_modules` segment in it, so the
-                // path cannot be the test. Anything relative or absolute that
-                // lands outside the root is an app file dist cannot contain.
-                if (!args.path.startsWith('.') && !isAbsolute(args.path)) {
+              // Package or app file? Neither the path nor the specifier settles
+              // it alone, so both are consulted. A dependency installed the
+              // ordinary way lives UNDER the app root in `node_modules`, so
+              // containment cannot exclude it; a dependency reached through a
+              // workspace link resolves to a real path with no `node_modules`
+              // segment, so the path cannot exclude it either. Meanwhile a
+              // tsconfig `paths` alias looks exactly like a bare specifier and
+              // is app code. So: under node_modules is always a package, and
+              // outside the root a bare specifier is a package while a relative
+              // one is an app file `dist` cannot contain.
+              const bare = !args.path.startsWith('.') && !isAbsolute(args.path)
+              const inRoot = isAbsolute(abs) && insideRoot(abs)
+              if (NODE_MODULES.test(abs) || (!inRoot && bare)) {
+                if (bare) {
                   packages.add(
                     args.path.startsWith('@')
                       ? args.path.split('/').slice(0, 2).join('/')
                       : args.path.split('/')[0]!,
                   )
-                } else {
-                  external.add(norm(abs))
                 }
+                return { path: abs, external: true }
+              }
+              if (!inRoot) {
+                external.add(norm(abs))
                 return { path: abs, external: true }
               }
               if (!CODE.test(abs)) {
@@ -282,8 +307,10 @@ export async function resolveCopySet(opts: CopySetOptions): Promise<CopySet> {
   const dirs = new Set<string>()
   const files = new Set<string>()
   for (const abs of [...reached, ...assets]) {
+    // Assets come from the `new URL` scan rather than resolution, so they get
+    // the same containment test the resolver hook applies.
+    if (!insideRoot(abs)) continue
     const rel = norm(relative(realRoot, abs))
-    if (rel.startsWith('..')) continue
     if (rel.includes('/')) dirs.add(rel.split('/')[0]!)
     else files.add(rel)
   }
