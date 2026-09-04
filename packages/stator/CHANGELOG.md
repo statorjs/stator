@@ -1,5 +1,70 @@
 # @statorjs/stator
 
+## 2.10.0-next.0
+
+### Minor Changes
+
+- be57290: `stator build` now works out what `dist/` needs from your app's module graph instead of copying every top-level directory that wasn't on a denylist.
+
+  The old rule guessed at the shape of your project, and guessed wrong in both directions. A directory the app never imports came along for the ride — an uploads folder, a JSON cache a deploy script maintains, a folder of design notes — so runtime data got duplicated into the build artifact on every build. Meanwhile a root-level file a module genuinely opens did **not** come along, because the copy step only ever handled directories: an `import.meta.url`-relative SQLite file resolved inside `dist/`, found nothing, and SQLite created an empty database. The app booted, looked healthy, and had lost every row. Our own `with-auth` example shipped that bug.
+
+  One pass now walks the graph from the entry points the framework itself loads — every file under `routes/` and `machines/`, plus a root-level `middleware.ts`, `boot.ts` and `stator.config.*` — and everything else is copied because it was reached. `templates/` and `lib/` land in `dist/` because your routes import them, not because of what they are called, so renaming or adding a directory needs no configuration. `static/` still comes along, since the framework serves it by path.
+
+  - Resolution is the bundler's own, so a tsconfig `paths` alias, an extensionless specifier, an `index.ts` and an `exports` map all behave exactly as they do at runtime. A regex over import statements cannot see a path alias; this can.
+  - `.stator` files are compiled during the walk, so frontmatter imports are followed like any other import — a `lib/` module reached only by a template is found.
+  - Copying is per top-level directory, which is what lets a data file nothing imports ride along with its neighbours: a JSON fixture read with `readFile`, a mail template beside the module that reads it. A root-level file opened through a literal `new URL('../app.db', import.meta.url)` is copied too.
+  - The build prints what it decided — `copied: …`, and `not copied: …` for directories nothing reached — because a copy set derived from code should be visible rather than inferred from what turns up in `dist/`.
+  - **`build.include`** in `stator.config.ts` names anything no import graph can see, such as a directory read through a path built at runtime.
+  - **An `import()` the build cannot follow now fails the build**, naming each file and line. A string literal is followed; a template literal with a fixed prefix has every match included; only a fully computed specifier is opaque, and a `dist/` built around one is missing a module that some request will reach. Make it analysable, list what it reaches in `build.include`, or set `build.untracedImports: 'warn'`.
+  - `resolveCopySet` is exported from `@statorjs/stator/build` for tooling. `BuildConfig.dirs` still overrides the copy set outright.
+  - `stator build` is now covered on Windows and macOS in CI, not just Linux — a new build smoke runs beside the dev-loop smoke on all three. Resolution is where platforms diverge, and the failure it guards is silent: get containment wrong and every app file looks external, so the build "succeeds" and ships a `dist/` holding nothing but `static/`.
+
+  Upgrading: an app that relied on a directory being copied _incidentally_ — never imported, but read at runtime through a computed path — needs it in `build.include`. The build's `not copied:` line tells you which directories are candidates.
+
+- be57290: `dist/` is now the whole deployment: copy that one directory to a server, install inside it, and start.
+
+  Two things stopped that from being true. `stator.config.ts` was never copied into the build, and `stator start` read it from the source tree — so a deploy that shipped only `dist/` found no config at all and started on in-memory persistence without a word, silently losing every session on restart. And when the source tree _was_ present, its config imported `./lib/db.ts` while the machines imported `dist/lib/db.ts`: two live copies of one module in one process, two database connections, two caches, and two versions of the same code whenever the source had moved on since the build.
+
+  - **Config comes from the artifact and nowhere else.** The build copies `stator.config.*` along with everything it imports, and `stator start` reads it from `dist/`. No fall back to the source tree — a fall back is what let one build behave two different ways.
+  - **`stator start` serves a built directory in place** when it finds the manifest beside `routes/`, so the artifact needs no source tree around it. Point `--root` at it, or run from inside.
+  - **The manifest records the config file and the version that built it.** An artifact whose recorded config is missing is a partial copy and `stator start` refuses it; one built before this record existed says to rebuild rather than guessing, because "this app has no config" and "the config didn't travel" are otherwise indistinguishable and guessing wrong downgrades persistence in silence.
+  - **The build declares dependencies for the target to install.** `node_modules` is never copied — that would bake the build machine's platform into the artifact, and a traced `sharp` ships `@img/sharp-darwin-arm64` where the container needs `@img/sharp-linux-x64`. Instead: an app with its own lockfile gets `package.json` and the lockfile copied verbatim, and the build names the frozen install to run (`npm ci --omit=dev`, `pnpm install --frozen-lockfile --prod`, …) so the target installs exactly what was locked. Resolving dependencies at deploy time is how a deploy picks up a transitive nobody tested; `npm install` in production is the bug, not the fix.
+  - **A workspace member gets a generated `package.json`** instead, since its lockfile lives at the monorepo root and `workspace:*` cannot be installed from a registry. Every dependency the app's code reached is pinned to the version that was actually installed — pins come from the installed tree, never from a declared range, because `npm ci` validates the lockfile against the manifest and refuses a mismatch. Direct dependencies are exact, transitives are not locked, and the build says so out loud: resolve at build time (`pnpm deploy --prod`, or build in the image) if that matters.
+  - **An artifact compiled by a different framework minor is refused.** `dist/` holds output emitted by one specific compiler, and serving it against a different minor makes the runtime and the emit disagree — which surfaces as a template read complaining it was called outside a render, because two copies of the framework hold separate render state. An app whose lockfile pins an older version than the machine that built it produces exactly that, silently. A patch difference is fine and passes.
+
+  The build prints its dependency decision, so nothing about the artifact has to be inferred from what turns up in it.
+
+- ac10c7c: An app can no longer end up on in-memory session storage in production without saying so.
+
+  Every startup now states the persistence posture in its notice — printed at any log level, so a deploy log never leaves it to inference:
+
+  ```
+  stator v2.10.0 · http://localhost:3000/ · 4 machines · 4 routes · sessions CachedStore
+  stator v2.10.0 · http://localhost:3000/ · 4 machines · 4 routes · sessions in-memory
+  ```
+
+  In production, anything actually at risk also logs a warning: session machines on ephemeral storage, or `persist: true` app machines with no durable app store. An app with no session machines has nothing to lose here and is left alone, and nothing ever refuses to start — persistent storage is assumed to be what you want, never required.
+
+  **`sessionStore` and `appStore`** are the new way to pick a store from the environment, and they exist because the conditional every app was writing degrades in silence:
+
+  ```ts
+  // before — correct in dev and CI, silently wrong in production
+  const store = url
+    ? new CachedStore(new RedisStore(url))
+    : new InMemoryStore();
+
+  // after
+  persistence: {
+    session: sessionStore({ redisUrl: process.env.REDIS_URL, cache: true });
+  }
+  ```
+
+  Written in userland, the framework could not tell "deliberately in-memory" from "wanted Redis and the variable was empty". Written here it can, so the production warning names the variable — `REDIS_URL is empty, so session state is in memory and will not survive a restart` — instead of reporting a generic posture. A URL means Redis wherever it comes from, so pointing CI at a test Redis is just the variable being set; absent, empty and whitespace-only all mean in-memory. Passing the key is what declares the intent: `sessionStore()` with no arguments chooses in-memory deliberately and is never reported.
+
+  `stator build` also notes when a config declares no session store at all. That check is deliberately about the _shape_ of the config and never about the value: whether a store is declared is knowable from the code, while which store a declared one resolves to depends on the production environment — which a build machine does not have, and should not. A build that errored on the store it resolved with CI's environment would fail every correctly configured deployment.
+
+  Enforcement — failing to start when a variable is missing — is not part of this. It belongs to declared environment variables, where one mechanism covers every required value rather than just this one.
+
 ## 2.9.1
 
 ### Patch Changes
