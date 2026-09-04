@@ -22,7 +22,31 @@ The build:
 4. bundles every [client island](/guides/client-components/) through one bundler pass into hashed assets under `dist/static/assets/`, stubbing any server-machine imports down to `{ name }` so server code never reaches a browser bundle,
 5. walks each route's import graph and writes `dist/stator-manifest.json` — which islands each route needs, plus the per-build id.
 
-`stator start` loads that manifest to link `components.css` and inject each route's island scripts, and stamps the build id into live pages so the deploy-aware [reload handshake](/guides/realtime-sse/) can reload a page left on an older build. It runs your `stator.config.ts` exactly as dev does — same store, same session policy.
+`stator start` loads that manifest to link `components.css` and inject each route's island scripts, and stamps the build id into live pages so the deploy-aware [reload handshake](/guides/realtime-sse/) can reload a page left on an older build. It runs your `stator.config.ts` exactly as dev does — same store, same session policy — reading it **from the artifact**, which is what makes `dist/` the whole deployment.
+
+## The artifact is the deployment
+
+`dist/` is self-contained: your compiled routes and machines, the directories they reach, `static/`, root-level files your code opens, `stator.config.ts` and everything it imports, and a `package.json` describing what to install. Copy that one directory to a server, install dependencies inside it, and start:
+
+```bash
+rsync -a dist/ prod:/srv/app/           # one directory
+ssh prod 'cd /srv/app && npm ci --omit=dev && stator start'
+```
+
+`stator start` serves a built directory in place when it finds the manifest beside `routes/`, so nothing needs to be nested under a source tree. Point `--root` at the artifact, or run it from inside.
+
+Config comes from the artifact and nowhere else. There is no fall back to your source tree, deliberately: a config read from outside would make the same build behave one way from a repo checkout and another from a copied `dist/`, and a deploy that shipped only `dist/` would find no config and start on in-memory persistence without saying so. It is also how you get two live copies of one module — a root config importing `./lib/db.ts` while your machines import `dist/lib/db.ts` means two connections and two caches of the same code. If the build recorded a config that isn't in the artifact, `stator start` refuses rather than guessing.
+
+### Dependencies
+
+`node_modules` is never copied into `dist/`. It would bake the build machine's platform into the artifact — `sharp` resolves to `@img/sharp-darwin-arm64` on a Mac and `@img/sharp-linux-x64` in a container, so a copied tree ships a binary that cannot load. You install on the target instead, and the build's job is to make that install *reproducible*.
+
+Which means the lockfile matters more than the manifest. Resolving dependencies at deploy time is how a deploy picks up a transitive version nobody tested, so:
+
+- **Your app has its own lockfile** (the usual case): `package.json` and the lockfile are copied verbatim, and the build tells you the frozen install to run — `npm ci --omit=dev`, `pnpm install --frozen-lockfile --prod`, whichever matches. The target installs exactly what you locked. Never `npm install`.
+- **Your app is a workspace member**, with the lockfile at the monorepo root and `workspace:*` specifiers no registry can install: neither file can travel, so the build generates a `package.json` pinning every dependency your code reached to the version that was actually installed. Direct dependencies are exact; **transitives are not locked**. The build says so. For full reproducibility, resolve at build time instead — `pnpm deploy --prod`, or build inside your image.
+
+Only dependencies your code actually reaches are declared, and a type-only import is not one of them — so a runtime import that lives in `devDependencies` will not be installed on the target. Worth knowing before it bites: with `--omit=dev`, the distinction is real.
 
 ## What gets copied
 

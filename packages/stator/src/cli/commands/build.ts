@@ -28,6 +28,25 @@ export async function run(ctx: CliContext): Promise<void> {
       `${copySet.files.length ? ` · ${copySet.files.length} root file${copySet.files.length === 1 ? '' : 's'} (${copySet.files.join(', ')})` : ''}` +
       ` · graph walked in ${copySet.ms} ms\n`,
   )
+  // How the artifact declares its dependencies — and, for a workspace member,
+  // that its transitives are not locked.
+  const { deps } = result
+  if (deps.kind === 'copied') {
+    process.stdout.write(
+      `  deps: ${deps.files.join(' + ')} copied · on the target run \`${deps.install}\`\n`,
+    )
+  } else if (deps.kind === 'generated') {
+    const n = Object.keys(deps.pinned ?? {}).length
+    process.stdout.write(
+      `  deps: no lockfile beside package.json (workspace app) — generated a package.json pinning ${n} direct dependenc${n === 1 ? 'y' : 'ies'}\n` +
+        `        on the target run \`${deps.install}\`; transitives are NOT locked, so prefer resolving at build time (\`pnpm deploy --prod\`, or build in the image)\n`,
+    )
+    if (deps.unpinned?.length) {
+      process.stdout.write(
+        `        warning: could not read an installed version for ${deps.unpinned.join(', ')} — used the declared range\n`,
+      )
+    }
+  }
   if (copySet.unused.length > 0) {
     process.stdout.write(
       `  not copied: ${copySet.unused.join(', ')} — nothing in the app imports or opens them` +

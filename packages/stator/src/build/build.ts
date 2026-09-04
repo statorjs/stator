@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { dirname, join, relative, resolve } from 'node:path'
 import { compile, regionResolverFor } from '../compiler/index.ts'
 import { hashMachines } from '../server/machine-hash.ts'
+import { type ArtifactDeps, writeArtifactDeps } from './artifact.ts'
 import { type CopySet, resolveCopySet } from './copy-set.ts'
 import { bundleIslands, routeIslandMap, walkFiles } from './islands.ts'
 import { sourceId } from './source-id.ts'
@@ -68,6 +70,8 @@ export interface BuildResult {
    *  CLI prints this — a copy set derived from code should be visible, not
    *  inferred from what shows up in `dist/`. */
   copySet: CopySet
+  /** How the artifact declares its dependencies, and how to install them. */
+  deps: ArtifactDeps
 }
 
 /** Shape of `dist/stator-manifest.json` (always written — carries `buildId`). */
@@ -83,7 +87,20 @@ export interface StatorManifest {
    *  `stator start` for the snapshot hydration policy; the build fails if a
    *  machine's closure cannot be bundled, so this lands in CI, not at boot. */
   machines: Record<string, string>
+  /** The config file copied into the artifact, or `null` when the app has none.
+   *  `stator start` reads config from the artifact and nowhere else, so it needs
+   *  to tell "this app has no config" from "the config didn't make the trip" —
+   *  the second is a partial copy and must fail loudly rather than silently
+   *  falling back to in-memory persistence. Absent on a dist built before this
+   *  existed, which is itself the signal to rebuild. */
+  config: string | null
+  /** The `@statorjs/stator` version that produced this artifact. */
+  statorVersion: string
 }
+
+const statorVersion: string = (
+  createRequire(import.meta.url)('../../package.json') as { version: string }
+).version
 
 export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   const root = resolve(config.root)
@@ -185,12 +202,33 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
     ? Object.keys(machines).filter((k) => previous[k] !== machines[k])
     : undefined
 
+  // The dependency half of the artifact: the app's own manifest + lockfile when
+  // it has one, else a pinned manifest. Written after the tree so a generated
+  // package.json cannot be clobbered by the copy step.
+  const deps = await writeArtifactDeps({ root, outDir, packages: copySet.packages })
+
   // Always write the manifest — it carries the build-id even for an app with no
   // islands (a live route without islands still needs the reload handshake).
+  // The config file the artifact carries, by name — `copySet.files` holds it if
+  // the app has one, since the graph walk treats it as an entry point.
+  const configFile = copySet.files.find((f) => /^stator\.config\.(ts|mts|js|mjs)$/.test(f)) ?? null
   const manifest: StatorManifest =
     islands.length > 0
-      ? { buildId: randomUUID(), ...(await buildClientAssets(outDir, islands)), machines }
-      : { buildId: randomUUID(), islands: {}, routes: {}, machines }
+      ? {
+          buildId: randomUUID(),
+          ...(await buildClientAssets(outDir, islands)),
+          machines,
+          config: configFile,
+          statorVersion,
+        }
+      : {
+          buildId: randomUUID(),
+          islands: {},
+          routes: {},
+          machines,
+          config: configFile,
+          statorVersion,
+        }
   await writeFile(join(outDir, 'stator-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
 
   return {
@@ -202,6 +240,7 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
     machineHashMs,
     ...(resetMachines ? { resetMachines } : {}),
     copySet,
+    deps,
   }
 }
 

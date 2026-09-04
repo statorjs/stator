@@ -1,7 +1,13 @@
 packages:
   - "packages/*"
   - "apps/*"
-  - "apps/private/*"
+  # `apps/private/` is gitignored, so a scratch project there would be a
+  # workspace member that no other checkout has — and its dependencies would
+  # have to appear in the TRACKED lockfile for `--frozen-lockfile` to install
+  # anything at all. That wedges installs locally in both directions: frozen
+  # refuses, and a plain install writes private deps into the committed
+  # lockfile, which then breaks frozen installs everywhere else (including the
+  # Dockerfile's). Scratch apps link the framework by path instead.
   - "editors/*"
   - "examples/*"
 allowBuilds:
