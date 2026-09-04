@@ -1,0 +1,7 @@
+---
+import { seed } from '../lib/loader.ts'
+
+const data = seed()
+---
+
+<p>{data}</p>

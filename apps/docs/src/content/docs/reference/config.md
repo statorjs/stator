@@ -47,6 +47,11 @@ interface StatorConfig {
     inspector?: boolean // dev inspector toolbar. Default: on in dev
   }
 
+  build?: {
+    include?: string[]  // extra paths to copy into dist/ — for what no import graph can see
+    untracedImports?: 'error' | 'warn' // an import() the build cannot follow. Default: error
+  }
+
   logging?: {
     level?: 'silent' | 'error' | 'warn' | 'info' | 'debug' // Default: warn (prod) / info (dev). LOG_LEVEL env wins
   }
@@ -61,4 +66,5 @@ interface StatorConfig {
 - **Persistence is grouped by concern.** `persistence.session` and `persistence.app` are the two swappable [store adapters](/guides/persistence/); the other bags hold policy, not adapters. See `RedisStore`/`CachedStore`/`RedisAppStore` in the [server reference](/reference/server/).
 - **Secrets belong in the environment.** Prefer `process.env.STATOR_SECRET` and a `REDIS_URL` over hard-coding — `.env.local` (gitignored) for local, real platform secrets in production. See [Production](/guides/production/).
 - **Security options** (`trustedOrigins`, `sessions.cookie.sameSite`) pair with the [middleware guide](/guides/middleware/); CORS is opt-in per route/app via the `cors()` middleware.
+- **`build` is rarely needed.** What lands in `dist/` is derived from your module graph, so a new directory needs no configuration — see [what gets copied](/guides/production/#what-gets-copied). `include` is for a directory reached only through a path your code builds at runtime.
 - **`createApp`/`createDevApp`** accept this same shape directly (plus dir options) for hand-wired entries — see [dev & build](/reference/dev-and-build/). The pre-2.2 flat keys (`store`, `sessionTtlSeconds`, …) are deprecated in favor of the nested shape here.
