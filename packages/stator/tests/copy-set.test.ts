@@ -61,6 +61,17 @@ describe('copy set: what the graph reaches', () => {
     expect(set.dirs).toContain('data')
   })
 
+  it('ignores comments and string literals that merely talk about imports', () => {
+    // Found by dogfooding: a comment explaining why the app avoids
+    // `import(name)` was read as a real untraceable import and failed the
+    // build, and a comment mentioning a `new URL(...)` path invented a
+    // directory that does not exist. Both scans read the syntax tree now, and
+    // comments and string contents are not part of it.
+    expect(set.untraced).toEqual([])
+    expect(set.dirs).not.toContain('ghost-directory')
+    expect(set.unused).not.toContain('ghost-directory')
+  })
+
   it('follows both traceable dynamic-import forms', () => {
     expect(set.reached).toContain('lib/late.ts') // string literal
     expect(set.reached).toContain('lib/locales/en.ts') // template literal, glob-expanded
