@@ -11,6 +11,7 @@ import { SessionRuntime } from '../src/server/session-runtime.ts'
 import {
   activeConnectionCount,
   fanOut,
+  pushToConnection,
   registerConnection,
   unregisterConnection,
 } from '../src/server/sse.ts'
@@ -246,6 +247,47 @@ describe('SSE: fan-out unit behavior', () => {
     })
     return { conn, runtime, Machine }
   }
+
+  it('a wedged write is bounded, and the connection is dropped', async () => {
+    // A half-open socket — a sleeping laptop, a dropped NAT mapping — never
+    // sends FIN, so a write to it neither resolves nor rejects. Every push goes
+    // through this path, and awaiting one without a deadline froze the whole
+    // dispatch: fan-out runs inside the session lock, so one sleeping tab
+    // queued every later request for that session behind it, including the
+    // reconnect whose initial sync would have repaired the page.
+    process.env.STATOR_SSE_WRITE_TIMEOUT_MS = '250'
+    try {
+      const before = activeConnectionCount()
+      const { conn } = await syntheticConnection(() => new Promise<void>(() => {}))
+
+      const started = Date.now()
+      const outcome = await pushToConnection(conn, '{"ping":true}')
+      const elapsed = Date.now() - started
+
+      expect(outcome).toBe('timeout')
+      expect(elapsed).toBeLessThan(2000)
+      // Dropped rather than retried: the client reconnects and gets a full
+      // resync, which is cheap by design.
+      expect(activeConnectionCount()).toBe(before)
+      expect(conn.closed).toBe(true)
+    } finally {
+      delete process.env.STATOR_SSE_WRITE_TIMEOUT_MS
+    }
+  })
+
+  it('a healthy write reports as sent and keeps the connection', async () => {
+    const sent: string[] = []
+    const { conn } = await syntheticConnection(async (d) => {
+      sent.push(d)
+    })
+    try {
+      expect(await pushToConnection(conn, '{"ping":true}')).toBe('sent')
+      expect(sent).toEqual(['{"ping":true}'])
+      expect(conn.closed).toBe(false)
+    } finally {
+      unregisterConnection(conn.id)
+    }
+  })
 
   it('a failing push is logged and never throws out of fanOut', async () => {
     const { conn, runtime } = await syntheticConnection(async () => {

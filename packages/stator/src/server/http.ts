@@ -22,7 +22,7 @@ import { isStatorQueryRoute, type RouteDefinition } from './routing.ts'
 import { CLAIMS_KEY, getOrCreateSessionId, getSessionState } from './session.ts'
 import { withSessionLock } from './session-lock.ts'
 import { SessionRuntime } from './session-runtime.ts'
-import { fanOut, registerConnection, unregisterConnection } from './sse.ts'
+import { fanOut, pushToConnection, registerConnection, unregisterConnection } from './sse.ts'
 
 const httpLog = scopedLogger('http')
 
@@ -433,9 +433,10 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       // ever arrives, no error fires) unless liveness is OBSERVABLE. The
       // runtime tracks last-message time and reconnects when pings stop.
       const keepAlive = setInterval(() => {
-        void conn.send('{"ping":true}').catch(() => {
-          // Stream closed; the abort handler cleans up.
-        })
+        // Bounded, and through the same path fan-out uses: a half-open socket
+        // never settles its writes, so the heartbeat is what reaps it when the
+        // app is otherwise idle and no dispatch would ever notice.
+        void pushToConnection(conn, '{"ping":true}')
       }, config.ssePingMs ?? 25_000)
 
       try {
