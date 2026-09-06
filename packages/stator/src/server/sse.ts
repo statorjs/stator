@@ -17,13 +17,21 @@ const sseLog = scopedLogger('sse')
  * recompute will diff against when fan-out fires. Each push updates
  * `lastValue` for the bindings touched by the push, so subsequent pushes
  * only emit deltas.
+ *
+ * Writes never happen inline. Everything outbound — fan-out patches, the
+ * initial sync, the heartbeat, the dev broadcast — goes through `enqueue`,
+ * and one drain loop per connection owns the socket. A request or a lock is
+ * therefore never held across a socket write, and per-connection order is a
+ * property of the queue rather than of who awaited what.
  */
 export interface Connection {
   id: string
   sessionId: string
   /** The browser page-load identity (client-generated). Lets fan-out
-   *  recognize a dispatch's OWN connection: its baseline is advanced but
-   *  nothing is sent — the POST response already delivered those patches. */
+   *  recognize a dispatch's OWN connection: its baseline is advanced and,
+   *  when nothing is queued for it, nothing is sent — the POST response
+   *  delivers those patches. With a backlog they ride the queue instead, so
+   *  the two channels cannot reorder a positional list op. */
   clientId?: string
   routeKey: string
   route: RouteDefinition
@@ -39,14 +47,29 @@ export interface Connection {
    *  transport; absent in tests that register a bare connection. */
   close?: () => void
   closed: boolean
+  /** Outbound writes waiting for the drain loop, oldest first. */
+  queue: string[]
+  /** Bytes waiting in `queue`. The item being written is not counted. */
+  queuedBytes: number
+  /** True while the drain loop owns the socket — an item is in flight. */
+  draining: boolean
 }
+
+type ConnectionInit = Omit<Connection, 'id' | 'closed' | 'queue' | 'queuedBytes' | 'draining'>
 
 const connections = new Map<string, Connection>()
 let nextId = 0
 
-export function registerConnection(init: Omit<Connection, 'id' | 'closed'>): Connection {
+export function registerConnection(init: ConnectionInit): Connection {
   const id = `sse${nextId++}`
-  const conn: Connection = { ...init, id, closed: false }
+  const conn: Connection = {
+    ...init,
+    id,
+    closed: false,
+    queue: [],
+    queuedBytes: 0,
+    draining: false,
+  }
   // A page-load holds at most one channel per route, so an existing
   // connection with the same (clientId, routeKey) is a corpse whose abort we
   // never observed — a half-open socket, or a reconnect that raced its own
@@ -73,22 +96,27 @@ export function registerConnection(init: Omit<Connection, 'id' | 'closed'>): Con
 }
 
 /**
- * Push a pre-serialized envelope to every open connection, bypassing the
+ * Queue a pre-serialized envelope for every open connection, bypassing the
  * recompute path. The dev server's rebuild/error signals ride this so a dev
  * page holds ONE event-stream instead of two — see `dev-native.ts`. Not a
  * fan-out: no diffing, no baseline advance, no per-connection filtering.
  */
-export async function broadcastEnvelope(payload: unknown): Promise<void> {
+export function broadcastEnvelope(payload: unknown): void {
   if (connections.size === 0) return
   const data = JSON.stringify(payload)
-  const open = [...connections.values()].filter((c) => !c.closed)
-  await Promise.all(open.map((conn) => pushToConnection(conn, data)))
+  for (const conn of connections.values()) {
+    if (!conn.closed) enqueue(conn, data)
+  }
 }
 
 export function unregisterConnection(id: string): void {
   const conn = connections.get(id)
   if (!conn) return
   conn.closed = true
+  // Whatever was waiting is discarded with the socket: the client reconnects
+  // and resyncs. The drain loop, if mid-write, sees `closed` and exits.
+  conn.queue.length = 0
+  conn.queuedBytes = 0
   conn.runtime.dispose()
   connections.delete(id)
   sseLog.debug(
@@ -101,7 +129,7 @@ export function activeConnectionCount(): number {
   return connections.size
 }
 
-/** How long one push to one connection may take before the connection is
+/** How long one write to one connection may take before the connection is
  *  treated as dead. `STATOR_SSE_WRITE_TIMEOUT_MS` overrides it. */
 const DEFAULT_WRITE_TIMEOUT_MS = 5_000
 
@@ -112,8 +140,72 @@ function writeTimeoutMs(): number {
   return Number.isFinite(ms) && ms > 0 ? ms : DEFAULT_WRITE_TIMEOUT_MS
 }
 
+/** Bytes a connection may hold WAITING behind an in-flight write before it is
+ *  treated as dead. The item being written is covered by the write deadline,
+ *  not by this, and a single waiting item never trips it however large — an
+ *  initial sync of a big table is one item. `STATOR_SSE_QUEUE_MAX_BYTES`
+ *  overrides it. */
+const DEFAULT_QUEUE_MAX_BYTES = 1_048_576
+
+function queueMaxBytes(): number {
+  const raw = process.env.STATOR_SSE_QUEUE_MAX_BYTES
+  if (raw === undefined || raw === '') return DEFAULT_QUEUE_MAX_BYTES
+  const bytes = Number(raw)
+  return Number.isFinite(bytes) && bytes > 0 ? bytes : DEFAULT_QUEUE_MAX_BYTES
+}
+
+/** Whether anything is queued or in flight for this connection. */
+export function hasBacklog(conn: Connection): boolean {
+  return conn.draining || conn.queue.length > 0
+}
+
 /**
- * Push to one connection, bounded.
+ * Queue one envelope for a connection and return at once. The drain loop
+ * writes it when everything ahead of it has been written, so order per
+ * connection is FIFO by construction. Overflow drops the connection, the
+ * same policy as a write that times out: the client reconnects and resyncs.
+ */
+export function enqueue(conn: Connection, data: string): void {
+  if (conn.closed) return
+  conn.queue.push(data)
+  conn.queuedBytes += Buffer.byteLength(data)
+  if (conn.queue.length > 1 && conn.queuedBytes > queueMaxBytes()) {
+    sseLog.warn(
+      {
+        id: conn.id,
+        sid: conn.sessionId,
+        route: conn.routeKey,
+        waiting: conn.queue.length,
+        bytes: conn.queuedBytes,
+        max: queueMaxBytes(),
+      },
+      'sse queue overflowed — dropping the connection',
+    )
+    unregisterConnection(conn.id)
+    conn.close?.()
+    return
+  }
+  if (!conn.draining) void drain(conn)
+}
+
+/** The one writer per connection. Runs until the queue is empty or the
+ *  connection closes under it (a timed-out write, an overflow, an abort). */
+async function drain(conn: Connection): Promise<void> {
+  conn.draining = true
+  try {
+    while (!conn.closed && conn.queue.length > 0) {
+      const data = conn.queue.shift()!
+      conn.queuedBytes -= Buffer.byteLength(data)
+      await pushToConnection(conn, data)
+    }
+  } finally {
+    conn.draining = false
+  }
+}
+
+/**
+ * Write one envelope to one connection, bounded. The drain loop's single
+ * write; nothing else touches the socket.
  *
  * A write to a live socket resolves; a write to a closed one rejects. A write
  * to a HALF-OPEN one does neither once its buffer is full — when a remote
@@ -129,7 +221,9 @@ function writeTimeoutMs(): number {
  * reconnects and gets a full resync, which is cheap by design. Note what the
  * deadline measures: a write to a socket with buffer space resolves at once
  * regardless of the peer, so this fires only when the buffer has stayed full
- * for the whole window — not on a merely slow client.
+ * for the whole window — not on a merely slow client. And because the clock
+ * starts when the drain loop issues the write, not when the item was queued,
+ * a burst behind a slow but healthy socket cannot trip it.
  */
 export async function pushToConnection(conn: Connection, data: string): Promise<Outcome> {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -180,25 +274,31 @@ export function closeLiveConnections(): number {
 /**
  * After a state-changing dispatch settles, iterate every open connection
  * whose route's `reads:` intersects `touched`, recompute against that
- * connection's slot map, and push any resulting patches over its event
+ * connection's slot map, and queue any resulting patches on its event
  * stream. Recompute mutates the connection's `renderState.lastValue`s so
- * the next push is correctly diffed.
+ * the next push is correctly diffed. Returns as soon as everything is
+ * queued: no socket is awaited here, so a dispatch never waits on another
+ * page's network.
  *
  * Connections from any session receive pushes — that's the point: an
  * admin tab on session C sees updates triggered by session A's POSTs.
+ *
+ * `originatorQueued` tells the dispatch path whether the acting page's own
+ * patches were queued on its channel (because it already had a backlog)
+ * rather than left to the POST response. When true, the response must carry
+ * none, or the same positional list op lands twice.
  */
 export async function fanOut(
   touched: ReadonlySet<string>,
   source?: { sessionId?: string; originClientId?: string },
-): Promise<void> {
-  if (touched.size === 0 || connections.size === 0) return
+): Promise<{ originatorQueued: boolean }> {
+  if (touched.size === 0 || connections.size === 0) return { originatorQueued: false }
 
-  const pending: Array<{ conn: Connection; data: string }> = []
-  let pushedCount = 0
+  let enqueued = 0
   let skippedNoIntersect = 0
   let skippedNoPatches = 0
   let skippedOriginator = 0
-  let failed = 0
+  let originatorQueued = false
 
   // Expand through the reverse-reads graph once per fan-out: machines whose
   // SELECTORS derive from a touched machine must re-diff even though their
@@ -244,47 +344,43 @@ export async function fanOut(
       continue
     }
 
-    // The dispatching page's own connection: the POST response already
-    // delivered this diff. The recompute above advanced the baseline (so the
-    // NEXT push diffs correctly); sending would double-apply — and keyed
-    // insert/remove/move ops are not idempotent.
-    if (
+    // The dispatching page's own connection. With nothing queued for it, the
+    // POST response delivers this diff: the recompute above advanced the
+    // baseline (so the NEXT push diffs correctly) and sending would
+    // double-apply — keyed insert/remove/move ops are not idempotent. With a
+    // backlog, the response would overtake what is still queued, and a
+    // positional op applied out of order corrupts a list rather than merely
+    // staling it — so the diff rides the queue and the response carries none.
+    const isOriginator =
       source?.originClientId !== undefined &&
       conn.clientId !== undefined &&
       conn.clientId === source.originClientId
-    ) {
-      skippedOriginator++
-      continue
+    if (isOriginator) {
+      if (!hasBacklog(conn)) {
+        skippedOriginator++
+        continue
+      }
+      originatorQueued = true
     }
 
-    pending.push({ conn, data: JSON.stringify({ patches }) })
-  }
-
-  // Recompute had to be sequential — it advances each connection's diff
-  // baseline and rehydrates session actors. Sending does not, so one slow
-  // client no longer adds its latency to every connection behind it. All of it
-  // still completes before this returns, and fan-out runs under the session
-  // lock, so the next dispatch cannot interleave: keyed insert/remove/move are
-  // positional, and out-of-order delivery would corrupt a list rather than
-  // merely stale it.
-  const outcomes = await Promise.all(pending.map(({ conn, data }) => pushToConnection(conn, data)))
-  for (const outcome of outcomes) {
-    if (outcome === 'sent') pushedCount++
-    else failed++
+    enqueue(conn, JSON.stringify({ patches }))
+    enqueued++
   }
 
   // Log every fan-out at debug so the user can see touched-machines flow and
-  // correlate against client-side inspector entries — noisy for prod, so debug.
+  // correlate against client-side inspector entries — noisy for prod, so
+  // debug. Write outcomes are logged by the drain loop as they happen.
   sseLog.debug(
     {
       touched: [...touched],
       total: connections.size,
-      pushed: pushedCount,
+      enqueued,
       skippedNoIntersect,
       skippedNoPatches,
       skippedOriginator,
-      failed,
+      originatorQueued,
     },
     'fan-out',
   )
+  return { originatorQueued }
 }

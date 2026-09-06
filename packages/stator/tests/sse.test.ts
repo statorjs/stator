@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { dispatchToApp } from '../src/server/app-dispatch.ts'
 import { createApp, type StatorApp } from '../src/server/create-app.ts'
 import { defineMachine } from '../src/server/define-machine.ts'
+import { withDispatchContext } from '../src/server/dispatch-context.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { initialSyncPatches } from '../src/server/recompute.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
@@ -11,7 +12,9 @@ import { defineRoute } from '../src/server/routing.ts'
 import { SessionRuntime } from '../src/server/session-runtime.ts'
 import {
   activeConnectionCount,
+  enqueue,
   fanOut,
+  hasBacklog,
   pushToConnection,
   registerConnection,
   unregisterConnection,
@@ -56,9 +59,15 @@ async function openSse(app: StatorApp, routeKey: string, cookie: string, clientI
   // (Racing reader.read() against timers abandons reads, and a subsequent
   // overlapping read() throws — the old harness silently died that way.)
   let ended = false
+  // `pause()` parks the pump before its next read, so the server's writes to
+  // this stream back up behind the stream's own buffers — how a browser that
+  // has stopped reading looks from the server.
+  let paused: Promise<void> | null = null
+  let unpause: (() => void) | null = null
   const pump = (async () => {
     try {
       while (true) {
+        if (paused) await paused
         const result = await reader.read()
         if (result.done) break
         buffer += decoder.decode(result.value, { stream: true })
@@ -80,6 +89,18 @@ async function openSse(app: StatorApp, routeKey: string, cookie: string, clientI
         await new Promise((r) => setTimeout(r, 15))
       }
       return buffer
+    },
+    pause() {
+      if (!paused) {
+        paused = new Promise<void>((r) => {
+          unpause = r
+        })
+      }
+    },
+    resume() {
+      unpause?.()
+      paused = null
+      unpause = null
     },
     close() {
       abort.abort()
@@ -363,13 +384,182 @@ describe('SSE: fan-out unit behavior', () => {
     }
   })
 
+  /** An app-lifecycle machine, so one fan-out reaches every connection the
+   *  test registers without the session rehydrate path. `bump` mutates the
+   *  shared instance directly — not through dispatchToApp, whose own fan-out
+   *  would get in the way of the one under test. */
+  async function appFixture() {
+    const Machine = defineMachine({
+      name: 'QueueMachine',
+      lifecycle: 'app',
+      events: {} as { type: 'INC' },
+      context: { n: 0 },
+      initial: 'idle',
+      states: {
+        idle: {
+          on: {
+            INC: (ctx) => {
+              ctx.n += 1
+            },
+          },
+        },
+      },
+      selectors: { n: (ctx) => ctx.n },
+    })
+    const store = new MachineStore([Machine], new InMemoryStore())
+    await store.bootAppMachines()
+    const bump = (): void => {
+      const runtime = new SessionRuntime('bump', store)
+      try {
+        withDispatchContext({ runtime, touched: new Set() }, () => {
+          store.appInstance('QueueMachine')!.actor.send({ type: 'INC' } as never)
+        })
+      } finally {
+        runtime.dispose()
+      }
+    }
+    const connect = async (send: (data: string) => Promise<void>, clientId?: string) => {
+      const runtime = new SessionRuntime('sse-queue', store)
+      await runtime.loadGraph([Machine])
+      const proxy = runtime.proxyFor('QueueMachine') as never
+      const renderState = createRenderState('sse-queue', 'GET /queue')
+      runInRender(
+        renderState,
+        () => html`<p>${read(proxy, (m) => (m as unknown as { n: number }).n)}</p>`,
+      )
+      const route = defineRoute({ reads: [Machine], live: true, render: () => html`<p></p>` })
+      return registerConnection({
+        sessionId: 'sse-queue',
+        clientId,
+        routeKey: 'GET /queue',
+        route,
+        request: {} as never,
+        runtime,
+        renderState,
+        send,
+      })
+    }
+    const value = (envelope: string): string =>
+      String((JSON.parse(envelope) as { patches: Array<{ value: string }> }).patches[0]?.value)
+    return { bump, connect, value }
+  }
+
+  it('fan-out queues and returns: a wedged connection delays no one and is dropped behind them', async () => {
+    process.env.STATOR_SSE_WRITE_TIMEOUT_MS = '250'
+    const before = activeConnectionCount()
+    const { bump, connect } = await appFixture()
+    const wedged = await connect(() => new Promise<void>(() => {}))
+    const sent: string[] = []
+    const healthy = await connect(async (d) => {
+      sent.push(d)
+    })
+    try {
+      bump()
+      const started = Date.now()
+      await fanOut(new Set(['QueueMachine']))
+      // The dispatch path never waits on a socket — not even the dead one.
+      expect(Date.now() - started).toBeLessThan(200)
+      expect(sent).toHaveLength(1)
+      // The deadline still reaps it, off the request path.
+      await vi.waitFor(() => expect(wedged.closed).toBe(true))
+      expect(healthy.closed).toBe(false)
+    } finally {
+      unregisterConnection(healthy.id)
+      unregisterConnection(wedged.id)
+      delete process.env.STATOR_SSE_WRITE_TIMEOUT_MS
+    }
+    expect(activeConnectionCount()).toBe(before)
+  })
+
+  it('writes to one connection stay in order across back-to-back fan-outs', async () => {
+    const { bump, connect, value } = await appFixture()
+    const sent: string[] = []
+    let inFlight = 0
+    let maxInFlight = 0
+    const conn = await connect(async (d) => {
+      inFlight++
+      maxInFlight = Math.max(maxInFlight, inFlight)
+      await new Promise((r) => setTimeout(r, 30))
+      sent.push(d)
+      inFlight--
+    })
+    try {
+      bump()
+      await fanOut(new Set(['QueueMachine']))
+      bump()
+      await fanOut(new Set(['QueueMachine']))
+      // The second waits behind the first rather than racing it.
+      expect(conn.queue).toHaveLength(1)
+      await vi.waitFor(() => expect(sent).toHaveLength(2))
+      expect(maxInFlight).toBe(1)
+      expect(sent.map(value)).toEqual(['1', '2'])
+    } finally {
+      unregisterConnection(conn.id)
+    }
+  })
+
+  it('a backlog over the byte cap drops the connection; a single waiting item never does', async () => {
+    process.env.STATOR_SSE_QUEUE_MAX_BYTES = '64'
+    const before = activeConnectionCount()
+    const { connect } = await appFixture()
+    const conn = await connect(() => new Promise<void>(() => {}))
+    try {
+      enqueue(conn, 'x'.repeat(200)) // in flight, wedged
+      enqueue(conn, 'x'.repeat(200)) // waiting alone: over the cap, still fine
+      expect(conn.closed).toBe(false)
+      enqueue(conn, 'x'.repeat(10)) // two waiting, over the cap: dead
+      expect(conn.closed).toBe(true)
+      expect(conn.queue).toHaveLength(0)
+      expect(activeConnectionCount()).toBe(before)
+    } finally {
+      unregisterConnection(conn.id)
+      delete process.env.STATOR_SSE_QUEUE_MAX_BYTES
+    }
+  })
+
+  it("the originator's patches ride its queue when it has a backlog, and the response when it doesn't", async () => {
+    const { bump, connect, value } = await appFixture()
+    let release!: () => void
+    const gate = new Promise<void>((r) => {
+      release = r
+    })
+    const sent: string[] = []
+    const conn = await connect(async (d) => {
+      await gate
+      sent.push(d)
+    }, 'tab-a')
+    try {
+      // Nothing queued: the originator is skipped, its POST response delivers.
+      bump()
+      expect(await fanOut(new Set(['QueueMachine']), { originClientId: 'tab-a' })).toEqual({
+        originatorQueued: false,
+      })
+      expect(hasBacklog(conn)).toBe(false)
+      // Someone else's fan-out puts a write in flight on its channel...
+      bump()
+      await fanOut(new Set(['QueueMachine']))
+      expect(hasBacklog(conn)).toBe(true)
+      // ...so its own diff must queue behind that, and the response carry none.
+      bump()
+      expect(await fanOut(new Set(['QueueMachine']), { originClientId: 'tab-a' })).toEqual({
+        originatorQueued: true,
+      })
+      expect(conn.queue).toHaveLength(1)
+      release()
+      await vi.waitFor(() => expect(sent).toHaveLength(2))
+      expect(sent.map(value)).toEqual(['2', '3'])
+    } finally {
+      unregisterConnection(conn.id)
+    }
+  })
+
   it('a failing push is logged and never throws out of fanOut', async () => {
     const { conn, runtime } = await syntheticConnection(async () => {
       throw new Error('broken pipe')
     })
     try {
       runtime.processEvent('PushMachine', { type: 'INC' })
-      await expect(fanOut(new Set(['PushMachine']))).resolves.toBeUndefined()
+      await expect(fanOut(new Set(['PushMachine']))).resolves.toEqual({ originatorQueued: false })
     } finally {
       unregisterConnection(conn.id)
     }
@@ -586,6 +776,57 @@ describe('double delivery to the dispatching connection', () => {
       expect((bufB2.match(/"op":"insert"/g) ?? []).length).toBe(2)
       const bufA = await tabA.readUntil((t) => t.includes('"op":"insert"'), 500)
       expect((bufA.match(/"op":"insert"/g) ?? []).length).toBe(0)
+    } finally {
+      tabA.close()
+      tabB.close()
+    }
+  })
+
+  it('with a backlog on its channel, the page gets its own row over SSE and the response carries none', async () => {
+    const app = await boot()
+    const cookie = await cookieFor(app, '/my-list')
+    const tabA = await openSse(app, 'GET /my-list', cookie, 'tab-a')
+    const tabB = await openSse(app, 'GET /my-list', cookie, 'tab-b')
+    try {
+      await tabA.readUntil((t) => t.includes('"patches"'))
+      await tabB.readUntil((t) => t.includes('"patches"'))
+      const post = (client: string, id: string) =>
+        app.fetch(
+          new Request('http://localhost/__events', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Stator-Route': 'GET /my-list',
+              'X-Stator-Client': client,
+              Cookie: cookie,
+            },
+            body: JSON.stringify({ machine: 'ListMachine', event: { type: 'ADD', id } }),
+          }),
+        )
+
+      // Tab A stops reading. Its stream's buffers absorb a write or two, then
+      // the server's writes to it stall: a backlog, with tab B's inserts in it.
+      // Those POSTs return promptly regardless — nothing waits on A's socket.
+      tabA.pause()
+      for (const id of ['b1', 'b2', 'b3', 'b4', 'b5']) await post('tab-b', id)
+
+      // Tab A dispatches while that backlog stands: the response carries no
+      // patches, because they would overtake the queued inserts, and a keyed
+      // insert applied out of order corrupts the list.
+      const res = await post('tab-a', 'a1')
+      const body = (await res.json()) as { patches: unknown[]; committed: boolean }
+      expect(body.committed).toBe(true)
+      expect(body.patches).toEqual([])
+
+      // Its row arrives over the channel instead — after the backlog, once.
+      tabA.resume()
+      const bufA = await tabA.readUntil((t) => (t.match(/"op":"insert"/g) ?? []).length >= 6)
+      expect((bufA.match(/"op":"insert"/g) ?? []).length).toBe(6)
+      expect((bufA.match(/<li>a1<\/li>/g) ?? []).length).toBe(1)
+      expect(bufA.indexOf('<li>a1</li>')).toBeGreaterThan(bufA.indexOf('<li>b5</li>'))
+      // Tab B, which did not dispatch it, receives it like any other insert.
+      const bufB = await tabB.readUntil((t) => t.includes('<li>a1</li>'))
+      expect((bufB.match(/"op":"insert"/g) ?? []).length).toBe(1)
     } finally {
       tabA.close()
       tabB.close()
