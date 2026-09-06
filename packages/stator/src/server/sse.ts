@@ -116,16 +116,20 @@ function writeTimeoutMs(): number {
  * Push to one connection, bounded.
  *
  * A write to a live socket resolves; a write to a closed one rejects. A write
- * to a HALF-OPEN one does neither — when a laptop sleeps or a NAT drops the
- * mapping, no FIN ever arrives, so the socket looks writable forever and the
- * promise simply never settles. Awaited without a deadline that stalls fan-out,
- * and fan-out runs inside the session lock, so one sleeping tab froze every
- * later request for that session — including the reconnect whose initial sync
- * would have repaired the page. A stale list that reconnecting could not fix
- * was this, not a missing patch.
+ * to a HALF-OPEN one does neither once its buffer is full — when a remote
+ * laptop sleeps or a NAT drops the mapping, no FIN ever arrives, the socket
+ * still looks writable, and the promise simply never settles. Fan-out used to
+ * await these serially with no deadline, so one such connection stalled the
+ * loop and every connection registered after it received nothing until the
+ * kernel gave up on the socket (minutes) or the same page reconnected and
+ * evicted it. Under the session lock the same stall ran into the lock's 30s
+ * backstop, failing the dispatching request each time.
  *
  * On a timeout the connection is dropped rather than retried: the client
- * reconnects and gets a full resync, which is cheap by design.
+ * reconnects and gets a full resync, which is cheap by design. Note what the
+ * deadline measures: a write to a socket with buffer space resolves at once
+ * regardless of the peer, so this fires only when the buffer has stayed full
+ * for the whole window — not on a merely slow client.
  */
 export async function pushToConnection(conn: Connection, data: string): Promise<Outcome> {
   let timer: ReturnType<typeof setTimeout> | undefined

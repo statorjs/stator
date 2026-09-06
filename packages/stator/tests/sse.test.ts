@@ -5,6 +5,7 @@ import { dispatchToApp } from '../src/server/app-dispatch.ts'
 import { createApp, type StatorApp } from '../src/server/create-app.ts'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
+import { initialSyncPatches } from '../src/server/recompute.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import { defineRoute } from '../src/server/routing.ts'
 import { SessionRuntime } from '../src/server/session-runtime.ts'
@@ -16,6 +17,7 @@ import {
   unregisterConnection,
 } from '../src/server/sse.ts'
 import { InMemoryStore } from '../src/server/store.ts'
+import { each } from '../src/template/each.ts'
 import { html } from '../src/template/html.ts'
 import { read } from '../src/template/read.ts'
 import Board from './fixtures/machines/board.ts'
@@ -248,13 +250,85 @@ describe('SSE: fan-out unit behavior', () => {
     return { conn, runtime, Machine }
   }
 
+  it('a reconnect resets a keyed list wholesale — rows removed while away are gone', async () => {
+    // The dogfood hypothesis: a page that missed removals while its channel was
+    // down keeps the dead rows, because the sync only carries rows that still
+    // exist. It does not — the connect-time sync is ONE `html` reset per keyed
+    // list, and the client clears the region before inserting it.
+    type Row = { id: string; label: string }
+    const List = defineMachine({
+      name: 'IssueList',
+      lifecycle: 'app',
+      events: {} as { type: 'SET'; rows: Row[] },
+      context: { rows: [] as Row[] },
+      initial: 'idle',
+      states: {
+        idle: {
+          on: {
+            SET: (ctx, ev) => {
+              ctx.rows = ev.rows
+            },
+          },
+        },
+      },
+      selectors: { rows: (ctx) => ctx.rows },
+    })
+    const store = new MachineStore([List], new InMemoryStore())
+    await store.bootAppMachines()
+    const rows = (...ids: string[]): Row[] => ids.map((id) => ({ id, label: `row${id}` }))
+    await dispatchToApp(store, List, { type: 'SET', rows: rows('1', '2', '3') })
+
+    // What /__sse does on every connect: a fresh runtime, a render at connect
+    // time, then the sync computed from that render.
+    const connect = async () => {
+      const runtime = new SessionRuntime('reconnect', store)
+      await runtime.loadGraph([List])
+      const proxy = runtime.proxyFor('IssueList') as never
+      const state = createRenderState('reconnect', 'GET /issues')
+      runInRender(
+        state,
+        () =>
+          html`<ul>${each(
+            read(proxy, (m) => (m as unknown as { rows: Row[] }).rows),
+            (r: Row) => html`<li>${r.label}</li>`,
+            { key: (r: Row) => r.id },
+          )}</ul>`,
+      )
+      return { runtime, state }
+    }
+
+    // The page rendered and connected with three rows, then the channel died.
+    const first = await connect()
+    expect(first.state.bindings.size).toBeGreaterThan(0)
+    first.runtime.dispose()
+
+    // Two rows removed while the page was away.
+    await dispatchToApp(store, List, { type: 'SET', rows: rows('2') })
+
+    const second = await connect()
+    try {
+      const sync = initialSyncPatches(second.state, second.runtime)
+      const resets = sync.filter((p) => p.op === 'html')
+      expect(resets).toHaveLength(1)
+      expect(resets[0]).toMatchObject({ op: 'html', value: '<li>row2</li>' })
+      // Wholesale, never positional: a positional op assumes a DOM row set the
+      // page cannot vouch for.
+      const positional = sync.filter(
+        (p) => p.op === 'insert' || p.op === 'remove' || p.op === 'move',
+      )
+      expect(positional).toHaveLength(0)
+    } finally {
+      second.runtime.dispose()
+    }
+  })
+
   it('a wedged write is bounded, and the connection is dropped', async () => {
-    // A half-open socket — a sleeping laptop, a dropped NAT mapping — never
-    // sends FIN, so a write to it neither resolves nor rejects. Every push goes
-    // through this path, and awaiting one without a deadline froze the whole
-    // dispatch: fan-out runs inside the session lock, so one sleeping tab
-    // queued every later request for that session behind it, including the
-    // reconnect whose initial sync would have repaired the page.
+    // A half-open socket — a sleeping remote laptop, a dropped NAT mapping —
+    // never sends FIN, so once its buffer is full a write to it neither
+    // resolves nor rejects. Every push goes through this path, and fan-out used
+    // to await these serially with no deadline: one such connection stalled the
+    // loop and every connection registered after it received nothing until the
+    // kernel gave up on the socket, minutes later.
     process.env.STATOR_SSE_WRITE_TIMEOUT_MS = '250'
     try {
       const before = activeConnectionCount()
