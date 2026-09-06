@@ -21,8 +21,11 @@
     "@statorjs/stator": "2.9.1"
   },
   "changesets": [
+    "bounded-sse-writes",
     "build-copy-set-from-graph",
+    "copy-set-reads-syntax",
     "dist-is-the-artifact",
-    "persistence-posture"
+    "persistence-posture",
+    "sse-write-queue"
   ]
 }

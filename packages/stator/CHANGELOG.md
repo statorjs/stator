@@ -1,5 +1,32 @@
 # @statorjs/stator
 
+## 2.10.0-next.1
+
+### Patch Changes
+
+- a8c63ad: A half-open live connection can no longer starve the pages behind it. Every push to a live page is bounded now, and fan-out sends to every connection at once instead of one after another.
+
+  A write to a live socket resolves and a write to a closed one rejects, but a write to a **half-open** one does neither once its buffer is full: when a remote laptop sleeps or a NAT drops the mapping, no FIN ever arrives and the socket still looks writable, so the promise simply never settles. Fan-out awaited each connection's write serially with no deadline, so one such connection stalled the loop and every connection registered after it received nothing until the kernel gave up on the socket, many minutes later, or the same page reconnected and evicted it. On the session dispatch path the same stall ran into the session lock's thirty-second backstop, so the dispatching page saw an error after every mutation while a dead connection sat ahead of it.
+
+  - Every push now has a deadline (`STATOR_SSE_WRITE_TIMEOUT_MS`, default 5000). On a timeout the connection is dropped rather than retried. The client reconnects and gets a full resync, which is cheap by design. A write to a socket with buffer space resolves at once regardless of the peer, so the deadline fires only when the buffer has stayed full for the whole window, not on a merely slow client.
+  - Fan-out sends to connections **concurrently**, so a slow or dead client no longer delays the connections behind it. Recompute stays sequential because it advances each connection's diff baseline, and all sends still complete before the dispatch returns, so the next dispatch cannot interleave with this one's writes.
+  - The heartbeat goes through the same bounded path, so a wedged connection is reaped within a ping interval even when the app is idle and no dispatch would otherwise notice.
+  - The dev server's rebuild broadcast is bounded the same way.
+
+- f7491b9: The build's copy set no longer mistakes prose for code. A comment explaining why an app avoids `import(name)` was read as a real untraceable dynamic import and failed the build, and a comment mentioning a `new URL('./x', import.meta.url)` path invented a directory that does not exist.
+
+  Both checks were regex scans over raw source, which cannot tell code from prose — the file's own explanation of a pattern looks exactly like the pattern. They now walk the syntax tree, where comments and string contents simply are not present. Everything real still resolves: a string-literal `import()` is followed, a template literal with a fixed prefix is glob-expanded, a genuinely computed specifier is still reported with its file and line, and a `new URL(literal, import.meta.url)` asset is still copied. A template-literal asset path (`` new URL(`./x.json`, import.meta.url) ``) is picked up too now, which the old pattern missed.
+
+  Found by dogfooding a real app against `2.10.0-next.0`.
+
+- a9d7875: A dispatch no longer waits on any other page's socket. Every live connection now has its own write queue with a single drain loop, and fan-out queues patches and returns: the acting user's POST response is ready as soon as the recompute is, however many viewers there are and however slow their networks.
+
+  - Per-connection order is FIFO by construction, so back-to-back changes cannot reorder a keyed insert, remove, or move.
+  - The write deadline (`STATOR_SSE_WRITE_TIMEOUT_MS`) now measures one write at the head of the queue rather than the time since it was issued, so a burst behind a slow but healthy connection no longer trips it.
+  - A backlog over `STATOR_SSE_QUEUE_MAX_BYTES` (default 1 MiB, counting only what is waiting behind the write in flight) drops the connection, the same policy as a timed-out write: the client reconnects and resyncs. A single waiting item never trips it, however large.
+  - When the dispatching page's own channel already has a backlog, its patches ride that queue instead of the POST response, which then carries none. Two channels to one page must not reorder a positional list op. With an empty queue, the normal case, the response delivers exactly as before.
+  - The initial sync, the heartbeat, and the dev server's rebuild broadcast go through the same queue.
+
 ## 2.10.0-next.0
 
 ### Minor Changes
