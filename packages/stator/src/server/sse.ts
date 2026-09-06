@@ -81,14 +81,8 @@ export function registerConnection(init: Omit<Connection, 'id' | 'closed'>): Con
 export async function broadcastEnvelope(payload: unknown): Promise<void> {
   if (connections.size === 0) return
   const data = JSON.stringify(payload)
-  for (const conn of connections.values()) {
-    if (conn.closed) continue
-    try {
-      await conn.send(data)
-    } catch (err) {
-      sseLog.warn({ id: conn.id, err: String(err) }, 'broadcast failed')
-    }
-  }
+  const open = [...connections.values()].filter((c) => !c.closed)
+  await Promise.all(open.map((conn) => pushToConnection(conn, data)))
 }
 
 export function unregisterConnection(id: string): void {
@@ -106,6 +100,67 @@ export function unregisterConnection(id: string): void {
 export function activeConnectionCount(): number {
   return connections.size
 }
+
+/** How long one push to one connection may take before the connection is
+ *  treated as dead. `STATOR_SSE_WRITE_TIMEOUT_MS` overrides it. */
+const DEFAULT_WRITE_TIMEOUT_MS = 5_000
+
+function writeTimeoutMs(): number {
+  const raw = process.env.STATOR_SSE_WRITE_TIMEOUT_MS
+  if (raw === undefined || raw === '') return DEFAULT_WRITE_TIMEOUT_MS
+  const ms = Number(raw)
+  return Number.isFinite(ms) && ms > 0 ? ms : DEFAULT_WRITE_TIMEOUT_MS
+}
+
+/**
+ * Push to one connection, bounded.
+ *
+ * A write to a live socket resolves; a write to a closed one rejects. A write
+ * to a HALF-OPEN one does neither once its buffer is full — when a remote
+ * laptop sleeps or a NAT drops the mapping, no FIN ever arrives, the socket
+ * still looks writable, and the promise simply never settles. Fan-out used to
+ * await these serially with no deadline, so one such connection stalled the
+ * loop and every connection registered after it received nothing until the
+ * kernel gave up on the socket (minutes) or the same page reconnected and
+ * evicted it. Under the session lock the same stall ran into the lock's 30s
+ * backstop, failing the dispatching request each time.
+ *
+ * On a timeout the connection is dropped rather than retried: the client
+ * reconnects and gets a full resync, which is cheap by design. Note what the
+ * deadline measures: a write to a socket with buffer space resolves at once
+ * regardless of the peer, so this fires only when the buffer has stayed full
+ * for the whole window — not on a merely slow client.
+ */
+export async function pushToConnection(conn: Connection, data: string): Promise<Outcome> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const outcome = await Promise.race<Outcome>([
+      conn.send(data).then((): Outcome => 'sent'),
+      new Promise<Outcome>((settle) => {
+        timer = setTimeout(() => settle('timeout'), writeTimeoutMs())
+        timer.unref?.()
+      }),
+    ])
+    if (outcome === 'timeout') {
+      sseLog.warn(
+        { id: conn.id, sid: conn.sessionId, route: conn.routeKey, ms: writeTimeoutMs() },
+        'sse write timed out — dropping the connection',
+      )
+      unregisterConnection(conn.id)
+      conn.close?.()
+    }
+    return outcome
+  } catch (err) {
+    // Bumped from debug to warn — silent push failures were why "30-50%
+    // delivery" was invisible in production logs.
+    sseLog.warn({ id: conn.id, sid: conn.sessionId, err: String(err) }, 'sse push failed')
+    return 'failed'
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+type Outcome = 'sent' | 'timeout' | 'failed'
 
 /**
  * Hang up every open connection — the shutdown path. A live response never ends
@@ -138,6 +193,7 @@ export async function fanOut(
 ): Promise<void> {
   if (touched.size === 0 || connections.size === 0) return
 
+  const pending: Array<{ conn: Connection; data: string }> = []
   let pushedCount = 0
   let skippedNoIntersect = 0
   let skippedNoPatches = 0
@@ -201,15 +257,20 @@ export async function fanOut(
       continue
     }
 
-    try {
-      await conn.send(JSON.stringify({ patches }))
-      pushedCount++
-    } catch (err) {
-      // Bumped from debug to warn — silent push failures were why "30-50%
-      // delivery" was invisible in production logs.
-      failed++
-      sseLog.warn({ id: conn.id, sid: conn.sessionId, err: String(err) }, 'sse push failed')
-    }
+    pending.push({ conn, data: JSON.stringify({ patches }) })
+  }
+
+  // Recompute had to be sequential — it advances each connection's diff
+  // baseline and rehydrates session actors. Sending does not, so one slow
+  // client no longer adds its latency to every connection behind it. All of it
+  // still completes before this returns, and fan-out runs under the session
+  // lock, so the next dispatch cannot interleave: keyed insert/remove/move are
+  // positional, and out-of-order delivery would corrupt a list rather than
+  // merely stale it.
+  const outcomes = await Promise.all(pending.map(({ conn, data }) => pushToConnection(conn, data)))
+  for (const outcome of outcomes) {
+    if (outcome === 'sent') pushedCount++
+    else failed++
   }
 
   // Log every fan-out at debug so the user can see touched-machines flow and

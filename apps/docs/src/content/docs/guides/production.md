@@ -108,6 +108,7 @@ await app.listen(port)
 - **`REDIS_URL`** for session state that survives deploys (`RedisStore`, optionally wrapped in `CachedStore`), and `RedisAppStore` if you use [persisted app machines](/guides/app-machines/). Wire it in `stator.config.ts`'s `persistence`.
 - **`NODE_ENV=production`** — JSON logs and the `Secure` cookie flag (override with `STATOR_SECURE_COOKIE=1|0` if TLS terminates elsewhere).
 - **`SESSION_TTL_SECONDS`** — per-session idle expiry, default 24h.
+- **`STATOR_SSE_WRITE_TIMEOUT_MS`** — how long one push to one live page may take before that connection is dropped, default 5000. A half-open socket (a sleeping laptop, a dropped NAT mapping) never settles its writes, and a dropped connection costs a reconnect and a resync, which is cheap.
 - **`STATOR_SHUTDOWN_TIMEOUT_MS`** — how long a stop waits for in-flight requests, default 5000. Live connections are hung up immediately rather than waited on, so a `SIGTERM` exits in milliseconds instead of stalling until your platform's kill grace expires — see [stopping](/reference/cli/#stopping).
 
 These read from `process.env`, and Stator loads `.env` files into it at startup — `.env` for committed defaults, `.env.local` for machine-local secrets (gitignored). Precedence is **real environment → `.env.local` → `.env`**, so a value your host injects (a platform secret, a container env var) always wins over a file. In production, prefer real platform secrets for anything sensitive; `.env` is the convenience for local and simple deploys.
