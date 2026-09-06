@@ -22,7 +22,7 @@ import { isStatorQueryRoute, type RouteDefinition } from './routing.ts'
 import { CLAIMS_KEY, getOrCreateSessionId, getSessionState } from './session.ts'
 import { withSessionLock } from './session-lock.ts'
 import { SessionRuntime } from './session-runtime.ts'
-import { fanOut, pushToConnection, registerConnection, unregisterConnection } from './sse.ts'
+import { enqueue, fanOut, registerConnection, unregisterConnection } from './sse.ts'
 
 const httpLog = scopedLogger('http')
 
@@ -423,7 +423,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       // otherwise never reach this page.
       const sync = initialSyncPatches(renderState, runtime)
       if (sync.length > 0) {
-        await conn.send(JSON.stringify({ patches: sync }))
+        enqueue(conn, JSON.stringify({ patches: sync }))
       }
 
       // Heartbeat every 25s. This is a real DATA message, not a comment, on
@@ -433,10 +433,11 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       // ever arrives, no error fires) unless liveness is OBSERVABLE. The
       // runtime tracks last-message time and reconnects when pings stop.
       const keepAlive = setInterval(() => {
-        // Bounded, and through the same path fan-out uses: a half-open socket
-        // never settles its writes, so the heartbeat is what reaps it when the
-        // app is otherwise idle and no dispatch would ever notice.
-        void pushToConnection(conn, '{"ping":true}')
+        // Through the same queue fan-out uses, so it is bounded like any other
+        // write: a half-open socket never settles its writes, and the heartbeat
+        // is what reaps it when the app is otherwise idle and no dispatch would
+        // ever notice.
+        enqueue(conn, '{"ping":true}')
       }, config.ssePingMs ?? 25_000)
 
       try {
@@ -548,7 +549,9 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         // `touched`) — so it isn't re-created and re-fired next request.
         await runtime.persistTouched(new Set([...touched, ...runtime.entryFiredMachines()]))
 
-        await fanOut(touched, {
+        // Queues patches on every affected channel and returns; no socket is
+        // awaited under the lock.
+        const { originatorQueued } = await fanOut(touched, {
           sessionId,
           originClientId: c.req.header('X-Stator-Client'),
         })
@@ -558,7 +561,15 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         // normal event path in server/effects.ts.
         scheduleSessionEffects(runtime, config.store, sessionId)
 
-        const envelope = { patches, directives: [], committed: touched.size > 0 }
+        // This page's patches normally ride the response. When its live
+        // channel already had a backlog, fan-out queued them behind it instead
+        // (two channels to one page must not reorder a positional list op), so
+        // the response carries none.
+        const envelope = {
+          patches: originatorQueued ? [] : patches,
+          directives: [],
+          committed: touched.size > 0,
+        }
         if (body.eventId) record(sessionId, body.eventId, JSON.stringify(envelope))
         return c.json(envelope)
       } finally {
