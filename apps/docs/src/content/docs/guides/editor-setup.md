@@ -44,6 +44,13 @@ Projects that skip the tsconfig entries are unaffected — the emitted files sit
 
 The language server is editor-agnostic (`@statorjs/language-server` ships a `stator-language-server` binary speaking LSP over stdio). Any editor with an LSP client can use it — point the client at the binary and associate the `stator` language id with `*.stator`. The TextMate grammar in `editors/vscode/syntaxes/` works in any TextMate-compatible highlighter.
 
+Unlike the extension, a hand-wired client must supply two things itself, and both are hard failures:
+
+- Launch the binary with **`--stdio`**, or it exits with `Connection input stream is not set`.
+- Pass **`initializationOptions.typescript.tsdk`** — a path to a directory containing `typescript.js`. Without it the server refuses to initialize.
+
+See the [Neovim setup recipe](/recipes/neovim-setup/) for a complete worked example; the same two requirements apply to Helix, Zed, and Emacs.
+
 ## Troubleshooting
 
 **"The Stator Language Server crashed 5 times… will not be restarted"** in the Output panel: the language client stops retrying for the rest of the session once it trips this limit — and that tripped state survives extension updates. After installing a new extension version, **fully quit and reopen the editor**; a window reload or extension-host restart isn't always enough.
