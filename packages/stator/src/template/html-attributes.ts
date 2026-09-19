@@ -94,6 +94,11 @@ export interface ElementSpecificAttributes {
     autofocus?: boolean
     accept?: string
     multiple?: boolean
+    /** Associates this element with a `<form>` elsewhere in the document by
+     *  id — the standard way to submit an element that can't live inside
+     *  the form's own DOM subtree (e.g. a per-row control alongside a
+     *  page-wide bulk-action form). `button` already carries this. */
+    form?: string
   }
   label: { for?: string }
   form: {
@@ -101,6 +106,11 @@ export interface ElementSpecificAttributes {
     method?: 'get' | 'post' | 'GET' | 'POST' | 'dialog'
     enctype?: 'application/x-www-form-urlencoded' | 'multipart/form-data' | 'text/plain'
     novalidate?: boolean
+    /** Native inline event-handler attribute — a literal JS source string
+     *  (`"return confirm(...)"`), distinct from the `on:submit={...}`
+     *  Stator directive. Useful for a plain, no-hydration `confirm()`
+     *  guard that doesn't otherwise need an island. */
+    onsubmit?: string
   }
   select: {
     name?: string
