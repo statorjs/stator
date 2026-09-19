@@ -25,6 +25,7 @@
     "build-copy-set-from-graph",
     "copy-set-reads-syntax",
     "dist-is-the-artifact",
+    "fix-response-headers-and-attribute-gaps",
     "persistence-posture",
     "sse-write-queue"
   ]
