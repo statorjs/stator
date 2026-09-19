@@ -102,7 +102,7 @@ const STATOR_AMBIENT = `declare const Stator: {
   reads<const T extends readonly __SMachineDef[]>(defs: T): { -readonly [K in keyof T]: __SInstanceOf<T[K]> };
   forwarded(name: \`on:\${string}\`): (() => unknown) | undefined;
   request: any;
-  response: { status: number; headers: Record<string, string>; cookies: any };
+  response: { status: number; headers: Headers; cookies: any };
 };
 declare global {
   namespace JSX {

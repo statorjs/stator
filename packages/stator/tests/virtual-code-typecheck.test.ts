@@ -120,6 +120,45 @@ const onClick = Stator.forwarded('click')
 <button on:click={onClick}>go</button>
 `
 
+// Stator.response.headers is a real Headers instance at runtime
+// (RouteResponseContext in server/routing.ts) — the ambient type must match
+// it exactly, or wrong-but-type-safe code silently no-ops (bracket
+// assignment on a real Headers object creates a stray own JS property its
+// actual internal storage never sees, so `.set()`-shaped code typechecks
+// and works while `headers['x'] = y`-shaped code typechecks and silently
+// does nothing at runtime — confirmed the hard way: it broke a shipped
+// redirect feature with no error anywhere).
+const RESPONSE_HEADERS_GOOD = `---
+Stator.response.status = 303
+Stator.response.headers.set('Location', '/admin')
+---
+<p>redirecting</p>
+`
+
+const RESPONSE_HEADERS_BAD = `---
+Stator.response.headers['Location'] = '/admin'
+---
+<p>redirecting</p>
+`
+
+// input[form=] lets a checkbox outside a <form>'s DOM subtree still submit
+// with it — the standard way to avoid nesting one <form> inside another
+// (a per-row control alongside a page-wide bulk-action form). button
+// already had this; input didn't.
+const INPUT_FORM_ATTR = `---
+---
+<form id="bulk-delete" method="post"></form>
+<input type="checkbox" form="bulk-delete" />
+`
+
+// form[onsubmit=] is a plain native inline-handler attribute — distinct
+// from the on:submit={...} Stator directive — useful for a no-hydration
+// confirm() guard.
+const FORM_ONSUBMIT_ATTR = `---
+---
+<form method="post" onsubmit="return confirm('Delete all logs?')"><button type="submit">Go</button></form>
+`
+
 function emitAll(): Record<string, string> {
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'cart-machine.ts'), CART_MACHINE)
@@ -133,6 +172,10 @@ function emitAll(): Record<string, string> {
     ['button-bad', BUTTON_BAD],
     ['forward-button', FORWARD_BUTTON],
     ['forward-bad', FORWARD_BAD],
+    ['response-headers-good', RESPONSE_HEADERS_GOOD],
+    ['response-headers-bad', RESPONSE_HEADERS_BAD],
+    ['input-form-attr', INPUT_FORM_ATTR],
+    ['form-onsubmit-attr', FORM_ONSUBMIT_ATTR],
   ] as const) {
     // The editor resolves `.stator` imports through the language plugin; here
     // tsc plays that role by resolving the emitted sibling `.tsx`.
@@ -201,6 +244,23 @@ describe('virtual code under real tsc (the editor contract)', () => {
     const bad = diags.get('forward-bad')!
     expect(bad.length).toBeGreaterThan(0)
     expect(bad.join('\n')).toMatch(/on:|not assignable/)
+  })
+
+  it('Stator.response.headers.set(...) typechecks clean — the real Headers API', () => {
+    expect(diags.get('response-headers-good')).toEqual([])
+  })
+
+  it('Stator.response.headers[...] = ... is a real type error, not a silent runtime no-op', () => {
+    const bad = diags.get('response-headers-bad')!
+    expect(bad.length).toBeGreaterThan(0)
+  })
+
+  it('input[form=] typechecks clean — associates it with a <form> outside its DOM subtree', () => {
+    expect(diags.get('input-form-attr')).toEqual([])
+  })
+
+  it('form[onsubmit=] typechecks clean — a native inline-handler attribute, distinct from on:submit', () => {
+    expect(diags.get('form-onsubmit-attr')).toEqual([])
   })
 
   it('a top-level await in frontmatter is a TS error (sync-frontmatter contract)', () => {
