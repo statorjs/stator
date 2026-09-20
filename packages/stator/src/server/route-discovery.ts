@@ -35,6 +35,14 @@ export interface DiscoveredRoute {
   PUT?: ApiRouteDefinition
   PATCH?: ApiRouteDefinition
   DELETE?: ApiRouteDefinition
+  /** True for a `404.stator`/`404.ts` file — sugar for a `[...name]`
+   *  catch-all (same synthesized pattern, same matcher), except
+   *  `sortRoutes` forces it to the absolute lowest priority: below even a
+   *  real `[...name]` at the same depth. It's the last resort, only ever
+   *  reached once nothing else — including a genuine catch-all a request
+   *  matched first — could actually serve the request (a 404 cascades by
+   *  default; see the GET dispatch loop in http.ts). */
+  isNotFoundFallback?: boolean
 }
 
 /**
@@ -47,6 +55,11 @@ export interface DiscoveredRoute {
  *   - `routes/[a]/[b].ts`       → `/:a/:b`
  *   - `routes/foo/[...rest].ts` → `/foo/*rest` (catch-all: terminal, matches
  *     zero+ segments, param is the raw remainder incl. slashes)
+ *   - `routes/foo/404.ts`       → sugar for `routes/foo/[...___].ts` — a
+ *     catch-all without needing to know the bracket-rest convention, EXCEPT
+ *     `sortRoutes` also forces it to the absolute lowest match priority,
+ *     below even a real `[...rest]` at the same depth — see
+ *     `DiscoveredRoute.isNotFoundFallback`.
  *
  * Files may export any combination of `GET`/`POST`/`PUT`/`PATCH`/`DELETE`.
  * GET is a `defineRoute` (page renderer) or a `defineApiRoute` declaring
@@ -123,11 +136,12 @@ export async function discoverRoutes(
       continue
     }
 
-    const { urlPath, paramNames } = filePathToRoute(absDir, filePath)
+    const { urlPath, paramNames, isNotFoundFallback } = filePathToRoute(absDir, filePath)
     routes.push({
       urlPath,
       paramNames,
       filePath,
+      ...(isNotFoundFallback ? { isNotFoundFallback } : {}),
       GET: get,
       POST: post,
       PUT: put,
@@ -169,6 +183,10 @@ function mergeByUrlPath(routes: DiscoveredRoute[]): DiscoveredRoute[] {
 /**
  * Sort routes most-specific-first (Astro's model). At match time the first
  * matcher that matches wins, so order encodes priority:
+ *   - a `404.stator`/`404.ts` file (`isNotFoundFallback`) ranks absolute
+ *     last, below even a real `[...name]` at the same depth — it's the
+ *     final resort, only reached once nothing else (a genuine catch-all
+ *     included) could serve the request
  *   - routes without a rest/catch-all segment rank before those with one
  *   - per segment, left to right: static (0) > suffixed param `:id.json` (1)
  *     > bare param (2) > rest (3) — a suffixed param outranks a bare one so
@@ -186,6 +204,10 @@ export function sortRoutes(routes: DiscoveredRoute[]): DiscoveredRoute[] {
       )
 
   return [...routes].sort((a, b) => {
+    const aFallback = !!a.isNotFoundFallback
+    const bFallback = !!b.isNotFoundFallback
+    if (aFallback !== bFallback) return aFallback ? 1 : -1 // 404 fallback always last
+
     const ka = kinds(a.urlPath)
     const kb = kinds(b.urlPath)
     const aRest = ka.includes(3)
@@ -230,7 +252,7 @@ async function walkRouteFiles(dir: string): Promise<string[]> {
 export function filePathToRoute(
   absDir: string,
   filePath: string,
-): { urlPath: string; paramNames: string[] } {
+): { urlPath: string; paramNames: string[]; isNotFoundFallback: boolean } {
   const ext = extname(filePath)
   const rel = relative(absDir, filePath)
   const dirSegments = dirname(rel)
@@ -240,9 +262,18 @@ export function filePathToRoute(
   // sibling `<name>.stator.ts` files, which must map to the same URL as the
   // `<name>.stator` source did in dev.
   const fileBase = basename(rel, ext).replace(/\.stator$/, '')
-  const segments = fileBase === 'index' ? dirSegments : [...dirSegments, fileBase]
+  // `404` is sugar for a synthesized `[...name]` at this exact position —
+  // reuses the rest-segment branch below verbatim, so it gets the same
+  // matcher/regex a real catch-all would. `sortRoutes` is what actually
+  // forces it below a real `[...name]` at the same depth; this alone would
+  // just be an ordinary (if oddly-named) catch-all.
+  const isNotFoundFallback = fileBase === '404'
+  const segments =
+    fileBase === 'index'
+      ? dirSegments
+      : [...dirSegments, isNotFoundFallback ? '[...__stator_notfound__]' : fileBase]
 
-  if (segments.length === 0) return { urlPath: '/', paramNames: [] }
+  if (segments.length === 0) return { urlPath: '/', paramNames: [], isNotFoundFallback }
 
   const paramNames: string[] = []
   const urlSegments = segments.map((seg) => {
@@ -272,5 +303,5 @@ export function filePathToRoute(
     return seg
   })
 
-  return { urlPath: `/${urlSegments.join('/')}`, paramNames }
+  return { urlPath: `/${urlSegments.join('/')}`, paramNames, isNotFoundFallback }
 }

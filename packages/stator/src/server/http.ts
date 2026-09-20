@@ -113,14 +113,20 @@ function compileMatcher(route: DiscoveredRoute): RouteMatcher {
   return { route, regex: new RegExp(`^${pattern}$`) }
 }
 
+/** One matcher's result against a literal path: the route plus its
+ *  extracted path params. */
+interface PathMatch {
+  route: DiscoveredRoute
+  params: Record<string, string>
+}
+
 /**
- * Match a literal URL path against compiled matchers. Returns the matched
- * route + extracted params, or null if nothing matches.
+ * Match a literal URL path against every compiled matcher that matches it,
+ * in `matchers`' own (priority-sorted) order — every candidate a 404-
+ * cascading GET dispatch might need to try, not just the first.
  */
-function matchPath(
-  matchers: RouteMatcher[],
-  literalPath: string,
-): { route: DiscoveredRoute; params: Record<string, string> } | null {
+function matchAllPaths(matchers: RouteMatcher[], literalPath: string): PathMatch[] {
+  const matches: PathMatch[] = []
   for (const m of matchers) {
     const result = m.regex.exec(literalPath)
     if (!result) continue
@@ -128,9 +134,19 @@ function matchPath(
     m.route.paramNames.forEach((name, i) => {
       params[name] = decodeURIComponent(result[i + 1] ?? '')
     })
-    return { route: m.route, params }
+    matches.push({ route: m.route, params })
   }
-  return null
+  return matches
+}
+
+/**
+ * Match a literal URL path against compiled matchers. Returns the FIRST
+ * matched route + extracted params, or null if nothing matches — for call
+ * sites resolving an already-known route key (the SSE/event endpoints),
+ * where there is exactly one right answer and no cascading question.
+ */
+function matchPath(matchers: RouteMatcher[], literalPath: string): PathMatch | null {
+  return matchAllPaths(matchers, literalPath)[0] ?? null
 }
 
 /** Parse a route key like "GET /p/abc-123" into method + literal path. */
@@ -591,24 +607,55 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     })
   }
 
+  // 404 cascades by default: a matched GET route that 404s doesn't
+  // permanently claim the path — the next-most-specific matching route
+  // (down to a terminal `[...name]`/`404` catch-all, if one exists) gets a
+  // turn, same priority order `matchers` is already sorted in. Only once
+  // every matching candidate 404s does the LAST (lowest-priority) one's
+  // response actually go out — so a route's own not-found body/headers/
+  // status still reach the client, this just stops the FIRST match from
+  // being final when a later, more general route could actually serve it.
   app.get('*', async (c, next) => {
-    const matched = matchPath(matchers, c.req.path)
-    if (!matched?.route.GET) return next()
-    const getRoute = matched.route.GET
-    // Brand decides the GET plane: data routes never touch the HTML path
-    // (no client-runtime injection, no live meta — a raw Response out).
-    if (isStatorQueryRoute(getRoute)) {
-      return runQueryRoute(c, matched.route, getRoute, config.store, matched.params)
-    }
-    return handleGet(
-      c,
-      matched.route,
-      getRoute,
-      matched.params,
-      config.store,
-      config.headExtras,
-      config.buildId,
+    const candidates = matchAllPaths(matchers, c.req.path).filter(
+      (
+        m,
+      ): m is PathMatch & {
+        route: DiscoveredRoute & { GET: NonNullable<DiscoveredRoute['GET']> }
+      } => !!m.route.GET,
     )
+    if (candidates.length === 0) return next()
+
+    let lastNotFound: (() => Response) | undefined
+    for (const matched of candidates) {
+      const getRoute = matched.route.GET
+      // Brand decides the GET plane: data routes never touch the HTML path
+      // (no client-runtime injection, no live meta — a raw Response out).
+      if (isStatorQueryRoute(getRoute)) {
+        const response = await runQueryRoute(
+          c,
+          matched.route,
+          getRoute,
+          config.store,
+          matched.params,
+        )
+        if (response.status !== 404) return response
+        lastNotFound = () => response
+        continue
+      }
+
+      const candidate = await renderGetCandidate(
+        c,
+        matched.route,
+        getRoute,
+        matched.params,
+        config.store,
+        config.headExtras,
+        config.buildId,
+      )
+      if (candidate.status !== 404) return candidate.commit()
+      lastNotFound = candidate.commit
+    }
+    return lastNotFound ? lastNotFound() : next()
   })
 
   return app
@@ -672,7 +719,24 @@ function injectIntoDocument(html: string, parts: { head?: string; bodyEnd?: stri
   return out
 }
 
-async function handleGet(
+/** A rendered GET candidate, not yet committed to the shared Hono `Context`.
+ *  Cascading (see `matchAllPaths`/the GET dispatch loop) speculatively tries
+ *  several routes for one path — `applyRenderedEffects` writes headers,
+ *  cookies, and status directly onto `c`, cumulatively, so calling it for a
+ *  candidate that turns out to 404 would leak into whatever candidate wins
+ *  next (worse: `applyRenderedEffects` only calls `c.status(...)` when the
+ *  status isn't 200, so a losing 404 candidate followed by a winning 200 one
+ *  would ship 200 content under a stale 404 status — confirmed the hard way
+ *  designing this). Splitting render (safe to call speculatively, side-effect
+ *  free on `c`) from commit (writes to `c`, only ever called once, for
+ *  whichever candidate the dispatch loop actually decided to serve) is what
+ *  makes cascading safe. */
+interface GetCandidate {
+  status: number
+  commit: () => Response
+}
+
+async function renderGetCandidate(
   c: Context,
   discovered: DiscoveredRoute,
   route: RouteDefinition,
@@ -680,64 +744,68 @@ async function handleGet(
   store: MachineStore,
   headExtras?: (filePath: string) => string | Promise<string>,
   buildId?: string,
-): Promise<Response> {
-  {
-    const { sessionId } = getOrCreateSessionId(c)
-    const literalPath = c.req.path
-    const routeKey = `GET ${literalPath}`
-    const request = { ...buildRouteRequest(c, discovered.paramNames), params }
+): Promise<GetCandidate> {
+  const { sessionId } = getOrCreateSessionId(c)
+  const literalPath = c.req.path
+  const routeKey = `GET ${literalPath}`
+  const request = { ...buildRouteRequest(c, discovered.paramNames), params }
 
-    const runtime = new SessionRuntime(sessionId, store)
-    try {
-      await runtime.loadGraph(route.reads)
-      const result = await renderRoute(route, routeKey, sessionId, runtime, request)
-      let html = result.html
+  const runtime = new SessionRuntime(sessionId, store)
+  try {
+    await runtime.loadGraph(route.reads)
+    const result = await renderRoute(route, routeKey, sessionId, runtime, request)
+    let html = result.html
 
-      const headHtml: string[] = []
-      if (headExtras) {
-        const extra = await headExtras(discovered.filePath)
-        if (extra) headHtml.push(extra)
-      }
-      if (route.live) {
-        headHtml.push('<meta name="stator-live" content="true">')
-        // The build this page was rendered against — the client echoes it on
-        // /__sse connect so the server can reload a page from a stale build.
-        // `buildId` is a framework-generated UUID (no HTML-special chars).
-        if (buildId) {
-          headHtml.push(`<meta name="stator-build" content="${buildId}">`)
-        }
-      }
-
-      // Auto-inject the client runtime (delegated events + patch application).
-      // Apps never hand-include it — a forgotten <script> is a silently dead
-      // page (events fire nothing, no patches apply). Idempotent: skipped if the
-      // document already references it, so a layout that still carries the tag
-      // (or two passes sharing a doc) never loads it twice.
-      const bodyHtml: string[] = []
-      if (!html.includes('/static/client.js')) {
-        bodyHtml.push('<script src="/static/client.js"></script>')
-      }
-
-      html = injectIntoDocument(html, {
-        head: headHtml.join(''),
-        bodyEnd: bodyHtml.join(''),
-      })
-      applyRenderedEffects(c, result.response)
-
-      // A fresh machine that fired its initial entry effect on load must be
-      // persisted (so the next request hydrates instead of re-firing) and its
-      // effect scheduled off-lock, after the response. The common GET (no entry
-      // effect) skips both and stays a pure read.
-      const entryFired = runtime.entryFiredMachines()
-      if (entryFired.size > 0) {
-        await runtime.persistTouched(entryFired)
-        scheduleSessionEffects(runtime, store, sessionId)
-      }
-
-      return c.html(html)
-    } finally {
-      runtime.dispose()
+    const headHtml: string[] = []
+    if (headExtras) {
+      const extra = await headExtras(discovered.filePath)
+      if (extra) headHtml.push(extra)
     }
+    if (route.live) {
+      headHtml.push('<meta name="stator-live" content="true">')
+      // The build this page was rendered against — the client echoes it on
+      // /__sse connect so the server can reload a page from a stale build.
+      // `buildId` is a framework-generated UUID (no HTML-special chars).
+      if (buildId) {
+        headHtml.push(`<meta name="stator-build" content="${buildId}">`)
+      }
+    }
+
+    // Auto-inject the client runtime (delegated events + patch application).
+    // Apps never hand-include it — a forgotten <script> is a silently dead
+    // page (events fire nothing, no patches apply). Idempotent: skipped if the
+    // document already references it, so a layout that still carries the tag
+    // (or two passes sharing a doc) never loads it twice.
+    const bodyHtml: string[] = []
+    if (!html.includes('/static/client.js')) {
+      bodyHtml.push('<script src="/static/client.js"></script>')
+    }
+
+    html = injectIntoDocument(html, {
+      head: headHtml.join(''),
+      bodyEnd: bodyHtml.join(''),
+    })
+
+    // Fired regardless of whether this candidate ends up winning: an entry
+    // effect firing is a fact about the MACHINE having been loaded for the
+    // first time (shared, cross-cutting state), not about which route's
+    // response the caller ultimately serves — a discarded losing candidate
+    // still genuinely loaded whatever it read.
+    const entryFired = runtime.entryFiredMachines()
+    if (entryFired.size > 0) {
+      await runtime.persistTouched(entryFired)
+      scheduleSessionEffects(runtime, store, sessionId)
+    }
+
+    return {
+      status: result.response.status,
+      commit: () => {
+        applyRenderedEffects(c, result.response)
+        return c.html(html)
+      },
+    }
+  } finally {
+    runtime.dispose()
   }
 }
 

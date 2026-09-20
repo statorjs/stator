@@ -1,0 +1,9 @@
+---
+'@statorjs/stator': minor
+---
+
+A GET route's own 404 no longer permanently claims the path. Previously, whichever route pattern matched first owned the request outright — a stale `[slug]` returning 404 could never fall through to a lower-priority `[...rest]` catch-all that might actually serve it (`routes/media/[...path].ts` was the concrete case: a missing file always 404'd even when a more general route existed that could handle it). A GET route's 404 now cascades by default down the same priority order route discovery already sorts by, trying the next-most-specific matching route — a data route's raw `Response(404)` or a page's `Stator.response.status = 404` both cascade identically. Only once every matching candidate 404s does the request actually 404, using the last (lowest-priority) candidate's own response — so a route's own not-found body/headers still reach the client rather than a generic framework 404.
+
+This is a real behavior change for any app with overlapping route patterns where a 404 was previously terminal and something less specific happened to also match — worth a minor rather than a patch. No apps in this repo's own example/app suite were affected (none have a lower-priority catch-all sharing a URL space with a route that returns 404), and no opt-out primitive ("this 404 is truly final, don't cascade") ships with this — deliberately deferred until a real production app actually needs one.
+
+Paired with a new filename convention: `routes/404.stator`/`routes/404.ts` is sugar for a synthesized `[...name]` catch-all at that position, forced to the absolute lowest match priority — below even a real `[...name]` you write yourself at the same depth. It's the true last resort: only reached once nothing else, including your own catch-all, could serve the request. No more needing to know the bracket-rest trick to build a 404 page.
