@@ -149,6 +149,37 @@ function matchPath(matchers: RouteMatcher[], literalPath: string): PathMatch | n
   return matchAllPaths(matchers, literalPath)[0] ?? null
 }
 
+/** True when any segment of a urlPath is a rest/catch-all (`*name`). */
+function isRestPattern(urlPath: string): boolean {
+  return urlPath.split('/').some((seg) => seg.startsWith('*'))
+}
+
+/**
+ * Candidates a 404-cascading GET dispatch may actually try, in priority
+ * order: the single highest-priority match, plus any LOWER-priority
+ * matches that are themselves a rest/catch-all pattern.
+ *
+ * Deliberately narrower than "every structurally matching route"
+ * (`all`, straight from `matchAllPaths`): a suffixed param (`/p/:id.json`)
+ * and its bare sibling (`/p/:id`) can BOTH structurally match one literal
+ * URL — `compileMatcher`'s bare `:id` regex doesn't exclude dots — but
+ * `sortRoutes` ranking the suffixed one first was always meant to be
+ * TERMINAL, not just "tried first"; see its own doc comment ("so
+ * `/p/:id.json` wins `/p/abc.json` before `/p/:id` can swallow it").
+ * Letting a 404 from the suffixed (JSON/XML/…) route cascade into the
+ * bare (HTML page) route would hand back the wrong content-type
+ * entirely, not just the wrong status — confirmed against a real app
+ * (examples/live-poll's `/p/:id.json` data route + `/p/:id` page pair).
+ * A rest/catch-all is the opposite: it's explicitly meant as a fallback
+ * for the SAME resource (`routes/media/[...path].ts`, this feature's
+ * original motivating case), so it stays cascade-eligible regardless of
+ * what came before it.
+ */
+function cascadeCandidates<T extends PathMatch>(all: T[]): T[] {
+  if (all.length === 0) return all
+  return [all[0]!, ...all.slice(1).filter((m) => isRestPattern(m.route.urlPath))]
+}
+
 /** Parse a route key like "GET /p/abc-123" into method + literal path. */
 function parseRouteKey(
   routeKey: string,
@@ -608,20 +639,24 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   }
 
   // 404 cascades by default: a matched GET route that 404s doesn't
-  // permanently claim the path — the next-most-specific matching route
-  // (down to a terminal `[...name]`/`404` catch-all, if one exists) gets a
-  // turn, same priority order `matchers` is already sorted in. Only once
-  // every matching candidate 404s does the LAST (lowest-priority) one's
-  // response actually go out — so a route's own not-found body/headers/
-  // status still reach the client, this just stops the FIRST match from
-  // being final when a later, more general route could actually serve it.
+  // permanently claim the path — a lower-priority `[...name]`/`404`
+  // catch-all (if one exists) gets a turn, same priority order `matchers`
+  // is already sorted in. Only once every candidate 404s does the LAST
+  // (lowest-priority) one's response actually go out — so a route's own
+  // not-found body/headers/status still reach the client, this just stops
+  // the FIRST match from being final when a catch-all could actually
+  // serve it. `cascadeCandidates` (not the full `matchAllPaths` list) is
+  // what narrows "the next matching route" to specifically mean a
+  // catch-all — see its own doc comment for why that boundary matters.
   app.get('*', async (c, next) => {
-    const candidates = matchAllPaths(matchers, c.req.path).filter(
-      (
-        m,
-      ): m is PathMatch & {
-        route: DiscoveredRoute & { GET: NonNullable<DiscoveredRoute['GET']> }
-      } => !!m.route.GET,
+    const candidates = cascadeCandidates(
+      matchAllPaths(matchers, c.req.path).filter(
+        (
+          m,
+        ): m is PathMatch & {
+          route: DiscoveredRoute & { GET: NonNullable<DiscoveredRoute['GET']> }
+        } => !!m.route.GET,
+      ),
     )
     if (candidates.length === 0) return next()
 

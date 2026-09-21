@@ -273,3 +273,62 @@ describe('the 404 convention (a 404.stator/404.ts file) composes with cascading'
     expect(await miss.text()).toBe('the actual 404 page')
   })
 })
+
+describe('cascading never crosses the suffixed-vs-bare-param boundary', () => {
+  it("a suffixed param route's 404 does NOT cascade into its bare sibling — wrong content-type, not just wrong status", async () => {
+    // examples/live-poll's real shape: a JSON data route on the suffixed
+    // pattern, an HTML page on the bare one, at the exact same position.
+    // Both structurally match a literal URL like /p/nope.json — the bare
+    // route's regex doesn't exclude dots — but sortRoutes ranking the
+    // suffixed one first was always meant to be TERMINAL (its own doc
+    // comment: "so /p/:id.json wins /p/abc.json before /p/:id can
+    // swallow it"), not just tried-first. Cascading into the bare route
+    // would hand back HTML for a request that explicitly asked for JSON.
+    const jsonData = dataRoute(
+      '/p/:id.json',
+      ['id'],
+      defineApiRoute({
+        method: 'GET',
+        handler: () => Response.json({ error: 'no such poll' }, { status: 404 }),
+      }),
+    )
+    const htmlPage = pageRoute(
+      '/p/:id',
+      ['id'],
+      defineRoute({
+        reads: [],
+        render: () => html`<!doctype html>
+          <html>
+            <body>the poll page (always 200, never checks existence here)</body>
+          </html>`,
+      }),
+    )
+    const app = await appWithRoutes([jsonData, htmlPage])
+
+    const res = await app.fetch(new Request('http://localhost/p/nope1234.json'))
+    expect(res.status).toBe(404)
+    expect(res.headers.get('content-type')).toContain('json')
+    expect(await res.json()).toEqual({ error: 'no such poll' })
+  })
+
+  it('a bare param route on its own (no suffixed sibling) still 404s normally — this is about the pairing, not bare params generally', async () => {
+    const htmlPage = pageRoute(
+      '/p/:id',
+      ['id'],
+      defineRoute({
+        reads: [],
+        render: (ctx: any) => {
+          ctx.response.status = 404
+          return html`<!doctype html>
+            <html>
+              <body>no such poll</body>
+            </html>`
+        },
+      }),
+    )
+    const app = await appWithRoutes([htmlPage])
+
+    const res = await app.fetch(new Request('http://localhost/p/nope'))
+    expect(res.status).toBe(404)
+  })
+})
