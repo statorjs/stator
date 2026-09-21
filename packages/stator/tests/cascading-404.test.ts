@@ -331,4 +331,37 @@ describe('cascading never crosses the suffixed-vs-bare-param boundary', () => {
     const res = await app.fetch(new Request('http://localhost/p/nope'))
     expect(res.status).toBe(404)
   })
+
+  it("a suffixed param route's 404 ALSO does not cascade into a rest/catch-all sibling — the same wrong-content-type failure, just via a different candidate kind", async () => {
+    // A rest segment can never carry a suffix of its own (filePathToRoute
+    // rejects [...name].ext outright), so it's exactly as wrong a
+    // fallback for a suffixed 404 as a bare param is — a winning suffixed
+    // match must be unconditionally terminal, not just "don't cascade
+    // into bare specifically".
+    const jsonData = dataRoute(
+      '/p/:id.json',
+      ['id'],
+      defineApiRoute({
+        method: 'GET',
+        handler: () => Response.json({ error: 'no such poll' }, { status: 404 }),
+      }),
+    )
+    const htmlCatchAll = pageRoute(
+      '/p/*rest',
+      ['rest'],
+      defineRoute({
+        reads: [],
+        render: () => html`<!doctype html>
+          <html>
+            <body>generic catch-all page</body>
+          </html>`,
+      }),
+    )
+    const app = await appWithRoutes([jsonData, htmlCatchAll])
+
+    const res = await app.fetch(new Request('http://localhost/p/nope1234.json'))
+    expect(res.status).toBe(404)
+    expect(res.headers.get('content-type')).toContain('json')
+    expect(await res.json()).toEqual({ error: 'no such poll' })
+  })
 })

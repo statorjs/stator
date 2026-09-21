@@ -154,30 +154,45 @@ function isRestPattern(urlPath: string): boolean {
   return urlPath.split('/').some((seg) => seg.startsWith('*'))
 }
 
+/** True when any segment of a urlPath is a suffixed param (`:name.ext`) —
+ *  the file-extension-routing pattern (`[id].json.ts` → `/p/:id.json`). */
+function isSuffixedParamPattern(urlPath: string): boolean {
+  return urlPath.split('/').some((seg) => seg.startsWith(':') && seg.includes('.'))
+}
+
 /**
  * Candidates a 404-cascading GET dispatch may actually try, in priority
- * order: the single highest-priority match, plus any LOWER-priority
- * matches that are themselves a rest/catch-all pattern.
+ * order.
  *
- * Deliberately narrower than "every structurally matching route"
- * (`all`, straight from `matchAllPaths`): a suffixed param (`/p/:id.json`)
- * and its bare sibling (`/p/:id`) can BOTH structurally match one literal
- * URL — `compileMatcher`'s bare `:id` regex doesn't exclude dots — but
- * `sortRoutes` ranking the suffixed one first was always meant to be
- * TERMINAL, not just "tried first"; see its own doc comment ("so
- * `/p/:id.json` wins `/p/abc.json` before `/p/:id` can swallow it").
- * Letting a 404 from the suffixed (JSON/XML/…) route cascade into the
- * bare (HTML page) route would hand back the wrong content-type
- * entirely, not just the wrong status — confirmed against a real app
- * (examples/live-poll's `/p/:id.json` data route + `/p/:id` page pair).
- * A rest/catch-all is the opposite: it's explicitly meant as a fallback
- * for the SAME resource (`routes/media/[...path].ts`, this feature's
- * original motivating case), so it stays cascade-eligible regardless of
- * what came before it.
+ * Two matches can structurally overlap for one literal URL in ways that
+ * were never meant to form a "try something more general" chain:
+ *
+ *   - A suffixed param (`/p/:id.json`, from `[id].json.ts`) and its bare
+ *     sibling (`/p/:id`) — `compileMatcher`'s bare `:id` regex doesn't
+ *     exclude dots, so both structurally match `/p/abc.json`. The suffix
+ *     is the author's own explicit, dedicated handler for exactly that
+ *     extension (`sortRoutes`'s own doc comment: "so `/p/:id.json` wins
+ *     `/p/abc.json` before `/p/:id` can swallow it") — nothing ranked
+ *     below it, bare OR rest, is a MORE correct answer than what was
+ *     written on purpose for this exact case. (A rest/catch-all can't
+ *     even carry a suffix of its own — `filePathToRoute` rejects
+ *     `[...name].ext` outright — so it's exactly as wrong a fallback here
+ *     as bare is: confirmed against a real app, examples/live-poll's
+ *     `/p/:id.json` data route + `/p/:id` HTML page pair, where a 404
+ *     from the JSON route cascading into the page handed back HTML for a
+ *     request that explicitly asked for JSON.) So a winning suffixed
+ *     match is unconditionally terminal — no cascading at all, into
+ *     anything, once it's the one that matched.
+ *   - Anything bare/static vs. a rest/catch-all IS a legitimate fallback
+ *     chain (`routes/media/[...path].ts`, this feature's original
+ *     motivating case) — a catch-all stays cascade-eligible unless the
+ *     winning match was itself suffixed.
  */
 function cascadeCandidates<T extends PathMatch>(all: T[]): T[] {
   if (all.length === 0) return all
-  return [all[0]!, ...all.slice(1).filter((m) => isRestPattern(m.route.urlPath))]
+  const winner = all[0]!
+  if (isSuffixedParamPattern(winner.route.urlPath)) return [winner]
+  return [winner, ...all.slice(1).filter((m) => isRestPattern(m.route.urlPath))]
 }
 
 /** Parse a route key like "GET /p/abc-123" into method + literal path. */
