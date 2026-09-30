@@ -185,7 +185,8 @@ describe('dev server: .stator end to end', () => {
     // Render the live page for a session cookie, then open its stream.
     const page = await app.fetch(new Request('http://localhost/tally'))
     expect(page.status).toBe(200)
-    const cookie = page.headers.get('set-cookie')!.split(';')[0]!
+    // Lazy sessions: the app-machine page sets no cookie; mint a sid.
+    const cookie = `stator_sid=${crypto.randomUUID()}`
 
     const abort = new AbortController()
     const res = await app.fetch(

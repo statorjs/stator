@@ -13,10 +13,8 @@ const boot = (buildId?: string) =>
     buildId,
   })
 
-const cookieFor = async (app: StatorApp, path: string) =>
-  (await app.fetch(new Request(`http://localhost${path}`))).headers
-    .get('set-cookie')!
-    .split(';')[0]!
+// Lazy sessions: anonymous GETs set no cookie; tests mint their own sid.
+const cookieFor = async (_app: StatorApp, _path: string) => `stator_sid=${crypto.randomUUID()}`
 
 /** Open /__sse and read the first chunk of the stream (enough to see the reload
  *  directive or the `: open` handshake), then abort. */

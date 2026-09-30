@@ -3,6 +3,7 @@ import { AUTHOR_NAME, SITE_NAME, SITE_ORIGIN } from '../lib/site.ts'
 
 const { title } = Stator.props<{ title?: string }>()
 ---
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />

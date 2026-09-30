@@ -95,6 +95,8 @@ export async function run(ctx: CliContext): Promise<void> {
     host: config.host,
     secret: config.secret,
     cors: config.cors,
+    logging: config.logging,
+    caching: config.caching,
     headExtras,
     buildId,
     machineHashes: machines,
