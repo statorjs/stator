@@ -1,5 +1,121 @@
 # @statorjs/stator
 
+## 2.10.0
+
+### Minor Changes
+
+- be57290: `stator build` now works out what `dist/` needs from your app's module graph instead of copying every top-level directory that wasn't on a denylist.
+
+  The old rule guessed at the shape of your project, and guessed wrong in both directions. A directory the app never imports came along for the ride — an uploads folder, a JSON cache a deploy script maintains, a folder of design notes — so runtime data got duplicated into the build artifact on every build. Meanwhile a root-level file a module genuinely opens did **not** come along, because the copy step only ever handled directories: an `import.meta.url`-relative SQLite file resolved inside `dist/`, found nothing, and SQLite created an empty database. The app booted, looked healthy, and had lost every row. Our own `with-auth` example shipped that bug.
+
+  One pass now walks the graph from the entry points the framework itself loads — every file under `routes/` and `machines/`, plus a root-level `middleware.ts`, `boot.ts` and `stator.config.*` — and everything else is copied because it was reached. `templates/` and `lib/` land in `dist/` because your routes import them, not because of what they are called, so renaming or adding a directory needs no configuration. `static/` still comes along, since the framework serves it by path.
+
+  - Resolution is the bundler's own, so a tsconfig `paths` alias, an extensionless specifier, an `index.ts` and an `exports` map all behave exactly as they do at runtime. A regex over import statements cannot see a path alias; this can.
+  - `.stator` files are compiled during the walk, so frontmatter imports are followed like any other import — a `lib/` module reached only by a template is found.
+  - Copying is per top-level directory, which is what lets a data file nothing imports ride along with its neighbours: a JSON fixture read with `readFile`, a mail template beside the module that reads it. A root-level file opened through a literal `new URL('../app.db', import.meta.url)` is copied too.
+  - The build prints what it decided — `copied: …`, and `not copied: …` for directories nothing reached — because a copy set derived from code should be visible rather than inferred from what turns up in `dist/`.
+  - **`build.include`** in `stator.config.ts` names anything no import graph can see, such as a directory read through a path built at runtime.
+  - **An `import()` the build cannot follow now fails the build**, naming each file and line. A string literal is followed; a template literal with a fixed prefix has every match included; only a fully computed specifier is opaque, and a `dist/` built around one is missing a module that some request will reach. Make it analysable, list what it reaches in `build.include`, or set `build.untracedImports: 'warn'`.
+  - `resolveCopySet` is exported from `@statorjs/stator/build` for tooling. `BuildConfig.dirs` still overrides the copy set outright.
+  - `stator build` is now covered on Windows and macOS in CI, not just Linux — a new build smoke runs beside the dev-loop smoke on all three. Resolution is where platforms diverge, and the failure it guards is silent: get containment wrong and every app file looks external, so the build "succeeds" and ships a `dist/` holding nothing but `static/`.
+
+  Upgrading: an app that relied on a directory being copied _incidentally_ — never imported, but read at runtime through a computed path — needs it in `build.include`. The build's `not copied:` line tells you which directories are candidates.
+
+- 5b41843: The framework knows your static pages — the cacheable read path, layers 1+3.
+
+  **Lazy sessions (layer 1).** A session is established only when something needs one: a dispatch into a session machine, a session-machine read in a route's `reads`, an SSE connect, or an explicit session op (`setClaims`, `rotateSession`, dev inspect). Anonymous GETs — pages, feeds, data routes, static, images — no longer mint a session or set a cookie, so a CDN is finally allowed to cache them and a crawler no longer parks per-hit session state (the measured cost: every cookie-less GET wrote a session; ~3.5GB per 100k crawler hits). An arriving `stator_sid` cookie resumes its session exactly as before — laziness governs creation only, and `claims()` is a peek that never establishes (middleware gates keep working on anonymous probes).
+
+  **Derived Cache-Control (layer 3).** On GET responses the framework can PROVE anonymous-identical — every declared read app-lifecycle, no session use or claims read while handling, no hand-set headers or cookies — it emits `Cache-Control: public, s-maxage=60, stale-while-revalidate=300` (tune or disable via `caching` in `stator.config.ts`; hand-set headers always win; dev servers never emit so editing always re-renders). Pages that read session machines are never marked, structurally.
+
+  **Migration notes.** Test suites that harvested a sid from a first GET's `Set-Cookie` must mint their own (`stator_sid=<uuid>` resumes verbatim — pre-existing semantics) or take it from a login/dispatch response. A login that establishes and rotates in one request now emits two session Set-Cookies; browsers correctly keep the last — header-parsing helpers should too.
+
+- 54f5b01: A GET route's own 404 no longer permanently claims the path. Previously, whichever route pattern matched first owned the request outright — a stale `[slug]` returning 404 could never fall through to a lower-priority `[...rest]` catch-all that might actually serve it (`routes/media/[...path].ts` was the concrete case: a missing file always 404'd even when a more general route existed that could handle it). A GET route's 404 now cascades by default down the same priority order route discovery already sorts by, trying the next-most-specific matching route — a data route's raw `Response(404)` or a page's `Stator.response.status = 404` both cascade identically. Only once every matching candidate 404s does the request actually 404, using the last (lowest-priority) candidate's own response — so a route's own not-found body/headers still reach the client rather than a generic framework 404.
+
+  This is a real behavior change for any app with overlapping route patterns where a 404 was previously terminal and something less specific happened to also match — worth a minor rather than a patch. No apps in this repo's own example/app suite were affected (none have a lower-priority catch-all sharing a URL space with a route that returns 404), and no opt-out primitive ("this 404 is truly final, don't cascade") ships with this — deliberately deferred until a real production app actually needs one.
+
+  Paired with a new filename convention: `routes/404.stator`/`routes/404.ts` is sugar for a synthesized `[...name]` catch-all at that position, forced to the absolute lowest match priority — below even a real `[...name]` you write yourself at the same depth. It's the true last resort: only reached once nothing else, including your own catch-all, could serve the request. No more needing to know the bracket-rest trick to build a 404 page.
+
+- be57290: `dist/` is now the whole deployment: copy that one directory to a server, install inside it, and start.
+
+  Two things stopped that from being true. `stator.config.ts` was never copied into the build, and `stator start` read it from the source tree — so a deploy that shipped only `dist/` found no config at all and started on in-memory persistence without a word, silently losing every session on restart. And when the source tree _was_ present, its config imported `./lib/db.ts` while the machines imported `dist/lib/db.ts`: two live copies of one module in one process, two database connections, two caches, and two versions of the same code whenever the source had moved on since the build.
+
+  - **Config comes from the artifact and nowhere else.** The build copies `stator.config.*` along with everything it imports, and `stator start` reads it from `dist/`. No fall back to the source tree — a fall back is what let one build behave two different ways.
+  - **`stator start` serves a built directory in place** when it finds the manifest beside `routes/`, so the artifact needs no source tree around it. Point `--root` at it, or run from inside.
+  - **The manifest records the config file and the version that built it.** An artifact whose recorded config is missing is a partial copy and `stator start` refuses it; one built before this record existed says to rebuild rather than guessing, because "this app has no config" and "the config didn't travel" are otherwise indistinguishable and guessing wrong downgrades persistence in silence.
+  - **The build declares dependencies for the target to install.** `node_modules` is never copied — that would bake the build machine's platform into the artifact, and a traced `sharp` ships `@img/sharp-darwin-arm64` where the container needs `@img/sharp-linux-x64`. Instead: an app with its own lockfile gets `package.json` and the lockfile copied verbatim, and the build names the frozen install to run (`npm ci --omit=dev`, `pnpm install --frozen-lockfile --prod`, …) so the target installs exactly what was locked. Resolving dependencies at deploy time is how a deploy picks up a transitive nobody tested; `npm install` in production is the bug, not the fix.
+  - **A workspace member gets a generated `package.json`** instead, since its lockfile lives at the monorepo root and `workspace:*` cannot be installed from a registry. Every dependency the app's code reached is pinned to the version that was actually installed — pins come from the installed tree, never from a declared range, because `npm ci` validates the lockfile against the manifest and refuses a mismatch. Direct dependencies are exact, transitives are not locked, and the build says so out loud: resolve at build time (`pnpm deploy --prod`, or build in the image) if that matters.
+  - **An artifact compiled by a different framework minor is refused.** `dist/` holds output emitted by one specific compiler, and serving it against a different minor makes the runtime and the emit disagree — which surfaces as a template read complaining it was called outside a render, because two copies of the framework hold separate render state. An app whose lockfile pins an older version than the machine that built it produces exactly that, silently. A patch difference is fine and passes.
+
+  The build prints its dependency decision, so nothing about the artifact has to be inferred from what turns up in it.
+
+- ac10c7c: An app can no longer end up on in-memory session storage in production without saying so.
+
+  Every startup now states the persistence posture in its notice — printed at any log level, so a deploy log never leaves it to inference:
+
+  ```
+  stator v2.10.0 · http://localhost:3000/ · 4 machines · 4 routes · sessions CachedStore
+  stator v2.10.0 · http://localhost:3000/ · 4 machines · 4 routes · sessions in-memory
+  ```
+
+  In production, anything actually at risk also logs a warning: session machines on ephemeral storage, or `persist: true` app machines with no durable app store. An app with no session machines has nothing to lose here and is left alone, and nothing ever refuses to start — persistent storage is assumed to be what you want, never required.
+
+  **`sessionStore` and `appStore`** are the new way to pick a store from the environment, and they exist because the conditional every app was writing degrades in silence:
+
+  ```ts
+  // before — correct in dev and CI, silently wrong in production
+  const store = url
+    ? new CachedStore(new RedisStore(url))
+    : new InMemoryStore();
+
+  // after
+  persistence: {
+    session: sessionStore({ redisUrl: process.env.REDIS_URL, cache: true });
+  }
+  ```
+
+  Written in userland, the framework could not tell "deliberately in-memory" from "wanted Redis and the variable was empty". Written here it can, so the production warning names the variable — `REDIS_URL is empty, so session state is in memory and will not survive a restart` — instead of reporting a generic posture. A URL means Redis wherever it comes from, so pointing CI at a test Redis is just the variable being set; absent, empty and whitespace-only all mean in-memory. Passing the key is what declares the intent: `sessionStore()` with no arguments chooses in-memory deliberately and is never reported.
+
+  `stator build` also notes when a config declares no session store at all. That check is deliberately about the _shape_ of the config and never about the value: whether a store is declared is knowable from the code, while which store a declared one resolves to depends on the production environment — which a build machine does not have, and should not. A build that errored on the store it resolved with CI's environment would fail every correctly configured deployment.
+
+  Enforcement — failing to start when a variable is missing — is not part of this. It belongs to declared environment variables, where one mechanism covers every required value rather than just this one.
+
+- 5b41843: The bare package name is now importable: `import { defineConfig } from '@statorjs/stator'` works in `stator.config.ts` — the root export carries exactly the config-authoring surface (`defineConfig`, `StatorConfig`, `LogLevel`), so loading a config never pulls in server-only dependencies. The `/config` subpath keeps working unchanged.
+
+### Patch Changes
+
+- 5b41843: Data routes recognize the `.atom` extension (`feed.atom.ts` → `/feed.atom`, served as `application/atom+xml`) — Atom feeds no longer need a raw `Response` that gives up the free ETag/304.
+- a8c63ad: A half-open live connection can no longer starve the pages behind it. Every push to a live page is bounded now, and fan-out sends to every connection at once instead of one after another.
+
+  A write to a live socket resolves and a write to a closed one rejects, but a write to a **half-open** one does neither once its buffer is full: when a remote laptop sleeps or a NAT drops the mapping, no FIN ever arrives and the socket still looks writable, so the promise simply never settles. Fan-out awaited each connection's write serially with no deadline, so one such connection stalled the loop and every connection registered after it received nothing until the kernel gave up on the socket, many minutes later, or the same page reconnected and evicted it. On the session dispatch path the same stall ran into the session lock's thirty-second backstop, so the dispatching page saw an error after every mutation while a dead connection sat ahead of it.
+
+  - Every push now has a deadline (`STATOR_SSE_WRITE_TIMEOUT_MS`, default 5000). On a timeout the connection is dropped rather than retried. The client reconnects and gets a full resync, which is cheap by design. A write to a socket with buffer space resolves at once regardless of the peer, so the deadline fires only when the buffer has stayed full for the whole window, not on a merely slow client.
+  - Fan-out sends to connections **concurrently**, so a slow or dead client no longer delays the connections behind it. Recompute stays sequential because it advances each connection's diff baseline, and all sends still complete before the dispatch returns, so the next dispatch cannot interleave with this one's writes.
+  - The heartbeat goes through the same bounded path, so a wedged connection is reaped within a ping interval even when the app is idle and no dispatch would otherwise notice.
+  - The dev server's rebuild broadcast is bounded the same way.
+
+- 5b41843: `stator start` and `stator dev` now forward `logging` from `stator.config.ts` to the server (previously `logging.level` was a silent no-op under the CLI — only the `LOG_LEVEL` env var worked), and `stator dev` also forwards `secret`, so signed cookies work in dev with a config-file secret instead of requiring the `STATOR_SECRET` env var.
+- f7491b9: The build's copy set no longer mistakes prose for code. A comment explaining why an app avoids `import(name)` was read as a real untraceable dynamic import and failed the build, and a comment mentioning a `new URL('./x', import.meta.url)` path invented a directory that does not exist.
+
+  Both checks were regex scans over raw source, which cannot tell code from prose — the file's own explanation of a pattern looks exactly like the pattern. They now walk the syntax tree, where comments and string contents simply are not present. Everything real still resolves: a string-literal `import()` is followed, a template literal with a fixed prefix is glob-expanded, a genuinely computed specifier is still reported with its file and line, and a `new URL(literal, import.meta.url)` asset is still copied. A template-literal asset path (`` new URL(`./x.json`, import.meta.url) ``) is picked up too now, which the old pattern missed.
+
+  Found by dogfooding a real app against `2.10.0-next.0`.
+
+- 421e91e: Fix `Stator.response.headers` typing to match the real runtime value — a `Headers` instance, not `Record<string, string>`. The wrong ambient type let `Stator.response.headers['Location'] = x` typecheck cleanly while silently doing nothing at runtime (a bracket assignment on a real `Headers` object just creates a stray own JS property its internal storage never sees), while the correct fix is `.set('Location', x)`. Confirmed against a real app: this broke a shipped redirect feature with no error anywhere until something actually followed the redirect.
+
+  Also closes two typed-attribute gaps found by the same app: `input` was missing `form=` (already present on `button`, the standard way to submit an element outside a `<form>`'s own DOM subtree), and `form` was missing `onsubmit=` (a plain native inline-handler attribute, distinct from the `on:submit={...}` Stator directive).
+
+  In the editor: `Stator.response.headers['x'] = y` now correctly shows a red squiggle instead of looking fine; `<input form="...">` and `<form onsubmit="...">` no longer show a phantom one.
+
+- 5b41843: `read()` and the region primitives (`each`/`when`/`match`/`defer`) are now compile errors inside `<textarea>` and `<title>`. Those elements hold raw text (RCDATA), so the live-slot wrapper or region markers rendered as literal markup — a textarea pre-filled via `read()` showed `<span data-slot="…">` to the user. The error points at the fix: interpolate a static value (a selector property access), or bind an attribute if it must be live. Attribute-position reads on the elements themselves stay legal.
+- 5b41843: Data GET routes accept `revision: () => string | number` — a cheap fingerprint of everything the body depends on (one indexed `max(updated_at)` SELECT, typically). The ETag derives from it, and a matching `If-None-Match` answers a bodyless 304 **without invoking the handler**: a polling feed reader or sitemap crawler costs the fingerprint, not the render. Full responses carry the same revision ETag, and derived Cache-Control applies to the 304 path too. The revision must change whenever the body could — soft-deletes and edits that stamp `updated_at` satisfy this for free.
+- a9d7875: A dispatch no longer waits on any other page's socket. Every live connection now has its own write queue with a single drain loop, and fan-out queues patches and returns: the acting user's POST response is ready as soon as the recompute is, however many viewers there are and however slow their networks.
+
+  - Per-connection order is FIFO by construction, so back-to-back changes cannot reorder a keyed insert, remove, or move.
+  - The write deadline (`STATOR_SSE_WRITE_TIMEOUT_MS`) now measures one write at the head of the queue rather than the time since it was issued, so a burst behind a slow but healthy connection no longer trips it.
+  - A backlog over `STATOR_SSE_QUEUE_MAX_BYTES` (default 1 MiB, counting only what is waiting behind the write in flight) drops the connection, the same policy as a timed-out write: the client reconnects and resyncs. A single waiting item never trips it, however large.
+  - When the dispatching page's own channel already has a backlog, its patches ride that queue instead of the POST response, which then carries none. Two channels to one page must not reorder a positional list op. With an empty queue, the normal case, the response delivers exactly as before.
+  - The initial sync, the heartbeat, and the dev server's rebuild broadcast go through the same queue.
+
 ## 2.10.0-next.1
 
 ### Patch Changes
