@@ -67,6 +67,7 @@ describe('discovery: param segments with extension suffix', () => {
     expect(filePathToRoute('/r', '/r/p/[id].json.ts')).toEqual({
       urlPath: '/p/:id.json',
       paramNames: ['id'],
+      isNotFoundFallback: false,
     })
   })
 
@@ -78,5 +79,61 @@ describe('discovery: param segments with extension suffix', () => {
     const stub = (urlPath: string) => ({ urlPath, paramNames: [], filePath: '' }) as DiscoveredRoute
     const sorted = sortRoutes([stub('/p/:id'), stub('/p/:id.json')])
     expect(sorted.map((r) => r.urlPath)).toEqual(['/p/:id.json', '/p/:id'])
+  })
+})
+
+describe('discovery: 404 convention (sugar for a synthesized [...name] catch-all)', () => {
+  it('routes/404.ts at the root synthesizes a root catch-all, flagged isNotFoundFallback', () => {
+    const result = filePathToRoute('/r', '/r/404.ts')
+    expect(result.isNotFoundFallback).toBe(true)
+    expect(result.urlPath.startsWith('/*')).toBe(true)
+    expect(result.paramNames).toHaveLength(1)
+  })
+
+  it('routes/admin/404.stator synthesizes a catch-all scoped to /admin', () => {
+    const result = filePathToRoute('/r', '/r/admin/404.stator')
+    expect(result.isNotFoundFallback).toBe(true)
+    expect(result.urlPath.startsWith('/admin/*')).toBe(true)
+  })
+
+  it('a plain [...name].ts is NOT flagged as the 404 fallback', () => {
+    const result = filePathToRoute('/r', '/r/[...name].ts')
+    expect(result.isNotFoundFallback).toBe(false)
+  })
+
+  it('sortRoutes forces isNotFoundFallback below a real [...name] catch-all at the same depth', () => {
+    const stub = (urlPath: string, isNotFoundFallback = false) =>
+      ({ urlPath, paramNames: [], filePath: '', isNotFoundFallback }) as DiscoveredRoute
+    const real = stub('/*name')
+    const fallback = stub('/*__stator_notfound__', true)
+    // Regardless of input order, or how they'd otherwise compare
+    // alphabetically (this exact pair would sort the "wrong" way on
+    // urlPath alone — '__stator_notfound__' < 'name' — without the
+    // isNotFoundFallback tiebreak taking priority).
+    expect(sortRoutes([fallback, real]).map((r) => r.urlPath)).toEqual([
+      '/*name',
+      '/*__stator_notfound__',
+    ])
+    expect(sortRoutes([real, fallback]).map((r) => r.urlPath)).toEqual([
+      '/*name',
+      '/*__stator_notfound__',
+    ])
+  })
+
+  it('sortRoutes still puts isNotFoundFallback dead last even against ordinary static/param routes', () => {
+    const stub = (urlPath: string, isNotFoundFallback = false) =>
+      ({ urlPath, paramNames: [], filePath: '', isNotFoundFallback }) as DiscoveredRoute
+    const sorted = sortRoutes([
+      stub('/*__stator_notfound__', true),
+      stub('/posts/:slug'),
+      stub('/about'),
+      stub('/*name'),
+    ])
+    expect(sorted.map((r) => r.urlPath)).toEqual([
+      '/posts/:slug',
+      '/about',
+      '/*name',
+      '/*__stator_notfound__',
+    ])
   })
 })

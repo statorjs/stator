@@ -51,3 +51,5 @@ Carried from the RFC: regions vs. families; per-key context vs. shared; keyed li
 ## Implementation Notes
 
 Not started — motivation/direction record. Evidence: `examples/stockroom` (the inventory admin) and its machine test. Related: machine-level `on:` (shipped, Evidence 1's drop fix), per-row item-value bindings (Evidence 3's inline stopgap), the parallel-regions RFC (design exploration).
+
+**Anticipated second evidence point (2026-09-10):** the personal-site IndiePub-on-Stator port (dogfooding thread) will need per-record retry/backoff timers for at least two independent record collections — outbox entries (automatic webmention-send retry, today owner-button-only in `examples/indie-blog`) and pending mentions (re-verification retries) — matching this spec's own "Evidence 2" occurrence in `indie-blog`'s outbox. Deliberately not started yet; held until that dogfood actually needs it, per the "decision deferred to a second collection example" framing above. Recorded here only so the connection isn't lost when that work starts.
