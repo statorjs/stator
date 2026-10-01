@@ -4,8 +4,17 @@ import { html } from '../template/html.ts'
 import type { HtmlFragment } from '../template/types.ts'
 
 /**
- * `getImage()` + `<Image>`/`<Picture>` — the render half of framework image
- * support (spec `images-are-part-of-stator-*`; endpoint in `server/images.ts`).
+ * `getImage()`/`getPicture()` + `<Image>`/`<Picture>` — the render half of
+ * framework image support (spec `images-are-part-of-stator-*`; endpoint in
+ * `server/images.ts`). `getImage`/`getPicture` are pure math over provided
+ * dimensions — no markup — and are the public escape hatch for a custom
+ * art-direction component the first-party `<Image>`/`<Picture>` doesn't cover
+ * (`SOURCE_TYPES`, the format→mime-type map, is exported for the same reason).
+ * `<Image>`/`<Picture>` currently stay plain `.ts` function components rather
+ * than real `.stator` components — see spec
+ * `stator-component-libraries-publish-time-compile-per-component-scoped-css-usage-driven-aggregation`
+ * for why (a `.stator` component shipped from this package needs a
+ * publish-time compile step that doesn't exist yet) and what unblocks it.
  *
  * `src` is the PUBLIC URL of the original: an image-endpoint path
  * (`/media/2026/08/x.jpg`) gets derived variants — the endpoint's contract is
@@ -201,20 +210,45 @@ export type PictureProps = ImageProps & {
   sources?: PictureSource[]
 }
 
-const SOURCE_TYPES: Record<ImageFormat, string> = {
+/** `<source type>` for each delivery format — exported alongside `getPicture`
+ *  so a hand-rolled `<picture>` (art direction the first-party `<Picture>`
+ *  doesn't cover) can build its own `<source>` tags from `getImage`/
+ *  `getPicture` output without re-deriving this mapping. */
+export const SOURCE_TYPES: Record<ImageFormat, string> = {
   jpg: 'image/jpeg',
   png: 'image/png',
   webp: 'image/webp',
   avif: 'image/avif',
 }
 
-export function Picture(props: PictureProps): HtmlFragment {
+/** One resolved `<source>` candidate, most-specific (art-directed) first. */
+export interface ResolvedPictureSource {
+  media?: string
+  format: ImageFormat
+  srcset: string
+  sizes: string
+}
+
+export interface ResolvedPicture {
+  /** `<source>` candidates — empty when `src` is remote or no candidate
+   *  produced a srcset, in which case only `image` (the plain `<img>`) applies. */
+  sources: ResolvedPictureSource[]
+  /** The fallback `<img>`'s own resolved data — same shape `getImage()` returns,
+   *  built from the same props the sources were (`crop` included, so its
+   *  reserved box describes the cropped output rather than the source's own
+   *  shape). */
+  image: ResolvedImage
+}
+
+/** Pure `<picture>` math: every `<source>` candidate's resolved srcset plus
+ *  the fallback `<img>`'s own resolved data — no markup. `<Picture>` renders
+ *  this; a custom art-direction component that needs a different `<picture>`
+ *  shape than `<Picture>` offers can call this directly instead. */
+export function getPicture(props: PictureProps): ResolvedPicture {
   const { formats = ['avif', 'webp'], sources: artSources = [], sizes = '100vw', ...rest } = props
-  // The fallback <img> is built from the same props the sources were — `crop`
-  // included, so its reserved box describes the cropped output rather than the
-  // source's own shape.
   const imageProps = { ...rest, sizes } as ImageProps
-  if (isRemote(rest.src)) return Image(imageProps)
+  const image = getImage(imageProps)
+  if (isRemote(rest.src)) return { sources: [], image }
 
   const storedExt = rest.src.slice(rest.src.lastIndexOf('.') + 1).toLowerCase() as ImageFormat
 
@@ -242,19 +276,28 @@ export function Picture(props: PictureProps): HtmlFragment {
   )
   const plain = formats
     .map((format) => ({
-      media: undefined,
       format,
       srcset: getImage({ ...imageProps, format }).srcset,
       sizes,
     }))
     .filter((s) => s.srcset !== null)
 
-  const all = [...art, ...plain]
-  if (all.length === 0) return Image(imageProps)
+  return { sources: [...art, ...plain] as ResolvedPictureSource[], image }
+}
+
+export function Picture(props: PictureProps): HtmlFragment {
+  const { formats, sources: artSources, ...imageProps } = props
+  const { sources } = getPicture(props)
+  // The fallback <img> is `<Image>` itself, built from the same props minus
+  // the picture-only ones it doesn't know — same recomputation the original
+  // implementation already did, kept so loading/fetchpriority/decoding
+  // defaults live in exactly one place.
+  const imageEl = Image(imageProps as ImageProps)
+  if (sources.length === 0) return imageEl
   return html`<picture
-    >${all.map(
+    >${sources.map(
       (s) =>
-        html`<source media="${s.media ?? undefined}" type="${SOURCE_TYPES[s.format]}" srcset="${s.srcset}" sizes="${s.sizes}" />`,
-    )}${Image(imageProps)}</picture
+        html`<source media="${s.media}" type="${SOURCE_TYPES[s.format]}" srcset="${s.srcset}" sizes="${s.sizes}" />`,
+    )}${imageEl}</picture
   >`
 }
