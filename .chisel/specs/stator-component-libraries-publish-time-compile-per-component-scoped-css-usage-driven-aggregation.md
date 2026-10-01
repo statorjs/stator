@@ -1,0 +1,60 @@
+---
+title: 'Stator component libraries: publish-time compile, per-component scoped CSS, usage-driven aggregation'
+status: ready
+created: 2026-10-01
+updated: 2026-10-01
+area: runtime
+---
+
+## What and Why
+
+`Image`/`Picture` (spec `images-are-part-of-stator-*`) shipped as plain `.ts` function components, copying the `JsonLd` precedent directly — nobody re-litigated the choice. Testing them in a real app exposed the gap: they should be real `.stator` components (scoped styles as needed, composed the same way any other component is), with `getImage()` staying a pure, publicly-exported helper for custom art direction — Astro's actual split (`getImage()` vs. `<Image>`/`<Picture>` as real `.astro` files), not the `JsonLd` shape.
+
+That ran into a real wall: `@statorjs/stator` (and any third-party package) cannot ship raw `.stator` source inside `node_modules`. Both `dev-native.ts` and the production build treat `node_modules` as a deliberately opaque, already-resolved boundary — load-bearing for correctness, not an oversight (`toolchain-adapter-seam-and-the-vite-exit`: versioning/transforming framework internals pulled from a dependency risks forking singletons across versions; `?v=` propagation "MUST stop at node_modules" for the same reason). So a `.stator` component library has to pre-compile to plain `.ts` before publish, the same way Svelte/Vue component libraries have long had to.
+
+Pre-compiling exposed a second, deeper gap. Scoped CSS delivery today is pure static source-scanning: `dev-native.ts`'s `scanAll()` and production's `build.ts` both walk raw `.stator` *text* in the app tree, re-run the compiler fresh, and concatenate every file's CSS into one `components.css` — aggregated by presence in the directory tree, not by whether the component is ever imported or rendered. A pre-compiled library component has no `.stator` source left for that scan to find, so naively "fixing" this by having a library ship one aggregate `dist/components.css` is itself wrong: importing one `Button` would pull in CSS for every component the library ships, used or not.
+
+Auditing this surfaced that the identical flaw already exists for apps' own components, today, in shipped production builds: `scanAll()`/`build.ts` include CSS for every `.stator` file sitting anywhere in the app tree, regardless of whether it's actually reachable from any route. Every app built with Stator today ships every component's styles on every page. That's a real correctness bug independently of anything about component libraries, and this spec fixes both with one mechanism — they're the same problem (presence-driven aggregation instead of usage-driven aggregation) wearing two costumes.
+
+A first cut of "usage-driven" risked under-shooting the actual bug: computing one shared, app-wide `components.css` (every component used *anywhere* in the app, still one file on every page) kills truly-dead components but doesn't stop page A from loading page B's styles. The real fix is per-route CSS — each route gets an artifact scoped to only the components *that route's* template can reach. That in turn raises a sharper question, resolved against `conditional-arm-interiors-are-second-class-on-the-live-update-path` (shipped): a `match`/`when`/`each` arm that is inactive at first paint can still become active later purely via an SSE live-update patch, with no fresh HTTP request — so "reachable" must mean static reachability (everything the route's compiled template imports, including every conditional arm's and island's components), never "what actually rendered for this response." Render-tracing would starve an inactive arm's component of CSS at first paint and reproduce, class-for-class, the invisible-styling bug the `:global()` paper-cut already caught (no console error, no build failure, just wrong pixels once the arm flips). See Constraints.
+
+## Scope
+
+**1. One compile-and-emit-sibling-pair operation, used by both the app's own production build and a library's publish step.** `build.ts` already compiles every local `.stator` file to `${file}.ts` ahead of deploy and already computes `result.css` per file (`build.ts:165-186`) — it just currently throws that per-file CSS away into one concatenated `components.css`. Change the last step only: write `${file}.css` as a sibling of `${file}.ts` instead of accumulating into one blob. A library's publish-time compile is then literally the same operation — `compile()` per `.stator` file, `.ts` + sibling `.css` written out — run over the library's own source instead of an app's, with its output exposed via `package.json`'s `exports` map (the pattern `@statorjs/stator` already uses for `./components`, `./server`, etc.: each component subpath gets a sibling CSS export at `${componentSpecifier}.css`) instead of landing in a private `dist/`. No new manifest format, no second implementation to maintain — one operation, two call sites.
+
+**2. Route-level, usage-driven CSS aggregation in production, with zero branching on component origin.** Once local production output and library output are the same shape (compiled module + sibling `.css`), the aggregator doesn't need to know or care where a reachable component came from: after the build's esbuild pass, walk its metafile's import graph **per route entry point** (every component that route's template reaches — including everything reachable only inside a `match`/`when`/`each` arm or behind an island; see Constraints), and for every reachable compiled module, include its sibling `.css` if one exists. One route, one artifact, one algorithm, no "if local / if external." `build/head.ts` links each route's own artifact instead of the one global `/static/components.css` constant. This retires `scanAll()`'s walk-by-*presence* entirely (replaced by walk-by-*reachability*) — closing the pre-existing over-inclusion bug as a side effect of this change, not a separate effort.
+
+**3. Dev-native stays genuinely different, and that's fine.** Dev has no shipped-payload-size pressure and its whole value is compiling local `.stator` source on demand without a batch build step — so it keeps calling `compile()` fresh per local file and reading the sibling `.css` export for `node_modules` components, accumulating into one evolving `/static/components.css`, same ergonomics as today. It never does per-route splitting, so it never needed the production side's uniform-shape simplification in the first place; the two pipelines are allowed to work differently because they're solving different problems (iteration speed vs. shipped payload size), not because of an arbitrary local/external split.
+
+**4. First real consumer: `getImage()`/`getPicture()` + `<Image>`/`<Picture>`.**
+- `images.ts` keeps only pure helpers — `getImage()`, a new `getPicture()`, the shared types, and the format/crop/mime-type math (`SOURCE_TYPES` and friends) — all exported publicly so custom art-direction components aren't locked out.
+- `Image.stator`/`Picture.stator` become real `.stator` components, compiled through the new publish step, holding the markup. `Picture.stator` composes `<Image>` as a JSX tag (the way `product-card.stator` composes `<Plate>`), not a function call.
+- Neither ships a `<style>` block at launch — neither has a current styling need. The point of this spec is proving the capability and the pipeline end-to-end, not adding presentation nobody asked for.
+
+## Constraints
+
+- "Reachable" means static reachability from a route's compiled template/import graph — every component the route *could* render, including one sitting only inside an inactive `match`/`when`/`each` arm or an unmounted island — never execution-tracing of what actually rendered for a given request. A route's artifact must not be narrowed to first-paint-visible components only: `conditional-arm-interiors-are-second-class-on-the-live-update-path` (shipped) establishes that an inactive arm can become active later via an SSE live-update patch with no fresh HTTP request, so its component's CSS has to already be present at first paint. This is a floor on how small a route's CSS artifact can get, not a bug in the design — do not "optimize" it later by tracing rendered output instead of the static graph.
+- The production aggregator (Scope item 2) must not branch on component origin. If an implementation needs an `isExternal`/`isLocal` check to decide how to fetch a reachable component's CSS, that's a sign Scope item 1 wasn't done — local output and library output must already be the same shape (compiled module + sibling `.css`) by the time the aggregator runs.
+
+## Out of scope
+
+- A general, documented third-party `.stator` component-library ecosystem — authoring guides, scaffolding, a public second example library. This spec proves the mechanism using `@statorjs/stator`'s own `components` subpath as the only real consumer.
+- Any change to how `.stator`/JS module resolution treats `node_modules` — that opacity invariant (`toolchain-adapter-seam-and-the-vite-exit`) is untouched; this is purely a CSS side-channel layered on top.
+- CSS-in-JS-style runtime embedding (compiled module exports its CSS as a string constant, collected at render time). Considered and rejected: it trades a single static, cacheable `components.css` for either per-response cost or a build-time trace that ends up walking the same import graph this spec already walks, for no real benefit over a plain sibling file.
+- Redesigning client-script/island CSS scoping (`descendant` strategy). Out of scope unless the graph-walk change is found to break it — verify, don't redesign.
+
+## Success Criteria
+
+- A library publishes a `.stator` component; an app importing only that one component gets only that component's CSS. The production aggregator code contains no conditional on whether a reachable component is local or from `node_modules` — verified by code review, not just behavior, since the whole point is one operation feeding one algorithm.
+- Two routes importing non-overlapping component sets (mix of local and `node_modules` components) produce two different CSS artifacts, each containing only its own route's reachable set — not the library's/app's whole component inventory.
+- A component used only inside an inactive `match`/`when` arm at first paint still has its CSS present in that route's artifact (regression test: render the route, simulate the live-update flip that activates the arm, assert no missing styles — mirrors the `conditional-arm-interiors` regression pattern).
+- A test app with an intentionally-unused `.stator` component (present in the tree, never imported by any route) ships a build with no route artifact containing that component's styles — closing the pre-existing bug.
+- `getImage`/`getPicture` remain plain, pure, publicly exported functions; `<Image>`/`<Picture>` are real `.stator` components, importable and composable the same way any other `.stator` component is.
+- Apps using no library components build byte-identical output to today (regression guard on the aggregation rewrite).
+
+## Open Questions
+
+- Shared-chunk dedup across routes (two routes both using a common `Nav` component currently means duplicate CSS bytes in each route's artifact) — likely fine for v1 given scoped CSS is small per component, but worth a follow-up if payload size becomes a real complaint.
+- Dedup when two different components (two library components, or a library component and a local override) emit overlapping scoped CSS — each hash should already be component-unique, but worth confirming no double-counted bloat on diamond imports.
+- Does the production metafile walk need to treat dynamic `import()` (island/client-script boundaries) differently from static imports, or does existing island bundling already resolve this the same way?
+- Where the publish-time compile command lives: a `@statorjs/stator`-owned CLI step (`stator build:lib`-shaped) versus a documented manual step for v1, with CLI support following once a second real external consumer exists.

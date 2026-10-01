@@ -1,11 +1,13 @@
-import { readFile, stat } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join, relative, resolve } from 'node:path'
 import type { StatorManifest } from './build.ts'
 
 /**
- * Production `headExtras` for a built `dist/`: links `components.css` when the
- * build produced one, and injects each route's island `<script type="module">`
- * tags from `stator-manifest.json`. Pass the result to `createApp`:
+ * Production `headExtras` for a built `dist/`: links EACH ROUTE's own scoped-
+ * CSS href (`manifest.routeCss` — only the components that route's import
+ * graph actually reaches, not a global stylesheet shared by every page), and
+ * injects that route's island `<script type="module">` tags. Pass the result
+ * to `createApp`:
  *
  *   const { headExtras, buildId } = await loadProductionHead(dist)
  *   const app = await createApp({ ..., headExtras, buildId })
@@ -30,15 +32,8 @@ export async function loadProductionHead(distDir: string): Promise<{
 }> {
   const dist = resolve(distDir)
 
-  let cssTag = ''
-  try {
-    await stat(join(dist, 'static', 'components.css'))
-    cssTag = '<link rel="stylesheet" href="/static/components.css">'
-  } catch {
-    // no scoped component styles
-  }
-
   let routes: StatorManifest['routes'] = {}
+  let routeCss: StatorManifest['routeCss'] = {}
   let buildId: string | undefined
   let machines: Record<string, string> | undefined
   let config: string | null | undefined
@@ -48,6 +43,7 @@ export async function loadProductionHead(distDir: string): Promise<{
       await readFile(join(dist, 'stator-manifest.json'), 'utf8'),
     ) as StatorManifest
     routes = manifest.routes ?? {}
+    routeCss = manifest.routeCss ?? {}
     buildId = manifest.buildId
     machines = manifest.machines
     config = manifest.config
@@ -58,6 +54,8 @@ export async function loadProductionHead(distDir: string): Promise<{
 
   const headExtras = (filePath: string): string => {
     const rel = relative(dist, resolve(filePath)).replace(/\\/g, '/')
+    const href = routeCss[rel]
+    const cssTag = href ? `<link rel="stylesheet" href="${href}">` : ''
     const scripts = routes[rel] ?? []
     return [cssTag, ...scripts.map((url) => `<script type="module" src="${url}"></script>`)]
       .filter(Boolean)

@@ -90,8 +90,8 @@ export interface CreateAppConfig extends DeprecatedFlatConfig {
   host?: string
   /** Cross-origin READ policy (CORS); `origins` defaults to `trustedOrigins`. */
   cors?: { origins?: string[]; credentials?: boolean }
-  /** Extra `<head>` HTML per GET route. A production build uses this to link the
-   *  prebuilt `components.css`; ignored if omitted. */
+  /** Extra `<head>` HTML per GET route. A production build uses this to link
+   *  that route's own prebuilt scoped-CSS artifact; ignored if omitted. */
   headExtras?: (filePath: string) => string | Promise<string>
   /** Path to the app's `middleware.ts` (if any). Loaded and validated; its
    *  default export must be `defineMiddleware`/`dangerouslyDefineMiddleware`. */
