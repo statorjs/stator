@@ -9,6 +9,7 @@ import { applyRenderedEffects, runApiRoute } from './api-route.ts'
 import { crossSiteGuard } from './csrf.ts'
 import { scheduleSessionEffects } from './effects.ts'
 import { record, replayFor } from './event-dedupe.ts'
+import { type ImagesRenderInfo, type ResolvedImagesConfig, serveImage } from './images.ts'
 import { buildInspectPayload } from './inspect.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
@@ -37,6 +38,9 @@ export interface HttpConfig {
   routes: DiscoveredRoute[]
   store: MachineStore
   staticDir?: string
+  /** Resolved image-serving config — present mounts the endpoint at
+   *  `images.path` (see server/images.ts). */
+  images?: ResolvedImagesConfig
   /** Optional hook to inject extra `<head>` HTML for a GET route, keyed by the
    *  route's file path. The dev server uses this to inline collected scoped CSS
    *  (SSR head injection). Inserted at the `</head>` boundary. */
@@ -233,6 +237,11 @@ function parseRouteKey(
 
 export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   const app = new Hono()
+  // Render-side view of the images config: `<Image>`/`<Picture>` read this
+  // from the render state so their URLs can't drift from the endpoint.
+  const imagesInfo = config.images
+    ? { widths: config.images.widths, aspectRatios: config.images.aspectRatios }
+    : undefined
   const clientJs = await bundleClient()
 
   // Request logger: one line per request with method, path, status, duration.
@@ -408,6 +417,25 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     })
   }
 
+  if (config.images) {
+    const images = config.images
+    app.get(`${images.path}/*`, (c) => {
+      let rel: string
+      try {
+        rel = decodeURIComponent(c.req.path.slice(images.path.length + 1))
+      } catch {
+        return c.text('not found', 404) // malformed percent-encoding is a 404, not a 500
+      }
+      return serveImage(
+        images,
+        rel,
+        c.req.query('w'),
+        c.req.query('h'),
+        c.req.header('if-none-match') ?? null,
+      )
+    })
+  }
+
   // SSE endpoint. The connection's runtime + renderState stay alive for
   // the connection's lifetime — this is the one place per-session state
   // outlives a request, because the connection *is* one (very long) request.
@@ -460,7 +488,9 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
       const runtime = new SessionRuntime(sessionId, config.store)
       await runtime.loadGraph(route.reads)
-      const { renderState } = await renderRoute(route, routeKey, sessionId, runtime, request)
+      const { renderState } = await renderRoute(route, routeKey, sessionId, runtime, request, {
+        images: imagesInfo,
+      })
 
       // The handler parks on `finished` until the connection ends. Both ways
       // out resolve it: the client aborting, and the server hanging up on a
@@ -616,6 +646,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         // resolve defer slots here (that would kick their I/O under the lock).
         const { renderState } = await renderRoute(route, routeKey, sessionId, runtime, request, {
           resolveDeferred: false,
+          images: imagesInfo,
         })
 
         const touched = runtime.processEvent(body.machine, body.event)
@@ -726,6 +757,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         config.headExtras,
         config.buildId,
         config.caching,
+        imagesInfo,
       )
       if (candidate.status !== 404) return candidate.commit()
       lastNotFound = candidate.commit
@@ -820,6 +852,7 @@ async function renderGetCandidate(
   headExtras?: (filePath: string) => string | Promise<string>,
   buildId?: string,
   caching?: { sMaxAge: number; staleWhileRevalidate: number },
+  images?: ImagesRenderInfo,
 ): Promise<GetCandidate> {
   // Lazy layer 1: only a session-machine read forces establishment. An
   // app-only (or read-free) page renders against the resumed sid when a
@@ -836,7 +869,7 @@ async function renderGetCandidate(
   const runtime = new SessionRuntime(sessionId, store)
   try {
     await runtime.loadGraph(route.reads)
-    const result = await renderRoute(route, routeKey, sessionId, runtime, request)
+    const result = await renderRoute(route, routeKey, sessionId, runtime, request, { images })
     let html = result.html
 
     const headHtml: string[] = []

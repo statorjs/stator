@@ -24,12 +24,19 @@ export const POST = defineApiRoute({
     const photoEntry = form.get('photo')
     const photo = photoEntry instanceof File && photoEntry.size > 0 ? photoEntry : null
     const photoAlt = String(form.get('photo_alt') ?? '').trim()
-    if (contentError(content)) {
-      return { directives: [{ type: 'navigate', to: '/admin?error=content' }] }
+    // A validation bounce stashes the typed fields in the session machine so
+    // the re-rendered form pre-fills — the redirect otherwise lands on a new
+    // document with no memory. (The file can't round-trip; text survives.)
+    const bounce = async (error: string) => {
+      await dispatch(OwnerMachine, {
+        type: 'STASH_DRAFT',
+        draft: { title: titleRaw, content, photoAlt },
+      })
+      return { directives: [{ type: 'navigate' as const, to: `/admin?error=${error}` }] }
     }
-    if (photo && photoError(photo, photoAlt)) {
-      return { directives: [{ type: 'navigate', to: '/admin?error=photo' }] }
-    }
+    if (contentError(content)) return bounce('content')
+    const photoProblem = photo ? photoError(photo, photoAlt) : null
+    if (photoProblem) return bounce(photoProblem)
 
     // Auth probe: a zero-target publish still must prove the session. The
     // RETRY_TARGET guard requires `authed` and a bogus key commits nothing
@@ -55,6 +62,7 @@ export const POST = defineApiRoute({
       photo_height: saved?.height ?? null,
     })
 
+    await dispatch(OwnerMachine, { type: 'CLEAR_DRAFT' })
     const targets = [...outboundLinks(content), ...SYNDICATION_TARGETS]
     for (const target of targets) {
       await dispatch(OwnerMachine, {

@@ -7,7 +7,7 @@ import { AUTHOR_NAME, SITE_ORIGIN, postUrl } from '../../lib/site.ts'
 import MentionsMachine from '../../machines/mentions.ts'
 import Layout from '../../templates/layout.stator'
 import MentionList from '../../templates/mention-list.stator'
-import Picture from '../../templates/picture.stator'
+import { Picture } from '@statorjs/stator/components'
 
 const [mentions] = Stator.reads([MentionsMachine])
 const { params } = Stator.request
@@ -19,7 +19,17 @@ if (!post) Stator.response.status = 404
   {post ? (
     <article class="h-entry">
       {post.title ? <h1 class="p-name">{post.title}</h1> : null}
-      {post.photo_path ? <Picture post={post} priority /> : null}
+      {post.photo_path && post.photo_width && post.photo_height ? (
+        <Picture
+          src={`/media/${post.photo_path}`}
+          width={post.photo_width}
+          height={post.photo_height}
+          alt={post.photo_alt ?? ''}
+          sizes="(max-width: 44rem) 100vw, 44rem"
+          class="u-photo"
+          priority
+        />
+      ) : null}
       <div class="e-content">{raw(renderContent(post.content))}</div>
       <p>
         <a class="p-author h-card" href={`${SITE_ORIGIN}/`}>{AUTHOR_NAME}</a>

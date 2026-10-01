@@ -1,6 +1,6 @@
 {
   "name": "@statorjs/stator",
-  "version": "2.10.0",
+  "version": "2.11.0-next.0",
   "description": "Server-canonical web framework: business logic in composable state machines, UI as a thin renderer binding machine outputs to DOM positions. Ships TypeScript source, loaded natively by its own toolchain — no build step.",
   "license": "MIT",
   "type": "module",
@@ -89,6 +89,7 @@
     "postcss": "^8.5.15",
     "postcss-selector-parser": "^7.1.4",
     "schema-dts": "^1.1.5",
+    "sharp": "^0.33.5",
     "typescript": "^5.6.0",
     "zod": "^3.23.0"
   },

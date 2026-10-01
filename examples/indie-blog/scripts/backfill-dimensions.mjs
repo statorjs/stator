@@ -3,11 +3,11 @@
  * dimensions columns existed (their rows carry NULLs, so `<Image>` can't
  * reserve the aspect-ratio box and the layout jumps on first load).
  *
- *   node scripts/backfill-dimensions.mjs
+ *   pnpm exec tsx scripts/backfill-dimensions.mjs   (tsx: plain node cannot import the raw-TS framework)
  */
 import { DatabaseSync } from 'node:sqlite'
 import { join, resolve } from 'node:path'
-import sharp from 'sharp'
+import { probeImage } from '@statorjs/stator/server'
 
 const db = new DatabaseSync(process.env.INDIE_BLOG_DB ?? 'indie-blog.db')
 const mediaDir = resolve(process.env.INDIE_BLOG_MEDIA ?? 'media')
@@ -17,10 +17,11 @@ const rows = db
 
 for (const row of rows) {
   try {
-    const meta = await sharp(join(mediaDir, row.photo_path)).metadata()
+    const { readFile } = await import('node:fs/promises')
+    const meta = await probeImage(new Uint8Array(await readFile(join(mediaDir, row.photo_path))))
     db.prepare('UPDATE posts SET photo_width = ?, photo_height = ? WHERE slug = ?').run(
-      meta.width ?? null,
-      meta.height ?? null,
+      meta.width,
+      meta.height,
       row.slug,
     )
     console.log(`${row.slug}: ${meta.width}x${meta.height}`)

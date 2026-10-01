@@ -98,11 +98,24 @@ Stack it between the webfont and the raw system font: `font-family: 'Literata Va
 
 Like everything in `static/`, font files are immutable in practice — put long-lived cache headers on them at the CDN or proxy.
 
-## Images and files
+## Images
 
-Static images belong in `static/` and are referenced by URL. Fingerprinting and long-lived caching are a deploy concern — put a CDN or cache headers in front of `/static/`.
+Design-asset images (logos, icons, decorative art) belong in `static/`, referenced by URL, cached by the framework's static headers.
 
-On-the-fly optimization (resizing, format negotiation) is not a framework feature today. Use an image CDN in front of your origin, or mount a plain handler on the break-glass [`.hono`](/guides/middleware/) app. A first-class image route — options as query parameters, bytes produced on the server, conditional GET keeping repeats cheap — is the shape this takes when a real app needs it. It will be a URL, not an import, so it applies to any `<img>` anywhere.
+Content images — uploads, photos, anything runtime-written — get the framework's image endpoint. Declare where they live and the endpoint mounts:
+
+```ts
+// stator.config.ts
+export default defineConfig({
+  images: { dir: 'media' },   // originals here; endpoint serves /media/*
+})
+```
+
+The endpoint's contract: **the URL's extension is the delivery format** — request `/media/2026/08/x.webp?w=800` and the stored `x.jpg` is converted and resized to honor it; the server never returns bytes that contradict an extension, and there is no `Accept`-header or user-agent negotiation. Widths come from an allowlist (`images.widths`, default `[400, 800, 1200, 1600]` — an open resize parameter is a denial-of-service invitation), variants cache on disk beside the originals, and every response carries a content-hash ETag with bodyless 304 revalidation — reseeding or copying media never busts caches, and how long browsers cache is a [config dial](/reference/config/) (`maxAge` / `staleWhileRevalidate` / `immutable`). Transformation is sharp behind a swappable `ImageTransformer` adapter, loaded only when `images` is configured. GIF and SVG serve as originals only — never resized or transcoded in either direction — and SVG responses carry script-neutralizing security headers (`CSP: default-src 'none'` + `nosniff`), so uploaded vector art is safe to serve while `<img>` and favicon uses work untouched.
+
+Rendering pairs with [`<Image>`/`<Picture>`](/reference/components/#image--picture): CLS-safe `width`/`height` always emitted, `srcset` over the endpoint, lazy by default with a `priority` mode for the one above-the-fold image, and art direction on `<Picture>` (different crops per media condition — the endpoint cover-crops with `?w=&h=`, widths from the allowlist and heights derived from the aspect allowlist). Dimensions always come from you — probe them **once at upload** with `probeImage()` and store them beside the file's path (renders are synchronous and never do image IO; intrinsic size is write-time data). Remote URLs render untouched (no proxying, no transforms) and require dimensions like everything else.
+
+Uploads themselves stay app code: `request.formData()` delivers the `File`, you write it under `images.dir` (dated subpaths keep directories sane) and store the probed dimensions — the `indie-blog` example is the worked reference.
 
 ## WASM
 
