@@ -20,5 +20,7 @@
     "@statorjs/language-server": "0.1.32",
     "@statorjs/stator": "2.10.0"
   },
-  "changesets": []
+  "changesets": [
+    "framework-images"
+  ]
 }
