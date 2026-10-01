@@ -1,20 +1,23 @@
 import { DEFAULT_IMAGE_WIDTHS } from '../server/images.ts'
 import { currentImages } from '../server/render-context.ts'
-import { html } from '../template/html.ts'
-import type { HtmlFragment } from '../template/types.ts'
 
 /**
- * `getImage()`/`getPicture()` + `<Image>`/`<Picture>` — the render half of
- * framework image support (spec `images-are-part-of-stator-*`; endpoint in
- * `server/images.ts`). `getImage`/`getPicture` are pure math over provided
- * dimensions — no markup — and are the public escape hatch for a custom
- * art-direction component the first-party `<Image>`/`<Picture>` doesn't cover
- * (`SOURCE_TYPES`, the format→mime-type map, is exported for the same reason).
- * `<Image>`/`<Picture>` currently stay plain `.ts` function components rather
- * than real `.stator` components — see spec
+ * `getImage()`/`getPicture()` — pure math over provided dimensions, no markup.
+ * This is the render MATH half of framework image support (spec
+ * `images-are-part-of-stator-*`; endpoint in `server/images.ts`); the actual
+ * `<Image>`/`<Picture>` markup components are real `.stator` components,
+ * `image.stator`/`picture.stator` in this directory, compiled to
+ * `image.stator.ts`/`picture.stator.ts` by `scripts/compile-components.ts`
+ * (see spec
  * `stator-component-libraries-publish-time-compile-per-component-scoped-css-usage-driven-aggregation`
- * for why (a `.stator` component shipped from this package needs a
- * publish-time compile step that doesn't exist yet) and what unblocks it.
+ * for why that compile step exists — this package ships raw source with no
+ * build step everywhere else, but a `.stator` component shipped from a
+ * published package needs to already be compiled, same as any `.stator`
+ * component library would).
+ *
+ * `getImage`/`getPicture` plus `SOURCE_TYPES` (the format→mime-type map) stay
+ * exported here as the public escape hatch for a custom art-direction
+ * component the first-party `<Image>`/`<Picture>` doesn't cover.
  *
  * `src` is the PUBLIC URL of the original: an image-endpoint path
  * (`/media/2026/08/x.jpg`) gets derived variants — the endpoint's contract is
@@ -163,31 +166,6 @@ export type ImageProps = GetImageOptions &
     class?: string
   }
 
-export function Image(props: ImageProps): HtmlFragment {
-  const {
-    alt,
-    class: className,
-    sizes = '100vw',
-    priority,
-    loading = priority ? 'eager' : 'lazy',
-    fetchpriority = priority ? 'high' : undefined,
-    decoding = 'async',
-  } = props
-  const img = getImage(props)
-  return html`<img
-    src="${img.src}"
-    srcset="${img.srcset ?? undefined}"
-    sizes="${img.srcset ? sizes : undefined}"
-    alt="${alt}"
-    width="${img.width}"
-    height="${img.height}"
-    loading="${loading}"
-    fetchpriority="${fetchpriority}"
-    decoding="${decoding}"
-    class="${className}"
-  />`
-}
-
 /** An art-directed source: under `media`, serve a different GEOMETRY — the
  *  `crop` ratio the endpoint cover-crops to, same vocabulary and same
  *  allowlist as the plain `crop` prop. Reach for `sources` when the geometry
@@ -283,21 +261,4 @@ export function getPicture(props: PictureProps): ResolvedPicture {
     .filter((s) => s.srcset !== null)
 
   return { sources: [...art, ...plain] as ResolvedPictureSource[], image }
-}
-
-export function Picture(props: PictureProps): HtmlFragment {
-  const { formats, sources: artSources, ...imageProps } = props
-  const { sources } = getPicture(props)
-  // The fallback <img> is `<Image>` itself, built from the same props minus
-  // the picture-only ones it doesn't know — same recomputation the original
-  // implementation already did, kept so loading/fetchpriority/decoding
-  // defaults live in exactly one place.
-  const imageEl = Image(imageProps as ImageProps)
-  if (sources.length === 0) return imageEl
-  return html`<picture
-    >${sources.map(
-      (s) =>
-        html`<source media="${s.media}" type="${SOURCE_TYPES[s.format]}" srcset="${s.srcset}" sizes="${s.sizes}" />`,
-    )}${imageEl}</picture
-  >`
 }

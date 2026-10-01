@@ -59,6 +59,22 @@
           }
         }
       }
+    },
+    {
+      // Compiled `.stator` output (a `.stator` component library's
+      // publish-time compile, e.g. `packages/stator/src/components/*.stator.ts`
+      // — committed, since it's what gets imported, not ephemeral dist). The
+      // compiler always imports the full template-runtime-primitives set
+      // regardless of which a given component uses — formatted for
+      // readability, but not linted as if hand-authored.
+      "includes": ["**/*.stator.ts", "**/*.stator.client.ts"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedImports": "off"
+          }
+        }
+      }
     }
   ],
   "javascript": {

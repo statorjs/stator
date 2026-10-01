@@ -2,13 +2,12 @@ import { randomUUID } from 'node:crypto'
 import { cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join, relative, resolve } from 'node:path'
-import { compile, regionResolverFor } from '../compiler/index.ts'
 import { hashMachines } from '../server/machine-hash.ts'
 import { type ArtifactDeps, writeArtifactDeps } from './artifact.ts'
+import { compileComponentFile } from './compile-component.ts'
 import { type CopySet, resolveCopySet } from './copy-set.ts'
 import { bundleIslands, routeIslandMap, walkFiles } from './islands.ts'
 import { routeCssMap } from './route-css.ts'
-import { sourceId } from './source-id.ts'
 
 /**
  * Production build: compile a `.stator` app to a `dist/` of plain `.ts` that the
@@ -167,21 +166,8 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   const statorFiles = await walkFiles(outDir, (f) => f.endsWith('.stator'))
   const islands: Array<{ rel: string; entry: string }> = []
   for (const file of statorFiles) {
-    const source = await readFile(file, 'utf8')
-    const { id: rel, kind } = sourceId(outDir, file)
-    const result = compile(source, {
-      id: rel,
-      kind,
-      resolveRegions: regionResolverFor(file, source),
-    })
-    await writeFile(`${file}.ts`, result.serverCode)
-    if (result.isClient) {
-      // The generated client entry, written as a sibling so the authored
-      // script's relative imports resolve against the mirrored dist tree.
-      await writeFile(`${file}.client.ts`, result.clientCode)
-      islands.push({ rel, entry: `${file}.client.ts` })
-    }
-    if (result.css) await writeFile(`${file}.css`, result.css)
+    const { rel, isClient, clientFile } = await compileComponentFile(file, outDir)
+    if (isClient) islands.push({ rel, entry: clientFile! })
   }
   for (const file of statorFiles) await rm(file)
 

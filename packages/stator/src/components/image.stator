@@ -1,0 +1,27 @@
+---
+import { getImage, type ImageProps } from './images.ts'
+
+const p = Stator.props<ImageProps>()
+const {
+  alt,
+  class: className,
+  sizes = '100vw',
+  priority,
+  loading = priority ? 'eager' : 'lazy',
+  fetchpriority = priority ? 'high' : undefined,
+  decoding = 'async',
+} = p
+const img = getImage(p)
+---
+<img
+  src={img.src}
+  srcset={img.srcset ?? undefined}
+  sizes={img.srcset ? sizes : undefined}
+  alt={alt}
+  width={img.width}
+  height={img.height}
+  loading={loading}
+  fetchpriority={fetchpriority}
+  decoding={decoding}
+  class={className}
+/>

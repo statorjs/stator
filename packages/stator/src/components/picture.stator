@@ -1,0 +1,17 @@
+---
+import { getPicture, SOURCE_TYPES, type PictureProps } from './images.ts'
+import Image from './image.stator'
+
+const p = Stator.props<PictureProps>()
+const { sources } = getPicture(p)
+---
+{sources.length === 0 ? (
+  <Image {...p} />
+) : (
+  <picture>
+    {each(sources, (s) => (
+      <source media={s.media} type={SOURCE_TYPES[s.format]} srcset={s.srcset} sizes={s.sizes} />
+    ))}
+    <Image {...p} />
+  </picture>
+)}

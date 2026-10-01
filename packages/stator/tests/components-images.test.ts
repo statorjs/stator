@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { getImage, getPicture, Image, Picture, SOURCE_TYPES } from '../src/components/images.ts'
+import Image from '../src/components/image.stator.ts'
+import { getImage, getPicture, SOURCE_TYPES } from '../src/components/images.ts'
+import Picture from '../src/components/picture.stator.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import type { HtmlFragment } from '../src/template/types.ts'
 

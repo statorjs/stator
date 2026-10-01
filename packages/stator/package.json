@@ -77,7 +77,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "node browser-tests/tables.mjs",
-    "build:client": "esbuild src/client/runtime.ts --bundle --format=iife --target=es2020 --outfile=dist/client.js"
+    "build:client": "esbuild src/client/runtime.ts --bundle --format=iife --target=es2020 --outfile=dist/client.js",
+    "build:components": "node scripts/compile-components.mjs && biome check --write src/components/",
+    "prepublishOnly": "pnpm run build:components"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.0",
