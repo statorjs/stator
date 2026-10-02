@@ -36,8 +36,7 @@ export interface Reached {
 }
 
 /** Strip `/* *\/` and `//` comments before scanning for import specifiers — a
- *  doc-comment usage example (`*   import { X } from 'pkg'`, an entirely
- *  normal pattern; this codebase's own `json-ld.ts` has one) must never be
+ *  doc-comment usage example (`*   import { X } from 'pkg'`) must never be
  *  mistaken for a real import. Tracks string/template-literal state so a `//`
  *  or `/*` INSIDE one (a URL, say) is left alone, and respects backslash
  *  escapes inside strings. Not a full tokenizer — doesn't walk into a

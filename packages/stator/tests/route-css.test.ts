@@ -79,14 +79,6 @@ describe('route-css: routeCssMap', () => {
   })
 
   it('does not mistake a doc-comment usage example for a real import', async () => {
-    // Regression: json-ld.ts's own doc comment has a completely normal
-    // `*   import { JsonLd } from '@statorjs/stator/components'` usage
-    // example. Before the scanner stripped comments, this made a route
-    // "reach" fake-lib/button purely because a comment mentioned it —
-    // worse, when the resolved target was the very file being written
-    // (a package's own barrel aggregating its own CSS), each build run
-    // re-read the previous run's stale output as newly "reached" and
-    // appended it again, growing the file without bound.
     const root = await buildFixture()
     await writeFile(
       join(root, 'routes/z.ts'),

@@ -5,10 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { routeCssMap } from '../src/build/route-css.ts'
 
 /**
- * Does CSS discovery cascade transitively — route → component A → component
- * B → component C, each importing the next, each with its own sibling
- * `.css`? Answered empirically rather than just read off `walkReachable`'s
- * recursion, since this is exactly the kind of thing worth being sure about.
+ * CSS discovery cascades transitively — route → component A → component B →
+ * component C, each importing the next, each with its own sibling `.css`.
  */
 
 let base: string | undefined

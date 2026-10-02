@@ -174,16 +174,12 @@ function makeAttrNode(attr: string): selectorParser.Attribute {
 /** Insert the scope attribute after the subject's last simple selector,
  *  before any trailing pseudo-elements (::before, ::after).
  *
- *  `:where(...)` is special-cased: its whole point, by spec, is ALWAYS zero
- *  specificity, regardless of what's inside it — an author reaches for it
- *  specifically to make a rule trivially overridable (a component library's
- *  own baseline is the exact case this exists for). Appending the scope
- *  attribute AFTER a `:where(...)` subject would add a real attribute-
- *  selector specificity point and silently defeat that — `:where(img)`
- *  compiling to `:where(img)[data-s-h]` is no longer zero-specificity. So the
- *  attribute goes INSIDE each of `:where()`'s own arguments instead
- *  (`:where(img[data-s-h])`), recursively — the compiled selector stays
- *  genuinely zero-specificity, exactly what the author asked for. */
+ *  `:where(...)` is special-cased: by spec its specificity is always zero
+ *  regardless of its contents, so appending the attribute AFTER it
+ *  (`:where(img)[data-s-h]`) would add a real specificity point and defeat
+ *  that. The attribute goes INSIDE each of `:where()`'s own arguments instead
+ *  (`:where(img[data-s-h])`), recursively, keeping the compiled selector
+ *  genuinely zero-specificity. */
 function attachScopeAttr(sel: selectorParser.Selector, attr: string): void {
   const nodes = sel.nodes
   let insertAfter: selectorParser.Node | undefined

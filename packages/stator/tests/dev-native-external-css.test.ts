@@ -5,15 +5,12 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 /**
- * Dev-native's `/static/components.css` must include a `node_modules`
- * component library's own CSS, resolved the same way production does
- * (`externalCss`, via the package's `exports` map) — not just locally
- * authored `.stator` files. Regression for the gap caught while dogfooding
- * `<Image>`'s own real style: this fixture imports the REAL
- * `@statorjs/stator/components` (not a synthetic stand-in) because it lives
- * under `tests/fixtures/`, which already resolves `@statorjs/stator` through
- * this package's own self-referencing `node_modules` symlink — the same path
- * `examples/indie-blog` resolves it through.
+ * Dev-native's `/static/components.css` includes a `node_modules` component
+ * library's own CSS, resolved the same way production does (`externalCss`,
+ * via the package's `exports` map) — not just locally authored `.stator`
+ * files. This fixture imports the real `@statorjs/stator/components`, which
+ * resolves through this package's own self-referencing `node_modules`
+ * symlink the same way any external consumer resolves it.
  */
 
 const here = dirname(fileURLToPath(import.meta.url))
