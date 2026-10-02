@@ -56,11 +56,10 @@ body {
   background: var(--paper);
 }
 
-/* Photo posts — the framework <Image> carries no styles of its own. */
+/* Photo posts — <Image> itself handles the responsive-image baseline
+   (block, max-width, aspect ratio); this is this blog's own layering on
+   top of that: rounded corners and article flow spacing. */
 article img.u-photo {
-  display: block;
-  max-width: 100%;
-  height: auto;
   border-radius: 4px;
   margin: 0 0 0.8rem;
 }

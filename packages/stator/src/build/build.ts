@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto'
 import { cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join, relative, resolve } from 'node:path'
-import { compile, regionResolverFor } from '../compiler/index.ts'
 import { hashMachines } from '../server/machine-hash.ts'
 import { type ArtifactDeps, writeArtifactDeps } from './artifact.ts'
+import { compileComponentFile } from './compile-component.ts'
 import { type CopySet, resolveCopySet } from './copy-set.ts'
 import { bundleIslands, routeIslandMap, walkFiles } from './islands.ts'
-import { sourceId } from './source-id.ts'
+import { routeCssMap } from './route-css.ts'
 
 /**
  * Production build: compile a `.stator` app to a `dist/` of plain `.ts` that the
@@ -17,10 +17,15 @@ import { sourceId } from './source-id.ts'
  *      directories its routes/machines/hooks import from, the root-level files
  *      they open, and `static/`
  *   2. compile each `*.stator` → a sibling `*.stator.ts`, delete the `.stator`,
- *      accumulate scoped CSS; for client components also write the generated
- *      client entry as a sibling `*.stator.client.ts`
+ *      writing any scoped CSS to a sibling `*.stator.css` (one file per
+ *      component, not accumulated — see `route-css.ts`); for client
+ *      components also write the generated client entry as a sibling
+ *      `*.stator.client.ts`
  *   3. rewrite `.stator` import specifiers (`'./x.stator'` → `'./x.stator.ts'`)
- *   4. write the concatenated scoped CSS to `dist/static/components.css`
+ *   4. walk each route's import graph (`routeCssMap`) and write ONE scoped-CSS
+ *      artifact per route under `dist/static/css/`, from exactly the
+ *      components that route reaches — local siblings just written, plus any
+ *      `node_modules` component library's published sibling stylesheet
  *   5. when the app has client components: bundle every island entry through
  *      the `bundleIslands` seam (hashed output written under
  *      `dist/static/assets/`, server-machine imports stubbed to `{ name }`),
@@ -28,10 +33,11 @@ import { sourceId } from './source-id.ts'
  *      write `dist/stator-manifest.json` mapping route files → island script URLs
  *
  * The prod server runs `createApp` over `dist/` with the `headExtras` hook
- * from `loadProductionHead(dist)` — it links `components.css` and injects the
- * manifest's `<script type="module">` tags per route. File discovery + dynamic
- * import work unchanged on the precompiled output; the island bundler is
- * needed only at build time, and only when islands exist.
+ * from `loadProductionHead(dist)` — it links each route's own CSS href from
+ * the manifest's `routeCss` and injects the manifest's island
+ * `<script type="module">` tags per route. File discovery + dynamic import
+ * work unchanged on the precompiled output; the island bundler is needed only
+ * at build time, and only when islands exist.
  */
 
 export interface BuildConfig {
@@ -55,7 +61,7 @@ export interface BuildResult {
   outDir: string
   /** Number of `.stator` files compiled. */
   compiled: number
-  /** True when any component produced scoped CSS (components.css written). */
+  /** True when any route's import graph reached a component with scoped CSS. */
   hasCss: boolean
   /** Number of client components bundled for the browser. */
   islands: number
@@ -83,6 +89,11 @@ export interface StatorManifest {
   islands: Record<string, string>
   /** Route file (dist-relative) → script URLs for every island it reaches. */
   routes: Record<string, string[]>
+  /** Route file (dist-relative) → its own scoped-CSS stylesheet href, only for
+   *  routes whose import graph reaches at least one styled component. Absent
+   *  on a dist built before per-route CSS existed, which `loadProductionHead`
+   *  reads as "no CSS for any route" (byte-identical to an app with none). */
+  routeCss: Record<string, string>
   /** Machine file (relative to `machines/`) → code hash. Consumed by
    *  `stator start` for the snapshot hydration policy; the build fails if a
    *  machine's closure cannot be bundled, so this lands in CI, not at boot. */
@@ -147,28 +158,16 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
     await cp(src, dest)
   }
 
-  // Compile every .stator into a sibling .stator.ts; collect CSS and islands.
-  // The sources are deleted only after the whole set compiles — cross-file
-  // region validation reads sibling `.stator` files mid-compile.
+  // Compile every .stator into a sibling .stator.ts (+ a sibling .stator.css
+  // when it has scoped styles — the same per-component shape a library's own
+  // publish-time compile produces, see route-css.ts) and islands. The sources
+  // are deleted only after the whole set compiles — cross-file region
+  // validation reads sibling `.stator` files mid-compile.
   const statorFiles = await walkFiles(outDir, (f) => f.endsWith('.stator'))
-  let css = ''
   const islands: Array<{ rel: string; entry: string }> = []
   for (const file of statorFiles) {
-    const source = await readFile(file, 'utf8')
-    const { id: rel, kind } = sourceId(outDir, file)
-    const result = compile(source, {
-      id: rel,
-      kind,
-      resolveRegions: regionResolverFor(file, source),
-    })
-    await writeFile(`${file}.ts`, result.serverCode)
-    if (result.isClient) {
-      // The generated client entry, written as a sibling so the authored
-      // script's relative imports resolve against the mirrored dist tree.
-      await writeFile(`${file}.client.ts`, result.clientCode)
-      islands.push({ rel, entry: `${file}.client.ts` })
-    }
-    if (result.css) css += `/* ${rel} */\n${result.css}\n`
+    const { rel, isClient, clientFile } = await compileComponentFile(file, outDir)
+    if (isClient) islands.push({ rel, entry: clientFile! })
   }
   for (const file of statorFiles) await rm(file)
 
@@ -180,9 +179,20 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
     if (rewritten !== code) await writeFile(file, rewritten)
   }
 
-  if (css) {
-    await mkdir(join(outDir, 'static'), { recursive: true })
-    await writeFile(join(outDir, 'static', 'components.css'), css)
+  // Route-level, usage-driven CSS: one artifact per route, from exactly the
+  // components that route's own import graph reaches (local siblings just
+  // written above, plus any node_modules component library's published
+  // sibling stylesheet) — not every component anywhere in the app.
+  const routeCss = await routeCssMap({ routesDir: join(outDir, 'routes'), baseDir: outDir })
+  const routeCssHrefs: Record<string, string> = {}
+  for (const [routeFile, text] of routeCss) {
+    const rel = relative(outDir, routeFile)
+      .replace(/\\/g, '/')
+      .replace(/\.(ts|js)$/, '.css')
+    const dest = join(outDir, 'static', 'css', rel)
+    await mkdir(dirname(dest), { recursive: true })
+    await writeFile(dest, text)
+    routeCssHrefs[relative(outDir, routeFile).replace(/\\/g, '/')] = `/static/css/${rel}`
   }
 
   // Machine code hashes for the snapshot hydration policy: one esbuild pass
@@ -217,6 +227,7 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
       ? {
           buildId: randomUUID(),
           ...(await buildClientAssets(outDir, islands)),
+          routeCss: routeCssHrefs,
           machines,
           config: configFile,
           statorVersion,
@@ -225,6 +236,7 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
           buildId: randomUUID(),
           islands: {},
           routes: {},
+          routeCss: routeCssHrefs,
           machines,
           config: configFile,
           statorVersion,
@@ -234,7 +246,7 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   return {
     outDir,
     compiled: statorFiles.length,
-    hasCss: Boolean(css),
+    hasCss: Object.keys(routeCssHrefs).length > 0,
     islands: islands.length,
     machines: machineFiles.length,
     machineHashMs,

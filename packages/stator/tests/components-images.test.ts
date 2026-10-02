@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { getImage, Image, Picture } from '../src/components/images.ts'
+import Image from '../src/components/image.stator.ts'
+import { getImage, getPicture, SOURCE_TYPES } from '../src/components/images.ts'
+import Picture from '../src/components/picture.stator.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import type { HtmlFragment } from '../src/template/types.ts'
 
@@ -50,6 +52,41 @@ describe('getImage', () => {
     expect(r.src).toBe('/media/tiny.jpg')
     expect(r.srcset).toBeNull()
     expect(r.width).toBe(120)
+  })
+})
+
+describe('getPicture', () => {
+  const inRender = <T>(fn: () => T): T =>
+    runInRender(createRenderState('test-session', 'GET /'), fn)
+
+  it('resolves the same sources <Picture> renders, as data — no markup', () => {
+    const { sources, image } = inRender(() =>
+      getPicture({ src: '/media/x.jpg', width: 1000, height: 500, alt: 'x' }),
+    )
+    expect(sources.map((s) => s.format)).toEqual(['avif', 'webp'])
+    expect(sources.every((s) => s.srcset.includes('.avif') || s.srcset.includes('.webp'))).toBe(
+      true,
+    )
+    expect(image.src).toBe('/media/x.jpg')
+    expect(image.width).toBe(1000)
+  })
+
+  it('collapses to no sources when remote or too small — same cases <Picture> collapses on', () => {
+    const remote = inRender(() =>
+      getPicture({ src: 'https://a.example/x.jpg', width: 800, height: 600, alt: 'x' }),
+    )
+    expect(remote.sources).toEqual([])
+    const tiny = inRender(() =>
+      getPicture({ src: '/media/x.jpg', width: 100, height: 100, alt: 'x' }),
+    )
+    expect(tiny.sources).toEqual([])
+  })
+
+  it('a custom <picture> can build its own <source> tags from SOURCE_TYPES', () => {
+    const { sources } = inRender(() =>
+      getPicture({ src: '/media/x.jpg', width: 1000, height: 500, alt: 'x' }),
+    )
+    for (const s of sources) expect(SOURCE_TYPES[s.format]).toMatch(/^image\//)
   })
 })
 

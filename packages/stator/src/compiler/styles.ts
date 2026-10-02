@@ -156,29 +156,52 @@ function scopeSelectorList(selector: string, attr: string): string {
 
       if (subjectIsGlobal) return
 
-      // Insert the scope attribute after the subject's last simple selector,
-      // before any trailing pseudo-elements (::before, ::after).
-      const nodes = sel.nodes
-      let insertAfter: selectorParser.Node | undefined
-      for (const node of nodes) {
-        if (node.type === 'combinator') {
-          insertAfter = undefined // reset at each combinator; track the subject only
-          continue
-        }
-        if (node.type === 'pseudo' && node.value.startsWith('::')) continue // pseudo-element stays last
-        insertAfter = node
-      }
-      const attrNode = selectorParser.attribute({
-        attribute: attr,
-        value: undefined,
-        raws: {},
-        quoteMark: null,
-      } as never)
-      if (insertAfter) sel.insertAfter(insertAfter as never, attrNode)
-      else sel.append(attrNode)
+      attachScopeAttr(sel, attr)
     })
   })
   return transform.processSync(selector)
+}
+
+function makeAttrNode(attr: string): selectorParser.Attribute {
+  return selectorParser.attribute({
+    attribute: attr,
+    value: undefined,
+    raws: {},
+    quoteMark: null,
+  } as never)
+}
+
+/** Insert the scope attribute after the subject's last simple selector,
+ *  before any trailing pseudo-elements (::before, ::after).
+ *
+ *  `:where(...)` is special-cased: by spec its specificity is always zero
+ *  regardless of its contents, so appending the attribute AFTER it
+ *  (`:where(img)[data-s-h]`) would add a real specificity point and defeat
+ *  that. The attribute goes INSIDE each of `:where()`'s own arguments instead
+ *  (`:where(img[data-s-h])`), recursively, keeping the compiled selector
+ *  genuinely zero-specificity. */
+function attachScopeAttr(sel: selectorParser.Selector, attr: string): void {
+  const nodes = sel.nodes
+  let insertAfter: selectorParser.Node | undefined
+  for (const node of nodes) {
+    if (node.type === 'combinator') {
+      insertAfter = undefined // reset at each combinator; track the subject only
+      continue
+    }
+    if (node.type === 'pseudo' && node.value.startsWith('::')) continue // pseudo-element stays last
+    insertAfter = node
+  }
+  if (!insertAfter) {
+    sel.append(makeAttrNode(attr))
+    return
+  }
+  if (insertAfter.type === 'pseudo' && insertAfter.value === ':where') {
+    for (const inner of insertAfter.nodes) {
+      attachScopeAttr(inner as selectorParser.Selector, attr)
+    }
+    return
+  }
+  sel.insertAfter(insertAfter as never, makeAttrNode(attr))
 }
 
 /** True when the selector's subject compound (after the last combinator) is

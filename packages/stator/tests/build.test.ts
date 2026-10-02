@@ -7,11 +7,13 @@ import { loadProductionHead } from '../src/build/head.ts'
 import { createApp } from '../src/server/create-app.ts'
 
 /**
- * The production build: a `.stator` app → a `dist/` of plain `.ts`, a
- * concatenated `components.css`, and (when the app has client components) a
- * Vite-bundled `static/assets/` plus `stator-manifest.json`. The serve test
- * runs `createApp` over the dist with `loadProductionHead` — the real
- * production wiring, no Vite at serve time.
+ * The production build: a `.stator` app → a `dist/` of plain `.ts`, one scoped-
+ * CSS artifact PER ROUTE under `dist/static/css/` (only the components that
+ * route's own import graph reaches — not a global stylesheet shared by every
+ * page), and (when the app has client components) a Vite-bundled
+ * `static/assets/` plus `stator-manifest.json`. The serve test runs
+ * `createApp` over the dist with `loadProductionHead` — the real production
+ * wiring, no Vite at serve time.
  *
  * outDir lives under `fixtures/` so the dist tree sits at the same depth as
  * the fixture source — the fixture's relative framework imports
@@ -60,10 +62,16 @@ describe('build: buildApp', () => {
     expect(route).toContain("'../templates/widget.stator.ts'")
     expect(route).not.toContain("'../templates/widget.stator'")
 
-    // Scoped CSS was concatenated to components.css.
-    const css = await readFile(join(outDir, 'static/components.css'), 'utf8')
-    expect(css).toMatch(/\.widget\[data-s-[0-9a-f]{8}\]/)
-    expect(css).toContain('teal')
+    const sibling = await readFile(join(outDir, 'templates/widget.stator.css'), 'utf8')
+    expect(sibling).toMatch(/\.widget\[data-s-[0-9a-f]{8}\]/)
+    expect(sibling).toContain('teal')
+
+    const routeCss = await readFile(join(outDir, 'static/css/routes/index.css'), 'utf8')
+    expect(routeCss).toContain(sibling)
+  })
+
+  it('a route that reaches no styled component gets no CSS artifact at all', async () => {
+    expect(await exists(join(outDir, 'static/css/routes/stepper.css'))).toBe(false)
   })
 
   it('bundles client components to hashed assets with a manifest', async () => {
@@ -152,12 +160,16 @@ describe('build: buildApp', () => {
       /<script type="module" src="\/static\/assets\/templates_stepper-[\w-]+\.js"><\/script>/,
     )
     expect(stepperHtml).toContain('<count-stepper')
-    expect(stepperHtml).toContain('<link rel="stylesheet" href="/static/components.css">')
+    expect(stepperHtml).not.toContain('stylesheet')
 
-    // The island-free route gets CSS but no island script.
+    // This fixture's render has no <head> to inject into, so check
+    // headExtras directly rather than the served HTML.
     const indexRes = await app.fetch(new Request('http://localhost/'))
     const indexHtml = await indexRes.text()
     expect(indexHtml).not.toContain('type="module"')
+    expect(headExtras(join(outDir, 'routes/index.ts'))).toContain(
+      '<link rel="stylesheet" href="/static/css/routes/index.css">',
+    )
 
     // The hashed asset is served by the static handler.
     const url = stepperHtml.match(/src="(\/static\/assets\/[^"]+)"/)![1]!

@@ -52,6 +52,23 @@ describe('compiler: scopeCss (attribute scoping)', () => {
     const out = scopeCss('@media (min-width: 600px) { .btn { color: red } }', H)
     expect(out).toContain(`.btn${A}`)
   })
+
+  it('puts the scope attribute INSIDE :where(), preserving its zero specificity', () => {
+    const out = scopeCss(':where(img) { display: block }', H)
+    expect(out).toContain(`:where(img${A})`)
+    expect(out).not.toContain(`:where(img)${A}`)
+  })
+
+  it('handles multiple :where() arguments, attribute on each', () => {
+    const out = scopeCss(':where(img, picture) { display: block }', H)
+    expect(out).toContain(`:where(img${A}, picture${A})`)
+  })
+
+  it('still scopes a non-subject ancestor normally when the subject is :where()', () => {
+    const out = scopeCss('.card :where(img) { display: block }', H)
+    expect(out).toContain(`.card :where(img${A})`)
+    expect(out).not.toContain(`.card${A}`)
+  })
 })
 
 describe('client-component descendant scoping', () => {

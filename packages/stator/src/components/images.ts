@@ -1,11 +1,12 @@
 import { DEFAULT_IMAGE_WIDTHS } from '../server/images.ts'
 import { currentImages } from '../server/render-context.ts'
-import { html } from '../template/html.ts'
-import type { HtmlFragment } from '../template/types.ts'
 
 /**
- * `getImage()` + `<Image>`/`<Picture>` — the render half of framework image
- * support (spec `images-are-part-of-stator-*`; endpoint in `server/images.ts`).
+ * `getImage()`/`getPicture()` — pure math over provided dimensions, no
+ * markup (endpoint in `server/images.ts`). The `<Image>`/`<Picture>` markup
+ * components are `image.stator`/`picture.stator` in this directory; these
+ * two plus `SOURCE_TYPES` (the format→mime-type map) stay exported here as
+ * the public escape hatch for a custom art-direction component.
  *
  * `src` is the PUBLIC URL of the original: an image-endpoint path
  * (`/media/2026/08/x.jpg`) gets derived variants — the endpoint's contract is
@@ -154,31 +155,6 @@ export type ImageProps = GetImageOptions &
     class?: string
   }
 
-export function Image(props: ImageProps): HtmlFragment {
-  const {
-    alt,
-    class: className,
-    sizes = '100vw',
-    priority,
-    loading = priority ? 'eager' : 'lazy',
-    fetchpriority = priority ? 'high' : undefined,
-    decoding = 'async',
-  } = props
-  const img = getImage(props)
-  return html`<img
-    src="${img.src}"
-    srcset="${img.srcset ?? undefined}"
-    sizes="${img.srcset ? sizes : undefined}"
-    alt="${alt}"
-    width="${img.width}"
-    height="${img.height}"
-    loading="${loading}"
-    fetchpriority="${fetchpriority}"
-    decoding="${decoding}"
-    class="${className}"
-  />`
-}
-
 /** An art-directed source: under `media`, serve a different GEOMETRY — the
  *  `crop` ratio the endpoint cover-crops to, same vocabulary and same
  *  allowlist as the plain `crop` prop. Reach for `sources` when the geometry
@@ -201,20 +177,45 @@ export type PictureProps = ImageProps & {
   sources?: PictureSource[]
 }
 
-const SOURCE_TYPES: Record<ImageFormat, string> = {
+/** `<source type>` for each delivery format — exported alongside `getPicture`
+ *  so a hand-rolled `<picture>` (art direction the first-party `<Picture>`
+ *  doesn't cover) can build its own `<source>` tags from `getImage`/
+ *  `getPicture` output without re-deriving this mapping. */
+export const SOURCE_TYPES: Record<ImageFormat, string> = {
   jpg: 'image/jpeg',
   png: 'image/png',
   webp: 'image/webp',
   avif: 'image/avif',
 }
 
-export function Picture(props: PictureProps): HtmlFragment {
+/** One resolved `<source>` candidate, most-specific (art-directed) first. */
+export interface ResolvedPictureSource {
+  media?: string
+  format: ImageFormat
+  srcset: string
+  sizes: string
+}
+
+export interface ResolvedPicture {
+  /** `<source>` candidates — empty when `src` is remote or no candidate
+   *  produced a srcset, in which case only `image` (the plain `<img>`) applies. */
+  sources: ResolvedPictureSource[]
+  /** The fallback `<img>`'s own resolved data — same shape `getImage()` returns,
+   *  built from the same props the sources were (`crop` included, so its
+   *  reserved box describes the cropped output rather than the source's own
+   *  shape). */
+  image: ResolvedImage
+}
+
+/** Pure `<picture>` math: every `<source>` candidate's resolved srcset plus
+ *  the fallback `<img>`'s own resolved data — no markup. `<Picture>` renders
+ *  this; a custom art-direction component that needs a different `<picture>`
+ *  shape than `<Picture>` offers can call this directly instead. */
+export function getPicture(props: PictureProps): ResolvedPicture {
   const { formats = ['avif', 'webp'], sources: artSources = [], sizes = '100vw', ...rest } = props
-  // The fallback <img> is built from the same props the sources were — `crop`
-  // included, so its reserved box describes the cropped output rather than the
-  // source's own shape.
   const imageProps = { ...rest, sizes } as ImageProps
-  if (isRemote(rest.src)) return Image(imageProps)
+  const image = getImage(imageProps)
+  if (isRemote(rest.src)) return { sources: [], image }
 
   const storedExt = rest.src.slice(rest.src.lastIndexOf('.') + 1).toLowerCase() as ImageFormat
 
@@ -242,19 +243,11 @@ export function Picture(props: PictureProps): HtmlFragment {
   )
   const plain = formats
     .map((format) => ({
-      media: undefined,
       format,
       srcset: getImage({ ...imageProps, format }).srcset,
       sizes,
     }))
     .filter((s) => s.srcset !== null)
 
-  const all = [...art, ...plain]
-  if (all.length === 0) return Image(imageProps)
-  return html`<picture
-    >${all.map(
-      (s) =>
-        html`<source media="${s.media ?? undefined}" type="${SOURCE_TYPES[s.format]}" srcset="${s.srcset}" sizes="${s.sizes}" />`,
-    )}${Image(imageProps)}</picture
-  >`
+  return { sources: [...art, ...plain] as ResolvedPictureSource[], image }
 }
