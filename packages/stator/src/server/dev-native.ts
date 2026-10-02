@@ -60,13 +60,8 @@ import { InMemoryStore } from './store.ts'
  *    graph serving and renders the error (with its code frame) in an overlay.
  *  - **Scoped CSS + island scripts** — islands bundle through the
  *    `bundleIslands` seam (Vite today, never on the SSR path) and are served
- *    from memory with the concatenated scoped CSS — every local `.stator`
- *    file's (by presence, not usage — dev has no payload-size pressure to
- *    justify route-level splitting) plus every reached `node_modules`
- *    component library's own published sibling `.css` (same resolution
- *    `route-css.ts` uses for production, just folded into this one file
- *    instead of per route) — on the same URLs and with the same `<head>`
- *    shape as production.
+ *    from memory with the concatenated scoped CSS, local and `node_modules`
+ *    alike, on the same URLs and with the same `<head>` shape as production.
  *
  * See spec `toolchain-adapter-seam-and-the-vite-exit`.
  */
@@ -170,12 +165,8 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   const versions = new Map<string, number>()
   const forward = new Map<string, Set<string>>()
   const importers = new Map<string, Set<string>>()
-  // Bare specifiers each app file imports directly — the union across every
-  // file (this already walks the whole app for `forward`/`importers`) is the
-  // full set of packages the app reaches, feeding the CSS aggregate below the
-  // same way `route-css.ts` feeds a route's: a reached package's own
-  // published sibling `.css` (`externalCss`), resolved once, never traced
-  // further into `node_modules`.
+  // Bare specifiers each app file imports directly, feeding the CSS
+  // aggregate below via each package's own sibling `.css` (`externalCss`).
   const externalSpecs = new Map<string, Set<string>>()
   let seq = 0
   const acks = new Map<number, () => void>()

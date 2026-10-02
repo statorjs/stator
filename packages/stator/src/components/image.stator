@@ -27,11 +27,8 @@ const img = getImage(p)
 />
 
 <style>
-  /* The responsive-image baseline every <Image>/<Picture> gets for free:
-     block (not inline, which leaves a descender-height gap under the image)
-     and constrained to its container while height:auto preserves the
-     intrinsic aspect ratio the width/height attributes already declare.
-     Anything past this — radius, margin, object-fit — is the app's call. */
+  /* height:auto preserves the aspect ratio the width/height attributes
+     declare; radius, margin, object-fit are the app's call. */
   :where(img) {
     display: block;
     max-width: 100%;

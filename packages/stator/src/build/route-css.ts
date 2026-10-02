@@ -4,28 +4,18 @@ import { resolve } from 'node:path'
 import { walkFiles } from './islands.ts'
 
 /**
- * Per-route, usage-driven scoped CSS (spec
+ * Per-route scoped CSS (spec
  * `stator-component-libraries-publish-time-compile-per-component-scoped-css-usage-driven-aggregation`).
- *
- * Mirrors `routeIslandMap`'s shape exactly — a separate walk per route file,
- * because genuine per-route granularity is cheaper as N small walks than one
- * combined esbuild pass with per-entry attribution. The walk itself is
- * origin-blind: a reached module's CSS comes from its sibling `.css` file,
- * resolved either as a plain filesystem sibling (local, in-tree) or through
- * Node's module resolution (a `node_modules` package declaring
- * `${specifier}.css` in its `exports` map) — one lookup, same shape, because by
- * the time this runs, local production output and a published library's
- * output are the identical shape: a compiled module plus a sibling `.css`.
- * `node_modules` stays opaque beyond that one resolution — a bare specifier is
- * recorded and resolved for its OWN sibling stylesheet, never traced into.
+ * A separate reachability walk per route file. A reached module's CSS comes
+ * from its sibling `.css` file, resolved as a filesystem sibling (local) or
+ * through Node's module resolution (a `node_modules` package declaring
+ * `${specifier}.css` in its `exports` map) — `node_modules` is never traced
+ * beyond that one resolution.
  *
  * "Reached" is static import-graph reachability, not render-tracing: a
  * component used only inside an inactive `match`/`when`/`each` arm is still
- * reached, because a live SSE update can activate that arm later with no
- * fresh HTTP request
- * (`conditional-arm-interiors-are-second-class-on-the-live-update-path`) — its
- * CSS must already be present at the route's first paint. Do not narrow this
- * to what a given render actually produced.
+ * reached, since a live SSE update can activate that arm later with no fresh
+ * HTTP request — its CSS must already be present at the route's first paint.
  */
 
 const IMPORT_SPECIFIER_RE = /(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g
@@ -35,14 +25,11 @@ export interface Reached {
   external: Set<string>
 }
 
-/** Strip `/* *\/` and `//` comments before scanning for import specifiers — a
- *  doc-comment usage example (`*   import { X } from 'pkg'`) must never be
- *  mistaken for a real import. Tracks string/template-literal state so a `//`
- *  or `/*` INSIDE one (a URL, say) is left alone, and respects backslash
- *  escapes inside strings. Not a full tokenizer — doesn't walk into a
- *  template literal's `${...}` interpolation — but errs toward
- *  under-stripping on anything it's unsure about: a surviving comment risks
- *  one false-positive specifier, not mangled real code. */
+/** Strip `/* *\/` and `//` comments before scanning for import specifiers,
+ *  so a doc-comment usage example isn't mistaken for a real import. Tracks
+ *  string/template-literal state so a `//` or `/*` inside one is left alone.
+ *  Not a full tokenizer (doesn't walk into `${...}` interpolation); errs
+ *  toward under-stripping. */
 function stripComments(code: string): string {
   let out = ''
   let i = 0
@@ -83,12 +70,9 @@ function stripComments(code: string): string {
   return out
 }
 
-/** A file's import specifiers, split by kind. Relative specifiers are resolved
- *  and bounded to `baseDir` (exactly `localImports`'s contract in
- *  `islands.ts`); bare specifiers are recorded verbatim and never resolved
- *  here — resolving one is a separate, explicit step (`externalCss`), and
- *  nothing follows a bare specifier's own imports. A static regex read, no
- *  module evaluation. */
+/** A file's import specifiers, split by kind. Relative specifiers are
+ *  resolved and bounded to `baseDir`; bare specifiers are recorded verbatim,
+ *  never resolved or traced further here. */
 async function importsOf(
   file: string,
   baseDir: string,
@@ -114,12 +98,8 @@ async function importsOf(
   return { local, external }
 }
 
-/** A file's DIRECT bare-specifier imports only — no recursion, no relative
- *  resolution. The per-file primitive `dev-native.ts`'s incremental graph
- *  tracking reuses: the union of this over every app file (which it already
- *  walks for its own local import graph) equals the full set of packages the
- *  app reaches, the same thing `reachableFrom`'s recursive walk arrives at
- *  for one entry point. */
+/** A file's direct bare-specifier imports only — no recursion, no relative
+ *  resolution. Used by `dev-native.ts`'s incremental graph tracking. */
 export async function bareSpecifiersOf(file: string): Promise<string[]> {
   let code: string
   try {
@@ -150,21 +130,16 @@ async function walkReachable(
   for (const target of local) await walkReachable(target, baseDir, seen, out)
 }
 
-/** Every local file and bare specifier reachable from one entry file's import
- *  graph — the shared primitive behind per-route CSS (`routeCssMap`), a
- *  library's publish-time barrel aggregation (`entryCss`), and anything else
- *  that needs "what does this file's graph reach." */
+/** Every local file and bare specifier reachable from one entry file's
+ *  import graph. */
 export async function reachableFrom(entryFile: string, baseDir: string): Promise<Reached> {
   const reached: Reached = { local: new Set(), external: new Set() }
   await walkReachable(resolve(entryFile), resolve(baseDir), new Set(), reached)
   return reached
 }
 
-/** A reached local module's sibling CSS — `foo.ts` → `foo.css` next to it.
- *  Written by the same compile step that produced `foo.ts` (the production
- *  build; a library's publish-time compile is the identical operation run
- *  over its own source). Not every reached module is a compiled component —
- *  most simply have no sibling, which is a silent, expected miss. */
+/** A reached local module's sibling CSS — `foo.ts` → `foo.css`. Most reached
+ *  modules have no sibling; that's a silent, expected miss. */
 async function siblingCss(file: string): Promise<string | undefined> {
   const cssPath = file.replace(/\.(ts|js)$/, '.css')
   if (cssPath === file) return undefined
@@ -176,11 +151,7 @@ async function siblingCss(file: string): Promise<string | undefined> {
 }
 
 /** A bare specifier's published sibling stylesheet, if its package declares
- *  one at `${specifier}.css` in its `exports` map. Resolved once; never
- *  recursed into — `node_modules` stays opaque beyond this one lookup, same
- *  invariant that already governs how the build treats dependencies
- *  everywhere else (`copy-set.ts`). Exported so `dev-native.ts` can resolve
- *  the same way for its own (non-per-route) CSS aggregate. */
+ *  one at `${specifier}.css` in its `exports` map. */
 export async function externalCss(specifier: string, fromDir: string): Promise<string | undefined> {
   try {
     const require = createRequire(resolve(fromDir, 'noop.cjs'))
@@ -232,14 +203,8 @@ export async function routeCssMap(opts: {
   return out
 }
 
-/**
- * The same walk, rooted at a SINGLE entry file instead of every file in a
- * routes/ directory — for a `.stator` component library's own publish-time
- * compile, aggregating the CSS reachable from one public entry point (e.g.
- * its `components` barrel) into one sibling stylesheet matching that entry's
- * own published specifier (`components/index.ts` → `components.css`, resolved
- * by a consumer the same way any other reached module's CSS is).
- */
+/** The same walk, rooted at a single entry file instead of a routes/
+ *  directory — e.g. a component library's own `components.css`. */
 export async function entryCss(entryFile: string, baseDir: string): Promise<string> {
   const reached = await reachableFrom(entryFile, baseDir)
   return cssOf(reached, baseDir)

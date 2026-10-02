@@ -7,15 +7,11 @@ import { routeCssMap } from '../src/build/route-css.ts'
 /**
  * `routeCssMap`'s `node_modules` path: a route that imports a bare specifier
  * gets that package's sibling `${specifier}.css` export folded into its own
- * route artifact, resolved through the package's `exports` map — the same
- * one-hop lookup a published `.stator` component library relies on, with no
- * real library needed to exercise it (spec
- * `stator-component-libraries-publish-time-compile-per-component-scoped-css-usage-driven-aggregation`).
+ * route artifact, resolved through the package's `exports` map.
  *
- * The `node_modules` fixture is built in a temp dir at test time, not checked
- * into `tests/fixtures/` — `node_modules/` is gitignored repo-wide, so a
- * static fixture under it would silently vanish from a fresh clone/CI (same
- * reason `copy-set.test.ts`'s `node_modules` fixtures are built this way).
+ * The `node_modules` fixture is built in a temp dir at test time rather than
+ * checked into `tests/fixtures/`, since `node_modules/` is gitignored
+ * repo-wide.
  */
 
 let base: string | undefined

@@ -54,12 +54,6 @@ describe('compiler: scopeCss (attribute scoping)', () => {
   })
 
   it('puts the scope attribute INSIDE :where(), preserving its zero specificity', () => {
-    // :where()'s whole point is always-zero specificity — an author reaches
-    // for it so a rule (a component library's own baseline, say) stays
-    // trivially overridable. Appending the attribute AFTER :where(...)
-    // instead of inside it would add a real specificity point and silently
-    // defeat that: `:where(img)[data-s-h]` is no longer zero-specificity,
-    // `:where(img[data-s-h])` still is.
     const out = scopeCss(':where(img) { display: block }', H)
     expect(out).toContain(`:where(img${A})`)
     expect(out).not.toContain(`:where(img)${A}`)

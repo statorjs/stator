@@ -62,21 +62,15 @@ describe('build: buildApp', () => {
     expect(route).toContain("'../templates/widget.stator.ts'")
     expect(route).not.toContain("'../templates/widget.stator'")
 
-    // Scoped CSS landed as a sibling of the compiled component...
     const sibling = await readFile(join(outDir, 'templates/widget.stator.css'), 'utf8')
     expect(sibling).toMatch(/\.widget\[data-s-[0-9a-f]{8}\]/)
     expect(sibling).toContain('teal')
 
-    // ...and the index route, which reaches widget.stator, gets its own CSS
-    // artifact built from exactly that — not a global file every route shares.
     const routeCss = await readFile(join(outDir, 'static/css/routes/index.css'), 'utf8')
     expect(routeCss).toContain(sibling)
   })
 
   it('a route that reaches no styled component gets no CSS artifact at all', async () => {
-    // routes/stepper.ts only reaches stepper.stator, which has no <style>
-    // block — this is the usage-driven aggregation fix: presence in the app
-    // tree is not enough to ship a component's CSS to an unrelated route.
     expect(await exists(join(outDir, 'static/css/routes/stepper.css'))).toBe(false)
   })
 
@@ -166,14 +160,10 @@ describe('build: buildApp', () => {
       /<script type="module" src="\/static\/assets\/templates_stepper-[\w-]+\.js"><\/script>/,
     )
     expect(stepperHtml).toContain('<count-stepper')
-    // stepper.stator has no <style> block and reaches no other styled
-    // component — its route gets no stylesheet link at all.
     expect(stepperHtml).not.toContain('stylesheet')
 
-    // The index route reaches widget.stator (styled) but no island — it gets
-    // its OWN CSS artifact, not stepper's, and no island script. Its fixture
-    // render has no <head> to inject into, so check headExtras directly
-    // rather than the served HTML.
+    // This fixture's render has no <head> to inject into, so check
+    // headExtras directly rather than the served HTML.
     const indexRes = await app.fetch(new Request('http://localhost/'))
     const indexHtml = await indexRes.text()
     expect(indexHtml).not.toContain('type="module"')

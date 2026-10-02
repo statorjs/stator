@@ -11,15 +11,9 @@ export interface CompileComponentResult {
   clientFile?: string
 }
 
-/**
- * Compile one `.stator` file to its sibling `.ts` (+ a sibling `.css` when it
- * has scoped styles) — the ONE operation behind both the app production build
- * (`build.ts`) and a `.stator` component library's publish-time compile
- * (`scripts/compile-components.ts`): same compiler, same sibling-pair shape,
- * so a consumer's per-route CSS aggregator (`route-css.ts`) never needs to
- * know which one produced a given compiled module (spec
- * `stator-component-libraries-publish-time-compile-per-component-scoped-css-usage-driven-aggregation`).
- */
+/** Compile one `.stator` file to its sibling `.ts` (+ a sibling `.css` when
+ *  it has scoped styles). Used by both `build.ts` and
+ *  `scripts/compile-components.ts`. */
 export async function compileComponentFile(
   file: string,
   baseDir: string,

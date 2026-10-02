@@ -2,22 +2,11 @@ import { DEFAULT_IMAGE_WIDTHS } from '../server/images.ts'
 import { currentImages } from '../server/render-context.ts'
 
 /**
- * `getImage()`/`getPicture()` — pure math over provided dimensions, no markup.
- * This is the render MATH half of framework image support (spec
- * `images-are-part-of-stator-*`; endpoint in `server/images.ts`); the actual
- * `<Image>`/`<Picture>` markup components are real `.stator` components,
- * `image.stator`/`picture.stator` in this directory, compiled to
- * `image.stator.ts`/`picture.stator.ts` by `scripts/compile-components.ts`
- * (see spec
- * `stator-component-libraries-publish-time-compile-per-component-scoped-css-usage-driven-aggregation`
- * for why that compile step exists — this package ships raw source with no
- * build step everywhere else, but a `.stator` component shipped from a
- * published package needs to already be compiled, same as any `.stator`
- * component library would).
- *
- * `getImage`/`getPicture` plus `SOURCE_TYPES` (the format→mime-type map) stay
- * exported here as the public escape hatch for a custom art-direction
- * component the first-party `<Image>`/`<Picture>` doesn't cover.
+ * `getImage()`/`getPicture()` — pure math over provided dimensions, no
+ * markup (endpoint in `server/images.ts`). The `<Image>`/`<Picture>` markup
+ * components are `image.stator`/`picture.stator` in this directory; these
+ * two plus `SOURCE_TYPES` (the format→mime-type map) stay exported here as
+ * the public escape hatch for a custom art-direction component.
  *
  * `src` is the PUBLIC URL of the original: an image-endpoint path
  * (`/media/2026/08/x.jpg`) gets derived variants — the endpoint's contract is
