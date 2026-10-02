@@ -1,0 +1,13 @@
+---
+import type { InstanceOf } from '@statorjs/stator/template'
+import Badge from './badge.stator'
+import type Toggle from '../machines/toggle.ts'
+
+const { toggle } = Stator.props<{ toggle: InstanceOf<typeof Toggle> }>()
+---
+<div>
+  {match(read(toggle, (m) => m.status), {
+    loading: () => <p>Loading…</p>,
+    ready: () => <Badge />,
+  })}
+</div>

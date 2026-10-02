@@ -1,0 +1,7 @@
+<span class="badge">Ready</span>
+
+<style>
+  .badge {
+    color: green;
+  }
+</style>
