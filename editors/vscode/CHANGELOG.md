@@ -1,5 +1,11 @@
 # stator-vscode
 
+## 1.3.2-next.0
+
+### Patch Changes
+
+- 035b68b: Fixed the scoped-styles compiler to put the scope attribute INSIDE a `:where(...)` selector's own arguments instead of appending it after, so `:where(...)` keeps the zero specificity it's meant to guarantee. This changes the compiled CSS the extension shows (hover, diagnostics, virtual code) for any `.stator` component whose `<style>` block uses `:where()`.
+
 ## 1.3.1
 
 ### Patch Changes
