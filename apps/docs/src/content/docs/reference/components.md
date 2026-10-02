@@ -37,6 +37,7 @@ The payload is typed against `schema-dts`, gets `@context` added (or is wrapped 
 function Image(props: ImageProps): HtmlFragment
 function Picture(props: PictureProps): HtmlFragment
 function getImage(opts: GetImageOptions): ResolvedImage
+function getPicture(props: PictureProps): ResolvedPicture
 
 type ImageProps = {
   src: string          // image-endpoint path (/media/…) or a remote URL
@@ -66,9 +67,16 @@ interface PictureSource {
   sizes?: string
   widths?: number[]
 }
+
+interface ResolvedPicture {
+  sources: ResolvedPictureSource[]   // <source> candidates <Picture> would render
+  image: ResolvedImage               // the fallback <img>'s own resolved data
+}
 ```
 
-`<Image>` emits one `<img>` with `width`/`height` always present (the browser reserves the aspect-ratio box before any bytes load), a `srcset` over the [image endpoint](/guides/styling-and-assets/#images) for endpoint-served sources, and `loading="lazy"` + `decoding="async"` defaults. `<Picture>` wraps it in modern-format `<source>` elements with the stored format as fallback, and collapses to a plain `<img>` when no source applies (a remote URL, or an image smaller than every candidate width). `getImage()` is the pure resolver beneath both — pass it the same options and place the returned `src`/`srcset`/`width`/`height` in your own markup.
+`<Image>` emits one `<img>` with `width`/`height` always present (the browser reserves the aspect-ratio box before any bytes load), a `srcset` over the [image endpoint](/guides/styling-and-assets/#images) for endpoint-served sources, and `loading="lazy"` + `decoding="async"` defaults. It also carries its own scoped baseline styles — `display: block`, `max-width: 100%`, `height: auto` — so it looks reasonable with zero app CSS; layer your own radius, margin, or `object-fit` on top via `class`. `<Picture>` wraps it in modern-format `<source>` elements with the stored format as fallback, and collapses to a plain `<img>` when no source applies (a remote URL, or an image smaller than every candidate width).
+
+`getImage()`/`getPicture()` are the pure resolvers beneath `<Image>`/`<Picture>` — no markup, just the computed `src`/`srcset`/dimensions (and, for `getPicture()`, the resolved `<source>` list). Reach for these directly when you need a `<picture>` shape the first-party component doesn't offer: pass the same props, place the result in your own markup. `SOURCE_TYPES` (`Record<ImageFormat, string>`, e.g. `avif` → `'image/avif'`) is exported alongside them for building your own `<source type>` attributes.
 
 **Cropping.** `crop` is a ratio the endpoint cover-crops to (`?w=&h=`), and the reported `width`/`height` describe the *cropped* result, so the reserved box matches what actually arrives. The ratio must be on the endpoint's allowlist (`images.aspectRatios` — square, 4:3, 3:2, 16:9 and their portrait duals by default); one the endpoint would reject is a render **error**, never a silently dropped source. Use `sources` when the geometry *varies by breakpoint* — art direction, the genuinely hard mode of `<picture>`: each entry crops under its media condition, crossed with every format *including the stored one* (without that row, a browser with no modern-format support would fall past the media condition to the uncropped fallback), and a per-source `crop` overrides the component-level one for that breakpoint. A single fixed geometry — a thumbnail grid — is just `crop` on the component, no media query required. Inside a configured app, srcset widths and crop validation read the resolved config from the render state, so component output can't drift from what the endpoint accepts.
 
