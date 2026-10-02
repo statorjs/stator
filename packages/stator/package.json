@@ -59,6 +59,7 @@
       "types": "./src/components/index.ts",
       "default": "./src/components/index.ts"
     },
+    "./components.css": "./src/components/components.css",
     "./client": {
       "types": "./src/client/index.ts",
       "default": "./src/client/index.ts"

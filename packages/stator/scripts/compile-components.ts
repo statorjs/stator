@@ -3,6 +3,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { compileComponentFile } from '../src/build/compile-component.ts'
 import { walkFiles } from '../src/build/islands.ts'
+import { entryCss } from '../src/build/route-css.ts'
 
 /**
  * Publish-time compile for this package's OWN `.stator` components
@@ -24,6 +25,18 @@ import { walkFiles } from '../src/build/islands.ts'
  * file) — run `pnpm build:components` after editing `image.stator` or
  * `picture.stator` and commit the result. Also wired into `prepublishOnly` so
  * a release can never ship stale compiled output even if that was missed.
+ *
+ * Also aggregates `components.css`: `@statorjs/stator` publishes its
+ * components through ONE barrel subpath (`./components`, not one subpath per
+ * component), so a consumer's per-route resolver (`route-css.ts`) resolves a
+ * reached `'@statorjs/stator/components'` import to a SINGLE `./components.css`
+ * export — the CSS reachable from `index.ts` itself, walked the same way
+ * `route-css.ts` walks a route (`entryCss`, rooted at this one entry instead
+ * of a routes/ directory). This trades true per-component granularity for
+ * simplicity: importing `Image` from this barrel currently also pulls in
+ * `Picture`'s CSS if it ever has any, and vice versa. Acceptable while the
+ * barrel holds a couple of components; reconsider (per-component subpath
+ * exports, each with its own `.css`) if it grows a lot more.
  */
 async function main(): Promise<void> {
   const here = dirname(fileURLToPath(import.meta.url))
@@ -49,7 +62,20 @@ async function main(): Promise<void> {
     if (rewritten !== code) await writeFile(file, rewritten)
   }
 
-  console.log(`stator: compiled ${files.length} component(s) under src/components/`)
+  // Aggregate the barrel's own CSS — see the module doc comment for why this
+  // is one combined file rather than per-component, given today's exports
+  // shape. Written even when empty-to-date would make it absent, so the
+  // `./components.css` export always resolves to a real (if empty) file
+  // rather than consumers' resolution succeeding or failing depending on
+  // which components happen to have styles this release.
+  const cssOutFile = join(componentsDir, 'components.css')
+  const css = await entryCss(join(componentsDir, 'index.ts'), srcDir)
+  await writeFile(cssOutFile, css)
+
+  console.log(
+    `stator: compiled ${files.length} component(s) under src/components/` +
+      (css ? ` — components.css: ${css.length} bytes` : ' — components.css: empty'),
+  )
 }
 
 main().catch((err: unknown) => {

@@ -25,3 +25,16 @@ const img = getImage(p)
   decoding={decoding}
   class={className}
 />
+
+<style>
+  /* The responsive-image baseline every <Image>/<Picture> gets for free:
+     block (not inline, which leaves a descender-height gap under the image)
+     and constrained to its container while height:auto preserves the
+     intrinsic aspect ratio the width/height attributes already declare.
+     Anything past this — radius, margin, object-fit — is the app's call. */
+  img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+</style>

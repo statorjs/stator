@@ -30,7 +30,7 @@ import { walkFiles } from './islands.ts'
 
 const IMPORT_SPECIFIER_RE = /(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g
 
-interface Reached {
+export interface Reached {
   local: Set<string>
   external: Set<string>
 }
@@ -65,6 +65,27 @@ async function importsOf(
   return { local, external }
 }
 
+/** A file's DIRECT bare-specifier imports only — no recursion, no relative
+ *  resolution. The per-file primitive `dev-native.ts`'s incremental graph
+ *  tracking reuses: the union of this over every app file (which it already
+ *  walks for its own local import graph) equals the full set of packages the
+ *  app reaches, the same thing `reachableFrom`'s recursive walk arrives at
+ *  for one entry point. */
+export async function bareSpecifiersOf(file: string): Promise<string[]> {
+  let code: string
+  try {
+    code = await readFile(file, 'utf8')
+  } catch {
+    return []
+  }
+  const external: string[] = []
+  for (const match of code.matchAll(IMPORT_SPECIFIER_RE)) {
+    const spec = match[1]!
+    if (!spec.startsWith('.') && !spec.startsWith('node:')) external.push(spec)
+  }
+  return external
+}
+
 async function walkReachable(
   file: string,
   baseDir: string,
@@ -77,6 +98,16 @@ async function walkReachable(
   const { local, external } = await importsOf(file, baseDir)
   for (const spec of external) out.external.add(spec)
   for (const target of local) await walkReachable(target, baseDir, seen, out)
+}
+
+/** Every local file and bare specifier reachable from one entry file's import
+ *  graph — the shared primitive behind per-route CSS (`routeCssMap`), a
+ *  library's publish-time barrel aggregation (`entryCss`), and anything else
+ *  that needs "what does this file's graph reach." */
+export async function reachableFrom(entryFile: string, baseDir: string): Promise<Reached> {
+  const reached: Reached = { local: new Set(), external: new Set() }
+  await walkReachable(resolve(entryFile), resolve(baseDir), new Set(), reached)
+  return reached
 }
 
 /** A reached local module's sibling CSS — `foo.ts` → `foo.css` next to it.
@@ -98,8 +129,9 @@ async function siblingCss(file: string): Promise<string | undefined> {
  *  one at `${specifier}.css` in its `exports` map. Resolved once; never
  *  recursed into — `node_modules` stays opaque beyond this one lookup, same
  *  invariant that already governs how the build treats dependencies
- *  everywhere else (`copy-set.ts`). */
-async function externalCss(specifier: string, fromDir: string): Promise<string | undefined> {
+ *  everywhere else (`copy-set.ts`). Exported so `dev-native.ts` can resolve
+ *  the same way for its own (non-per-route) CSS aggregate. */
+export async function externalCss(specifier: string, fromDir: string): Promise<string | undefined> {
   try {
     const require = createRequire(resolve(fromDir, 'noop.cjs'))
     const path = require.resolve(`${specifier}.css`)
@@ -111,6 +143,21 @@ async function externalCss(specifier: string, fromDir: string): Promise<string |
 
 function relFrom(baseDir: string, file: string): string {
   return file.slice(baseDir.length + 1).replace(/\\/g, '/')
+}
+
+/** Collect the sibling CSS of everything in a `Reached` set, local and
+ *  external alike — one algorithm, no branching on origin. */
+async function cssOf(reached: Reached, baseDir: string): Promise<string> {
+  let css = ''
+  for (const file of [...reached.local].sort()) {
+    const text = await siblingCss(file)
+    if (text) css += `/* ${relFrom(baseDir, file)} */\n${text}\n`
+  }
+  for (const spec of [...reached.external].sort()) {
+    const text = await externalCss(spec, baseDir)
+    if (text) css += `/* ${spec} */\n${text}\n`
+  }
+  return css
 }
 
 /**
@@ -128,18 +175,22 @@ export async function routeCssMap(opts: {
   )
   const out = new Map<string, string>()
   for (const routeFile of routeFiles) {
-    const reached: Reached = { local: new Set(), external: new Set() }
-    await walkReachable(routeFile, baseDir, new Set(), reached)
-    let css = ''
-    for (const file of [...reached.local].sort()) {
-      const text = await siblingCss(file)
-      if (text) css += `/* ${relFrom(baseDir, file)} */\n${text}\n`
-    }
-    for (const spec of [...reached.external].sort()) {
-      const text = await externalCss(spec, baseDir)
-      if (text) css += `/* ${spec} */\n${text}\n`
-    }
+    const reached = await reachableFrom(routeFile, baseDir)
+    const css = await cssOf(reached, baseDir)
     if (css) out.set(routeFile, css)
   }
   return out
+}
+
+/**
+ * The same walk, rooted at a SINGLE entry file instead of every file in a
+ * routes/ directory — for a `.stator` component library's own publish-time
+ * compile, aggregating the CSS reachable from one public entry point (e.g.
+ * its `components` barrel) into one sibling stylesheet matching that entry's
+ * own published specifier (`components/index.ts` → `components.css`, resolved
+ * by a consumer the same way any other reached module's CSS is).
+ */
+export async function entryCss(entryFile: string, baseDir: string): Promise<string> {
+  const reached = await reachableFrom(entryFile, baseDir)
+  return cssOf(reached, baseDir)
 }

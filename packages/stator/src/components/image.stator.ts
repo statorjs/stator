@@ -25,5 +25,5 @@ export default function (props: ImageProps) {
     decoding = 'async',
   } = p
   const img = getImage(p)
-  return html`<img src="${img.src}" srcset="${img.srcset ?? undefined}" sizes="${img.srcset ? sizes : undefined}" alt="${alt}" width="${img.width}" height="${img.height}" loading="${loading}" fetchpriority="${fetchpriority}" decoding="${decoding}" class="${className}" />`
+  return html`<img src="${img.src}" srcset="${img.srcset ?? undefined}" sizes="${img.srcset ? sizes : undefined}" alt="${alt}" width="${img.width}" height="${img.height}" loading="${loading}" fetchpriority="${fetchpriority}" decoding="${decoding}" class="${className}" data-s-6e2813d6 />`
 }

@@ -16,6 +16,7 @@ import {
   routeIslandMap,
   walkFiles,
 } from '../build/islands.ts'
+import { bareSpecifiersOf, externalCss } from '../build/route-css.ts'
 import { sourceId } from '../build/source-id.ts'
 import { CompileError, compile, formatCompileError, regionResolverFor } from '../compiler/index.ts'
 import type { AnyMachineDef, EventOf } from '../engine/index.ts'
@@ -59,8 +60,13 @@ import { InMemoryStore } from './store.ts'
  *    graph serving and renders the error (with its code frame) in an overlay.
  *  - **Scoped CSS + island scripts** — islands bundle through the
  *    `bundleIslands` seam (Vite today, never on the SSR path) and are served
- *    from memory with the concatenated scoped CSS, on the same URLs and with
- *    the same `<head>` shape as production.
+ *    from memory with the concatenated scoped CSS — every local `.stator`
+ *    file's (by presence, not usage — dev has no payload-size pressure to
+ *    justify route-level splitting) plus every reached `node_modules`
+ *    component library's own published sibling `.css` (same resolution
+ *    `route-css.ts` uses for production, just folded into this one file
+ *    instead of per route) — on the same URLs and with the same `<head>`
+ *    shape as production.
  *
  * See spec `toolchain-adapter-seam-and-the-vite-exit`.
  */
@@ -164,6 +170,13 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   const versions = new Map<string, number>()
   const forward = new Map<string, Set<string>>()
   const importers = new Map<string, Set<string>>()
+  // Bare specifiers each app file imports directly — the union across every
+  // file (this already walks the whole app for `forward`/`importers`) is the
+  // full set of packages the app reaches, feeding the CSS aggregate below the
+  // same way `route-css.ts` feeds a route's: a reached package's own
+  // published sibling `.css` (`externalCss`), resolved once, never traced
+  // further into `node_modules`.
+  const externalSpecs = new Map<string, Set<string>>()
   let seq = 0
   const acks = new Map<number, () => void>()
   port1.on('message', (m: { type?: string; id?: number }) => {
@@ -274,11 +287,16 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
     }
   }
   const updateEdges = async (files: string[]): Promise<void> => {
-    for (const f of files) setEdges(f, new Set((await localImports(f, root)).filter(isAppFile)))
+    for (const f of files) {
+      const [local, external] = await Promise.all([localImports(f, root), bareSpecifiersOf(f)])
+      setEdges(f, new Set(local.filter(isAppFile)))
+      externalSpecs.set(f, new Set(external))
+    }
   }
   const buildGraph = async (): Promise<void> => {
     forward.clear()
     importers.clear()
+    externalSpecs.clear()
     await updateEdges(await walkFiles(root, (f) => APP_EXT.test(f), skipDir))
   }
   /** The changed files plus everything that (transitively) imports them. */
@@ -314,10 +332,17 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
     }
   }
   let css = ''
-  const regenCss = (): void => {
-    css = ''
+  const regenCss = async (): Promise<void> => {
+    let next = ''
     for (const [file, info] of infos)
-      if (info.css) css += `/* ${sourceId(root, file).id} */\n${info.css}\n`
+      if (info.css) next += `/* ${sourceId(root, file).id} */\n${info.css}\n`
+    const packages = new Set<string>()
+    for (const specs of externalSpecs.values()) for (const spec of specs) packages.add(spec)
+    for (const spec of [...packages].sort()) {
+      const text = await externalCss(spec, root)
+      if (text) next += `/* ${spec} */\n${text}\n`
+    }
+    css = next
   }
 
   // ── Islands: bundled through the seam, held in memory ──────────────────────
@@ -449,7 +474,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
 
   await scanAll()
   await buildGraph()
-  regenCss()
+  await regenCss()
   await rebundleIslands()
   await rebuildStore()
   await rebuildServer()
@@ -478,7 +503,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       }
       const affected = affectedBy(files)
       await bumpVersions(affected)
-      regenCss()
+      await regenCss()
       const needsBundle =
         structural || files.some((f) => islandGraph.has(norm(f)) || infos.get(f)?.isClient)
       if (needsBundle) {
