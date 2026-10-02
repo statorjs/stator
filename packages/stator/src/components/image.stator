@@ -32,7 +32,7 @@ const img = getImage(p)
      and constrained to its container while height:auto preserves the
      intrinsic aspect ratio the width/height attributes already declare.
      Anything past this — radius, margin, object-fit — is the app's call. */
-  img {
+  :where(img) {
     display: block;
     max-width: 100%;
     height: auto;

@@ -3,7 +3,7 @@
      and constrained to its container while height:auto preserves the
      intrinsic aspect ratio the width/height attributes already declare.
      Anything past this — radius, margin, object-fit — is the app's call. */
-img[data-s-6e2813d6] {
+:where(img[data-s-6e2813d6]) {
   display: block;
   max-width: 100%;
   height: auto;

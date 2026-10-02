@@ -35,6 +35,55 @@ export interface Reached {
   external: Set<string>
 }
 
+/** Strip `/* *\/` and `//` comments before scanning for import specifiers — a
+ *  doc-comment usage example (`*   import { X } from 'pkg'`, an entirely
+ *  normal pattern; this codebase's own `json-ld.ts` has one) must never be
+ *  mistaken for a real import. Tracks string/template-literal state so a `//`
+ *  or `/*` INSIDE one (a URL, say) is left alone, and respects backslash
+ *  escapes inside strings. Not a full tokenizer — doesn't walk into a
+ *  template literal's `${...}` interpolation — but errs toward
+ *  under-stripping on anything it's unsure about: a surviving comment risks
+ *  one false-positive specifier, not mangled real code. */
+function stripComments(code: string): string {
+  let out = ''
+  let i = 0
+  let inString: '"' | "'" | '`' | null = null
+  while (i < code.length) {
+    const c = code[i]!
+    const next = code[i + 1]
+    if (inString) {
+      out += c
+      if (c === '\\' && next !== undefined) {
+        out += next
+        i += 2
+        continue
+      }
+      if (c === inString) inString = null
+      i += 1
+      continue
+    }
+    if (c === '"' || c === "'" || c === '`') {
+      inString = c
+      out += c
+      i += 1
+      continue
+    }
+    if (c === '/' && next === '/') {
+      const nl = code.indexOf('\n', i)
+      i = nl === -1 ? code.length : nl
+      continue
+    }
+    if (c === '/' && next === '*') {
+      const end = code.indexOf('*/', i + 2)
+      i = end === -1 ? code.length : end + 2
+      continue
+    }
+    out += c
+    i += 1
+  }
+  return out
+}
+
 /** A file's import specifiers, split by kind. Relative specifiers are resolved
  *  and bounded to `baseDir` (exactly `localImports`'s contract in
  *  `islands.ts`); bare specifiers are recorded verbatim and never resolved
@@ -51,6 +100,7 @@ async function importsOf(
   } catch {
     return { local: [], external: [] }
   }
+  code = stripComments(code)
   const local: string[] = []
   const external: string[] = []
   for (const match of code.matchAll(IMPORT_SPECIFIER_RE)) {
@@ -78,6 +128,7 @@ export async function bareSpecifiersOf(file: string): Promise<string[]> {
   } catch {
     return []
   }
+  code = stripComments(code)
   const external: string[] = []
   for (const match of code.matchAll(IMPORT_SPECIFIER_RE)) {
     const spec = match[1]!
