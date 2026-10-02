@@ -21,6 +21,8 @@
     "@statorjs/stator": "2.10.0"
   },
   "changesets": [
-    "framework-images"
+    "framework-images",
+    "scoped-styles-component-libraries",
+    "scoped-styles-vscode-where-fix"
   ]
 }
