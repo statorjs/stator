@@ -63,12 +63,14 @@ describe('compiler: component invocation (stage 1)', () => {
   })
 
   it('lowers a spread on an element to a spreadAttrs directive', () => {
-    expect(lowerTemplate('<button {...rest} />')).toBe('html`<button ${spreadAttrs(rest)} />`')
+    expect(lowerTemplate('<button {...rest} />')).toBe(
+      'html`<button ${spreadAttrs(rest)}></button>`',
+    )
   })
 
   it('keeps element spread in source order among static attributes', () => {
     expect(lowerTemplate('<button type="submit" {...rest} disabled />')).toBe(
-      'html`<button type="submit" ${spreadAttrs(rest)} disabled />`',
+      'html`<button type="submit" ${spreadAttrs(rest)} disabled></button>`',
     )
   })
 

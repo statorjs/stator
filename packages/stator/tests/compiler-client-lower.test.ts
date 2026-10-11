@@ -87,7 +87,7 @@ describe('compiler: client-component lowering', () => {
 
   it('keeps ref: (data-ref) alongside collected client wiring', () => {
     const { shell, directives } = lowerClient('<input ref:field on:change={commit} />', ['draft'])
-    expect(shell).toBe('html`<input data-ref="field" data-b="b0" />`')
+    expect(shell).toBe('html`<input data-ref="field" data-b="b0">`')
     expect(directives[0]).toMatchObject({ kind: 'on', event: 'change' })
   })
 

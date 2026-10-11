@@ -19,6 +19,7 @@
  */
 
 import ts from 'typescript'
+import { VOID_ELEMENTS } from '../template/void-elements.ts'
 import { analyzeScriptClasses } from './client-script.ts'
 import { statorPropsType } from './dts.ts'
 import { CLIENT_AUTHOR_GLOBALS, TEMPLATE_AUTHOR_GLOBALS } from './emit-names.ts'
@@ -186,23 +187,6 @@ function buildServerTsx(regions: ScannedRegions): VirtualFile {
   return { lang: 'tsx', code, mappings }
 }
 
-/** HTML void elements — legal unclosed in templates, not in TSX. */
-const VOID_TAGS = new Set([
-  'area',
-  'base',
-  'br',
-  'col',
-  'embed',
-  'hr',
-  'img',
-  'input',
-  'link',
-  'meta',
-  'source',
-  'track',
-  'wbr',
-])
-
 /**
  * Append the template to the virtual TSX with HTML→TSX compatibility applied
  * AND offset mappings kept exact around every edit:
@@ -270,7 +254,7 @@ function appendTemplateTsx(
         if (ch === '>') break
         j++
       }
-      if (VOID_TAGS.has(tag.toLowerCase()) && j < tpl.length) {
+      if (VOID_ELEMENTS.has(tag.toLowerCase()) && j < tpl.length) {
         // Self-close unless the author already did.
         let k = j - 1
         while (k > i && /\s/.test(tpl[k]!)) k--

@@ -17,6 +17,7 @@ import {
 } from '../server/render-context.ts'
 import { isReadResult, type ReadResult } from './read.ts'
 import { type HtmlFragment, isHtmlFragment } from './types.ts'
+import { VOID_ELEMENTS } from './void-elements.ts'
 
 export interface EachOptions<T> {
   /** Item identity. When present, list changes emit per-item insert/remove/move
@@ -298,23 +299,6 @@ export function renderKeyedItem<T>(
   return { html, bindings }
 }
 
-const VOID_TAGS = new Set([
-  'area',
-  'base',
-  'br',
-  'col',
-  'embed',
-  'hr',
-  'img',
-  'input',
-  'link',
-  'meta',
-  'param',
-  'source',
-  'track',
-  'wbr',
-])
-
 /**
  * True when `html` consists of exactly one root element (plus optional
  * surrounding whitespace). A small scanner, quote- and comment-aware — not a
@@ -361,7 +345,7 @@ export function isSingleRootElement(html: string): boolean {
     } else {
       const nameMatch = html.slice(i + 1, j).match(/^([a-zA-Z][\w-]*)/)
       const tag = nameMatch ? nameMatch[1]!.toLowerCase() : ''
-      const selfClosing = html[j - 1] === '/' || VOID_TAGS.has(tag)
+      const selfClosing = html[j - 1] === '/' || VOID_ELEMENTS.has(tag)
       if (depth === 0) {
         roots++
         if (roots > 1) return false

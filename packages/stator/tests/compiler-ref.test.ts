@@ -29,7 +29,7 @@ describe('compiler: ref: directive (3b stage 2)', () => {
 
   it('keeps ref: alongside normal attributes', () => {
     expect(lowerTemplate('<input ref:field type="text" />')).toBe(
-      'html`<input data-ref="field" type="text" />`',
+      'html`<input data-ref="field" type="text">`',
     )
   })
 
