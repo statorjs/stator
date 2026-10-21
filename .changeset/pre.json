@@ -21,8 +21,11 @@
     "@statorjs/stator": "2.10.0"
   },
   "changesets": [
+    "button-form-attrs",
     "framework-images",
+    "json-ld-script-escapes",
     "scoped-styles-component-libraries",
-    "scoped-styles-vscode-where-fix"
+    "scoped-styles-vscode-where-fix",
+    "self-closing-non-void"
   ]
 }
