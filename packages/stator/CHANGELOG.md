@@ -1,5 +1,13 @@
 # @statorjs/stator
 
+## 2.11.0-next.2
+
+### Patch Changes
+
+- b7241f3: `HTMLAttributes<'button'>` and `HTMLAttributes<'input'>` now type the per-button form submission overrides: `formaction`, `formenctype`, `formmethod`, `formnovalidate` and `formtarget`. A submit button that targets a different endpoint inside one form no longer needs a spread cast.
+- a58006a: `<JsonLd>` now escapes `<`, `>` and `&` in the serialized payload as JSON `<`-style escapes instead of HTML entities. Script content is raw text to the HTML parser, so the old entities reached structured-data consumers literally (`20&apos;`, `plug &amp; play`); the JSON escapes decode back to the real characters while still preventing a `</script>` breakout. Quotes are no longer rewritten (`JSON.stringify` already handles them), and U+2028/U+2029 are escaped as well.
+- a58006a: A self-closing non-void element in a template (`<div />`, `<my-widget />`) now compiles to an explicitly closed element (`<div></div>`). HTML has no self-closing syntax for non-void elements, so browsers read `<div />` as an open tag and nest every following sibling inside it. Void elements (`<br />`, `<img />`, `<input />`) emit without the meaningless trailing slash (`<br>`).
+
 ## 2.11.0-next.1
 
 ### Minor Changes
