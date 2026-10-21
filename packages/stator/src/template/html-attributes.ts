@@ -73,6 +73,14 @@ export interface ElementSpecificAttributes {
     autofocus?: boolean
     popovertarget?: string
     popovertargetaction?: 'show' | 'hide' | 'toggle'
+    /** Per-button overrides of the owning form's submission settings — the
+     *  standard way to point one submit button in a multi-action form at a
+     *  different endpoint without a second `<form>`. */
+    formaction?: string
+    formenctype?: 'application/x-www-form-urlencoded' | 'multipart/form-data' | 'text/plain'
+    formmethod?: 'get' | 'post' | 'dialog'
+    formnovalidate?: boolean
+    formtarget?: string
   }
   input: {
     type?: string
@@ -99,6 +107,12 @@ export interface ElementSpecificAttributes {
      *  the form's own DOM subtree (e.g. a per-row control alongside a
      *  page-wide bulk-action form). `button` already carries this. */
     form?: string
+    /** Submission overrides for `type="submit"` / `type="image"`; same as on `button`. */
+    formaction?: string
+    formenctype?: 'application/x-www-form-urlencoded' | 'multipart/form-data' | 'text/plain'
+    formmethod?: 'get' | 'post' | 'dialog'
+    formnovalidate?: boolean
+    formtarget?: string
   }
   label: { for?: string }
   form: {

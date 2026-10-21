@@ -62,6 +62,24 @@ import Button from './button.stator'
 <Button type="lol" variant="primary">Go</Button>
 `
 
+// The form* submission overrides, on the component and on a raw element.
+const USE_FORM_ATTRS = `---
+import Button from './button.stator'
+---
+<form method="post" action="/save">
+  <Button type="submit" variant="primary" formaction="/save/draft" formnovalidate>Draft</Button>
+  <button type="submit" formaction="/delete" formmethod="post" formtarget="_self">Delete</button>
+  <input type="submit" formaction="/publish" formenctype="multipart/form-data" />
+</form>
+`
+
+// A form* attr with a value outside its union.
+const USE_BAD_FORM_METHOD = `---
+import Button from './button.stator'
+---
+<Button variant="primary" formmethod="put">Go</Button>
+`
+
 function emitAll(): Record<string, string> {
   mkdirSync(dir, { recursive: true })
   const files: Record<string, string> = {}
@@ -71,6 +89,8 @@ function emitAll(): Record<string, string> {
     ['use-bad-attr', USE_BAD_ATTR],
     ['use-bad-variant', USE_BAD_VARIANT],
     ['use-bad-native', USE_BAD_NATIVE],
+    ['use-form-attrs', USE_FORM_ATTRS],
+    ['use-bad-form-method', USE_BAD_FORM_METHOD],
   ] as const) {
     const code = toVirtualCode(src).tsx.code.replace(/\.stator'/g, "'")
     const file = join(dir, `${name}.tsx`)
@@ -130,5 +150,15 @@ describe('HTMLAttributes<Tag> — the <Button> component pattern', () => {
     const bad = diags.get('use-bad-native')!
     expect(bad.length).toBeGreaterThan(0)
     expect(bad.join('\n')).toMatch(/lol|not assignable/)
+  })
+
+  it('accepts the form* submission overrides on button and input', () => {
+    expect(diags.get('use-form-attrs')).toEqual([])
+  })
+
+  it('rejects a formmethod outside the HTML union', () => {
+    const bad = diags.get('use-bad-form-method')!
+    expect(bad.length).toBeGreaterThan(0)
+    expect(bad.join('\n')).toMatch(/put|not assignable/)
   })
 })
