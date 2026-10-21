@@ -25,7 +25,7 @@ import { JsonLd } from '@statorjs/stator/components'
 <JsonLd json={{ "@type": "Product", name: "Pocket Notebook" }} />
 ```
 
-The payload is typed against `schema-dts`, gets `@context` added (or is wrapped as an `@graph` for an array), and is serialized with a replacer that escapes the HTML sequences JSON-LD forbids inside `<script>` — so a value containing `</script>` can't break out of the element. Use this rather than hand-writing the block through `raw()`: a literal `<script>` in a template would trip both text auto-escaping and the inline-script-is-a-client-component rule.
+The payload is typed against `schema-dts`, gets `@context` added (or is wrapped as an `@graph` for an array), and is serialized with `<`, `>` and `&` written as JSON `\u003c`-style escapes (the form JSON-LD specifies for `<script>` content) — so a value containing `</script>` can't break out of the element, and consumers still parse the original text. Use this rather than hand-writing the block through `raw()`: a literal `<script>` in a template would trip both text auto-escaping and the inline-script-is-a-client-component rule.
 
 ## Lower-level exports
 

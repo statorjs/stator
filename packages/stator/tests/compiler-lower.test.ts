@@ -18,8 +18,16 @@ describe('compiler: lowerTemplate (JSX → html`` expression)', () => {
 
   it('preserves string attributes and boolean attributes', () => {
     expect(lowerTemplate('<input type="text" disabled />')).toBe(
-      'html`<input type="text" disabled />`',
+      'html`<input type="text" disabled>`',
     )
+  })
+
+  it('closes a self-closing non-void element (browsers read <div /> as an open tag)', () => {
+    expect(lowerTemplate('<div aria-current={cur} />')).toBe(
+      'html`<div aria-current="${cur}"></div>`',
+    )
+    expect(lowerTemplate('<my-widget />')).toBe('html`<my-widget></my-widget>`')
+    expect(lowerTemplate('<p><br /><img src="x" /></p>')).toBe('html`<p><br><img src="x"></p>`')
   })
 
   it('lowers on: directives to on(event, handler) calls', () => {

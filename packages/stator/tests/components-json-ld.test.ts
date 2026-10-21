@@ -38,7 +38,20 @@ describe('ldToString', () => {
       name: 'a</script><script>alert(1)',
     })
     expect(s).not.toContain('</script>')
-    expect(s).toContain('&lt;/script&gt;')
+    expect(s).toContain('\\u003c/script\\u003e')
+  })
+
+  it('uses JSON escapes, not HTML entities, so consumers read the original text', () => {
+    const description = "A 20' mobile office with plug & play hookups <indoors>"
+    const s = ldToString({ '@type': 'Product', description })
+    expect(s).not.toMatch(/&(amp|lt|gt|quot|apos);/)
+    expect(JSON.parse(s).description).toBe(description)
+  })
+
+  it('escapes U+2028/U+2029 line separators', () => {
+    const s = ldToString({ '@type': 'Thing', name: 'a\u2028b\u2029c' })
+    expect(s).not.toMatch(/[\u2028\u2029]/)
+    expect(JSON.parse(s).name).toBe('a\u2028b\u2029c')
   })
 
   it('omits null values', () => {

@@ -1,4 +1,5 @@
 import ts from 'typescript'
+import { isVoidElement } from '../template/void-elements.ts'
 import { elementMarker, ISLAND_MARKER_ATTR, slotMarker } from '../wire/island-markers.ts'
 import { type ClientDirective, inferDeps } from './client-script.ts'
 import { CompileError, type DiagnosticLocation, locAt } from './diagnostics.ts'
@@ -476,7 +477,8 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
         return `\${${lowerComponent(tag, node.attributes, undefined)}}`
       }
       if (meta && tag.includes('-')) meta.customElements.add(tag)
-      return `<${tag}${lowerAttributes(node.attributes)}${scopeSuffix} />`
+      const open = `<${tag}${lowerAttributes(node.attributes)}${scopeSuffix}>`
+      return isVoidElement(tag) ? open : `${open}</${tag}>`
     }
     if (ts.isJsxFragment(node)) return contentOfChildren(node.children)
     throw new CompileError(
