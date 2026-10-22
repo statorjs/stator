@@ -1,5 +1,12 @@
 # @statorjs/stator
 
+## 2.11.0-next.3
+
+### Patch Changes
+
+- 9584603: Dependency refresh for 2.11: hono 4.13, @hono/node-server 1.19.17, sharp 0.35, esbuild 0.28, postcss 8.5.31. Picks up the upstream security fixes in each (hono CORS origin reflection, the libvips CVEs behind sharp, postcss source-map path traversal, node-tar via giget in create-stator).
+- fb82002: Dev logging runs `pino-pretty` in-process as the logger's destination stream instead of as a pino transport worker. pino 10.4 locates a transport by sniffing its callers' script names, which a module evaluated by a Vite SSR runner (vitest 4, `ssrLoadModule`, and any app whose test setup inlines `@statorjs/stator/server`) doesn't have, so the server module failed to load with `unable to determine transport target for "pino-pretty"`. Dev-only prettifying never needed the worker.
+
 ## 2.11.0-next.2
 
 ### Patch Changes
