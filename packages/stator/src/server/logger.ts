@@ -12,15 +12,21 @@ import pino, { type Logger } from 'pino'
  * scoped context. The framework uses scoped children for SSE events,
  * fan-out, and HTTP request lines.
  */
+type PrettyFactory = (opts: Record<string, unknown>) => NodeJS.WritableStream
+
 /** pino-pretty is an optional nicety, not a framework dependency — apps add
  *  it as a devDependency for colored dev output (the create-stator template
- *  does). Without it, dev logs are plain JSON rather than a crash. */
-function hasPinoPretty(): boolean {
+ *  does). Without it, dev logs are plain JSON rather than a crash.
+ *
+ *  It runs in-process as pino's destination stream, not as a pino transport:
+ *  a transport is a worker thread that pino locates by sniffing its callers'
+ *  script names, which a module evaluated by a Vite SSR runner doesn't have.
+ *  Dev-only prettifying has no need for a worker. */
+export function loadPinoPretty(): PrettyFactory | null {
   try {
-    createRequire(import.meta.url).resolve('pino-pretty')
-    return true
+    return createRequire(import.meta.url)('pino-pretty') as PrettyFactory
   } catch {
-    return false
+    return null
   }
 }
 
@@ -28,22 +34,17 @@ function buildLogger(): Logger {
   const isProd = process.env.NODE_ENV === 'production'
   const level = process.env.LOG_LEVEL ?? (isProd ? 'warn' : 'info')
 
-  if (isProd || !hasPinoPretty()) {
-    return pino({ level })
-  }
-
-  return pino({
-    level,
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        translateTime: 'HH:MM:ss.l',
-        ignore: 'pid,hostname',
-        singleLine: false,
-      },
-    },
-  })
+  const pretty = isProd ? null : loadPinoPretty()
+  if (!pretty) return pino({ level })
+  return pino(
+    { level },
+    pretty({
+      colorize: true,
+      translateTime: 'HH:MM:ss.l',
+      ignore: 'pid,hostname',
+      singleLine: false,
+    }),
+  )
 }
 
 export const logger: Logger = buildLogger()

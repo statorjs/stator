@@ -1,7 +1,9 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import pino from 'pino'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, logger, scopedLogger, setLogLevel } from '../src/server/index.ts'
+import { loadPinoPretty } from '../src/server/logger.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixtures = resolve(here, 'fixtures')
@@ -59,5 +61,17 @@ describe('log level', () => {
       logging: { level: 'error' },
     })
     expect(logger.level).toBe('debug')
+  })
+})
+
+describe('pino-pretty', () => {
+  it('is loaded in-process from the framework, not resolved by pino as a transport', () => {
+    expect(loadPinoPretty()).toBeTypeOf('function')
+  })
+
+  it("is the dev logger's destination stream (no transport worker)", () => {
+    const stream = (logger as unknown as Record<symbol, unknown>)[pino.symbols.streamSym]
+    expect((stream as object).constructor.name).not.toBe('ThreadStream')
+    expect(typeof (stream as { write?: unknown }).write).toBe('function')
   })
 })
