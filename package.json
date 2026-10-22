@@ -18,8 +18,8 @@
     "release": "changeset publish"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.2",
-    "@changesets/cli": "^2.31.0",
+    "@biomejs/biome": "^2.6.2",
+    "@changesets/cli": "^2.31.1",
     "typescript": "^5.6.0"
   },
   "engines": {

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.2/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.2/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -20,7 +20,12 @@
       // entries in it. Nobody hand-edits this file, and gating it here breaks
       // the release train: the version commit is made by the changesets action,
       // whose `git commit` runs the pre-commit hook.
-      "!.changeset/pre.json"
+      "!.changeset/pre.json",
+      // Prose and CI/lockfile YAML are not formatted by this config.
+      "!**/*.md",
+      "!**/*.mdx",
+      "!**/*.yml",
+      "!**/*.yaml"
     ]
   },
   "formatter": {
