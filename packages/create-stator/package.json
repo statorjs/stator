@@ -20,7 +20,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@clack/prompts": "^1.7.0",
-    "giget": "^1.2.3"
+    "@clack/prompts": "^1.8.1",
+    "giget": "^3.3.1"
   }
 }
