@@ -71,7 +71,7 @@ own framing) is ever worth doing for its own sake.
 
 ---
 
-## 3. `button`'s attribute typing doesn't model `formaction`/`formnovalidate` (2026-10-04)
+## 3. `button`'s attribute typing doesn't model `formaction`/`formnovalidate` — RESOLVED in 2.11.0-next.2 (2026-10-04)
 
 `html-attributes.ts`'s per-element attribute map is explicit about being "a
 useful subset, not the whole DOM... grow on demand" — this is exactly that:
@@ -123,7 +123,7 @@ collects the attr, it just becomes an ignored prop today.
 
 ---
 
-## 5. A self-closing non-void element (`<div />`) is emitted verbatim — browsers parse it as an opening tag (2026-10-06)
+## 5. A self-closing non-void element (`<div />`) is emitted verbatim — browsers parse it as an opening tag — RESOLVED in 2.11.0-next.2 (2026-10-06)
 
 Porting the product image carousel, the pagination dots were written the
 JSX-natural way, `each(images, (_, i) => <div aria-current={...} />)`.
@@ -151,7 +151,7 @@ prop type would close that gap; noted here, not a bug.)
 
 ---
 
-## 6. `<JsonLd>` HTML-entity-escapes string values — the structured data comes out corrupted (2026-10-06)
+## 6. `<JsonLd>` HTML-entity-escapes string values — the structured data comes out corrupted — RESOLVED in 2.11.0-next.2 (2026-10-06)
 
 Swapping rebox's hand-rolled product JSON-LD for the shipped `<JsonLd>`
 component (Tony's call — "more full featured out of the box"), the real
@@ -198,3 +198,39 @@ reserved (for `static attrs` wiring / the scoped-style marker), reject
 them at compile time with a message; if they're meant to work, emit them —
 a `data-*`/`class` on the custom element is the natural place for a
 variant flag, and it's where `static attrs` reads from on the client.
+
+---
+
+## 8. `pino-pretty` transport fails to resolve under Vite SSR with pino 10.4 — the server module refuses to evaluate (2026-10-21)
+
+Bumping rebox to `2.11.0-next.2` pulled `pino@10.4.0` (from `10.3.1`).
+Every route test, and any dev route whose module graph reaches
+`@statorjs/stator/server` (rebox's `lib/images.ts` imports `probeImage`),
+then fails with:
+
+    [vite] (ssr) Error when evaluating SSR module @statorjs/stator/server:
+    unable to determine transport target for "pino-pretty"
+
+`logger.ts` probes `createRequire(import.meta.url).resolve('pino-pretty')`
+(fine — it resolves) and then hands pino `transport: { target: 'pino-pretty' }`.
+pino resolves a bare target name from its *callers*: 10.3.1 regex-parsed a
+source-mapped `Error().stack`, 10.4.0 switched to `util.getCallSites()`
+(`lib/caller.js`) and reads each frame's raw `scriptName`. Vite SSR
+evaluates a module through `new AsyncFunction(...)`, so those frames have
+no script name at all — measured from a module's top level under vitest,
+`getCallers()` returns just `["node:internal/process/task_queues"]`, every
+`createRequire(caller)` throws, and pino gives up. Node 26, vitest 3,
+`stator dev`'s SSR path all the same.
+
+Worked around in rebox with a pnpm override pinning `pino: 10.3.1`
+(`pnpm-workspace.yaml` `overrides:` — the `package.json` `pnpm` field is
+ignored by pnpm 11, with a warning). The framework-side fix is one line
+and removes the dependence on caller sniffing entirely: pass the resolved
+absolute path as the target, which `fixTarget` returns untouched —
+
+    target: createRequire(import.meta.url).resolve('pino-pretty')
+
+— and keep `hasPinoPretty()` as the gate. Also worth a test that imports
+`@statorjs/stator/server` through `createDevApp`/vite SSR with pino-pretty
+installed, since the unit tests load the logger natively and never see
+this.

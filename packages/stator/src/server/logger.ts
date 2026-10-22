@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module'
-import pino, { type Logger } from 'pino'
+import pino, { type Logger, type TransportSingleOptions } from 'pino'
 
 /**
  * Framework logger. Pretty colored output in dev (auto-detected via
@@ -14,13 +14,27 @@ import pino, { type Logger } from 'pino'
  */
 /** pino-pretty is an optional nicety, not a framework dependency — apps add
  *  it as a devDependency for colored dev output (the create-stator template
- *  does). Without it, dev logs are plain JSON rather than a crash. */
-function hasPinoPretty(): boolean {
+ *  does). Without it, dev logs are plain JSON rather than a crash.
+ *
+ *  The target is the resolved absolute path, never the bare package name:
+ *  pino resolves a bare name from its callers' script names, and a module
+ *  evaluated by a Vite SSR runner has none, so the bare name is unresolvable
+ *  there. An absolute path is passed through untouched. */
+export function prettyTransport(): TransportSingleOptions | null {
+  let target: string
   try {
-    createRequire(import.meta.url).resolve('pino-pretty')
-    return true
+    target = createRequire(import.meta.url).resolve('pino-pretty')
   } catch {
-    return false
+    return null
+  }
+  return {
+    target,
+    options: {
+      colorize: true,
+      translateTime: 'HH:MM:ss.l',
+      ignore: 'pid,hostname',
+      singleLine: false,
+    },
   }
 }
 
@@ -28,22 +42,8 @@ function buildLogger(): Logger {
   const isProd = process.env.NODE_ENV === 'production'
   const level = process.env.LOG_LEVEL ?? (isProd ? 'warn' : 'info')
 
-  if (isProd || !hasPinoPretty()) {
-    return pino({ level })
-  }
-
-  return pino({
-    level,
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        translateTime: 'HH:MM:ss.l',
-        ignore: 'pid,hostname',
-        singleLine: false,
-      },
-    },
-  })
+  const transport = isProd ? null : prettyTransport()
+  return transport ? pino({ level, transport }) : pino({ level })
 }
 
 export const logger: Logger = buildLogger()
