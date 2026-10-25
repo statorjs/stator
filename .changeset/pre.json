@@ -22,8 +22,10 @@
   },
   "changesets": [
     "button-form-attrs",
+    "deps-2-11",
     "framework-images",
     "json-ld-script-escapes",
+    "pino-pretty-in-process",
     "scoped-styles-component-libraries",
     "scoped-styles-vscode-where-fix",
     "self-closing-non-void"
