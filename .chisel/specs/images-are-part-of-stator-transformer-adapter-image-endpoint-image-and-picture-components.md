@@ -1,8 +1,8 @@
 ---
 title: 'Images are part of Stator: transformer adapter, image endpoint, Image and Picture components'
-status: draft
+status: shipped
 created: 2026-08-27
-updated: 2026-08-27
+updated: 2026-10-25
 area: runtime
 ---
 
