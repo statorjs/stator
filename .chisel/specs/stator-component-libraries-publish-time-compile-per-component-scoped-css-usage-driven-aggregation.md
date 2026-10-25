@@ -67,7 +67,7 @@ A first cut of "usage-driven" risked under-shooting the actual bug: computing on
 
 **Resolved, removed from this list:**
 - ~~Dedup when two different components emit overlapping scoped CSS~~ — `reachableFrom`'s `local`/`external` sets dedupe by construction (a `Set`, visited-once walk); confirmed by the 3-deep local-chain cascade test (`tests/route-css-cascade.test.ts`) not double-including any level.
-- ~~Where the publish-time compile command lives~~ — `pnpm build:components` (a package-local script, not a `stator`-CLI-owned command), wired into `prepublishOnly`. Revisit a CLI-owned `stator build:lib` if/when a second real external component library exists to generalize for.
+- ~~Where the publish-time compile command lives~~ — `pnpm build:components` (a package-local script, not a `stator`-CLI-owned command), wired into `prepublishOnly`. Revisit a CLI-owned `stator build:lib` if/when a second real external component library exists to generalize for. **Resolved 2026-10-25:** the second library (`@aquamarine/blocks`) existed and had re-implemented the script against the internal `compiler` subpath; `stator build:lib [dir]` (`compileLibrary()` on `/build`) now owns the operation, and the framework's own script is gone.
 
 ## Implementation Notes
 

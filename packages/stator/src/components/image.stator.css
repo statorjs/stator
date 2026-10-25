@@ -1,6 +1,6 @@
 /* height:auto preserves the aspect ratio the width/height attributes
      declare; radius, margin, object-fit are the app's call. */
-:where(img[data-s-6e2813d6]) {
+:where(img[data-s-ff0b03fd]) {
   display: block;
   max-width: 100%;
   height: auto;

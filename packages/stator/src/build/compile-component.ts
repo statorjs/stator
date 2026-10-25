@@ -12,8 +12,7 @@ export interface CompileComponentResult {
 }
 
 /** Compile one `.stator` file to its sibling `.ts` (+ a sibling `.css` when
- *  it has scoped styles). Used by both `build.ts` and
- *  `scripts/compile-components.ts`. */
+ *  it has scoped styles). Used by both `build.ts` and `compileLibrary`. */
 export async function compileComponentFile(
   file: string,
   baseDir: string,
