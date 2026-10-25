@@ -215,7 +215,7 @@ How many live pages currently hold an SSE channel to this process. A dashboard m
 
 ## Runtime subpath
 
-`@statorjs/stator/server/runtime` carries the plumbing the framework itself runs on — exported because compiled `.stator` output, the dev server and the build import it across the package boundary, not because your app should need it. It is the **Toolchain** tier of the [stability policy](/reference/overview/#stability-policy): these may change in a minor, and the import path says so.
+`@statorjs/stator/server/runtime` carries the plumbing the framework itself runs on — exported because compiled `.stator` output, the dev server and the build import it across the package boundary, not because your app should need it. It is the **Toolchain** tier of the [stability policy](/reference/overview/#stability-policy): these may change in a minor, and the import path says so. Through 2.x the same symbols are still re-exported from `/server` so existing imports keep resolving; that re-export is deprecated and is removed in the next major.
 
 - `MachineStore` — the machine registry + actor manager behind `StatorApp.store`.
 - `findPollLoops` (+ `PollLoopFinding`) — the dev-plane lint that detects self-rescheduling poll loops on session machines; the dev server runs it at boot and logs findings.

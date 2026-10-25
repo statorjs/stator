@@ -4,7 +4,7 @@ import * as runtime from '../src/server/runtime.ts'
 
 /** The Stable/Toolchain split of the server is structural: two subpaths. */
 describe('/server and /server/runtime', () => {
-  it('the plumbing is on /server/runtime and not on /server', () => {
+  it('the plumbing is on /server/runtime', () => {
     for (const name of [
       'SessionRuntime',
       'recompute',
@@ -17,8 +17,13 @@ describe('/server and /server/runtime', () => {
       'isStatorRoute',
     ]) {
       expect(name in runtime, name).toBe(true)
-      expect(name in server, name).toBe(false)
     }
+  })
+
+  // Flips to "shares no value export" in the next major, when the
+  // deprecated re-export on /server is removed.
+  it('every runtime export is still reachable from /server in 2.x', () => {
+    expect(Object.keys(runtime).filter((k) => !(k in server))).toEqual([])
   })
 
   it('the app surface is on /server', () => {
@@ -34,9 +39,5 @@ describe('/server and /server/runtime', () => {
     ]) {
       expect(name in server, name).toBe(true)
     }
-  })
-
-  it('the two barrels share no value export', () => {
-    expect(Object.keys(server).filter((k) => k in runtime)).toEqual([])
   })
 })
