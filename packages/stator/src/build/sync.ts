@@ -32,6 +32,8 @@ export interface SyncResult {
   checks: number
   /** The generated-types directory. */
   outDir: string
+  /** Every `.stator` file the walk found, absolute. */
+  files: string[]
 }
 
 const TYPES_DIR = join('.stator', 'types')
@@ -71,7 +73,7 @@ export async function syncTypes(root: string): Promise<SyncResult> {
     await writeFile(checkTarget, virtual.tsx.code)
     checks++
   }
-  return { written, checks, outDir }
+  return { written, checks, outDir, files }
 }
 
 async function walk(dir: string): Promise<string[]> {

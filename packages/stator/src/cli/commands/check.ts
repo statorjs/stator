@@ -1,5 +1,9 @@
+import { readFile } from 'node:fs/promises'
+import { relative } from 'node:path'
 import ts from 'typescript'
 import { syncTypes } from '../../build/index.ts'
+import { sourceId } from '../../build/source-id.ts'
+import { CompileError, compile, regionResolverFor } from '../../compiler/index.ts'
 import type { CliContext } from '../run.ts'
 
 /**
@@ -9,12 +13,19 @@ import type { CliContext } from '../run.ts'
  * to `dist/` unvalidated, so a broken server import shipped silently. `build`
  * now runs this first.
  *
- * Two steps: (1) `syncTypes` regenerates each `.stator.d.ts` + the virtual TSX
+ * Three steps: (1) `syncTypes` regenerates each `.stator.d.ts` + the virtual TSX
  * the language server typechecks, so the app's `tsconfig` sees current types;
- * (2) a `tsc --noEmit`-equivalent pass via the TypeScript API over that config.
+ * (2) every `.stator` file goes through the real compiler — the same call `dev`
+ * makes on import and the editor makes per edit, so all three reject the same
+ * inputs; (3) a `tsc --noEmit`-equivalent pass via the TypeScript API.
  */
 export async function checkStack(root: string): Promise<void> {
-  const { written } = await syncTypes(root)
+  const { written, files } = await syncTypes(root)
+
+  const compileErrors = await compileAll(root, files)
+  if (compileErrors.length > 0) {
+    process.stderr.write(`${compileErrors.join('\n\n')}\n\n`)
+  }
 
   const configPath = ts.findConfigFile(root, ts.sys.fileExists, 'tsconfig.json')
   if (!configPath) throw new Error(`no tsconfig.json found at or above ${root}`)
@@ -45,7 +56,9 @@ export async function checkStack(root: string): Promise<void> {
         getNewLine: () => ts.sys.newLine,
       }),
     )
-    const n = diagnostics.length
+  }
+  const n = compileErrors.length + diagnostics.length
+  if (n > 0) {
     throw new Error(`typecheck failed with ${n} error${n === 1 ? '' : 's'}`)
   }
 
@@ -65,6 +78,29 @@ export async function checkStack(root: string): Promise<void> {
   process.stdout.write(
     `stator check: ok — ${written} .stator.d.ts, ${appFiles} app files (${frameworkFiles} framework files)\n`,
   )
+}
+
+/** Compile every `.stator` file, keeping only the errors — output is
+ *  discarded. Formatted like tsc's diagnostics (`file:line:col - error`) with
+ *  the compiler's own code frame. */
+async function compileAll(root: string, files: string[]): Promise<string[]> {
+  const errors: string[] = []
+  for (const file of files) {
+    const source = await readFile(file, 'utf8')
+    const { id, kind } = sourceId(root, file)
+    try {
+      compile(source, { id, kind, resolveRegions: regionResolverFor(file, source) })
+    } catch (e) {
+      if (!(e instanceof CompileError)) throw e
+      const rel = relative(root, file).replace(/\\/g, '/')
+      errors.push(
+        e.loc
+          ? `${rel}:${e.loc.line}:${e.loc.column} - error: ${e.message}\n\n${e.loc.frame}`
+          : `${rel} - error: ${e.message}`,
+      )
+    }
+  }
+  return errors
 }
 
 export async function run(ctx: CliContext): Promise<void> {
