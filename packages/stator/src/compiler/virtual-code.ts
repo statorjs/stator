@@ -21,6 +21,7 @@
 import ts from 'typescript'
 import { VOID_ELEMENTS } from '../template/void-elements.ts'
 import { analyzeScriptClasses } from './client-script.ts'
+import { parseDiagnosticsOf } from './diagnostics.ts'
 import { statorPropsType } from './dts.ts'
 import { CLIENT_AUTHOR_GLOBALS, TEMPLATE_AUTHOR_GLOBALS } from './emit-names.ts'
 import { type ScannedRegions, scanRegions } from './split.ts'
@@ -146,10 +147,7 @@ function buildServerTsx(regions: ScannedRegions): VirtualFile {
     STATOR_AMBIENT
 
   const { hoisted, body } = splitFrontmatter(fm, fmOffset)
-  for (const seg of hoisted) {
-    push(mappings, seg.sourceOffset, code.length, seg.text.length)
-    code += `${seg.text}\n`
-  }
+  for (const seg of hoisted) code = emitSegment(mappings, code, seg)
 
   // A leading <!doctype> is static HTML, not JSX — drop it from the shell (no
   // intelligence lost) and advance the template mapping past it.
@@ -175,11 +173,7 @@ function buildServerTsx(regions: ScannedRegions): VirtualFile {
     code += "type __SReadResult<T> = import('@statorjs/stator/template').ReadResult<T>\n"
   }
   code += `export default function (_props: ${propsT}) {\n`
-  for (const seg of body) {
-    code += '  '
-    push(mappings, seg.sourceOffset, code.length, seg.text.length)
-    code += `${seg.text}\n`
-  }
+  for (const seg of body) code = emitSegment(mappings, `${code}  `, seg)
   code += '  return (<>'
   code = appendTemplateTsx(code, mappings, tpl, tplOffset)
   code += '</>);\n}\n'
@@ -298,6 +292,16 @@ function expressionEnd(tpl: string, start: number): number {
 interface FmSegment {
   sourceOffset: number
   text: string
+  /** The statement has a syntax error in TS mode (JSX in the fence, usually).
+   *  Emitted as a string literal so the TSX model can't make it look fine —
+   *  the compiler's located error is the one the editor shows. */
+  opaque?: boolean
+}
+
+function emitSegment(mappings: VirtualMapping[], code: string, seg: FmSegment): string {
+  if (seg.opaque) return `${code}${JSON.stringify(seg.text)};\n`
+  push(mappings, seg.sourceOffset, code.length, seg.text.length)
+  return `${code}${seg.text}\n`
 }
 
 /**
@@ -315,8 +319,21 @@ function splitFrontmatter(
   const body: FmSegment[] = []
   if (!fm.trim()) return { hoisted, body }
   const sf = ts.createSourceFile('fm.ts', fm, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  // A syntax error splits what the author wrote as one statement into pieces
+  // (`return <p>not` / `found</p>`), and the piece without the diagnostic would
+  // read as valid JSX in the TSX model. Every statement sharing a line with a
+  // diagnostic is opaque.
+  const brokenLines = new Set(
+    parseDiagnosticsOf(sf).map((d) => sf.getLineAndCharacterOfPosition(d.start).line),
+  )
   for (const stmt of sf.statements) {
-    const seg: FmSegment = { sourceOffset: fmOffset + stmt.getStart(sf), text: stmt.getText(sf) }
+    const start = stmt.getStart(sf)
+    const seg: FmSegment = { sourceOffset: fmOffset + start, text: stmt.getText(sf) }
+    const first = sf.getLineAndCharacterOfPosition(start).line
+    const last = sf.getLineAndCharacterOfPosition(stmt.getEnd()).line
+    for (let line = first; line <= last; line++) {
+      if (brokenLines.has(line)) seg.opaque = true
+    }
     if (
       ts.isImportDeclaration(stmt) ||
       ts.isTypeAliasDeclaration(stmt) ||
@@ -352,15 +369,10 @@ function buildClientTsx(regions: ScannedRegions): VirtualFile {
     const { hoisted, body } = splitFrontmatter(fm, fmOffset)
     for (const seg of hoisted) {
       if (userScript.includes(seg.text.trim())) continue
-      push(mappings, seg.sourceOffset, code.length, seg.text.length)
-      code += `${seg.text}\n`
+      code = emitSegment(mappings, code, seg)
     }
     code += 'function __statorFence(props: Record<string, unknown>) {\n'
-    for (const seg of body) {
-      code += '  '
-      push(mappings, seg.sourceOffset, code.length, seg.text.length)
-      code += `${seg.text}\n`
-    }
+    for (const seg of body) code = emitSegment(mappings, `${code}  `, seg)
     code += '}\nvoid __statorFence\n'
   }
 

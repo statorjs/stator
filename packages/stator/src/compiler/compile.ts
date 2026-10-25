@@ -7,7 +7,7 @@ import {
   isCustomElementTag,
   pascalToKebab,
 } from './client-script.ts'
-import { CompileError, type DiagnosticLocation, locAt } from './diagnostics.ts'
+import { CompileError, type DiagnosticLocation, locAt, parseDiagnosticsOf } from './diagnostics.ts'
 import {
   ISLAND_SHELL_EXTRAS,
   importLine,
@@ -109,6 +109,7 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
         file: opts.id,
         fm,
         source,
+        templateOffset,
       })
     }
     throw new CompileError(
@@ -171,10 +172,12 @@ function compileClient(
     fm?: FrontmatterParts
     /** Original source, for located collision diagnostics. */
     source?: string
+    /** Offset of the template body in `source`. */
+    templateOffset?: number
   },
 ): CompileResult {
   const classes = analyzeScriptClasses(script)
-  const root = extractClientRoot(template, ctx.file)
+  const root = extractClientRoot(template, ctx)
 
   // Name-match validation (both directions, hyphen rule).
   const tags = new Set([root.tag])
@@ -271,20 +274,32 @@ function compileClient(
  *  split-and-reassemble so a component can style/flag its own root; the use site
  *  merges them under its props (FINDINGS #4). Namespaced directives (class:list,
  *  on:) and expression-valued attrs are not static and are skipped here. */
+/** The island root's own attributes: static only. The shell renders the root
+ *  from the use site's props, so a dynamic value here has nothing to bind to —
+ *  rather than silently dropping it, say so. */
 function staticRootAttrs(
+  tag: string,
   attrs: ts.JsxAttributes,
   sf: ts.SourceFile,
+  at: (node: ts.Node) => DiagnosticLocation | undefined,
 ): Record<string, string | boolean> {
   const out: Record<string, string | boolean> = {}
   for (const attr of attrs.properties) {
-    if (!ts.isJsxAttribute(attr) || ts.isJsxNamespacedName(attr.name)) continue
-    const name = attr.name.getText(sf)
-    const init = attr.initializer
-    if (init === undefined) {
-      out[name] = true // valueless boolean attribute
-    } else if (ts.isStringLiteral(init)) {
-      out[name] = init.text
+    const isStatic =
+      ts.isJsxAttribute(attr) &&
+      !ts.isJsxNamespacedName(attr.name) &&
+      (attr.initializer === undefined || ts.isStringLiteral(attr.initializer))
+    if (!isStatic) {
+      throw new CompileError(
+        `stator: <${tag} ${attr.getText(sf)}> — attributes on an island's root must be static ` +
+          `(a string literal or a bare boolean). The root is rendered by the shell from the use ` +
+          `site's props; a dynamic value belongs on an inner element, or declare it with ` +
+          `\`static attrs\` and pass it from the use site.`,
+        at(attr),
+      )
     }
+    const name = attr.name.getText(sf)
+    out[name] = attr.initializer === undefined ? true : (attr.initializer as ts.StringLiteral).text
   }
   return out
 }
@@ -294,10 +309,16 @@ function staticRootAttrs(
  *  must be the custom element". */
 function extractClientRoot(
   template: string,
-  file?: string,
+  ctx: { file?: string; source?: string; templateOffset?: number },
 ): { tag: string; inner: string; rootAttrs: Record<string, string | boolean> } {
-  const wrapped = `const __t = (<>${template}</>);`
+  const { file } = ctx
+  const prefix = 'const __t = (<>'
+  const wrapped = `${prefix}${template}</>);`
   const sf = ts.createSourceFile('t.tsx', wrapped, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const at = (node: ts.Node): DiagnosticLocation | undefined =>
+    ctx.source != null && ctx.templateOffset != null
+      ? locAt(ctx.source, ctx.templateOffset + (node.getStart(sf) - prefix.length), file)
+      : undefined
   let fragment: ts.JsxFragment | undefined
   const find = (n: ts.Node): void => {
     if (ts.isJsxFragment(n)) {
@@ -320,13 +341,13 @@ function extractClientRoot(
   if (ts.isJsxSelfClosingElement(rootEl)) {
     const tag = rootEl.tagName.getText(sf)
     requireCustomRoot(tag, file)
-    return { tag, inner: '', rootAttrs: staticRootAttrs(rootEl.attributes, sf) }
+    return { tag, inner: '', rootAttrs: staticRootAttrs(tag, rootEl.attributes, sf, at) }
   }
   const el = rootEl as ts.JsxElement
   const tag = el.openingElement.tagName.getText(sf)
   requireCustomRoot(tag, file)
   const inner = wrapped.slice(el.openingElement.getEnd(), el.closingElement.getStart())
-  return { tag, inner, rootAttrs: staticRootAttrs(el.openingElement.attributes, sf) }
+  return { tag, inner, rootAttrs: staticRootAttrs(tag, el.openingElement.attributes, sf, at) }
 }
 
 function requireCustomRoot(tag: string, file?: string): void {
@@ -378,6 +399,29 @@ function processFrontmatter(
 
   const locInFm = (node: ts.Node): DiagnosticLocation =>
     locAt(source, fmOffset(source) + node.getStart(sf), file)
+
+  // The fence is plain TypeScript (ScriptKind.TS): a bare `<p>` lexes as an
+  // old-style type assertion, so JSX here used to surface only as esbuild's
+  // `Expected ")" but found "return"` on the emitted module — while the
+  // editor's TSX model accepted it. Report syntax errors here, with the one
+  // targeted hint for that shape.
+  const syntax = parseDiagnosticsOf(sf)
+  if (syntax.length > 0) {
+    const jsx = findJsxLikeAssertion(sf)
+    if (jsx) {
+      throw new CompileError(
+        "stator: JSX isn't allowed in frontmatter — it's plain TypeScript. Markup belongs in " +
+          'the template (use when()/match() for conditional content); a different page for a ' +
+          'not-found case cascades to routes/404.stator.',
+        locInFm(jsx),
+      )
+    }
+    const d = syntax[0]!
+    throw new CompileError(
+      `stator: frontmatter syntax error — ${ts.flattenDiagnosticMessageText(d.messageText, '\n')}`,
+      locAt(source, fmOffset(source) + d.start, file),
+    )
+  }
 
   for (const stmt of sf.statements) {
     if (
@@ -598,6 +642,28 @@ function requireRoute(
 
 /** Character offset of the frontmatter body in the original source (after the
  *  opening `---\n`). 4 = `---\n`; good enough for diagnostics line/col. */
+/** The node a `<p>` or `<NotFound>` becomes when parsed as TS: a type assertion
+ *  whose type is a bare identifier reference. A generic arrow (`<T>(a: T) => a`)
+ *  is not one, so it stays legal. */
+function findJsxLikeAssertion(sf: ts.SourceFile): ts.TypeAssertion | undefined {
+  let found: ts.TypeAssertion | undefined
+  const visit = (n: ts.Node): void => {
+    if (found) return
+    if (
+      ts.isTypeAssertionExpression(n) &&
+      ts.isTypeReferenceNode(n.type) &&
+      ts.isIdentifier(n.type.typeName) &&
+      !n.type.typeArguments
+    ) {
+      found = n
+      return
+    }
+    ts.forEachChild(n, visit)
+  }
+  visit(sf)
+  return found
+}
+
 function fmOffset(source: string): number {
   return source.startsWith('---') ? source.indexOf('\n') + 1 : 0
 }
