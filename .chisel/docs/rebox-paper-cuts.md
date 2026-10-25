@@ -274,7 +274,7 @@ framework change; the barrel is the right call when a dispatcher reaches
 every block anyway. Documented here so the next library author knows the
 option exists.
 
-## 13. The publish-time compile has no public surface (2026-10-25)
+## 13. The publish-time compile has no public surface — RESOLVED (2026-10-25)
 
 The shared design-system package (`@aquamarine/blocks`) is the second real
 `.stator` component library, and it had to re-implement the framework's own

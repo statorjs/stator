@@ -11,7 +11,7 @@ export interface CliContext {
   rest: string[]
 }
 
-const COMMANDS = ['dev', 'build', 'start', 'check', 'test'] as const
+const COMMANDS = ['dev', 'build', 'start', 'check', 'test', 'build:lib'] as const
 type Command = (typeof COMMANDS)[number]
 
 const HELP = `stator — the Stator toolchain CLI
@@ -24,6 +24,7 @@ Commands:
   start     Serve a built dist/ in production mode
   check     Typecheck the whole stack (server + generated .stator types), no output
   test      Run the test suite
+  build:lib [dir]  Compile a component library for publishing (default dir: src)
 
 Options:
   --root <dir>    App root (default: current directory)
@@ -66,7 +67,7 @@ const { loadDotenv } = await import('../server/env.ts')
 loadDotenv(ctx.root)
 
 // Dynamic import per command so `check` never loads the dev server's watcher, etc.
-const { run } = (await import(`./commands/${command}.ts`)) as {
+const { run } = (await import(`./commands/${command.replace(':', '-')}.ts`)) as {
   run: (ctx: CliContext) => Promise<void>
 }
 

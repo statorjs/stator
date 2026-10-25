@@ -11,25 +11,15 @@ A package can ship `.stator` components, scoped styles included. A consuming app
 
 **Compiled output, not `.stator` source.** Both the dev server and the production build treat `node_modules` as an already-resolved boundary: they never compile anything inside it. So a library compiles its components before publishing — each `x.stator` becomes a sibling `x.stator.ts` (the server render module) plus `x.stator.css` when it has a `<style>` block. Svelte and Vue libraries have always worked this way.
 
-The compile runs in `prepublishOnly` (or your workspace's `build` script). Today it calls the compiler directly:
+The CLI owns that step. `stator build:lib [dir]` walks the directory (default `src`), writes each component's siblings, rewrites `.stator` imports between them to the compiled modules, and aggregates the stylesheet described below. Wire it into `prepublishOnly`, or a workspace `build` script, and commit nothing it writes:
 
-```ts
-// scripts/compile.ts
-import { compile, regionResolverFor } from '@statorjs/stator/compiler'
-
-for (const file of statorFiles) {
-  const source = await readFile(file, 'utf8')
-  const { serverCode, css } = compile(source, {
-    id: relative(src, file),
-    kind: 'component',
-    resolveRegions: regionResolverFor(file, source),
-  })
-  await writeFile(`${file}.ts`, serverCode)
-  if (css) await writeFile(`${file}.css`, css)
+```json
+{
+  "scripts": { "prepublishOnly": "stator build:lib src" }
 }
 ```
 
-`compiler` is an internal subpath and may change in a minor; a CLI-owned command is the planned replacement now that a second real library exists.
+The same operation is `compileLibrary()` on `@statorjs/stator/build` for a script that needs to do more around it.
 
 ## The exports map decides CSS granularity
 
