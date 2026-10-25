@@ -53,7 +53,7 @@ export const GET = defineApiRoute({
 
 Machines hydrate under the session lock — a snapshot coherent *across* machines — and the lock is released before the handler runs. Session machines answer with the requesting cookie's own state; app machines answer with the shared instance.
 
-**The response.** A plain value is JSON, always. A string takes its `Content-Type` from the URL's extension — `routes/feed.xml.ts` serves `/feed.xml` as `application/xml` (also `.txt`, `.ics`, `.csv`), with `text/plain` as the fallback. A raw `Response` passes through verbatim, `Content-Type` filled from the extension only when you set none.
+**The response.** A plain value is JSON, always. A string takes its `Content-Type` from the URL's extension — `routes/feed.xml.ts` serves `/feed.xml` as `application/xml` (also `.atom`, `.txt`, `.ics`, `.csv`, `.css`), with `text/plain` as the fallback. A raw `Response` passes through verbatim, `Content-Type` filled from the extension only when you set none.
 
 Dynamic segments compose with the extension: `routes/p/[id].json.ts` serves `/p/:id.json` — the captured param excludes the literal suffix, and the suffixed route outranks a bare `/p/:id` page at match time, so a poll page and its JSON twin coexist.
 

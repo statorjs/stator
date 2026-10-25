@@ -59,6 +59,20 @@ describe('data GET routes: response synthesis', () => {
     expect(await res.text()).toContain('<rss>')
   })
 
+  it('a stylesheet route serves text/css with the free ETag/304 and derived Cache-Control', async () => {
+    const app = await boot()
+    const res = await app.fetch(new Request('http://localhost/theme.css'))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('text/css; charset=utf-8')
+    expect(res.headers.get('cache-control')).toContain('public')
+    expect(await res.text()).toContain('--accent')
+    const etag = res.headers.get('etag')!
+    const revalidated = await app.fetch(
+      new Request('http://localhost/theme.css', { headers: { 'if-none-match': etag } }),
+    )
+    expect(revalidated.status).toBe(304)
+  })
+
   it('a raw Response passes through verbatim', async () => {
     const app = await boot()
     const res = await app.fetch(new Request('http://localhost/raw-data'))
