@@ -1,6 +1,6 @@
 import type { Context } from 'hono'
 import { type CookieJar, cookieJar } from './cookies.ts'
-import { getOrCreateSessionId, getSessionState, rotateSessionNow, sessionUse } from './session.ts'
+import { getOrCreateSessionId, getSessionState, readClaims, rotateSessionNow } from './session.ts'
 import type { Store } from './store.ts'
 
 /**
@@ -75,11 +75,7 @@ export function stator(c: Context): StatorContext {
       return getSessionState(c)?.sid ?? ''
     },
     claims<T = unknown>(): T | undefined {
-      // A claims READ is a peek — it never establishes (an anonymous /admin
-      // probe redirects without minting state) — but it does make the
-      // response claims-dependent, so layer 3 marks it unprovable.
-      sessionUse(c).claimsRead = true
-      return getSessionState(c)?.claims as T | undefined
+      return readClaims<T>(c)
     },
     setClaims(claims: unknown): void {
       // Writing claims is an explicit session op — an establishment trigger.

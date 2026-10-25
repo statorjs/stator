@@ -27,8 +27,13 @@ export interface RouteRequest {
   readonly method: string
   /** Full request URL. Same as `raw.url`. */
   readonly url: string
-  /** Request headers. Same Headers instance as `raw.headers`. */
+  /** Request headers. Reading one marks the response as varying per visitor,
+   *  which withdraws derived Cache-Control; `raw.headers` is the untracked
+   *  escape hatch and is outside that proof. */
   readonly headers: Headers
+  /** This session's app-defined claims, or `undefined` if none. A peek: never
+   *  establishes a session. A defined result withdraws derived Cache-Control. */
+  claims<T = unknown>(): T | undefined
   /** Parsed form body. Throws if the content type doesn't match. */
   formData(): Promise<FormData>
   /** Parsed JSON body. Throws on invalid JSON. */
