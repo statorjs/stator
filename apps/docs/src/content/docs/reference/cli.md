@@ -26,7 +26,7 @@ All commands discover `machines/`, `routes/`, `templates/`, `static/` by convent
 - **`stator dev`** — the development server: live reload, the wire inspector, compile-error overlays, and `.stator` compilation on import. Your app runs natively from its source tree, exactly as `stator start` runs a build — no bundler in the server path. Serves on `port` (default 3000), shifting up if it's taken.
 - **`stator build`** — compiles the app to `dist/` (plain TS + bundled island assets + a manifest), with **no Vite in the output**. Runs `stator check` first, so a broken server import or bad prop fails the build instead of shipping.
 - **`stator start`** — serves a built `dist/` in production. Reads the same `stator.config.ts` as `dev`; no Vite in the process.
-- **`stator check`** — typechecks the whole stack: regenerates the per-component `.stator.d.ts` declarations, then runs `tsc` over the server. The single "is my app sound?" gate — no output, just a pass/fail. Replaces the old `sync.ts` + `tsc` step.
+- **`stator check`** — typechecks the whole stack: regenerates the per-component `.stator.d.ts` declarations, compiles every `.stator` file with the real compiler (the same call `dev` makes on import and the editor makes per edit, so a template the dev server would reject fails here too), then runs `tsc` over the server. The single "is my app sound?" gate — no output, just a pass/fail.
 - **`stator test`** — runs the test suite.
 
 ## Flags
