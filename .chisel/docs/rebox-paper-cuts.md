@@ -201,7 +201,7 @@ variant flag, and it's where `static attrs` reads from on the client.
 
 ---
 
-## 8. `pino-pretty` transport fails to resolve under Vite SSR with pino 10.4 — the server module refuses to evaluate (2026-10-21)
+## 8. `pino-pretty` transport fails to resolve under Vite SSR with pino 10.4 — the server module refuses to evaluate — RESOLVED in 2.11.0-next.3 (2026-10-21)
 
 Bumping rebox to `2.11.0-next.2` pulled `pino@10.4.0` (from `10.3.1`).
 Every route test, and any dev route whose module graph reaches
@@ -234,3 +234,42 @@ absolute path as the target, which `fixTarget` returns untouched —
 `@statorjs/stator/server` through `createDevApp`/vite SSR with pino-pretty
 installed, since the unit tests load the logger natively and never see
 this.
+
+Resolved in `fb82002`: pino-pretty runs in-process as the logger's
+destination stream, not as a transport worker, so pino never has to locate
+it by caller script name. `loadPinoPretty()` is the gate;
+`tests/dev-server.test.ts` covers the Vite SSR path.
+
+## 9. Island discovery walks the app tree only — a library can't ship a client component (2026-10-25)
+
+Building rebox and Safe-T-Shelter against a shared design-system package:
+server components publish fine (the component-libraries work), but an
+island in the package is never discovered, so the carousel and the admin
+islands stayed in each app. Needs a decision on how a library declares its
+islands (an `exports` convention the bundler walks, most likely) before it
+becomes a feature.
+
+## 10. `.css` is not a data-route content type (2026-10-25)
+
+The design system's stylesheet route can't be `[name].css.ts`, so it is a
+raw-`Response` route carrying its own ETag logic. One entry in
+`DATA_CONTENT_TYPES` (`'.css': 'text/css; charset=utf-8'`) removes it and
+gives the route the free ETag/304 and derived Cache-Control.
+
+## 11. `pnpm deploy` packs workspace packages with npm's rules (2026-10-25)
+
+Compiled `.stator` siblings in the library were gitignored, and `pnpm
+deploy` dropped them silently until the package declared `files` plus an
+`.npmignore`. Not a framework bug; worth one sentence in the component-
+library docs, since every library that compiles at publish time hits it.
+
+## 12. A library imported by its barrel contributes one `.css`, not per-component siblings (2026-10-25)
+
+The siblings are generated, but the tracer stops at the package boundary
+and resolves `${specifier}.css` through the exports map once — so the
+granularity follows the import specifier, by design (node_modules is
+opaque). A library that wants per-component CSS exports `./x.stator` and
+`./x.stator.css` per component and consumers import those subpaths. No
+framework change; the barrel is the right call when a dispatcher reaches
+every block anyway. Documented here so the next library author knows the
+option exists.
