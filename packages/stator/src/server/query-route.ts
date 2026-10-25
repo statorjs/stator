@@ -28,6 +28,7 @@ const DATA_CONTENT_TYPES: Record<string, string> = {
   '.txt': 'text/plain; charset=utf-8',
   '.ics': 'text/calendar; charset=utf-8',
   '.csv': 'text/csv; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
 }
 
 /** Second-level file extensions (`feed.xml.ts`) that mark a route file as
