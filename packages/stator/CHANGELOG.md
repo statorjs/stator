@@ -1,5 +1,27 @@
 # @statorjs/stator
 
+## 2.11.0
+
+### Minor Changes
+
+- a9c1c97: Images are part of Stator. Declaring `images: { dir }` in `stator.config.ts` mounts an image endpoint over that directory — the URL's extension picks the delivery format, widths and crop aspect ratios come from allowlists, variants cache on disk with content-hash ETags and bodyless 304s, and transformation runs through a swappable `ImageTransformer` adapter (sharp by default, lazy-loaded only when configured).
+
+  `<Image>`, `<Picture>`, and `getImage()` ship on the `components` subpath: CLS-safe markup with required width/height sourced from write-time data (`probeImage()`), `srcset`/art-direction over the endpoint, lazy-loading defaults with a `priority` escape hatch, and crop/format handling for SVG, GIF, and EXIF-oriented photos. Encoding is tuned for small hosts out of the box (bounded concurrency, a libvips thread cap, an encode-timeout fallback to the original).
+
+  Proven end-to-end in `examples/indie-blog` before promotion; the example migrates onto this surface in a follow-up.
+
+- 035b68b: Component-scoped CSS is now usage-driven per route instead of one shared `components.css` concatenating every `.stator` file present in the app — a route only ships the styles of components it actually reaches, including ones reachable only inside an inactive `match`/`when`/`each` arm (still shipped, since a live update can activate that arm later with no fresh request).
+
+  `.stator` component libraries are now a supported shape: a published package can ship compiled `.stator` components whose scoped CSS a consuming app picks up automatically, the same way its own local components' CSS is picked up — in both the production build and the dev server. `<Image>`/`<Picture>` are the first real example: they're now real `.stator` components (previously plain `.ts` functions) with a genuine scoped style of their own, and `getPicture()` joins `getImage()`/`SOURCE_TYPES` as the public, pure escape hatch for custom art-direction components.
+
+### Patch Changes
+
+- b7241f3: `HTMLAttributes<'button'>` and `HTMLAttributes<'input'>` now type the per-button form submission overrides: `formaction`, `formenctype`, `formmethod`, `formnovalidate` and `formtarget`. A submit button that targets a different endpoint inside one form no longer needs a spread cast.
+- 9584603: Dependency refresh for 2.11: hono 4.13, @hono/node-server 1.19.17, sharp 0.35, esbuild 0.28, postcss 8.5.31. Picks up the upstream security fixes in each (hono CORS origin reflection, the libvips CVEs behind sharp, postcss source-map path traversal, node-tar via giget in create-stator).
+- a58006a: `<JsonLd>` now escapes `<`, `>` and `&` in the serialized payload as JSON `<`-style escapes instead of HTML entities. Script content is raw text to the HTML parser, so the old entities reached structured-data consumers literally (`20&apos;`, `plug &amp; play`); the JSON escapes decode back to the real characters while still preventing a `</script>` breakout. Quotes are no longer rewritten (`JSON.stringify` already handles them), and U+2028/U+2029 are escaped as well.
+- fb82002: Dev logging runs `pino-pretty` in-process as the logger's destination stream instead of as a pino transport worker. pino 10.4 locates a transport by sniffing its callers' script names, which a module evaluated by a Vite SSR runner (vitest 4, `ssrLoadModule`, and any app whose test setup inlines `@statorjs/stator/server`) doesn't have, so the server module failed to load with `unable to determine transport target for "pino-pretty"`. Dev-only prettifying never needed the worker.
+- a58006a: A self-closing non-void element in a template (`<div />`, `<my-widget />`) now compiles to an explicitly closed element (`<div></div>`). HTML has no self-closing syntax for non-void elements, so browsers read `<div />` as an open tag and nest every following sibling inside it. Void elements (`<br />`, `<img />`, `<input />`) emit without the meaningless trailing slash (`<br>`).
+
 ## 2.11.0-next.3
 
 ### Patch Changes
