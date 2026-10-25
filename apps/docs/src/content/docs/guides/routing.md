@@ -108,3 +108,20 @@ const found = catalog.bySlug(String(params.slug))
 ```
 
 Set a real status code where it matters (crawlers): `Stator.response.status = 404` in the frontmatter's not-found path.
+
+## Not found: the cascade and `routes/404.stator`
+
+A route's own 404 doesn't end the request. When a GET route answers 404 — `Stator.response.status = 404` on a page, a raw `Response` with status 404 from a data route — the request cascades to the next-most-specific route that also matches, in the same priority order discovery already sorts by. Only when every matching candidate has 404'd does the response go out, using the last candidate's own body and headers. A stale `[slug]` can therefore fall through to a `[...rest]` that serves the path.
+
+`routes/404.stator` (or `routes/404.ts`) is the last resort: sugar for a `[...name]` catch-all at that position, forced below even a real catch-all you write yourself at the same depth. It renders once nothing else could serve the request, so a not-found page needs no bracket-rest trick and no branching inside the route that missed:
+
+```astro
+---
+// routes/404.stator — reached only after every matching route returned 404
+Stator.response.status = 404
+---
+<h1>Never stocked that.</h1>
+<p><a href="/">Back to the shop.</a></p>
+```
+
+The `when()` idiom above still has its place when a page wants to render its own not-found state in its own layout.
