@@ -273,3 +273,14 @@ opaque). A library that wants per-component CSS exports `./x.stator` and
 framework change; the barrel is the right call when a dispatcher reaches
 every block anyway. Documented here so the next library author knows the
 option exists.
+
+## 13. The publish-time compile has no public surface (2026-10-25)
+
+The shared design-system package (`@aquamarine/blocks`) is the second real
+`.stator` component library, and it had to re-implement the framework's own
+`scripts/compile-components.ts` against `@statorjs/stator/compiler` — an
+internal subpath that may change in a minor — because `compileComponentFile`
+and `entryCss` aren't exported from `@statorjs/stator/build`. The
+component-libraries spec deferred a CLI-owned `stator build:lib` until a
+second library existed; it exists now. Export the two helpers from `/build`
+as the minimum, or ship the command.
