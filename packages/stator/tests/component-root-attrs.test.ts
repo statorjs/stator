@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
 import { compile } from '../src/compiler/compile.ts'
+import { CompileError } from '../src/compiler/diagnostics.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import * as templateApi from '../src/template/index.ts'
 import type { HtmlFragment } from '../src/template/types.ts'
@@ -57,5 +58,42 @@ describe('client component root static attributes (FINDINGS #4)', () => {
     const classes = out.html.match(/class="([^"]*)"/)?.[1] ?? ''
     expect(classes.split(/\s+/).sort()).toEqual(['active', 'tile'])
     expect(out.html.match(/class=/g)?.length).toBe(1) // exactly one class attr
+  })
+})
+
+describe('island root attributes: dynamic values are a located error, not a silent drop', () => {
+  it('an expression-valued attribute on the root is rejected with the attribute located', () => {
+    const ISLAND = `---
+const mode = 'full'
+---
+<markdown-editor data-mode={mode}>
+  <div class="host"></div>
+</markdown-editor>
+
+<script>
+  export class MarkdownEditor extends StatorElement {}
+</script>`
+    try {
+      compile(ISLAND, { id: 'markdown-editor.stator', kind: 'component' })
+      throw new Error('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(CompileError)
+      const err = e as CompileError
+      expect(err.message).toContain('<markdown-editor data-mode={mode}>')
+      expect(err.message).toContain("attributes on an island's root must be static")
+      expect(err.loc?.line).toBe(4)
+      expect(err.loc?.column).toBe(18)
+    }
+  })
+
+  it('a spread on the root is rejected too', () => {
+    const ISLAND = `<my-box {...props}></my-box>
+
+<script>
+  export class MyBox extends StatorElement {}
+</script>`
+    expect(() => compile(ISLAND, { id: 'my-box.stator', kind: 'component' })).toThrow(
+      /must be static/,
+    )
   })
 })

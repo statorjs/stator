@@ -132,6 +132,7 @@ Where this is going — and why each item earned its place — lives in [ROADMAP
 - **Flat machines.** No nested/parallel/history states or `invoke` — the snapshot format reserves the shape; richness is 1.x extension points.
 - **Effects are at-most-once.** A crash between commit and completion loses the effect (the machine stays in its pending state). Durable effects ride the 1.x inbox work.
 - **Templates must parse as TSX** — a permanent design constraint (it's what makes the compiler and LSP cheap). No modifier syntax (`on:click.prevent`); compose typed wrappers instead.
+- **Frontmatter is plain TypeScript, not TSX.** No JSX in the fence — conditional markup lives in the template (`when()`/`match()`), and a not-found page cascades to `routes/404.stator`.
 - **App machines are emit-driven** from sessions (plus `dispatchToApp` from server code); there is no direct client→app dispatch yet.
 - **`subscribes:` is callback-shaped.** Declarative source/predicate/transform subscriptions are 1.x.
 - **Machine state is working state.** Sessions never outlive the code that made them: a change to a machine's code resets its sessions at the next hydration, in dev and prod alike. Durable facts belong in your own store, written by effects and reloaded on entry.

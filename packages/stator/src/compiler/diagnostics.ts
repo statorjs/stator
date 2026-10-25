@@ -1,3 +1,5 @@
+import type ts from 'typescript'
+
 /**
  * Compiler diagnostics: a located `CompileError` plus helpers to turn a
  * character offset in the original `.stator` source into a line/column + code
@@ -56,6 +58,17 @@ export function codeFrame(source: string, line: number, column: number): string 
     }
   }
   return out.join('\n')
+}
+
+/** TypeScript's syntactic diagnostics for a parsed file. `parseDiagnostics` is
+ *  not in the public typings, but it is what every tool reads and the only
+ *  way to get them without re-parsing; this is the one place to change if it
+ *  ever moves. */
+export function parseDiagnosticsOf(sf: ts.SourceFile): readonly ts.DiagnosticWithLocation[] {
+  const { parseDiagnostics } = sf as unknown as {
+    parseDiagnostics?: readonly ts.DiagnosticWithLocation[]
+  }
+  return parseDiagnostics ?? []
 }
 
 /** Build a `DiagnosticLocation` from a character offset in the original source. */

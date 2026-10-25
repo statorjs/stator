@@ -319,6 +319,55 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
   }
   checkNoBindingInRcdata(fragment, null)
 
+  // Build-time gate for `child="x"` placement: the marker is read only off a
+  // DIRECT element child of a component tag. Anywhere else — inside a `{…}`
+  // expression, nested deeper, at the template root — it silently lands in the
+  // default slot, and on a component tag it is an ignored prop. Found in the
+  // wild: `{cond ? <div child="top"/> : null}` rendered inside <main> with no
+  // warning.
+  const childMarkerOf = (attrs: ts.JsxAttributes): ts.JsxAttribute | undefined =>
+    attrs.properties.find(
+      (a): a is ts.JsxAttribute =>
+        ts.isJsxAttribute(a) && !ts.isJsxNamespacedName(a.name) && a.name.getText(sf) === 'child',
+    )
+  const checkChildMarkers = (node: ts.Node, underComponent: boolean): void => {
+    if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const opening = ts.isJsxElement(node) ? node.openingElement : node
+      const tag = opening.tagName.getText(sf)
+      const marker = childMarkerOf(opening.attributes)
+      if (marker) {
+        const region =
+          marker.initializer && ts.isStringLiteral(marker.initializer)
+            ? marker.initializer.text
+            : 'x'
+        if (isComponentTag(tag)) {
+          throw new CompileError(
+            `stator: child="${region}" on <${tag}/> has no effect — a child="x" marker is only ` +
+              `read on a direct element child of a component tag; on a component it is an ` +
+              `ignored prop. Wrap it: <div child="${region}"><${tag}/></div>`,
+            loc(marker),
+          )
+        }
+        if (!underComponent) {
+          throw new CompileError(
+            `stator: child="${region}" has no effect here — a child="x" marker is only read on ` +
+              `a direct element child of a component tag. Move the condition inside the slotted ` +
+              `element: <div child="${region}">{cond ? … : null}</div>`,
+            loc(marker),
+          )
+        }
+      }
+      checkChildMarkers(opening.attributes, false)
+      if (ts.isJsxElement(node)) {
+        const inner = isComponentTag(tag)
+        for (const child of node.children) checkChildMarkers(child, inner)
+      }
+      return
+    }
+    ts.forEachChild(node, (child) => checkChildMarkers(child, false))
+  }
+  checkChildMarkers(fragment, false)
+
   // Build-time gate for item-read placement: a `read(<item>, …)` binding is
   // OWNED by its each() row — the row render supplies the item and collects the
   // binding, and the list's recompute is what re-diffs it. Three positions break

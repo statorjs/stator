@@ -50,3 +50,50 @@ import Layout from './layout.stator'
     expect(() => compile(src, { id: 'page.stator' })).not.toThrow()
   })
 })
+
+describe('compiler: child="x" placement', () => {
+  const fm = `---\nimport Layout from './layout.stator'\nimport Banner from './banner.stator'\n---\n`
+  const regions = new Set(['top'])
+  const compileWith = (template: string) =>
+    compile(fm + template, { id: 'page.stator', kind: 'route', resolveRegions: () => regions })
+
+  it('a direct element child of a component still works', () => {
+    expect(() => compileWith(`<Layout><div child="top">hi</div></Layout>`)).not.toThrow()
+  })
+
+  it('inside a {…} expression is a located error', () => {
+    try {
+      compileWith(`<Layout>{true ? <div child="top">hi</div> : null}</Layout>`)
+      throw new Error('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(CompileError)
+      const err = e as CompileError
+      expect(err.message).toContain('child="top" has no effect here')
+      expect(err.message).toContain('<div child="top">{cond ? … : null}</div>')
+      expect(err.loc?.line).toBe(5)
+    }
+  })
+
+  it('nested deeper than a direct child is a located error', () => {
+    expect(() =>
+      compileWith(`<Layout><section><div child="top">hi</div></section></Layout>`),
+    ).toThrow(CompileError)
+  })
+
+  it('at the template root is a located error', () => {
+    expect(() => compileWith(`<div child="top">hi</div>`)).toThrow(/has no effect here/)
+  })
+
+  it('on a component tag is a located error naming the wrap', () => {
+    try {
+      compileWith(`<Layout><Banner child="top" /></Layout>`)
+      throw new Error('expected throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(CompileError)
+      const err = e as CompileError
+      expect(err.message).toContain('child="top" on <Banner/> has no effect')
+      expect(err.message).toContain('<div child="top"><Banner/></div>')
+      expect(err.loc?.line).toBe(5)
+    }
+  })
+})

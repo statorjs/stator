@@ -32,6 +32,8 @@ The `---` fences hold server-side setup: imports (machines are imported **type-o
 
 The compiler enforces which markers are legal in which kind of file: `Stator.props` in a component, the route markers in a route, and it errors if you cross them.
 
+The fence is plain TypeScript, not TSX — no JSX inside it. Conditional markup lives in the template (`when()`/`match()`), and a not-found page cascades to `routes/404.stator` rather than being returned from the fence; JSX in the fence is a located compile error.
+
 An **island** file may carry a fence as well. It runs on the server, per shell render — exactly a server component's contract — and its bindings are in scope for the template. No `Stator.*` markers are legal there: island props are declared by `static attrs`, and richer values arrive through the shell's use-site props. What a fence is for is server work the island owns — imports, computed constants, queries — see [the server fence](/guides/client-components/#the-server-fence) in the client-components guide.
 
 ## The template body
