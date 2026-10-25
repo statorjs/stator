@@ -45,3 +45,5 @@ The only cascade layer Stator itself declares is `stator-inspector` — where th
 ## Beyond the component
 
 Scoped blocks are for the component. A design system, a reset, or Tailwind belong in a global stylesheet served from `static/` — and there is no bundler plugin in the way. See [Styling and assets](/guides/styling-and-assets/).
+
+A scoped block can also be published: a package ships compiled components with their sibling CSS, and a consuming route picks up only what it reaches. See [Component libraries](/guides/component-libraries/).
