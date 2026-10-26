@@ -205,20 +205,29 @@ function stator(c: Context): StatorContext  // resolved config on the request co
 - **`securityHeaders`** — opt-in baseline headers (nosniff always; frame/referrer by default; HSTS/CSP opt-in).
 - **`stator(c)`** — read resolved config (`origin`, `trustedOrigins`, `cors`, `sameSite`) inside a middleware.
 
-## Lower-level exports
+## activeConnectionCount
 
-Plumbing the framework itself runs on. Exported because compiled `.stator` output and the framework's own tooling import them, not because your app should need them — and held to the **Toolchain** tier of the [stability policy](/reference/overview/#stability-policy): these may change in a minor.
+```ts
+function activeConnectionCount(): number
+```
+
+How many live pages currently hold an SSE channel to this process. A dashboard machine's natural read — the desksmith admin page shows it beside the cart totals.
+
+## Runtime subpath
+
+`@statorjs/stator/server/runtime` carries the plumbing the framework itself runs on — exported because compiled `.stator` output, the dev server and the build import it across the package boundary, not because your app should need it. It is the **Toolchain** tier of the [stability policy](/reference/overview/#stability-policy): these may change in a minor, and the import path says so. Through 2.x the same symbols are still re-exported from `/server` so existing imports keep resolving; that re-export is deprecated and is removed in the next major.
 
 - `MachineStore` — the machine registry + actor manager behind `StatorApp.store`.
-- `findPollLoops` (+ `PollLoopFinding`) — the dev-plane lint that detects self-rescheduling poll loops on session machines (an `after` timer whose event cycles back and re-arms it); the dev server runs it at boot and logs findings.
-- `discoverMachines` / `discoverRoutes` (+ `DiscoveryResult`, `DiscoveredRoute`) — filesystem discovery `createApp` runs.
+- `findPollLoops` (+ `PollLoopFinding`) — the dev-plane lint that detects self-rescheduling poll loops on session machines; the dev server runs it at boot and logs findings.
+- `discoverMachines` / `discoverRoutes` / `discoverMiddleware` / `discoverBoot` (+ `DiscoveryResult`, `DiscoveredRoute`) — filesystem discovery `createApp` runs.
 - `buildHonoApp` (+ `HttpConfig`) — assembles the Hono app from routes and a store.
-- `renderRoute` (+ `RenderResult`) — renders one route for one session.
+- `renderRoute` (+ `RenderResult`) / `runQueryRoute` — render one page route, or run one data route, for one session.
 - `recompute` — re-evaluates bindings after a dispatch and emits wire patches.
 - `withDispatchContext` / `getDispatchContext` / `recordTouch` (+ `DispatchContext`) — the ambient context a dispatch runs under.
-- `scheduleSessionEffects` / `wireAppEffects` — host-side effect scheduling.
+- `scheduleSessionEffects` / `wireAppEffects` / `runBoot` — host-side effect and boot scheduling.
 - `createInstanceProxy` / `defForProxy` (+ `InstanceHandle`) — the machine instance proxies `read()` resolves against.
 - Render context: `createRenderState`, `runInRender`, `getCurrentRenderState`, `requireCurrentRenderState`, `registerBinding`, `unregisterBindingsForScope`, `allocElementId`, `allocSlotId`, `pushListScope`, `popListScope`, `createEventDescriptor`, `isEventDescriptor` (+ `Binding`, `BindingKind`, `ElementId`, `EventDescriptor`, `MachineName`, `RenderState`, `SessionId`, `SlotId`) — slot/binding bookkeeping during render.
-- Sessions: `getOrCreateSessionId`, `SESSION_COOKIE`, `SessionRuntime`.
-- SSE: `registerConnection`, `unregisterConnection`, `fanOut`, `activeConnectionCount` (+ `Connection`).
-- Brand guards: `isStatorMachine`, `isStatorRoute`, `isStatorApiRoute`.
+- Sessions: `getOrCreateSessionId`, `SESSION_COOKIE`, `setSessionSameSite`, `SessionRuntime`.
+- SSE registry: `registerConnection`, `unregisterConnection`, `fanOut` (+ `Connection`).
+- Machine code hashing: `codeHashOf`, `codeInputsOf`; the dev inspector's `buildInspectPayload` (+ `InspectPayload`, `InspectRoute`, `InspectRouteMethod`); images: `resolveImagesConfig` (+ `ResolvedImagesConfig`), `DEFAULT_IMAGE_WIDTHS`.
+- Brand guards: `isStatorMachine`, `isStatorRoute`, `isStatorApiRoute`, `isStatorQueryRoute`, `isMiddlewareDefinition`, `isBootDefinition`.

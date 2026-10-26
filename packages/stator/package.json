@@ -35,6 +35,10 @@
       "types": "./src/server/index.ts",
       "default": "./src/server/index.ts"
     },
+    "./server/runtime": {
+      "types": "./src/server/runtime.ts",
+      "default": "./src/server/runtime.ts"
+    },
     "./machine": {
       "types": "./src/engine/index.ts",
       "default": "./src/engine/index.ts"

@@ -68,9 +68,12 @@ export async function createViteDevApp(config: DevAppConfig): Promise<DevApp> {
 
   // Load the runtime through Vite so it shares an instance with the templates.
   // (Type-only: the static import type is erased, so no second instance.)
-  const runtime = (await vite.ssrLoadModule(
-    '@statorjs/stator/server',
-  )) as typeof import('./index.ts')
+  // Both subpaths through Vite's graph, so the plumbing shares module
+  // instances with the app code Vite loads.
+  const runtime = {
+    ...(await vite.ssrLoadModule('@statorjs/stator/server')),
+    ...(await vite.ssrLoadModule('@statorjs/stator/server/runtime')),
+  } as typeof import('./index.ts') & typeof import('./runtime.ts')
   const loader = (file: string) => vite.ssrLoadModule(file) as Promise<Record<string, unknown>>
 
   const root = resolve(config.root)
