@@ -1,5 +1,28 @@
 # @statorjs/stator
 
+## 2.12.0
+
+### Minor Changes
+
+- 6d6766c: `stator build:lib [dir]` compiles a component library for publishing: every `.stator` under the directory (default `src`) to its sibling `.stator.ts` and `.css`, `.stator` imports between them rewritten to the compiled siblings, and one stylesheet aggregated for the package's `./components.css` export from the directory's `index.ts` barrel — every component's CSS when there is no barrel. It is the operation the framework's own `<Image>`/`<Picture>` were already published with, now owned by the CLI so a library no longer scripts it against the internal `compiler` subpath. `compileLibrary()` on `@statorjs/stator/build` is the same operation as a function. Islands compile, but a consuming app can't discover islands from a package yet, and the command says so.
+- aceff10: `stator check` now runs every `.stator` file through the real compiler before the `tsc` pass — the same call `stator dev` makes on import and the language server makes per edit — so the editor, `check` and `dev` reject the same inputs. A compile error reports as `file:line:col` with the compiler's code frame and counts in the final tally. `stator build` runs `check` first, so a template the dev server would refuse now fails the build before anything reaches `dist/`, instead of surfacing on the first request that imports it.
+- 031abf8: Derived Cache-Control now sees request reads, and claims peeks are precise.
+
+  A page or data route that reads a request header or a cookie — `request.headers.get(...)`, the cookie jar's `get`/`getSigned` — is no longer cache-marked as anonymous-identical: the read marks the response as varying per visitor and withdraws the proof. Previously a page that branched on `Accept-Language` or a marker cookie still carried `public, s-maxage`, so its first visitor's variant was cached for everyone. `request.raw.headers` stays untracked as the escape hatch, outside the proof.
+
+  A claims read withdraws the proof only when it resolves to a value. Anonymous visitors and cookied visitors with no claims saw the same page, so it stays cacheable; only a visitor who actually has claims gets an origin render. And route pages can read claims now — `Stator.request.claims()`, the same peek the `claims()` helper gives API routes and middleware, never establishing a session — so an admin-only affordance on a public page costs the public nothing.
+
+- 41ed2c6: The Toolchain tier of `/server` gets its own subpath, `@statorjs/stator/server/runtime`, so the import path carries the stability tier instead of a docs footnote. Everything the reference listed under "Lower-level exports" — `SessionRuntime`, `recompute`, `renderRoute`, `buildHonoApp`, `MachineStore`, the render-context internals, discovery, the dispatch context, effect scheduling, the SSE registry, the brand guards — plus the undocumented plumbing that had accumulated beside it (`runQueryRoute`, `buildInspectPayload`, `codeHashOf`, `discoverMiddleware`, `resolveImagesConfig`, …) lives there now. Through 2.x the same symbols are still re-exported from `/server`, deprecated, so nothing that imports them today stops resolving; the re-export is removed in the next major. `activeConnectionCount` is promoted to Stable on `/server`, because an app dashboard is exactly where it's useful.
+- 29db995: Three things the compiler used to accept and silently get wrong are now located compile errors, each found building a real app:
+
+  - **`child="x"` anywhere it can't be read.** The marker is only read off a direct element child of a component tag. Inside a `{…}` expression (`{cond ? <div child="top"/> : null}`), nested deeper, at the template root, or on a component tag itself, it used to fall into the default slot or become an ignored prop with no warning. The error names the shape that works: put the condition inside the slotted element.
+  - **A dynamic attribute on an island's root.** `<markdown-editor data-mode={mode}>` compiled and typechecked, and the shell rendered the root without the attribute. The root is rendered from the use site's props, so a dynamic value belongs on an inner element or in `static attrs`; the error says so and points at the attribute.
+  - **JSX in frontmatter.** The fence is plain TypeScript, so `return <p>…</p>` lexed as a type assertion and failed only as esbuild's `Expected ")" but found "return"` on the emitted module, while `stator check` passed it. A syntax error in the fence now reports with TypeScript's own message at its line and column, with one targeted hint for the JSX shape (markup belongs in the template; a not-found page cascades to `routes/404.stator`). The editor's model stops making such a fence look fine, so the squiggle matches.
+
+### Patch Changes
+
+- 5e8a84b: Data routes recognize the `.css` extension (`theme.css.ts` → `/theme.css`, served as `text/css`). A generated stylesheet — a design system's tokens, a per-tenant theme — no longer needs a raw `Response` that gives up the free ETag/304 and derived Cache-Control.
+
 ## 2.11.0
 
 ### Minor Changes
