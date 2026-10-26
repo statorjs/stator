@@ -15,7 +15,7 @@ import type {
   Directive,
   RouteRequest,
 } from './routing.ts'
-import { getOrCreateSessionId, getSessionState, rotateSessionNow, sessionUse } from './session.ts'
+import { getOrCreateSessionId, getSessionState, readClaims, rotateSessionNow } from './session.ts'
 import { withSessionLock } from './session-lock.ts'
 import { SessionRuntime } from './session-runtime.ts'
 import { fanOut } from './sse.ts'
@@ -76,10 +76,7 @@ export async function runApiRoute(
         clearSession: () => {
           rotation = { clear: true }
         },
-        claims: <T = unknown>() => {
-          sessionUse(c).claimsRead = true
-          return getSessionState(c)?.claims as T | undefined
-        },
+        claims: <T = unknown>() => readClaims<T>(c),
         setClaims: (claims) => {
           const s = getSessionState(c)
           if (s) {

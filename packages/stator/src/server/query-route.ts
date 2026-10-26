@@ -142,8 +142,8 @@ export async function runQueryRoute(
 }
 
 /** Layer 3 — derived Cache-Control, same proof as pages: no session reads
- *  declared, no session use/claims read while handling, handler set nothing
- *  itself. Applied to 200 and 304 alike (a 304's headers update the cached
+ *  declared, no session use, claims or request inputs read while handling,
+ *  handler set nothing itself. Applied to 200 and 304 alike (a 304's headers update the cached
  *  entry's lifetime). */
 function applyDerivedCaching(
   c: Context,
@@ -156,6 +156,7 @@ function applyDerivedCaching(
     opts.needsSession ||
     use.used ||
     use.claimsRead ||
+    use.varied ||
     res.status >= 400 ||
     res.headers.has('cache-control')
   ) {

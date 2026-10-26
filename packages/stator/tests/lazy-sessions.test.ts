@@ -163,3 +163,62 @@ describe('the revision ledger', () => {
     expect(fresh.headers.get('etag')).not.toBe(etag)
   })
 })
+
+/** The last session cookie a response set — a login that establishes and
+ *  rotates in one request emits two, and browsers keep the last. */
+function lastSid(res: Response): string {
+  const sids = res.headers
+    .getSetCookie()
+    .map((cookie) => /stator_sid=([^;]+)/.exec(cookie)?.[1])
+    .filter((sid): sid is string => !!sid)
+  return sids.at(-1)!
+}
+
+describe('layer 3 — the proof is precise', () => {
+  it('a page that reads a request header is never cache-marked', async () => {
+    const res = await get(app, '/lang', { 'accept-language': 'fr' })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('set-cookie')).toBeNull()
+    expect(res.headers.get('cache-control')).toBeNull()
+  })
+
+  it('reading the Cookie header withdraws the proof even when no cookie arrived', async () => {
+    const res = await get(app, '/cookie-gate')
+    expect(await res.text()).toContain('live')
+    expect(res.headers.get('cache-control')).toBeNull()
+  })
+
+  it('a data route that reads a request header is never cache-marked', async () => {
+    const res = await get(app, '/ua.json', { 'user-agent': 'probe' })
+    expect(await res.json()).toEqual({ ua: 'probe' })
+    expect(res.headers.get('cache-control')).toBeNull()
+  })
+
+  it('a claims peek that finds nothing keeps the proof, anonymous or cookied', async () => {
+    const anonymous = await get(app, '/whoami')
+    expect(await anonymous.text()).toContain('anonymous')
+    expect(anonymous.headers.get('set-cookie')).toBeNull()
+    expect(anonymous.headers.get('cache-control')).toContain('public')
+
+    const cookied = await get(app, '/whoami', { Cookie: `stator_sid=${crypto.randomUUID()}` })
+    expect(await cookied.text()).toContain('anonymous')
+    expect(cookied.headers.get('set-cookie')).toBeNull()
+    expect(cookied.headers.get('cache-control')).toContain('public')
+  })
+
+  it('a claims peek that finds claims withdraws the proof', async () => {
+    const login = await app.fetch(
+      new Request('http://localhost/claims-rotate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Origin: 'http://localhost',
+        },
+        body: new URLSearchParams(),
+      }),
+    )
+    const res = await get(app, '/whoami', { Cookie: `stator_sid=${lastSid(login)}` })
+    expect(await res.text()).toContain('u1')
+    expect(res.headers.get('cache-control')).toBeNull()
+  })
+})

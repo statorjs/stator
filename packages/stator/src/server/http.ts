@@ -914,8 +914,9 @@ async function renderGetCandidate(
     }
 
     // Layer 3 — derived Cache-Control: the page is PROVABLY anonymous-
-    // identical (no session reads declared, no session use or claims read
-    // during handling) and the route didn't hand-set the header. The
+    // identical (no session reads declared, no session use, claims or
+    // request inputs read during handling) and the route didn't hand-set
+    // the header. The
     // framework says what it can prove; hand-set always wins. Computed here
     // but only ever WRITTEN from `commit`, below — this render may be a
     // losing, discarded candidate under cascading, and only the winner's
@@ -927,6 +928,7 @@ async function renderGetCandidate(
       !needsSession &&
       !use.used &&
       !use.claimsRead &&
+      !use.varied &&
       result.response.status < 300 &&
       result.response.cookies.length === 0 &&
       !result.response.headers.has('cache-control')

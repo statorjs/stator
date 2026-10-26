@@ -28,7 +28,11 @@ export interface SessionState {
  *  response unprovable as anonymous-identical, so no derived Cache-Control. */
 export interface SessionUse {
   used: boolean
+  /** A claims read resolved to a value. */
   claimsRead: boolean
+  /** A request input beyond the URL was read (a header, a cookie), so the
+   *  response may differ per visitor. */
+  varied: boolean
 }
 
 declare module 'hono' {
@@ -47,10 +51,19 @@ export function getSessionState(c: Context): SessionState | undefined {
 export function sessionUse(c: Context): SessionUse {
   let use = c.get('statorSessionUse')
   if (!use) {
-    use = { used: false, claimsRead: false }
+    use = { used: false, claimsRead: false, varied: false }
     c.set('statorSessionUse', use)
   }
   return use
+}
+
+/** Read the resumed session's claims — a peek that never establishes. Only a
+ *  DEFINED result makes the response claims-dependent (layer 3): a visitor
+ *  whose claims read came back empty saw exactly the anonymous page. */
+export function readClaims<T = unknown>(c: Context): T | undefined {
+  const claims = getSessionState(c)?.claims as T | undefined
+  if (claims !== undefined) sessionUse(c).claimsRead = true
+  return claims
 }
 
 /** The session id this request WOULD have — established state or the arriving

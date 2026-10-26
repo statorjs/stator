@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 import { deleteCookie, getCookie, getSignedCookie, setCookie, setSignedCookie } from 'hono/cookie'
 import type { RouteCookieOptions } from './routing.ts'
+import { sessionUse } from './session.ts'
 
 /**
  * A focused read/write cookie surface for app-owned cookies (a login
@@ -49,7 +50,10 @@ function requireSecret(c: Context): string {
  *  the same way. */
 export function cookieJar(c: Context): CookieJar {
   return {
-    get: (name) => getCookie(c, name),
+    get: (name) => {
+      sessionUse(c).varied = true
+      return getCookie(c, name)
+    },
     set: (name, value, options) => {
       setCookie(c, name, value, options as never)
     },
@@ -57,6 +61,7 @@ export function cookieJar(c: Context): CookieJar {
       deleteCookie(c, name, options as never)
     },
     getSigned: async (name) => {
+      sessionUse(c).varied = true
       // hono returns `false` for a present-but-invalid signature; collapse it to
       // undefined so callers never trust (or even see) a tampered value.
       const value = await getSignedCookie(c, requireSecret(c), name)
