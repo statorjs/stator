@@ -27,7 +27,7 @@ All commands discover `machines/`, `routes/`, `templates/`, `static/` by convent
 - **`stator build`** — compiles the app to `dist/` (plain TS + bundled island assets + a manifest), with **no Vite in the output**. Runs `stator check` first, so a broken server import or bad prop fails the build instead of shipping.
 - **`stator start`** — serves a built `dist/` in production. Reads the same `stator.config.ts` as `dev`; no Vite in the process.
 - **`stator check`** — typechecks the whole stack: regenerates the per-component `.stator.d.ts` declarations, compiles every `.stator` file with the real compiler (the same call `dev` makes on import and the editor makes per edit, so a template the dev server would reject fails here too), then runs `tsc` over the server. The single "is my app sound?" gate — no output, just a pass/fail.
-- **`stator test`** — runs the test suite.
+- **`stator test`** — runs the test suite with the app's local Vitest, with Stator's TypeScript loader registered (`--import @statorjs/stator/register` in `NODE_OPTIONS`). Packages built on Stator then load from `node_modules`, however deep. To run the tests some other way, see [Testing](/guides/testing/#running-the-suite).
 - **`stator build:lib [dir]`** — compiles a component library for publishing: every `.stator` under `dir` (default `src`) to its sibling `.stator.ts` and `.css`, and one stylesheet aggregated for the package's `./components.css` export from the directory's `index.ts` barrel. Wire it into `prepublishOnly`. See [Component libraries](/guides/component-libraries/).
 
 ## Flags

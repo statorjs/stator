@@ -47,6 +47,7 @@
       "types": "./src/server/dev.ts",
       "default": "./src/server/dev.ts"
     },
+    "./register": "./src/register.js",
     "./build": {
       "types": "./src/build/index.ts",
       "default": "./src/build/index.ts"

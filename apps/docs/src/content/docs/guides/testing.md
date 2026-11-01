@@ -112,6 +112,21 @@ The first GET establishes the session and its render bindings; the POST asserts 
 
 Island state is built from `machine()` and the same actor engine, so its logic tests exactly like server machines — in Node, no DOM. When you do want DOM assertions (bindings, `attrs` coercion), [happy-dom](https://github.com/capricorn86/happy-dom) is enough; reserve real-browser tests for the few interactions that earn them.
 
+## Running the suite
+
+Stator ships its source as TypeScript and loads it with its own loader. Packages built on Stator (component libraries, runtime packages) ship JS that imports that source. Node won't strip types inside `node_modules`, so any process that imports such a package needs Stator's loader registered first. `stator dev`, `start` and `build` register it themselves, and `stator test` passes it to Vitest.
+
+Anything else that runs your code (an editor's test runner, `npx vitest`, a maintenance script, another test runner) registers it with one flag:
+
+```sh
+NODE_OPTIONS="--import @statorjs/stator/register" npx vitest
+node --import @statorjs/stator/register scripts/backfill.ts
+```
+
+For an editor extension, set the same `NODE_OPTIONS` in its environment setting.
+
+Without it, the failure looks like `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`. From a linked checkout, it reads "parameter property is not supported in strip-only mode".
+
 ## Where to spend your budget
 
 - **Most tests: machines.** Guards, transitions, effects, selectors — every business rule, at unit-test speed, arranged via snapshots.

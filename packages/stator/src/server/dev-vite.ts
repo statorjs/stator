@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
-import { relative, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import { getRequestListener } from '@hono/node-server'
 import type { Hono } from 'hono'
 import { createServer as createViteServer, type ViteDevServer } from 'vite'
@@ -36,6 +36,36 @@ import { isStatorQueryRoute } from './routing.ts'
  * whose render-context doesn't match the one the templates resolve against, and
  * `read()` would throw. (This mirrors how Astro/SvelteKit run SSR through Vite.)
  */
+/**
+ * The app's direct dependencies that depend on Stator, for `ssr.noExternal`
+ * above. Transitional, like this whole module (removed with the Vite exit):
+ * the native dev server and production load one module graph, where the
+ * dual-instance trap can't happen. Direct dependencies only — a deeper one
+ * still loads (`@statorjs/stator/register` handles that) but as a second
+ * instance.
+ */
+function statorDependents(root: string): string[] {
+  const read = (path: string): Record<string, Record<string, string> | undefined> | null => {
+    try {
+      return JSON.parse(readFileSync(path, 'utf8'))
+    } catch {
+      return null
+    }
+  }
+  const app = read(join(root, 'package.json'))
+  if (!app) return []
+  return Object.keys({ ...app.dependencies, ...app.devDependencies }).filter((name) => {
+    if (name === '@statorjs/stator') return false
+    const pkg = read(join(root, 'node_modules', name, 'package.json'))
+    return Boolean(
+      pkg &&
+        [pkg.dependencies, pkg.peerDependencies, pkg.optionalDependencies].some(
+          (deps) => deps && '@statorjs/stator' in deps,
+        ),
+    )
+  })
+}
+
 export async function createViteDevApp(config: DevAppConfig): Promise<DevApp> {
   // Load .env before anything reads process.env. No-op if the CLI already
   // loaded it; covers a direct `createDevApp` call (a hand-written dev entry).
@@ -61,8 +91,11 @@ export async function createViteDevApp(config: DevAppConfig): Promise<DevApp> {
     // imports of a machine resolve to a `{ name }` stub (SSR loads are
     // untouched — `options.ssr` gates it).
     plugins: [stator(), machineStub({ machinesDir: resolve(config.machinesDir) })],
-    // The framework's own source is TS that Vite must transform, not externalize.
-    ssr: { noExternal: [/@statorjs\/stator/] },
+    // The framework's own source is TS that Vite must transform, not
+    // externalize — and so must packages built on it, or they load through
+    // Node with a second Stator instance (the dual-instance trap: a
+    // component they render finds no render context).
+    ssr: { noExternal: [/@statorjs\/stator/, ...statorDependents(resolve(config.root))] },
     logLevel: 'warn',
   })
 
