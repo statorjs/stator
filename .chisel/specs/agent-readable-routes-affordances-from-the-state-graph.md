@@ -2,11 +2,13 @@
 title: 'Agent-readable routes: affordances from the state graph'
 status: draft
 created: 2026-08-25
-updated: 2026-08-25
+updated: 2026-10-28
 area: server
 ---
 
 ## What and Why
+
+> **Status (2026-10-28)**: the skin decisions here (envelope, discovery, session bootstrap) are superseded by [`agent-tools-from-the-state-graph-the-webmcp-skin`](./agent-tools-from-the-state-graph-the-webmcp-skin.md). The affordance claim, the exposure-boundary rule, the zero-new-capability security story, and the Desksmith evidence gate stand and are consumed there.
 
 The idea (2026-08-25): an LLM/agent-facing representation of any page — the page's data, type schemas, and the currently-valid actions — served alongside the HTML. Structurally this is hypermedia affordances (HATEOAS), which historically failed because no framework could *know* the affordances: actions in other stacks are opaque imperative fetch calls, so affordance documents were hand-authored and drifted. Stator inverts that, and the claim worth recording is:
 
