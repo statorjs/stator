@@ -46,9 +46,38 @@ The working pattern is the built-in `<JsonLd>` (`src/components/json-ld.ts`): a 
 {hasRules && <script type="speculationrules">{rulesJson}</script>}
 ```
 
-fails, and the reason (the client-component rule) isn't obvious.
+fails, and the reason (the client-component rule) isn't obvious. The target markup is
 
-**The idea, if picked up:** a `<script>` whose `type` is not JavaScript (anything but empty, `module`, `text/javascript` and the other JS MIME types) stays in the template as an ordinary element; `{…}` children are expressions; their output is emitted unescaped but with `</script` neutralised, the same guarantee `<JsonLd>`'s escaping gives. Depends on the splitter fix above.
+```stator
+<script type="speculationrules" set:json={rules} />
+```
+
+**Not expression children.** An early version of this idea let `{…}` inside a data script be an expression. That breaks the commonest case: literal JSON starts with `{`, so `<script type="application/ld+json">{ "@type": "Person" }</script>` would parse as a template expression. HTML treats script content as raw text, and so should Stator.
+
+**The idea, if picked up (modelled on Astro):** Astro processes a `<script>` only when it has no attribute besides `src`; any other attribute makes it `is:inline`, and computed content goes in through a directive (`<script type="application/ld+json" set:html={JSON.stringify(x)} />`). Astro's `set:html` doesn't escape, so a `</script>` in the data breaks out unless the author escapes it. For Stator:
+
+1. A `<script>` whose `type` is not JavaScript is never a client component. Its body is emitted verbatim, so literal JSON works.
+2. A `set:json={value}` directive supplies computed content. Stator serializes and escapes it (the `escapeForScript` set `<JsonLd>` uses), so there is no breakout hole.
+3. **Typed per `type`.** A registry maps each supported `type` to its payload, and apps extend it by declaration merging:
+
+   ```ts
+   type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue | undefined }
+
+   interface DataScriptTypes {
+     'application/ld+json': Thing | Thing[] // schema-dts, as <JsonLd> uses
+     speculationrules: SpeculationRules
+     importmap: { imports?: Record<string, string>; scopes?: Record<string, Record<string, string>>; integrity?: Record<string, string> }
+     'application/json': JsonValue
+   }
+   ```
+
+   The check emit (the virtual TSX behind `stator check` and the language server) lowers the element to `__dataScript('speculationrules', value)`, declared as `<T extends keyof DataScriptTypes>(type: T, value: DataScriptTypes[T]) => void`. An unknown `type` errors with the known list; a wrong payload errors against its shape. `| undefined` in `JsonValue` admits optional properties under `exactOptionalPropertyTypes` (`JSON.stringify` drops them).
+
+   Caveat to resolve: a value typed by an `interface` isn't assignable to an index-signature type (interfaces get no implicit index signature). Either document "use `type` aliases" or check with a mapped `JsonCompatible<T>` constraint, which accepts interfaces.
+
+   Risk: the per-type shapes must track the platform (speculation rules are still evolving), which is why the registry is extensible and `application/json` stays as the untyped fallback.
+
+With this, `<JsonLd>` and a `<Speculation>` built-in become thin conveniences over `set:json` rather than the only way to emit a data script.
 
 **Parked (2026-11-02)** because the function-component pattern covers the need. Revisit if more data-block built-ins appear (speculation rules is the second after JSON-LD), or if users keep reaching for the markup form.
 
