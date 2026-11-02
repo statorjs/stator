@@ -12,6 +12,7 @@ import { machineStub, stator } from '../vite/index.ts'
 import { findFreePort, installGracefulShutdown, printDevBanner } from './banner.ts'
 import { resolveAppConfig } from './config-compat.ts'
 import type { DevApp, DevAppConfig } from './dev.ts'
+import { isPrunedDevPath } from './dev-watch.ts'
 import { loadDotenv } from './env.ts'
 import { resolveImagesConfig } from './images.ts'
 import { logger, setLogLevel } from './logger.ts'
@@ -86,7 +87,20 @@ export async function createViteDevApp(config: DevAppConfig): Promise<DevApp> {
     // configured there would run in `stator dev` and silently vanish in
     // `stator build`). Stator's own plugins are passed inline below.
     configFile: false,
-    server: { middlewareMode: true, hmr: { port: hmrPort } },
+    server: {
+      middlewareMode: true,
+      hmr: { port: hmrPort },
+      // Vite's defaults skip only .git and node_modules; an in-project
+      // package store (`.pnpm-store` in a container) would otherwise be
+      // watched file by file. Same rule as the native watcher. Paths outside
+      // the root (linked packages) stay watched.
+      watch: {
+        ignored: (p: string) => {
+          const rel = relative(resolve(config.root), p).replace(/\\/g, '/')
+          return rel !== '' && !rel.startsWith('..') && isPrunedDevPath(rel)
+        },
+      },
+    },
     // machineStub keeps server machines out of browser module graphs: island
     // imports of a machine resolve to a `{ name }` stub (SSR loads are
     // untouched — `options.ssr` gates it).
