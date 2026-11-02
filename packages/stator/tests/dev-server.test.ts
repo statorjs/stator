@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -172,6 +172,29 @@ describe('dev server: .stator end to end', () => {
       expect(asset.status).toBe(404)
     } finally {
       await noInspector.close()
+    }
+  })
+
+  it('never watches an in-project package store or other dot directories', async () => {
+    // pnpm puts its store inside the project when the project sits on its own
+    // filesystem (a CI container). Watched file by file, it exhausted the
+    // host's inotify watches.
+    const store = resolve(root, '.pnpm-store/v10/files/00')
+    await mkdir(store, { recursive: true })
+    await writeFile(resolve(store, 'pkg.json'), '{}')
+    const watched = await createDevApp({
+      root,
+      machinesDir: resolve(root, 'machines'),
+      routesDir: resolve(root, 'routes'),
+    })
+    try {
+      const dirs = Object.keys(watched.vite!.watcher.getWatched())
+      expect(dirs.some((d) => d.includes('.pnpm-store'))).toBe(false)
+      // App source is still watched.
+      expect(dirs.some((d) => d.endsWith('/routes'))).toBe(true)
+    } finally {
+      await watched.close()
+      await rm(resolve(root, '.pnpm-store'), { recursive: true, force: true })
     }
   })
 

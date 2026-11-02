@@ -26,6 +26,7 @@ import { type BootTeardown, discoverBoot, runBoot } from './boot.ts'
 import { resolveAppConfig } from './config-compat.ts'
 import type { DevAppConfig } from './dev.ts'
 import { findPollLoops } from './dev-lint.ts'
+import { isPrunedDevPath } from './dev-watch.ts'
 import { discoverMachines } from './discovery.ts'
 import { wireAppEffects } from './effects.ts'
 import { loadDotenv } from './env.ts'
@@ -102,10 +103,6 @@ const devClientScript = (live: boolean): string =>
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'tests', 'test', '__tests__'])
 const APP_EXT = /\.(stator|ts|tsx|mts|cts|js|mjs)$/
-/** Root-relative path segments that are never app source (mirrors SKIP_DIRS). */
-const PRUNE_DIR = /(^|\/)(node_modules|dist|tests|test|__tests__)(\/|$)/
-/** Any dot-prefixed segment: VCS/config dirs and editor temp/swap files. */
-const DOT_SEGMENT = /(^|\/)\.[^/]+/
 const EMPTY_BUNDLE: IslandBundle = { islandUrls: {}, assets: [], modules: [] }
 const norm = (p: string): string => p.replace(/\\/g, '/')
 
@@ -264,8 +261,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   // Prune rules apply to the path RELATIVE to the app root — the root's own
   // ancestors may legitimately contain a `tests/` or a dot-dir.
   const relOf = (abs: string): string => norm(relative(root, abs))
-  const pruned = (rel: string): boolean =>
-    rel.startsWith('..') || PRUNE_DIR.test(rel) || DOT_SEGMENT.test(rel)
+  const pruned = (rel: string): boolean => rel.startsWith('..') || isPrunedDevPath(rel)
   const isAppFile = (abs: string): boolean => APP_EXT.test(abs) && !pruned(relOf(abs))
 
   const setEdges = (file: string, children: Set<string>): void => {
