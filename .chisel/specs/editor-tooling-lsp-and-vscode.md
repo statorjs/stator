@@ -2,7 +2,7 @@
 title: Editor tooling — LSP and VSCode extension
 status: shipped
 created: 2026-06-30
-updated: 2026-07-13
+updated: 2026-11-01
 area: tooling
 ---
 
@@ -24,9 +24,48 @@ The twist in our favor: a `.stator` **template is JSX-first, not HTML-first**, s
 **Deferred to post-launch follow-ups:**
 
 - **Phase 2 — Stator-specific intelligence.** Surface compiler diagnostics (capability errors, malformed inline `<script>`, `child="x"` slot validation); typed `read(machine, sel)` selector completions; directive-attribute completions (`on:` / `bind:` / `class:list`); machine event-union autocomplete in `send` / `dispatch`.
-- **Phase 3 — Formatting + polish.** `prettier-plugin-stator` (mirroring `prettier-plugin-astro`), Emmet in the template, references.
+- **Phase 3 — Lint, format and polish.** Biome as the one lint and format tool for Stator apps, reaching `.stator` files through the CLI and the language server (see "Lint and format: Biome" below). Emmet in the template, references. This replaces the earlier `prettier-plugin-stator` plan.
 
 **Why this line.** Phases 0–1 are *structural* — region splitting, virtual-TSX generation, federated TS/CSS services — and stay valid across language changes. Phases 2–3 encode deep Stator-specific semantics (directive shapes, selector typing, formatting rules) and are the **most at risk of rework** if the syntax or reactivity model shifts after Stator 1.0. Landing 0–1 makes the toolset feel mostly complete; holding 2–3 until the language settles avoids building polish on a moving target.
+
+## Lint and format: Biome (direction, 2026-11-01)
+
+**Decision:** Stator apps lint and format with [Biome](https://biomejs.dev), the tool Stator's own repo already uses (`biome.jsonc`). We don't build a Prettier plugin, an ESLint plugin or Stylelint support. One fast tool and one config covers TS, JS, JSX, JSON and CSS, and Stator's job is to make `.stator` files part of that.
+
+**What prompted it.** Adding linting to tonysull.co (the first production Stator app) on 2026-11-01:
+- ESLint + Prettier + Stylelint meant three tools, three configs and about 8 dev dependencies.
+- Prettier mangled inline code spans in a markdown file.
+- None of the three understand `.stator`, except Stylelint on `<style>` blocks through `postcss-html`.
+- Biome with this repo's config covered everything except `.stator` in one dependency.
+
+The site moved to Biome. `.stator` files are covered only by `stator check` (compiler plus type check), with no lint or format.
+
+**The gap to close:** every `.stator` region is a language Biome already handles. Frontmatter and client `<script>` are TS, `<style>` is CSS, and the template is JSX-first. Biome just doesn't know how to split the file.
+
+**How:**
+
+1. **`stator lint` / `stator format` in the CLI.**
+   - `splitStator` cuts each file into regions, the same front end the compiler and language server use.
+   - Each region goes to Biome through its JS API (`@biomejs/js-api`, WASM), with the project's `biome.jsonc`.
+   - Formatted regions are spliced back. Diagnostics are remapped to `.stator` offsets with the language-emit mapping from phase 1.
+   - `stator lint` also runs Biome over the app's plain files, so it is the one command for the whole project.
+   - `--write` applies formatting and safe fixes.
+2. **Template formatting** depends on whether Biome's JSX formatter accepts the template as written. Namespaced directive attributes (`on:click`, `bind:value`, `class:list`) are valid JSX syntax. Template expressions such as `when(read(...), () => ...)` are plain TSX. To check: whether Biome's parser and formatter round-trip them unchanged. If not, the template region stays unformatted and only gets linted, until it can be handled.
+3. **Language server:** `textDocument/formatting` and lint diagnostics call the same code path as the CLI, so the editor and CI never disagree. This follows the "compiler is the single source of truth" constraint.
+4. **Scaffold:** `create-stator` ships a `biome.jsonc` (this repo's settings), `lint` and `lint:fix` scripts, and Biome as a dev dependency. Every new app starts with it.
+5. **Stator-aware rules, later.** Biome's GritQL plugins can add lint rules (for example, calling `send` with an event the machine doesn't accept). These belong in phase 2's intelligence work, built on the compiler's diagnostics rather than duplicating them.
+
+**Upstream path.** Biome has added experimental handling for Vue, Svelte and Astro files, treating them as HTML with embedded script and style. If that becomes a supported extension point, mapping `.stator` onto it (or contributing a `.stator` language) could replace the region splitting in step 1. Not verified for Biome 2.6; check before building step 1.
+
+**Risks:**
+- The JS API is WASM and pinned to a Biome version, so the CLI must pin and test against one release.
+- Formatting regions separately can lose cross-region context (indentation inside `<style>`). The splice must keep each region's original indentation.
+
+**Success criteria:**
+- `stator lint` passes or fails a project, `.stator` files included, with diagnostics at the right source positions.
+- `stator lint --write` formats every region it supports and is idempotent.
+- A new `create-stator` app passes `pnpm lint` out of the box.
+- The language server's format-on-save matches the CLI's output byte for byte.
 
 ## Success Criteria (tooling v1)
 
@@ -79,4 +118,4 @@ The twist in our favor: a `.stator` **template is JSX-first, not HTML-first**, s
 
 ## Implementation Notes
 
-Not started. Phase 0 (highlighting) is a standalone quick win with zero framework changes and removes the worst of the current authoring experience; it can land whenever. Phases 1–2 are the substantive project, gated on the mapped virtual-TSX language-emit mode. Prior art to fork/lean on: **Volar.js** (framework), **`@astrojs/language-server` + `astro-vscode`** (closest analog, MIT), **`@vue/language-tools`** (Volar reference), **`prettier-plugin-astro`** and Astro's `.astro` grammar.
+Not started. Phase 0 (highlighting) is a standalone quick win with zero framework changes and removes the worst of the current authoring experience; it can land whenever. Phases 1–2 are the substantive project, gated on the mapped virtual-TSX language-emit mode. Prior art to fork/lean on: **Volar.js** (framework), **`@astrojs/language-server` + `astro-vscode`** (closest analog, MIT), **`@vue/language-tools`** (Volar reference), and Astro's `.astro` grammar. Phase 3 leans on **Biome** and its JS API rather than `prettier-plugin-astro`.
