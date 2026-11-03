@@ -47,3 +47,5 @@ export type {
   VirtualMapping,
 } from './virtual-code.ts'
 export { toVirtualCode } from './virtual-code.ts'
+export type { CompileWarning } from './warnings.ts'
+export { compileWarnings } from './warnings.ts'

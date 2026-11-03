@@ -11,14 +11,32 @@
  * so positions pass through 1:1.
  */
 
-import { CompileError, compile } from '@statorjs/stator/compiler'
+import { CompileError, compile, compileWarnings } from '@statorjs/stator/compiler'
 import type { Diagnostic, LanguageServicePlugin } from '@volar/language-server'
 import { URI } from 'vscode-uri'
 
 const ROUTE_PATH_RE = /[\\/]routes[\\/].*\.stator$/
 
-/** Pure core, unit-tested directly: compile and translate the failure. */
+/** Pure core, unit-tested directly: compile and translate the failure, plus
+ *  the compiler's warnings. */
 export function statorDiagnostics(text: string, filePath: string): Diagnostic[] {
+  return [...compileDiagnostics(text, filePath), ...warningDiagnostics(text)]
+}
+
+function warningDiagnostics(text: string): Diagnostic[] {
+  return compileWarnings(text).map((w) => {
+    const line = w.loc.line - 1
+    const character = w.loc.column - 1
+    return {
+      range: { start: { line, character }, end: { line, character: character + 1 } },
+      message: w.message,
+      severity: 2, // Warning
+      source: 'stator',
+    }
+  })
+}
+
+function compileDiagnostics(text: string, filePath: string): Diagnostic[] {
   const kind = ROUTE_PATH_RE.test(filePath) ? 'route' : 'component'
   try {
     compile(text, { id: filePath, kind })

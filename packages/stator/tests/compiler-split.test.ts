@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { splitStator } from '../src/compiler/split.ts'
+import { scanRegions, splitStator } from '../src/compiler/split.ts'
 
 describe('compiler: splitStator', () => {
   it('splits frontmatter, template, style, and script regions', () => {
@@ -107,5 +107,76 @@ import type CartMachine from '../machines/cart.ts'
     const r = splitStator(src)
     expect(r.frontmatter).toBe('const x = 1')
     expect(r.template).toBe('<p>{x}</p>')
+  })
+
+  describe('only top-level <script> / <style> are regions', () => {
+    // Each of these once lifted text out of an expression and cut the template.
+    const cases: [string, string][] = [
+      [
+        'a script in a template literal',
+        '{json ? raw(`<script type="speculationrules">${json}</script>`) : null}',
+      ],
+      ['a style in a string', `{cond ? '<style>p { color: red }</style>' : ''}`],
+      ['a code-sample expression', `<pre>{'Use <script>…</script> for client code'}</pre>`],
+      ['a comment in an expression', '{/* a </script> or a <style>p {}</style> */ x}'],
+      ['an HTML comment', '<!-- <script>no()</script> -->\n<p>x</p>'],
+      ['a regex literal', '{s.replace(/<script>[^<]*<\\/script>/g, "")}'],
+    ]
+    for (const [name, template] of cases) {
+      it(`leaves ${name} in the template`, () => {
+        const r = splitStator(`---\nconst json = '{}'\n---\n${template}`)
+        expect(r.scripts).toEqual([])
+        expect(r.styles).toEqual([])
+        expect(r.template).toBe(template)
+      })
+    }
+
+    it('still finds the real regions after an expression full of tag text', () => {
+      const src = `<p>{n > 1 ? \`<style>\` : '<script>'}</p>
+<script>export class A extends StatorElement {}</script>
+<style>p { color: red }</style>`
+      const r = splitStator(src)
+      expect(r.scripts).toEqual(['export class A extends StatorElement {}'])
+      expect(r.styles).toEqual(['p { color: red }'])
+      expect(r.template).toBe("<p>{n > 1 ? `<style>` : '<script>'}</p>")
+    })
+
+    it("reads JSX text inside an expression as text, so an apostrophe isn't a string", () => {
+      const src = `<ul>{items.map(i => <li>Don't {i}</li>)}</ul>
+<script>export class A extends StatorElement {}</script>`
+      const r = splitStator(src)
+      expect(r.scripts).toHaveLength(1)
+      expect(r.template).toBe("<ul>{items.map(i => <li>Don't {i}</li>)}</ul>")
+    })
+
+    it('treats an is:inline body as raw text, braces and all', () => {
+      const src = `<script is:inline>if (a) { go('}') }</script>
+<p>{x}</p>
+<script>export class A extends StatorElement {}</script>`
+      const r = splitStator(src)
+      expect(r.scripts).toEqual(['export class A extends StatorElement {}'])
+      expect(r.template).toContain("<script is:inline>if (a) { go('}') }</script>")
+    })
+
+    it('reads an attribute expression containing > without ending the tag', () => {
+      const src = `<p title={a > b ? '<style>' : ''}>x</p>
+<style>p { color: red }</style>`
+      const r = splitStator(src)
+      expect(r.styles).toEqual(['p { color: red }'])
+      expect(r.template).toBe(`<p title={a > b ? '<style>' : ''}>x</p>`)
+    })
+
+    it('scanRegions agrees, and ignores tag text in the frontmatter', () => {
+      const src = `---
+const css = '<style>p {}</style>'
+---
+<p>{'<script>x</script>'}</p>
+<style>p { color: red }</style>`
+      const r = scanRegions(src)
+      expect(r.scripts).toEqual([])
+      expect(r.styles.map((s) => s.content)).toEqual(['p { color: red }'])
+      expect(src.slice(r.styles[0]!.contentOffset)).toMatch(/^p \{ color: red \}/)
+      expect(r.template.content.trim()).toBe(`<p>{'<script>x</script>'}</p>`)
+    })
   })
 })

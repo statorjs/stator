@@ -7,9 +7,11 @@
  *   - one or more `<style>` blocks (scoped styles)
  *   - one or more bare `<script>` blocks (client code; processed in 3b)
  *
- * Region detection is intentionally string-level here — the JSX *inside* the
- * template is handed to the TypeScript parser in a later stage. Splitting is the
- * only job of this module.
+ * Region detection is a light lexer (`template-scan.ts`), not a parse — the
+ * JSX *inside* the template is handed to the TypeScript parser in a later
+ * stage. Only TOP-LEVEL `<script>` / `<style>` elements are regions: the same
+ * text inside a `{…}` expression, a string or a comment is template content.
+ * Splitting is the only job of this module.
  *
  * Script disambiguation: an **inline** `<script>` is the component's client
  * code — it's pulled out as a region and (in a later stage) compiled to a
@@ -23,6 +25,8 @@
  * component to dead markup. (`<style>` still uses the older bare-vs-attributed
  * rule; aligning it on `is:inline` is a follow-up.)
  */
+
+import { scanTemplate, type TemplateBlock } from './template-scan.ts'
 
 export interface ParsedStator {
   /** TS/JS between the `---` fences. Empty string when there's no fence. */
@@ -44,14 +48,19 @@ export interface ParsedStator {
 }
 
 const FRONTMATTER_RE = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*\r?\n?/
-const STYLE_RE = /<style>([\s\S]*?)<\/style>/g
-const SCRIPT_RE = /<script\b([^>]*)>([\s\S]*?)<\/script>/g
 
 /** True if `attrs` (the text between `<script` and `>`) carries `name` as a
  *  whole attribute token — so `src` matches `src="x"` but not `data-src`. */
 function hasAttr(attrs: string, name: string): boolean {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   return new RegExp(`(?:^|\\s)${escaped}(?=[\\s=/]|$)`, 'i').test(attrs)
+}
+
+/** Whether a top-level block is a region: a `<script>` without `src` /
+ *  `is:inline`, or a bare `<style>`. The rest stay in the template as markup. */
+function isRegion(block: TemplateBlock): boolean {
+  if (block.tag === 'style') return block.attrs.trim() === ''
+  return !hasAttr(block.attrs, 'src') && !hasAttr(block.attrs, 'is:inline')
 }
 
 export function splitStator(source: string): ParsedStator {
@@ -70,27 +79,28 @@ export function splitStator(source: string): ParsedStator {
   const leadingWs = rest.length - rest.trimStart().length
   const templateOffset = frontmatterLen + leadingWs
 
-  // Scripts before styles so the captured offsets are relative to the
-  // post-frontmatter text (style removal hasn't shifted anything yet).
   const scripts: string[] = []
   const scriptOffsets: number[] = []
-  rest = rest.replace(SCRIPT_RE, (match, attrs: string, js: string, offset: number) => {
-    // `src` / `is:inline` mark a literal script — leave it in the template.
-    if (hasAttr(attrs, 'src') || hasAttr(attrs, 'is:inline')) return match
-    scripts.push(js.trim())
-    scriptOffsets.push(frontmatterLen + offset)
-    return ''
-  })
-
   const styles: string[] = []
-  rest = rest.replace(STYLE_RE, (_m, css: string) => {
-    styles.push(css.trim())
-    return ''
-  })
+  let template = ''
+  let last = 0
+  for (const block of scanTemplate(rest).blocks) {
+    if (!isRegion(block)) continue
+    const content = rest.slice(block.contentStart, block.contentEnd).trim()
+    if (block.tag === 'script') {
+      scripts.push(content)
+      scriptOffsets.push(frontmatterLen + block.start)
+    } else {
+      styles.push(content)
+    }
+    template += rest.slice(last, block.start)
+    last = block.end
+  }
+  template += rest.slice(last)
 
   return {
     frontmatter,
-    template: rest.trim(),
+    template: template.trim(),
     styles,
     scripts,
     scriptOffsets,
@@ -123,8 +133,8 @@ export interface ScannedRegions {
 /**
  * Scan a `.stator` source into regions with exact source offsets — the
  * position-preserving companion to `splitStator`, used by the language-server
- * emit. Shares this module's patterns + `hasAttr` classification so the LS and
- * the runtime compiler never disagree about what's a region.
+ * emit. Shares this module's scanner + classification so the LS and the
+ * runtime compiler never disagree about what's a region.
  */
 export function scanRegions(source: string): ScannedRegions {
   let bodyStart = 0
@@ -138,21 +148,15 @@ export function scanRegions(source: string): ScannedRegions {
 
   let firstBlock = source.length
   const styles: SourceRegion[] = []
-  for (const m of source.matchAll(STYLE_RE)) {
-    const start = m.index
-    styles.push({
-      contentOffset: start + '<style>'.length,
-      content: m[1] ?? '',
-    })
-    if (start < firstBlock) firstBlock = start
-  }
   const scripts: SourceRegion[] = []
-  for (const m of source.matchAll(SCRIPT_RE)) {
-    if (hasAttr(m[1] ?? '', 'src') || hasAttr(m[1] ?? '', 'is:inline')) continue
-    const start = m.index
-    const openLen = m[0].indexOf('>') + 1
-    scripts.push({ contentOffset: start + openLen, content: m[2] ?? '' })
-    if (start < firstBlock) firstBlock = start
+  for (const block of scanTemplate(source, bodyStart).blocks) {
+    if (!isRegion(block)) continue
+    const region = {
+      contentOffset: block.contentStart,
+      content: source.slice(block.contentStart, block.contentEnd),
+    }
+    ;(block.tag === 'script' ? scripts : styles).push(region)
+    if (block.start < firstBlock) firstBlock = block.start
   }
 
   const templateEnd = Math.max(bodyStart, firstBlock)
