@@ -49,4 +49,17 @@ describe('stator check: the compiler runs over every .stator file', () => {
     vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
     await expect(checkStack(root)).resolves.toBeUndefined()
   })
+
+  it('a raw() script string warns, located, and still passes', async () => {
+    await scaffold(
+      '---\nconst json = \'{}\'\n---\n<p>{raw(`<script type="speculationrules">${json}</script>`)}</p>\n',
+    )
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+
+    await expect(checkStack(root)).resolves.toBeUndefined()
+    const err = stderr.mock.calls.map((c) => String(c[0])).join('')
+    expect(err).toContain('routes/index.stator:4:9 - warning: <script> built as a string')
+    expect(stdout.mock.calls.map((c) => String(c[0])).join('')).toContain(', 1 warning\n')
+  })
 })

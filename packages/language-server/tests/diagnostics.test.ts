@@ -72,4 +72,19 @@ describe('stator semantic diagnostics', () => {
     expect(d!.range.start).toEqual({ line: 0, character: 0 })
     expect(d!.severity).toBe(1)
   })
+
+  it('surfaces a compiler warning as a warning, not an error', () => {
+    const src = [
+      '---',
+      "const json = '{}'",
+      '---',
+      '<head>{raw(`<script type="speculationrules">${json}</script>`)}</head>',
+      '',
+    ].join('\n')
+    const ds = statorDiagnostics(src, '/app/templates/speculation.stator')
+    expect(ds).toHaveLength(1)
+    expect(ds[0]!.severity).toBe(2)
+    expect(ds[0]!.message).toContain('raw()')
+    expect(ds[0]!.range.start).toEqual({ line: 3, character: 11 })
+  })
 })

@@ -2,7 +2,7 @@
 title: 'Template scripts: the region splitter bug, and data-block scripts (parked)'
 status: draft
 created: 2026-11-02
-updated: 2026-11-02
+updated: 2026-11-03
 area: compiler
 ---
 
@@ -32,7 +32,42 @@ const json = '{"prerender":[]}'
 
 Same failure, by reading the code (not reproduced): `<style>…</style>` text inside an expression becomes component CSS, and a code sample such as `{'Use <script>…</script>'}` breaks. The language server and `stator check` share the splitter, so the editor shows the same wrong regions.
 
-**Fix:** a scanner instead of the regexes. Walk the post-frontmatter source tracking `{…}` depth, string and template literals, and comments (the TypeScript scanner can do the literal tracking), and take only top-level `<script>` / `<style>` elements. Keep the `src` / `is:inline` classification as is. Regression tests: a script in a template literal, a style in a string, a code-sample expression, a comment containing `</script>`; each must leave the template intact and extract nothing.
+#### Stance: scripts in expressions are not a feature
+
+The fix is "stop misreading text", not "make scripts written in expressions work". A script built as a string hides executable code where review and tooling can't see it, can't be processed or bundled, and is an injection hazard when any part is interpolated. What authors reach for, and where each should go:
+
+| Use case | A real script? | Route |
+|---|---|---|
+| Data blocks (JSON-LD, speculation rules, import maps) with computed content | yes, data | a component (`<JsonLd>`, `<Speculation>`) today; `set:json` if §2 is picked up |
+| A script shown only sometimes (the repro) | yes | a component |
+| A third-party snippet (analytics, embed) held as a string in config or a CMS | yes | `raw(snippet)`: explicit and greppable |
+| Content about HTML: a code sample, string or comment mentioning `<script>` / `<style>` | **no** | must just work as text |
+| Frontmatter or JS mentioning the tag (`'</script>'`, a regex, a comment) | **no** | must just work |
+
+The last two rows are the bug's real cost: legitimate text breaks the build. The first three have better routes and are discouraged by the check below.
+
+Prior art: **Astro** parses templates properly, so a `<script>` in a JS string is an inert string (escaped unless `set:html`); only real elements are processed. **Svelte** treats only the top-level `<script>` / `<style>` as special and parses expressions with a JS parser; the JSON-LD idiom is `{@html '<script …>…</script>'}`. **Vue SFC** is strictest: only top-level blocks, and a `<script>` / `<style>` in the template is a compile error. Stator takes Astro's and Svelte's splitting rule plus a Vue-style nudge as a warning, not an error.
+
+#### Fix: a scanner instead of the regexes
+
+Walk the post-frontmatter source tracking `{…}` depth, string and template literals, and comments (the TypeScript scanner can do the literal tracking), and take only top-level `<script>` / `<style>` elements. Keep the `src` / `is:inline` classification as is. Regression tests: a script in a template literal, a style in a string, a code-sample expression, a comment containing `</script>`; each must leave the template intact and extract nothing.
+
+#### Check warning: script markup passed to `raw()`
+
+`stator check` (and the language server, which shares the check emit) warns when a string or template literal containing an opening `<script` tag is passed directly to `raw()`, in frontmatter or a template expression:
+
+```
+warning: <script> built as a string and passed to raw() — it is not processed or bundled, and interpolated values aren't escaped for script content.
+  Use a component (<JsonLd>, or a TS function component like it) for data blocks, or a top-level <script> for client code.
+```
+
+Scope, chosen to avoid noise:
+- **Literals only.** `raw(snippet)` with a variable is the sanctioned escape hatch for case 3 and doesn't warn.
+- **Only `raw()`.** A plain string is escaped on output, so `{'Use <script>…'}` renders as text and stays silent.
+- **`<script` only.** `raw('<style>…')` isn't executable; it only bypasses scoping. Not warned for now.
+- **Warning, not error.** `stator check` stays green with it. There is no suppression comment; a variable is the opt-out.
+
+Tests: `` raw(`<script …>${x}</script>`) `` warns at the literal; `raw(snippet)` doesn't; `{'<script>'}` doesn't; `raw('<style>…</style>')` doesn't.
 
 ### 2. Parked: data-block scripts in templates
 

@@ -3,7 +3,7 @@ import { relative } from 'node:path'
 import ts from 'typescript'
 import { syncTypes } from '../../build/index.ts'
 import { sourceId } from '../../build/source-id.ts'
-import { CompileError, compile, regionResolverFor } from '../../compiler/index.ts'
+import { CompileError, compile, compileWarnings, regionResolverFor } from '../../compiler/index.ts'
 import type { CliContext } from '../run.ts'
 
 /**
@@ -18,11 +18,15 @@ import type { CliContext } from '../run.ts'
  * (2) every `.stator` file goes through the real compiler — the same call `dev`
  * makes on import and the editor makes per edit, so all three reject the same
  * inputs; (3) a `tsc --noEmit`-equivalent pass via the TypeScript API.
+ * Compiler warnings print alongside step 2 but don't fail the check.
  */
 export async function checkStack(root: string): Promise<void> {
   const { written, files } = await syncTypes(root)
 
-  const compileErrors = await compileAll(root, files)
+  const { errors: compileErrors, warnings } = await compileAll(root, files)
+  if (warnings.length > 0) {
+    process.stderr.write(`${warnings.join('\n\n')}\n\n`)
+  }
   if (compileErrors.length > 0) {
     process.stderr.write(`${compileErrors.join('\n\n')}\n\n`)
   }
@@ -75,24 +79,35 @@ export async function checkStack(root: string): Promise<void> {
   ).length
   const frameworkFiles = sourceFiles.length - appFiles
 
+  const w = warnings.length
+  const warned = w > 0 ? `, ${w} warning${w === 1 ? '' : 's'}` : ''
   process.stdout.write(
-    `stator check: ok — ${written} .stator.d.ts, ${appFiles} app files (${frameworkFiles} framework files)\n`,
+    `stator check: ok — ${written} .stator.d.ts, ${appFiles} app files (${frameworkFiles} framework files)${warned}\n`,
   )
 }
 
-/** Compile every `.stator` file, keeping only the errors — output is
- *  discarded. Formatted like tsc's diagnostics (`file:line:col - error`) with
- *  the compiler's own code frame. */
-async function compileAll(root: string, files: string[]): Promise<string[]> {
+/** Compile every `.stator` file, keeping only the errors and warnings —
+ *  output is discarded. Formatted like tsc's diagnostics (`file:line:col -
+ *  error`) with the compiler's own code frame. */
+async function compileAll(
+  root: string,
+  files: string[],
+): Promise<{ errors: string[]; warnings: string[] }> {
   const errors: string[] = []
+  const warnings: string[] = []
   for (const file of files) {
     const source = await readFile(file, 'utf8')
     const { id, kind } = sourceId(root, file)
+    const rel = relative(root, file).replace(/\\/g, '/')
+    for (const w of compileWarnings(source)) {
+      warnings.push(
+        `${rel}:${w.loc.line}:${w.loc.column} - warning: ${w.message}\n\n${w.loc.frame}`,
+      )
+    }
     try {
       compile(source, { id, kind, resolveRegions: regionResolverFor(file, source) })
     } catch (e) {
       if (!(e instanceof CompileError)) throw e
-      const rel = relative(root, file).replace(/\\/g, '/')
       errors.push(
         e.loc
           ? `${rel}:${e.loc.line}:${e.loc.column} - error: ${e.message}\n\n${e.loc.frame}`
@@ -100,7 +115,7 @@ async function compileAll(root: string, files: string[]): Promise<string[]> {
       )
     }
   }
-  return errors
+  return { errors, warnings }
 }
 
 export async function run(ctx: CliContext): Promise<void> {
