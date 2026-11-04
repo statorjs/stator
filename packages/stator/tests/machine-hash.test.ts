@@ -168,3 +168,113 @@ export default defineMachine({ name: 'Stepper', context: { n: 0 }, initial: 'idl
     await rm(join(machinesDir(), 'broken.ts'))
   })
 })
+
+/**
+ * Packages: never bundled, but their installed versions are hash inputs for the
+ * machines that reach them. A chart re-exported from a package bundles to one
+ * line of re-export, so without this a package bump that rewrote its guards
+ * would never reset its sessions.
+ */
+describe('machine code hash: packages', () => {
+  const pkg = async (name: string, version: string, body = 'export const LIMIT = 3\n') => {
+    await write(
+      `node_modules/${name}/package.json`,
+      JSON.stringify({ name, version, type: 'module', main: 'index.js' }),
+    )
+    await write(`node_modules/${name}/index.js`, body)
+  }
+  const PKG_MACHINE = `
+import { defineMachine } from '@statorjs/stator/server'
+import { LIMIT } from '@acme/rules'
+export default defineMachine({ name: 'Pkg', context: { n: 0 }, initial: 'idle', states: { idle: { on: { ADD: { when: (ctx: { n: number }) => ctx.n < LIMIT, do: (ctx: { n: number }) => { ctx.n++ } } } } } })
+`
+  const file = () => join(machinesDir(), 'pkg.ts')
+  const one = async () =>
+    (await hashMachines([file()], { machinesDir: machinesDir() })).get(file())!
+
+  beforeAll(async () => {
+    await pkg('@acme/rules', '1.0.0')
+    await pkg('@acme/other', '1.0.0')
+    await write('machines/pkg.ts', PKG_MACHINE)
+  })
+  afterAll(async () => {
+    await rm(join(root, 'node_modules'), { recursive: true, force: true })
+    await rm(file(), { force: true })
+  })
+
+  it('reports the packages a machine reaches, by name@version, and keeps them out of inputs', async () => {
+    const res = await one()
+    expect(res.packages).toEqual(['@acme/rules@1.0.0'])
+    expect(res.inputs.some((p) => p.includes('node_modules'))).toBe(false)
+  })
+
+  it("changes when an imported package's version changes", async () => {
+    const before = (await one()).hash
+    await pkg('@acme/rules', '1.1.0')
+    const after = await one()
+    expect(after.packages).toEqual(['@acme/rules@1.1.0'])
+    expect(after.hash).not.toBe(before)
+    await pkg('@acme/rules', '1.0.0')
+    expect((await one()).hash).toBe(before)
+  })
+
+  it('does not change when a package it does not reach changes', async () => {
+    const before = (await one()).hash
+    await pkg('@acme/other', '9.9.9')
+    expect((await one()).hash).toBe(before)
+  })
+
+  it("does not change when a package's code changes without a version bump (the version is the boundary)", async () => {
+    const before = (await one()).hash
+    await pkg('@acme/rules', '1.0.0', 'export const LIMIT = 99\n')
+    expect((await one()).hash).toBe(before)
+    await pkg('@acme/rules', '1.0.0')
+  })
+
+  it('leaves a machine that reaches no package with a package-free digest', async () => {
+    const cart = await cartHash()
+    expect(cart.packages).toEqual([])
+  })
+
+  it('bundles a bare specifier that resolves to app code through tsconfig paths', async () => {
+    await write(
+      'tsconfig.json',
+      JSON.stringify({
+        compilerOptions: { baseUrl: '.', paths: { '#rules': ['./lib/rules.ts'] } },
+      }),
+    )
+    await write(
+      'machines/aliased.ts',
+      `import { defineMachine } from '@statorjs/stator/server'
+import { within } from '#rules'
+export default defineMachine({ name: 'Aliased', context: { n: 0 }, initial: 'idle', states: { idle: { on: { ADD: { when: (ctx: { n: number }) => within(ctx.n) } } } } })
+`,
+    )
+    const aliased = () => join(machinesDir(), 'aliased.ts')
+    const hashIt = async () =>
+      (await hashMachines([aliased()], { machinesDir: machinesDir() })).get(aliased())!
+    const before = await hashIt()
+    expect(before.inputs).toContain(join(root, 'lib/rules.ts'))
+    expect(before.packages).toEqual([])
+    await write('lib/rules.ts', LIB.replace('MAX = 3', 'MAX = 4'))
+    expect((await hashIt()).hash).not.toBe(before.hash)
+    await write('lib/rules.ts', LIB)
+    await rm(aliased())
+    await rm(join(root, 'tsconfig.json'))
+  })
+
+  it('externalizes a package that is not installed without failing the hash', async () => {
+    await write(
+      'machines/missing-pkg.ts',
+      `import { defineMachine } from '@statorjs/stator/server'
+import { x } from 'not-installed-anywhere'
+export default defineMachine({ name: 'Missing', context: { x }, initial: 'idle', states: { idle: {} } })
+`,
+    )
+    const f = join(machinesDir(), 'missing-pkg.ts')
+    const res = (await hashMachines([f], { machinesDir: machinesDir() })).get(f)!
+    expect(res.hash).toMatch(/^[0-9a-f]{64}$/)
+    expect(res.packages).toEqual([])
+    await rm(f)
+  })
+})

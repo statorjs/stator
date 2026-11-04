@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto'
-import { realpathSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { isAbsolute, relative, resolve } from 'node:path'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { createRequire, isBuiltin } from 'node:module'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { build, version as esbuildVersion } from 'esbuild'
 import type { AnyMachineDef } from '../engine/index.ts'
 
 /**
  * The per-machine code hash — the fingerprint behind "sessions never outlive
  * the code that made them" (spec `machine-state-is-working-state-snapshot-
- * hydration-policy`).
+ * hydration-policy`; follow-ups in `snapshot-policy-follow-ups-…`).
  *
  * Each machine file is bundled by esbuild — tree-shaken, minified, in memory —
  * and the bundle is hashed. The hash therefore changes exactly when code that
@@ -18,10 +18,22 @@ import type { AnyMachineDef } from '../engine/index.ts'
  * don't move it. The bundle is a MEASUREMENT, never written or run: what runs
  * stays plain modules with shared instances.
  *
- * External (never bundled, never hashed by content):
- *  - bare specifiers — the framework and node_modules; their versions are hash
- *    inputs instead, so an engine or transform-engine upgrade counts once;
- *  - `.stator` files (a machine has no business importing a template).
+ * Bare specifiers are resolved first and then sorted by where they land:
+ *  - the framework (`@statorjs/stator`) and Node builtins — external; the
+ *    framework's version is a separate hash input, builtins are the runtime's;
+ *  - a package under `node_modules` — external, never bundled (native addons
+ *    can't be), but its `name@version` IS a hash input for every machine whose
+ *    graph reaches it. A machine that re-exports a chart from a package
+ *    (`export * from '@indiepub/stator/machines/owner'`) bundles to a one-line
+ *    re-export, so without this a package bump that rewrote the chart's guards
+ *    would never reset its sessions — the false negative the policy forbids.
+ *    The package boundary is the version: a package's own dependency bumps
+ *    don't show, which its version is expected to carry;
+ *  - anything else — a tsconfig `paths` alias into app code, a workspace-linked
+ *    package — is bundled and content-hashed like a relative import;
+ *  - unresolvable — external with no version entry, so the hash never fails a
+ *    build the loader wouldn't fail too.
+ *  - `.stator` files are external (a machine has no business importing one).
  *
  * Sibling machines are NOT external: a machine that imports another often
  * takes values from it (`weather.ts` mirrors `DEFAULT_CLOCK` from
@@ -40,6 +52,9 @@ export interface MachineHash {
   hash: string
   /** Absolute paths of every source module bundled into this machine. */
   inputs: string[]
+  /** `name@version` of every package the machine's graph reaches (sorted,
+   *  framework and builtins excluded). Each is a hash input. */
+  packages: string[]
 }
 
 export interface HashMachinesOptions {
@@ -48,11 +63,17 @@ export interface HashMachinesOptions {
   machinesDir: string
 }
 
+const FRAMEWORK = '@statorjs/stator'
+
 const statorVersion: string = (
   createRequire(import.meta.url)('../../package.json') as { version: string }
 ).version
 
 const OUTDIR = '/__stator_machine_hash__'
+
+/** Marker on our own `build.resolve` calls so the plugin lets esbuild answer
+ *  them instead of re-entering itself. */
+const OWN_RESOLVE = { statorMachineHash: true }
 
 /** Hash every machine file in one esbuild pass. Throws if any closure cannot
  *  be bundled — the error names the machine. */
@@ -74,6 +95,11 @@ export async function hashMachines(
   const machinesDir = real(opts.machinesDir)
   const wanted = new Map(files.map((f) => [real(f), f]))
   const cwd = process.cwd()
+  // Every external package import seen during the build, keyed by
+  // importer + specifier (the same specifier can resolve to different versions
+  // from different directories): its `name@version`, or null when unversioned.
+  const packageIds = new Map<string, string | null>()
+  const packageIdCache = new Map<string, string | null>()
 
   const result = await build({
     entryPoints: [...wanted.keys()],
@@ -101,10 +127,34 @@ export async function hashMachines(
       {
         name: 'stator-machine-hash-externals',
         setup(b) {
-          b.onResolve({ filter: /.*/ }, (args) => {
+          b.onResolve({ filter: /.*/ }, async (args) => {
             if (args.kind === 'entry-point') return null
-            // Bare specifier: a package — external, its version is a hash input.
+            if (args.pluginData === OWN_RESOLVE) return null
             if (!args.path.startsWith('.') && !isAbsolute(args.path)) {
+              // Bare specifier. The framework and builtins are external
+              // outright; everything else is resolved before it is judged.
+              if (isBuiltin(args.path) || packageNameOf(args.path) === FRAMEWORK) {
+                return { path: args.path, external: true }
+              }
+              const r = await b.resolve(args.path, {
+                kind: args.kind,
+                importer: args.importer,
+                resolveDir: args.resolveDir,
+                pluginData: OWN_RESOLVE,
+              })
+              if (r.errors.length > 0 || r.external || !r.path) {
+                return { path: args.path, external: true }
+              }
+              const resolved = real(r.path)
+              if (!/[\\/]node_modules[\\/]/.test(resolved)) {
+                // App code behind an alias, or a workspace link: part of the
+                // closure, hashed by content.
+                return { path: resolved }
+              }
+              packageIds.set(
+                externalKey(real(args.importer), args.path),
+                packageIdAbove(resolved, packageIdCache),
+              )
               return { path: args.path, external: true }
             }
             const abs = real(resolve(args.resolveDir, args.path))
@@ -134,18 +184,28 @@ export async function hashMachines(
     if (!meta?.entryPoint) continue
     const entry = wanted.get(real(resolve(cwd, meta.entryPoint)))
     if (entry === undefined) continue
-    const hash = createHash('sha256')
+    // The closure comes from the resolved import GRAPH (`metafile.inputs`),
+    // not from `outputs[*].inputs` — that lists only modules that contributed
+    // bytes, and a module whose only used export is a constant the minifier
+    // inlined contributes none while still being code the machine depends on.
+    const graph = walkGraph(meta.entryPoint, result.metafile.inputs, cwd, real)
+    const packages = [
+      ...new Set(
+        graph.externals
+          .map((e) => packageIds.get(externalKey(e.importer, e.path)))
+          .filter((id): id is string => typeof id === 'string'),
+      ),
+    ].sort()
+    const digest = createHash('sha256')
       .update(file.contents)
       .update('\0')
       .update(statorVersion)
       .update('\0')
       .update(esbuildVersion)
-      .digest('hex')
-    // The closure comes from the resolved import GRAPH (`metafile.inputs`),
-    // not from `outputs[*].inputs` — that lists only modules that contributed
-    // bytes, and a module whose only used export is a constant the minifier
-    // inlined contributes none while still being code the machine depends on.
-    out.set(entry, { hash, inputs: closureOf(meta.entryPoint, result.metafile.inputs, cwd) })
+    // Appended only when there is something to append, so a machine that
+    // reaches no package keeps the digest it had before packages counted.
+    if (packages.length > 0) digest.update('\0').update(packages.join('\n'))
+    out.set(entry, { hash: digest.digest('hex'), inputs: graph.inputs, packages })
   }
   for (const f of files) {
     if (!out.has(f)) throw new Error(`stator: no bundle produced for machine ${f}`)
@@ -153,20 +213,81 @@ export async function hashMachines(
   return out
 }
 
-function closureOf(
+function externalKey(importer: string, specifier: string): string {
+  return `${importer}\0${specifier}`
+}
+
+/** `@scope/name/sub` → `@scope/name`; `name/sub` → `name`. */
+function packageNameOf(specifier: string): string {
+  const parts = specifier.split('/')
+  return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]!
+}
+
+/** `name@version` from the nearest named `package.json` above a resolved
+ *  module file, or null. pnpm's real paths sit under
+ *  `.pnpm/<name>@<version>…/node_modules/<name>/`, so the first named manifest
+ *  up the tree is the package's own, never the app's. */
+function packageIdAbove(file: string, cache: Map<string, string | null>): string | null {
+  let dir = dirname(file)
+  const visited: string[] = []
+  let found: string | null = null
+  while (true) {
+    const hit = cache.get(dir)
+    if (hit !== undefined) {
+      found = hit
+      break
+    }
+    visited.push(dir)
+    const manifest = join(dir, 'package.json')
+    if (existsSync(manifest)) {
+      try {
+        const pkg = JSON.parse(readFileSync(manifest, 'utf8')) as {
+          name?: unknown
+          version?: unknown
+        }
+        if (typeof pkg.name === 'string' && pkg.name !== '') {
+          found = `${pkg.name}@${typeof pkg.version === 'string' ? pkg.version : '0'}`
+          break
+        }
+      } catch {
+        // An unreadable manifest is not this package's; keep walking.
+      }
+    }
+    const parent = dirname(dir)
+    if (parent === dir || !/[\\/]node_modules[\\/]/.test(`${parent}/`)) {
+      // Left the node_modules tree without a named manifest.
+      break
+    }
+    dir = parent
+  }
+  for (const d of visited) cache.set(d, found)
+  return found
+}
+
+interface Graph {
+  inputs: string[]
+  externals: Array<{ importer: string; path: string }>
+}
+
+function walkGraph(
   entryKey: string,
   inputs: Record<string, { imports: Array<{ path: string; external?: boolean }> }>,
   cwd: string,
-): string[] {
+  real: (p: string) => string,
+): Graph {
   const seen = new Set<string>()
+  const externals: Graph['externals'] = []
   const stack = [entryKey]
   while (stack.length) {
     const key = stack.pop()!
     if (seen.has(key)) continue
     seen.add(key)
-    for (const imp of inputs[key]?.imports ?? []) if (!imp.external) stack.push(imp.path)
+    for (const imp of inputs[key]?.imports ?? []) {
+      if (imp.external) externals.push({ importer: real(resolve(cwd, key)), path: imp.path })
+      else stack.push(imp.path)
+    }
   }
-  return [...seen].map((k) => resolve(cwd, k))
+  return { inputs: [...seen].map((k) => resolve(cwd, k)), externals }
 }
 
 // ── Def registry ─────────────────────────────────────────────────────────────
