@@ -1,4 +1,4 @@
-import { resolve } from 'node:path'
+import { relative, resolve } from 'node:path'
 import { buildApp } from '../../build/index.ts'
 import { loadConfig } from '../config.ts'
 import type { CliContext } from '../run.ts'
@@ -14,6 +14,7 @@ export async function run(ctx: CliContext): Promise<void> {
     outDir: resolve(ctx.root, 'dist'),
     include: config.build?.include,
     untracedImports: config.build?.untracedImports,
+    ...(ctx.previousManifest ? { previousManifest: resolve(ctx.root, ctx.previousManifest) } : {}),
   })
   const { copySet } = result
   process.stdout.write(
@@ -85,11 +86,20 @@ export async function run(ctx: CliContext): Promise<void> {
   }
   // Deploy awareness: which machines' sessions this build resets (see the
   // snapshot hydration policy — sessions never outlive the code that made them).
-  if (result.resetMachines) {
+  // When there was nothing to compare against, say so: a fresh CI checkout has
+  // no previous dist, and silence would read as "nothing reset".
+  if (result.resetMachines && result.previousManifest) {
+    const rel = relative(ctx.root, result.previousManifest)
+    const against = rel && !rel.startsWith('..') ? rel : result.previousManifest
     process.stdout.write(
       result.resetMachines.length
-        ? `  machine code changed — sessions reset on deploy for: ${result.resetMachines.join(', ')}\n`
-        : '  no machine code changed — sessions carry over\n',
+        ? `  machine code changed — sessions reset on deploy for: ${result.resetMachines.join(', ')} (against ${against})\n`
+        : `  no machine code changed — sessions carry over (against ${against})\n`,
+    )
+  } else {
+    process.stdout.write(
+      '  no previous manifest — cannot say which sessions this deploy resets' +
+        ' (pass --previous <path> to the last deployed stator-manifest.json)\n',
     )
   }
 }

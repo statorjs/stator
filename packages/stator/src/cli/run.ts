@@ -9,6 +9,9 @@ export interface CliContext {
   portFlag?: number
   /** Extra positionals after the command (e.g. test file globs). */
   rest: string[]
+  /** `--previous` flag, if given: `build` diffs machine hashes against this
+   *  manifest (the last deployed build's) instead of the one in `dist/`. */
+  previousManifest?: string
 }
 
 const COMMANDS = ['dev', 'build', 'start', 'check', 'test', 'build:lib'] as const
@@ -27,9 +30,11 @@ Commands:
   build:lib [dir]  Compile a component library for publishing (default dir: src)
 
 Options:
-  --root <dir>    App root (default: current directory)
-  --port <n>      Listen port for dev/start (default: $PORT or 3000)
-  -h, --help      Show this help
+  --root <dir>        App root (default: current directory)
+  --port <n>          Listen port for dev/start (default: $PORT or 3000)
+  --previous <path>   build: the last deployed stator-manifest.json, to report which
+                      machines' sessions this build resets (default: dist/'s own)
+  -h, --help          Show this help
 `
 
 const { values, positionals } = parseArgs({
@@ -38,6 +43,7 @@ const { values, positionals } = parseArgs({
   options: {
     root: { type: 'string' },
     port: { type: 'string' },
+    previous: { type: 'string' },
     help: { type: 'boolean', short: 'h' },
   },
 })
@@ -58,6 +64,7 @@ const ctx: CliContext = {
   root: resolve(String(values.root ?? process.cwd())),
   portFlag: values.port != null ? Number(values.port) : undefined,
   rest: positionals.slice(1),
+  ...(values.previous != null ? { previousManifest: String(values.previous) } : {}),
 }
 
 // Load .env before importing the command — so `stator.config.ts` (imported by

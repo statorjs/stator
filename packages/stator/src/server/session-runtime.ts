@@ -1,10 +1,11 @@
-import { createActor, type EffectInvocation } from '../engine/index.ts'
+import { createActor, type EffectInvocation, type EffectSession } from '../engine/index.ts'
 import type { AnyMachineDef } from './define-machine.ts'
 import { type DispatchContext, recordTouch, withDispatchContext } from './dispatch-context.ts'
 import { abortEntryEffects, isEffectInFlight } from './effects.ts'
 import { createInstanceProxy, type InstanceHandle } from './instance-proxy.ts'
 import { buildDispatchEvent, MAX_CASCADE_DEPTH, type MachineStore } from './machine-store.ts'
 import { serverReadsResolver } from './reads-helpers.ts'
+import { CLAIMS_KEY } from './session.ts'
 import { reconcileSnapshot, stampSnapshot } from './snapshot-policy.ts'
 import { armAfterTimers, cancelAfterTimers } from './timers.ts'
 
@@ -34,6 +35,9 @@ export class SessionRuntime {
   /** Effects surfaced during processEvent, queued until the entry point has
    *  persisted and released the session lock (see server/effects.ts). */
   private pendingEffects: EffectInvocation[] = []
+  /** The session as a def's `seed` sees it — loaded once per runtime, and
+   *  only when a seeding machine starts fresh. */
+  private sessionMeta: Promise<EffectSession> | undefined
 
   constructor(
     readonly sessionId: string,
@@ -62,12 +66,36 @@ export class SessionRuntime {
     }
   }
 
+  /** `session.claims()` for a def's `seed`: the claims as persisted — the same
+   *  view an effect's `meta.session` gets. */
+  private session(): Promise<EffectSession> {
+    this.sessionMeta ??= this.store.persistence.get(this.sessionId, CLAIMS_KEY).then(
+      (claims): EffectSession => ({
+        id: this.sessionId,
+        claims: <T>() => (claims ?? undefined) as T | undefined,
+      }),
+    )
+    return this.sessionMeta
+  }
+
+  /** A fresh start (no usable snapshot) begins where the def's `seed` says,
+   *  given this session's claims; without a `seed`, at `initial`. */
+  private async seedFor(
+    def: AnyMachineDef,
+    snapshot: ReturnType<typeof reconcileSnapshot>,
+  ): Promise<ReturnType<NonNullable<AnyMachineDef['seed']>> | undefined> {
+    if (snapshot !== undefined || !def.seed) return undefined
+    return def.seed(await this.session()) ?? undefined
+  }
+
   private async loadOne(def: AnyMachineDef): Promise<void> {
     const persisted = await this.store.persistence.get(this.sessionId, def.name)
+    // Hydration policy: a snapshot written by different code (or in a newer
+    // format, or naming a vanished state) is discarded — fresh start, logged.
+    const snapshot = reconcileSnapshot(def, persisted, this.sessionId)
+    const seed = await this.seedFor(def, snapshot)
     const actor = createActor(def, {
-      // Hydration policy: a snapshot written by different code (or in a newer
-      // format, or naming a vanished state) is discarded — fresh start, logged.
-      snapshot: reconcileSnapshot(def, persisted, this.sessionId),
+      snapshot,
       resolveHelpers: serverReadsResolver(def),
       // Server plane: never run effects inline — queue them for the entry
       // point to schedule after persist + lock release.
@@ -96,7 +124,9 @@ export class SessionRuntime {
           info.refireEntry()
         }
       },
-    }).start()
+    })
+    if (seed) actor.seed(seed.context ?? {}, seed.state)
+    actor.start()
     this.actors.set(
       def.name,
       createInstanceProxy(def, actor, (name) => this.proxyFor(name)),
@@ -116,11 +146,15 @@ export class SessionRuntime {
     const def = this.store.getDef(name)
     if (def?.lifecycle !== 'session' || !this.actors.has(name)) return
     const persisted = await this.store.persistence.get(this.sessionId, def.name)
+    const snapshot = reconcileSnapshot(def, persisted, this.sessionId)
+    const seed = await this.seedFor(def, snapshot)
     const actor = createActor(def, {
-      snapshot: reconcileSnapshot(def, persisted, this.sessionId),
+      snapshot,
       resolveHelpers: serverReadsResolver(def),
       onEffect: (invocation) => this.pendingEffects.push(invocation),
-    }).start()
+    })
+    if (seed) actor.seed(seed.context ?? {}, seed.state)
+    actor.start()
     this.actors.get(name)?.actor.stop()
     this.actors.set(
       name,

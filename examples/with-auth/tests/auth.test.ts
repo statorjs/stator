@@ -57,6 +57,33 @@ describe('login as a guarded transition', () => {
   })
 })
 
+describe('seed from the session claims', () => {
+  const session = (claims?: unknown) => ({ id: 's1', claims: <T>() => claims as T | undefined })
+
+  it('claims naming a real user start the session authenticated, identity from the DB row', () => {
+    const seed = AuthMachine.seed!(session({ userId: 'u-1', role: 'member' }))
+    expect(seed).toEqual({
+      state: 'authenticated',
+      context: { userId: 'u-1', name: 'Sailor', role: 'member' },
+    })
+    const actor = createActor(AuthMachine)
+    actor.seed(seed!.context!, seed!.state)
+    actor.start()
+    expect(actor.getSnapshot().value).toEqual(['authenticated'])
+    expect(actor.getSnapshot().context.name).toBe('Sailor')
+  })
+
+  it('no claims, or claims for a user that no longer exists, start anonymous', () => {
+    expect(AuthMachine.seed!(session())).toBeUndefined()
+    expect(AuthMachine.seed!(session({ userId: 'u-gone', role: 'member' }))).toBeUndefined()
+  })
+
+  it('the seed cannot be forged from a claim: role and name come from the row, not the claims', () => {
+    const seed = AuthMachine.seed!(session({ userId: 'u-1', role: 'harbormaster', name: 'Admiral' }))
+    expect(seed?.context).toMatchObject({ role: 'member', name: 'Sailor' })
+  })
+})
+
 describe('identity-stamped emits', () => {
   function authedActor() {
     const actor = createActor(AuthMachine).start()

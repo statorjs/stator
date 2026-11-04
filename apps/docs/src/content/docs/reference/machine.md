@@ -29,6 +29,9 @@ function defineMachine(config: DefineMachineConfig): MachineDef
   emits?: string[] | Record<string, { payload?: (ctx, ev) => object }>
   persist?: boolean             // app machines only: survive restarts (while the machine's
                                 // code is unchanged) via the AppStore
+  seed?: (session) => { state?: S; context?: Partial<C> } | undefined
+                                // session machines only: where a fresh start begins, given
+                                // the session's claims (see below)
 }
 ```
 
@@ -112,6 +115,15 @@ interface EffectMeta {
 ```
 
 For **session** machines the server host sets `meta.session` on every effect — the session id and its app-defined claims as of the moment the effect started (the same claims middleware reads with `stator(c).claims()`). It is what lets an entry effect reload a durable fact by identity on a fresh start or after a [snapshot reset](/guides/persistence/#what-survives-a-deploy), with no client round trip. App machines have no session and client islands run no host, so it is `undefined` there.
+
+### seed
+
+```ts
+seed?: (session: { id: string; claims<T>(): T | undefined }) =>
+  { state?: S; context?: Partial<C> } | undefined
+```
+
+**Session machines only.** Where the machine starts when it has no usable snapshot — a new session, or a [snapshot reset](/guides/persistence/#what-survives-a-deploy) — given the session's claims (the same claims middleware reads with `stator(c).claims()`). The host applies it synchronously before the first render: `context` is merged over the defaults, and `state`, if given, replaces `initial` and is entered for real (its entry effect fires, its `after` timers arm). Return `undefined` to start at `initial` with the defaults. Never consulted when a snapshot hydrates. Runs under a guard's rules — synchronous and quick. Declaring it on an app machine is an error. The sign-in idiom is in the [persistence guide](/guides/persistence/#what-survives-a-deploy).
 
 ## Entry effects
 
