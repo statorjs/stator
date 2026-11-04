@@ -1,14 +1,15 @@
 import { createHash } from 'node:crypto'
-import { realpathSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { isAbsolute, relative, resolve } from 'node:path'
-import { build, version as esbuildVersion } from 'esbuild'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { isBuiltin } from 'node:module'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { type BuildOptions, build, version as esbuildVersion } from 'esbuild'
 import type { AnyMachineDef } from '../engine/index.ts'
 
 /**
  * The per-machine code hash — the fingerprint behind "sessions never outlive
  * the code that made them" (spec `machine-state-is-working-state-snapshot-
- * hydration-policy`).
+ * hydration-policy`; follow-ups in `snapshot-policy-follow-ups-…`).
  *
  * Each machine file is bundled by esbuild — tree-shaken, minified, in memory —
  * and the bundle is hashed. The hash therefore changes exactly when code that
@@ -18,10 +19,35 @@ import type { AnyMachineDef } from '../engine/index.ts'
  * don't move it. The bundle is a MEASUREMENT, never written or run: what runs
  * stays plain modules with shared instances.
  *
- * External (never bundled, never hashed by content):
- *  - bare specifiers — the framework and node_modules; their versions are hash
- *    inputs instead, so an engine or transform-engine upgrade counts once;
- *  - `.stator` files (a machine has no business importing a template).
+ * Bare specifiers are resolved first and then sorted by where they land:
+ *  - the framework (`@statorjs/stator`) and Node builtins — external; the
+ *    framework contributes the ENGINE HASH below instead, builtins are the
+ *    runtime's;
+ *  - a package under `node_modules` — external, never bundled (native addons
+ *    can't be), but its `name@version` IS a hash input for every machine whose
+ *    graph reaches it. A machine that re-exports a chart from a package
+ *    (`export * from '@indiepub/stator/machines/owner'`) bundles to a one-line
+ *    re-export, so without this a package bump that rewrote the chart's guards
+ *    would never reset its sessions — the false negative the policy forbids.
+ *    The package boundary is the version: a package's own dependency bumps
+ *    don't show, which its version is expected to carry;
+ *  - anything else — a tsconfig `paths` alias into app code, a workspace-linked
+ *    package — is bundled and content-hashed like a relative import;
+ *  - unresolvable — external with no version entry, so the hash never fails a
+ *    build the loader wouldn't fail too.
+ *  - `.stator` files are external (a machine has no business importing one).
+ *
+ * The engine hash — the framework's own contribution. What executes as part
+ * of a machine is not "Stator" but the engine (`engine/*`) and the actor host:
+ * the modules that build actors, hydrate and persist snapshots, and run
+ * effects and timers (`ENGINE_HOST`). That closure is measured the same way
+ * (one esbuild pass, tree-shaken, minified, never written) and its digest is
+ * an input to every machine's hash. Everything else the closure reaches —
+ * SSE fan-out, the renderer's diff path, logging — is cut: externalized under
+ * a stable `stator:` id, so a release that touches only those leaves sessions
+ * alone. Before this the package VERSION was the input, and every release
+ * reset every session in every app. The bundled and cut sets are pinned by
+ * `tests/engine-hash.test.ts`, so a new import edge is a deliberate decision.
  *
  * Sibling machines are NOT external: a machine that imports another often
  * takes values from it (`weather.ts` mirrors `DEFAULT_CLOCK` from
@@ -40,6 +66,9 @@ export interface MachineHash {
   hash: string
   /** Absolute paths of every source module bundled into this machine. */
   inputs: string[]
+  /** `name@version` of every package the machine's graph reaches (sorted,
+   *  framework and builtins excluded). Each is a hash input. */
+  packages: string[]
 }
 
 export interface HashMachinesOptions {
@@ -48,11 +77,149 @@ export interface HashMachinesOptions {
   machinesDir: string
 }
 
-const statorVersion: string = (
-  createRequire(import.meta.url)('../../package.json') as { version: string }
-).version
+const FRAMEWORK = '@statorjs/stator'
 
 const OUTDIR = '/__stator_machine_hash__'
+
+/** The esbuild options every hash shares: tree-shaken, folded, identifiers
+ *  kept (see `hashMachines`), in memory. */
+const MEASURE = {
+  bundle: true,
+  minifyWhitespace: true,
+  minifySyntax: true,
+  minifyIdentifiers: false,
+  write: false,
+  metafile: true,
+  format: 'esm',
+  platform: 'node',
+  target: 'node20',
+  outdir: OUTDIR,
+  entryNames: '[dir]/[name]',
+  legalComments: 'none',
+  sourcemap: false,
+  logLevel: 'silent',
+} as const satisfies BuildOptions
+
+// ── Engine hash ──────────────────────────────────────────────────────────────
+
+/** The package's `src/` directory — the engine closure is measured from the
+ *  installed framework's own files (the package ships raw TS). Resolved
+ *  lazily: this module is loaded wherever the hydration policy is, including
+ *  test environments where `import.meta.url` is not a `file:` URL. */
+function srcRoot(): string {
+  return realpathSafe(fileURLToPath(new URL('../', import.meta.url)))
+}
+
+/** Entry points of the engine closure: their whole export surface counts,
+ *  because app code or the HTTP layer calls into it. */
+const ENGINE_ENTRIES = [
+  'engine/index.ts',
+  'server/define-machine.ts',
+  'server/session-runtime.ts',
+  'server/machine-store.ts',
+  'server/effects.ts',
+  'server/timers.ts',
+  'server/snapshot-policy.ts',
+  'server/app-dispatch.ts',
+]
+
+/** The actor host: modules bundled into the engine hash when the closure
+ *  reaches them (tree-shaken to what the entries use). Anything else under
+ *  `src/` that the closure reaches is cut. */
+const ENGINE_HOST = new Set([
+  ...ENGINE_ENTRIES,
+  'server/app-store.ts',
+  'server/dispatch-context.ts',
+  'server/instance-proxy.ts',
+  'server/machine-hash.ts',
+  'server/reads-helpers.ts',
+  'server/session-lock.ts',
+  'server/session.ts',
+  'server/store.ts',
+])
+
+/** Under `engine/` but not execution: `describeMachine` is the inspector's
+ *  def→data walk. Cut, so an inspection change does not reset sessions. */
+const ENGINE_CUT = new Set(['engine/describe.ts'])
+
+export interface EngineHash {
+  hash: string
+  /** Modules bundled into the measurement, relative to the package's `src/`. */
+  inputs: string[]
+  /** Modules the closure reached but did not bundle (plumbing), same form. */
+  cut: string[]
+}
+
+let engine: Promise<EngineHash> | undefined
+
+/** The digest of the engine and actor host, computed once per process from
+ *  the installed framework's files. An input to every machine hash. */
+export function engineHash(): Promise<EngineHash> {
+  engine ??= computeEngineHash()
+  return engine
+}
+
+async function computeEngineHash(): Promise<EngineHash> {
+  const root = srcRoot()
+  const rel = (abs: string): string => relative(root, abs).replace(/\\/g, '/')
+  const isBundled = (r: string): boolean =>
+    (r.startsWith('engine/') && !ENGINE_CUT.has(r)) || ENGINE_HOST.has(r)
+  const cwd = process.cwd()
+  const cut = new Set<string>()
+  const result = await build({
+    ...MEASURE,
+    entryPoints: ENGINE_ENTRIES.map((e) => join(root, e)),
+    absWorkingDir: cwd,
+    // Measured on its own terms: the app's tsconfig must not shape the
+    // framework's bytes, or a tsconfig edit would reset every session.
+    tsconfigRaw: {},
+    plugins: [
+      {
+        name: 'stator-engine-hash-externals',
+        setup(b) {
+          b.onResolve({ filter: /.*/ }, (args) => {
+            if (args.kind === 'entry-point') return null
+            if (!args.path.startsWith('.') && !isAbsolute(args.path)) {
+              return { path: args.path, external: true }
+            }
+            const abs = realpathSafe(resolve(args.resolveDir, args.path))
+            const r = rel(abs)
+            if (r.startsWith('..') || isBundled(r)) return null
+            cut.add(r)
+            return { path: `stator:${r}`, external: true }
+          })
+        },
+      },
+    ],
+  }).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err)
+    throw new Error(`stator: cannot hash the engine closure — ${msg}`)
+  })
+  const digest = createHash('sha256')
+  for (const file of [...result.outputFiles].sort((a, b) => a.path.localeCompare(b.path))) {
+    digest.update(file.contents).update('\0')
+  }
+  digest.update(esbuildVersion)
+  const inputs = Object.keys(result.metafile.inputs)
+    .map((k) => rel(realpathSafe(resolve(cwd, k))))
+    .filter((r) => isBundled(r))
+    .sort()
+  return { hash: digest.digest('hex'), inputs, cut: [...cut].sort() }
+}
+
+function realpathSafe(p: string): string {
+  try {
+    return realpathSync(p)
+  } catch {
+    return resolve(p)
+  }
+}
+
+// ── Machine hashes ───────────────────────────────────────────────────────────
+
+/** Marker on our own `build.resolve` calls so the plugin lets esbuild answer
+ *  them instead of re-entering itself. */
+const OWN_RESOLVE = { statorMachineHash: true }
 
 /** Hash every machine file in one esbuild pass. Throws if any closure cannot
  *  be bundled — the error names the machine. */
@@ -74,37 +241,56 @@ export async function hashMachines(
   const machinesDir = real(opts.machinesDir)
   const wanted = new Map(files.map((f) => [real(f), f]))
   const cwd = process.cwd()
+  // Every external package import seen during the build, keyed by
+  // importer + specifier (the same specifier can resolve to different versions
+  // from different directories): its `name@version`, or null when unversioned.
+  const packageIds = new Map<string, string | null>()
+  const packageIdCache = new Map<string, string | null>()
 
+  // The framework's contribution, computed once per process; measured in
+  // parallel with the machines.
+  const enginePending = engineHash()
   const result = await build({
-    entryPoints: [...wanted.keys()],
-    absWorkingDir: cwd,
-    bundle: true,
     // Strip whitespace and fold syntax, but do NOT rename identifiers: esbuild
     // allocates minified names across the whole module set, so a dead export
     // in an imported module can shift the names in the bundle — and the hash
     // would move for code that never runs. Keeping source identifiers makes the
     // output a function of the reachable code only.
-    minifyWhitespace: true,
-    minifySyntax: true,
-    minifyIdentifiers: false,
-    write: false,
-    metafile: true,
-    format: 'esm',
-    platform: 'node',
-    target: 'node20',
-    outdir: OUTDIR,
-    entryNames: '[dir]/[name]',
-    legalComments: 'none',
-    sourcemap: false,
-    logLevel: 'silent',
+    ...MEASURE,
+    entryPoints: [...wanted.keys()],
+    absWorkingDir: cwd,
     plugins: [
       {
         name: 'stator-machine-hash-externals',
         setup(b) {
-          b.onResolve({ filter: /.*/ }, (args) => {
+          b.onResolve({ filter: /.*/ }, async (args) => {
             if (args.kind === 'entry-point') return null
-            // Bare specifier: a package — external, its version is a hash input.
+            if (args.pluginData === OWN_RESOLVE) return null
             if (!args.path.startsWith('.') && !isAbsolute(args.path)) {
+              // Bare specifier. The framework and builtins are external
+              // outright; everything else is resolved before it is judged.
+              if (isBuiltin(args.path) || packageNameOf(args.path) === FRAMEWORK) {
+                return { path: args.path, external: true }
+              }
+              const r = await b.resolve(args.path, {
+                kind: args.kind,
+                importer: args.importer,
+                resolveDir: args.resolveDir,
+                pluginData: OWN_RESOLVE,
+              })
+              if (r.errors.length > 0 || r.external || !r.path) {
+                return { path: args.path, external: true }
+              }
+              const resolved = real(r.path)
+              if (!/[\\/]node_modules[\\/]/.test(resolved)) {
+                // App code behind an alias, or a workspace link: part of the
+                // closure, hashed by content.
+                return { path: resolved }
+              }
+              packageIds.set(
+                externalKey(real(args.importer), args.path),
+                packageIdAbove(resolved, packageIdCache),
+              )
               return { path: args.path, external: true }
             }
             const abs = real(resolve(args.resolveDir, args.path))
@@ -126,6 +312,7 @@ export async function hashMachines(
     const msg = err instanceof Error ? err.message : String(err)
     throw new Error(`stator: cannot hash machine closure — ${msg}`)
   })
+  const engine = await enginePending
 
   // Map each output bundle back to its entry via the metafile.
   for (const file of result.outputFiles) {
@@ -134,18 +321,28 @@ export async function hashMachines(
     if (!meta?.entryPoint) continue
     const entry = wanted.get(real(resolve(cwd, meta.entryPoint)))
     if (entry === undefined) continue
-    const hash = createHash('sha256')
-      .update(file.contents)
-      .update('\0')
-      .update(statorVersion)
-      .update('\0')
-      .update(esbuildVersion)
-      .digest('hex')
     // The closure comes from the resolved import GRAPH (`metafile.inputs`),
     // not from `outputs[*].inputs` — that lists only modules that contributed
     // bytes, and a module whose only used export is a constant the minifier
     // inlined contributes none while still being code the machine depends on.
-    out.set(entry, { hash, inputs: closureOf(meta.entryPoint, result.metafile.inputs, cwd) })
+    const graph = walkGraph(meta.entryPoint, result.metafile.inputs, cwd, real)
+    const packages = [
+      ...new Set(
+        graph.externals
+          .map((e) => packageIds.get(externalKey(e.importer, e.path)))
+          .filter((id): id is string => typeof id === 'string'),
+      ),
+    ].sort()
+    const digest = createHash('sha256')
+      .update(file.contents)
+      .update('\0')
+      .update(engine.hash)
+      .update('\0')
+      .update(esbuildVersion)
+    // Appended only when there is something to append, so a machine that
+    // reaches no package keeps the digest it had before packages counted.
+    if (packages.length > 0) digest.update('\0').update(packages.join('\n'))
+    out.set(entry, { hash: digest.digest('hex'), inputs: graph.inputs, packages })
   }
   for (const f of files) {
     if (!out.has(f)) throw new Error(`stator: no bundle produced for machine ${f}`)
@@ -153,20 +350,81 @@ export async function hashMachines(
   return out
 }
 
-function closureOf(
+function externalKey(importer: string, specifier: string): string {
+  return `${importer}\0${specifier}`
+}
+
+/** `@scope/name/sub` → `@scope/name`; `name/sub` → `name`. */
+function packageNameOf(specifier: string): string {
+  const parts = specifier.split('/')
+  return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]!
+}
+
+/** `name@version` from the nearest named `package.json` above a resolved
+ *  module file, or null. pnpm's real paths sit under
+ *  `.pnpm/<name>@<version>…/node_modules/<name>/`, so the first named manifest
+ *  up the tree is the package's own, never the app's. */
+function packageIdAbove(file: string, cache: Map<string, string | null>): string | null {
+  let dir = dirname(file)
+  const visited: string[] = []
+  let found: string | null = null
+  while (true) {
+    const hit = cache.get(dir)
+    if (hit !== undefined) {
+      found = hit
+      break
+    }
+    visited.push(dir)
+    const manifest = join(dir, 'package.json')
+    if (existsSync(manifest)) {
+      try {
+        const pkg = JSON.parse(readFileSync(manifest, 'utf8')) as {
+          name?: unknown
+          version?: unknown
+        }
+        if (typeof pkg.name === 'string' && pkg.name !== '') {
+          found = `${pkg.name}@${typeof pkg.version === 'string' ? pkg.version : '0'}`
+          break
+        }
+      } catch {
+        // An unreadable manifest is not this package's; keep walking.
+      }
+    }
+    const parent = dirname(dir)
+    if (parent === dir || !/[\\/]node_modules[\\/]/.test(`${parent}/`)) {
+      // Left the node_modules tree without a named manifest.
+      break
+    }
+    dir = parent
+  }
+  for (const d of visited) cache.set(d, found)
+  return found
+}
+
+interface Graph {
+  inputs: string[]
+  externals: Array<{ importer: string; path: string }>
+}
+
+function walkGraph(
   entryKey: string,
   inputs: Record<string, { imports: Array<{ path: string; external?: boolean }> }>,
   cwd: string,
-): string[] {
+  real: (p: string) => string,
+): Graph {
   const seen = new Set<string>()
+  const externals: Graph['externals'] = []
   const stack = [entryKey]
   while (stack.length) {
     const key = stack.pop()!
     if (seen.has(key)) continue
     seen.add(key)
-    for (const imp of inputs[key]?.imports ?? []) if (!imp.external) stack.push(imp.path)
+    for (const imp of inputs[key]?.imports ?? []) {
+      if (imp.external) externals.push({ importer: real(resolve(cwd, key)), path: imp.path })
+      else stack.push(imp.path)
+    }
   }
-  return [...seen].map((k) => resolve(cwd, k))
+  return { inputs: [...seen].map((k) => resolve(cwd, k)), externals }
 }
 
 // ── Def registry ─────────────────────────────────────────────────────────────
