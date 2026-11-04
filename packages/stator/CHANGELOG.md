@@ -1,5 +1,17 @@
 # @statorjs/stator
 
+## 2.15.0
+
+### Minor Changes
+
+- f162ccc: `seed` on a session machine: where a fresh start begins, given the session's claims. A session's claims survive a snapshot reset (a deploy that changed the machine, TTL expiry, a flushed store), but a machine that keeps "signed in" as state came back at `initial` and rendered the sign-in form to a session that had already passed it. `seed: (session) => ({ state, context })` runs synchronously before the first render on every fresh start — a new session or a reset — and is never consulted when a snapshot hydrates. A seeded state is entered for real: its entry effect fires and its `after` timers arm. Declaring it on an app machine is an error. The engine's `actor.seed(partial, state?)` gains the optional state. The `with-auth` starter's AuthMachine seeds from its claims, re-reading the user row so nothing is trusted from a cookie.
+
+### Patch Changes
+
+- f162ccc: `stator build` no longer goes quiet about session resets. The "sessions reset on deploy for" line was computed only against a previous `dist/stator-manifest.json`, which a fresh CI checkout never has, so the report was silent exactly where it mattered and silence read as "nothing reset". The build now says `no previous manifest — cannot say which sessions this deploy resets` in that case, names the manifest it compared against otherwise, and takes `--previous <path>` (`buildApp({ previousManifest })`) so a pipeline can fetch the last deployed manifest and diff against what is actually running. A path given and not found fails the build.
+- ffbb593: A Stator release no longer resets every session. The machine code hash took the package version as an input, so every release — 2.14.0 changed only the template splitter — discarded every persisted machine snapshot in every app. The input is now a hash of the engine and the actor host (the modules that build actors, hydrate and persist snapshots, and run effects and timers), measured from the installed framework's own files the same way machines are. A release that touches only the compiler, CLI, renderer, dev servers or editor tooling leaves sessions alone; one that changes the engine resets them, as before. Upgrading to this release resets sessions once, because the digest formula changed.
+- ffbb593: The machine code hash now counts the packages a machine's code reaches. A bare import is resolved before it is classed: a package under `node_modules` stays external (never bundled) but its installed `name@version` is a hash input for every machine whose graph reaches it, so a chart re-exported from a package (`export * from '@acme/charts/owner'`) resets its sessions when that package is bumped — before, such a machine measured as a one-line re-export and a package bump that rewrote its guards never reset anything. A bare specifier that resolves to app code (a tsconfig `paths` alias) or a workspace-linked package is now bundled and hashed by content. Machines that reach no package keep their previous digest. `MachineHash` gains a `packages` list.
+
 ## 2.14.0
 
 ### Minor Changes
