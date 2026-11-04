@@ -13,10 +13,13 @@ export interface Actor<C, E extends EventObject> {
   start(): Actor<C, E>
   stop(): void
   send(event: E): void
-  /** Merge into the initial context before `start()`. Used for the deferred
-   *  client seed (attribute values aren't available at actor creation — only at
-   *  the element's connect). No-op after start. */
-  seed(partial: Partial<C>): void
+  /** Merge into the initial context before `start()`, and optionally pick the
+   *  state to start in instead of `initial` (entered for real on `start()`:
+   *  entry effect, `after` timers). Used for the deferred client seed
+   *  (attribute values aren't available at actor creation — only at the
+   *  element's connect) and by the server host for a def's `seed` on a fresh
+   *  start. No-op after start; an unknown state throws. */
+  seed(partial: Partial<C>, state?: string): void
   getSnapshot(): Snapshot<C>
   /** Monotonic count of HANDLED events (a matching transition fired).
    *  Guard-dropped and unhandled events don't count — this is how the server
@@ -183,8 +186,17 @@ export function createActor<C extends object, E extends EventObject, S extends s
   }
 
   const actor: Actor<C, E> = {
-    seed(partial: Partial<C>) {
-      if (!started) context = { ...context, ...partial }
+    seed(partial: Partial<C>, state?: string) {
+      if (started) return
+      context = { ...context, ...partial }
+      if (state !== undefined) {
+        if (!(state in def.states)) {
+          throw new Error(
+            `stator: "${def.name}" was seeded into state "${state}", which the machine does not have`,
+          )
+        }
+        value = [state]
+      }
     },
     start() {
       if (!started) {

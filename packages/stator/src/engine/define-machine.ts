@@ -1,6 +1,7 @@
 import type {
   AnyMachineDef,
   Capabilities,
+  EffectSession,
   EmitDeclaration,
   EmitsConfig,
   EventObject,
@@ -8,6 +9,7 @@ import type {
   MachineDef,
   OnMap,
   ReadsMap,
+  Seed,
   SelectorMap,
   StateNode,
   SubscribeEntry,
@@ -37,6 +39,17 @@ export interface DefineMachineConfig<
    *  union, so a name that isn't a real event is a compile error. The chart still
    *  handles them normally when the engine/effects raise them. */
   serverOnly?: readonly E['type'][]
+  /** SESSION machines only: where this session starts when it has no usable
+   *  snapshot — a new session, or a snapshot reset after a deploy — given its
+   *  claims (the same claims middleware reads with `stator(c).claims()`).
+   *  Synchronous, applied before the first render, no event: return the state
+   *  to start in and context to merge, or `undefined` to start at `initial`
+   *  with the defaults. The sign-in case: claims name the user, so return
+   *  `{ state: 'authenticated', context: { userId } }` and the session never
+   *  shows the sign-in form it already passed. Never consulted when a snapshot
+   *  hydrates — the snapshot is the state. Facts that need I/O still belong in
+   *  an entry effect (`meta.session`). */
+  seed?: (session: EffectSession) => Seed<C, NoInfer<S>> | undefined
   emits?: EmitsConfig<C, E>
   context: C
   initial: NoInfer<S>
@@ -116,6 +129,12 @@ export function defineMachine<
         `\`persist\` opts an APP machine into AppStore persistence.`,
     )
   }
+  if (config.seed && config.lifecycle !== 'session') {
+    throw new Error(
+      `stator: machine "${config.name}" declares seed but is ${config.lifecycle}-lifecycle — ` +
+        `seed starts a SESSION machine from its claims, which an app machine does not have.`,
+    )
+  }
   return {
     __isStatorMachine: true,
     name: config.name,
@@ -124,6 +143,7 @@ export function defineMachine<
     reads,
     subscribes: config.subscribes ?? [],
     serverOnly: config.serverOnly ?? [],
+    ...(config.seed ? { seed: config.seed as MachineDef<C, E, S, Sel, Name>['seed'] } : {}),
     emits: normalizeEmits<C, E>(config.emits),
     selectors: (config.selectors ?? {}) as Sel,
     capabilities: computeCapabilities(reads),

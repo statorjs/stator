@@ -111,7 +111,38 @@ Machine state is **working state with a TTL, not persistence**. Stator keeps a s
 
 That last rule is the one to design around: **sessions never outlive the code that made them.** Every persisted snapshot carries a hash of the machine's code — the machine file and every module it reaches, tree-shaken — and a snapshot whose hash no longer matches the running machine is discarded at the next hydration. The machine starts fresh, exactly as it would for a new session, and a line is logged. A guard you rewrote can never run against state it would not have allowed, and a state you renamed can never strand a session. The rule is the same in `stator dev` (a save resets the affected machines on their next request) and in production (a deploy resets the machines whose code changed — `stator build` prints which), and it holds for every `Store`.
 
-So anything whose loss would be an incident is a **durable fact**, and durable facts belong in your own database, written by an effect and read back by an entry effect when the machine starts — for a new session, after TTL expiry, and after a reset alike. The entry effect knows *whose* data to load from `meta.session`: the session id and its claims, the same claims middleware reads with [`stator(c).claims()`](/guides/middleware/):
+So anything whose loss would be an incident is a **durable fact**, and durable facts belong outside the machine: in the session's claims, or in your own database. A fresh start then rebuilds the working copy from them — for a new session, after TTL expiry, and after a reset alike.
+
+The first durable fact every app meets is **sign-in**. A session's claims survive a reset (they are what middleware gates on), but a machine that keeps "signed in" as state comes back at `initial` and renders the sign-in form to a session that already passed it. `seed` closes that gap: given the session's claims, it says where a fresh start begins — synchronously, before the first render, with no event and nothing on the wire. It is never consulted when a snapshot hydrates; the snapshot is the state.
+
+```ts
+type Me = { userId: string }
+
+export default defineMachine({
+  name: 'AuthMachine',
+  lifecycle: 'session',
+  context: { userId: '', name: '', role: '' },
+  initial: 'anonymous',
+  // Every fresh start: claims name the user, the row is read again (nothing is
+  // trusted from a cookie), and the session starts signed in. No claims, or a
+  // user that no longer exists: start at `initial` with the defaults.
+  seed: (session) => {
+    const me = session.claims<Me>()
+    const user = me && findUserById(me.userId)
+    return user
+      ? { state: 'authenticated', context: { userId: user.id, name: user.name, role: user.role } }
+      : undefined
+  },
+  states: {
+    anonymous: { on: { LOGIN: { /* the guarded transition that mints the claims */ } } },
+    authenticated: { on: { LOGOUT: { to: 'anonymous' } } },
+  },
+})
+```
+
+`seed` runs under the same rules as a guard: synchronous and quick (a local lookup is fine; a network call is not). A seeded state is entered for real — its entry effect fires and its `after` timers arm, exactly as for any fresh start.
+
+Facts that need I/O belong in an **entry effect**, which runs after the commit and reloads them by identity. It knows *whose* data to load from `meta.session`: the session id and its claims, the same claims middleware reads with [`stator(c).claims()`](/guides/middleware/):
 
 ```ts
 type Me = { userId: string }
@@ -150,7 +181,7 @@ export default defineMachine({
 })
 ```
 
-With that shape a reset is a cache miss: deploys, restarts, TTL expiry, a flushed Redis, and a second replica all become the same non-event. Effects run after the commit, never inline, so the first render of a fresh machine shows its `loading` state and the `LOADED` completion lands moments later — over SSE on a [live route](/guides/realtime-sse/), or on the next request otherwise. That is the ordinary entry-effect rhythm, and it needs nothing from the client. `meta.session` is set for session machines only; app machines and client islands have none.
+With that shape a reset is a cache miss: deploys, restarts, TTL expiry, a flushed Redis, and a second replica all become the same non-event. Effects run after the commit, never inline, so the first render of a fresh machine shows its `loading` state and the `LOADED` completion lands moments later — over SSE on a [live route](/guides/realtime-sse/), or on the next request otherwise. That is the ordinary entry-effect rhythm, and it needs nothing from the client; it is also why sign-in uses `seed` instead — a gate should not flash. `meta.session` and `seed` are for session machines only; app machines and client islands have no session.
 
 `persist: true` app machines follow the same rule: they survive restarts while the machine's code is unchanged. A shared tally or counter that must outlive a code change is a durable fact too.
 

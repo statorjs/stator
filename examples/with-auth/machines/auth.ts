@@ -1,5 +1,5 @@
 import { defineMachine } from '@statorjs/stator/server'
-import { findUserByEmail, updateUserName } from '../lib/db.ts'
+import { findUserByEmail, findUserById, updateUserName } from '../lib/db.ts'
 import { verifyPasswordConstantTime } from '../lib/passwords.ts'
 
 /**
@@ -70,6 +70,21 @@ export default defineMachine({
   },
   context: { userId: '', name: '', role: '' },
   initial: 'anonymous',
+  // TEACHING MOMENT #5: a fresh start is not a sign-out. Machine state is
+  // working state — a deploy that changes this file, or the session TTL, or a
+  // flushed store, discards the snapshot — but the session's CLAIMS survive
+  // (they are what middleware gates on). `seed` runs on every fresh start,
+  // synchronously, before the first render: claims name the user, the row is
+  // read again so nothing is trusted from a cookie, and the session starts
+  // `authenticated` instead of flashing the sign-in form. A snapshot that
+  // hydrates is never seeded — the snapshot is the state.
+  seed: (session) => {
+    const me = session.claims<{ userId: string }>()
+    const user = me && findUserById(me.userId)
+    return user
+      ? { state: 'authenticated', context: { userId: user.id, name: user.name, role: user.role } }
+      : undefined
+  },
   states: {
     anonymous: {
       on: {

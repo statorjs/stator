@@ -75,6 +75,20 @@ export interface EffectSession {
   claims<T = unknown>(): T | undefined
 }
 
+/** Where a session machine starts when it has no usable snapshot — a new
+ *  session, or a snapshot reset. Returned by a def's `seed`, applied by the
+ *  host before the first render: synchronous, no event, nothing on the wire.
+ *  The sign-in case: claims say who this session is, so the machine starts
+ *  in `authenticated` with the identity in context instead of flashing the
+ *  sign-in form until an entry effect lands. */
+export interface Seed<C, S extends string = string> {
+  /** The state to start in instead of `initial`. Entered for real — its entry
+   *  effect fires and its `after` timers arm, exactly as for any fresh start. */
+  state?: S
+  /** Merged over the default context. */
+  context?: Partial<C>
+}
+
 /**
  * An effect: async I/O declared on a transition, run by the HOST after the
  * transition commits (the engine itself never performs I/O). Receives
@@ -270,6 +284,10 @@ export interface MachineDef<
    *  effect completions, timers, cross-machine internals). Normalized to `[]`.
    *  Enforced with a 403 in production; the chart handles them normally. */
   serverOnly: readonly string[]
+  /** SESSION machines only: where to start from the session's claims when
+   *  there is no usable snapshot (see `Seed`). Never consulted when a snapshot
+   *  hydrates. */
+  seed?: (session: EffectSession) => Seed<C, S> | undefined
   /** Normalized: every declared emit, possibly with a payload selector. */
   emits: Record<string, EmitDeclaration<C, E>>
   selectors: Sel
