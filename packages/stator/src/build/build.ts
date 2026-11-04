@@ -55,6 +55,11 @@ export interface BuildConfig {
    *  (the default) fails the build naming each one: a copy set that silently
    *  omits a lazily-imported module is a production 500. */
   untracedImports?: 'error' | 'warn'
+  /** A `stator-manifest.json` to diff machine hashes against — the last
+   *  DEPLOYED build's, fetched by the pipeline — instead of whatever is in
+   *  `outDir` from a previous local build (which a fresh CI checkout never
+   *  has). Must exist: a path given and not found is an error, not silence. */
+  previousManifest?: string
 }
 
 export interface BuildResult {
@@ -72,6 +77,10 @@ export interface BuildResult {
    *  previous build's manifest — their sessions reset on deploy. `undefined`
    *  when there was no previous manifest to compare against. */
   resetMachines?: string[]
+  /** The manifest `resetMachines` was computed against (absolute path), or
+   *  `undefined` when there was none — the CLI says so, since silence would
+   *  read as "nothing reset". */
+  previousManifest?: string
   /** What the module graph said `dist/` needs, and what it left behind. The
    *  CLI prints this — a copy set derived from code should be visible, not
    *  inferred from what shows up in `dist/`. */
@@ -132,10 +141,21 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   const dirs = config.dirs ?? copySet.dirs
 
   // Remember the previous build's machine hashes (if any) so the build can
-  // report which machines' sessions this deploy resets.
-  const previous = await readFile(join(outDir, 'stator-manifest.json'), 'utf8')
+  // report which machines' sessions this deploy resets. A manifest given
+  // explicitly must be there; the one left in outDir by a previous local build
+  // is optional, since a fresh checkout has none.
+  const previousPath = config.previousManifest
+    ? resolve(config.previousManifest)
+    : join(outDir, 'stator-manifest.json')
+  const previous = await readFile(previousPath, 'utf8')
     .then((t) => (JSON.parse(t) as Partial<StatorManifest>).machines)
-    .catch(() => undefined)
+    .catch((err: unknown) => {
+      if (config.previousManifest) {
+        const msg = err instanceof Error ? err.message : String(err)
+        throw new Error(`cannot read the previous manifest ${previousPath} — ${msg}`)
+      }
+      return undefined
+    })
 
   await rm(outDir, { recursive: true, force: true })
   await mkdir(outDir, { recursive: true })
@@ -250,7 +270,7 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
     islands: islands.length,
     machines: machineFiles.length,
     machineHashMs,
-    ...(resetMachines ? { resetMachines } : {}),
+    ...(resetMachines ? { resetMachines, previousManifest: previousPath } : {}),
     copySet,
     deps,
   }

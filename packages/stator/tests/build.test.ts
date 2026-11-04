@@ -198,5 +198,35 @@ describe('build: buildApp', () => {
       await writeFile(file, original)
       await buildApp({ root, outDir })
     }
+  })
+
+  it('names the manifest it compared against, and diffs against a given one instead of dist', async () => {
+    // Against dist's own manifest: the default.
+    const local = await buildApp({ root, outDir })
+    expect(local.resetMachines).toEqual([])
+    expect(local.previousManifest).toBe(join(outDir, 'stator-manifest.json'))
+
+    // Against a manifest from elsewhere — the last DEPLOYED build's, in a
+    // fresh checkout that has no dist. Its hash for counter.ts is stale.
+    const deployed = join(root, 'deployed-manifest.json')
+    const current = JSON.parse(await readFile(join(outDir, 'stator-manifest.json'), 'utf8')) as {
+      machines: Record<string, string>
+    }
+    await writeFile(
+      deployed,
+      JSON.stringify({ ...current, machines: { ...current.machines, 'counter.ts': 'stale' } }),
+    )
+    try {
+      const against = await buildApp({ root, outDir, previousManifest: deployed })
+      expect(against.resetMachines).toEqual(['counter.ts'])
+      expect(against.previousManifest).toBe(deployed)
+      // Given explicitly and missing: an error, never a silent "nothing to compare".
+      await expect(
+        buildApp({ root, outDir, previousManifest: join(root, 'nope.json') }),
+      ).rejects.toThrow(/cannot read the previous manifest .*nope\.json/)
+    } finally {
+      await rm(deployed, { force: true })
+      await buildApp({ root, outDir })
+    }
   }, 60_000)
 })

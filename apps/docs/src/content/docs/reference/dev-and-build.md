@@ -64,6 +64,8 @@ interface BuildConfig {
   root: string     // app directory containing machines/ routes/ templates/ static/
   outDir: string   // wiped and recreated
   dirs?: string[]  // defaults to the four conventional dirs
+  previousManifest?: string  // a stator-manifest.json to diff machine hashes against
+                             // (the last deployed build's) instead of the one in outDir
 }
 
 interface BuildResult {
@@ -75,6 +77,8 @@ interface BuildResult {
   machineHashMs: number
   resetMachines?: string[]  // machine files whose hash changed since the previous
                             // build's manifest — their sessions reset on deploy
+  previousManifest?: string // the manifest that diff was computed against; both absent
+                            // when there was none to compare with
 }
 ```
 
@@ -88,7 +92,7 @@ interface StatorManifest {
 }
 ```
 
-Every machine is hashed in one esbuild pass — the machine file and every module it reaches, bundled in memory and never written — and the build **fails** if a machine's closure can't be bundled, so an import problem surfaces here rather than at a production boot. `stator build` prints the hashing time and, when a previous manifest exists, which machines' sessions this build resets.
+Every machine is hashed in one esbuild pass — the machine file and every module it reaches, bundled in memory and never written — and the build **fails** if a machine's closure can't be bundled, so an import problem surfaces here rather than at a production boot. `stator build` prints the hashing time and which machines' sessions this build resets, compared against the previous `dist/stator-manifest.json` when one is there. A fresh CI checkout has none, and the build says so (`no previous manifest — cannot say which sessions this deploy resets`) rather than staying silent; to compare against what is actually running, have the pipeline fetch the last deployed manifest and pass it with `stator build --previous <path>` (a path given and not found fails the build). After a deploy, the runtime's own `hydrate` warning is the ground truth: one rate-limited line per machine that starts fresh, naming both hashes.
 
 Vite is imported lazily — a server-only app never needs it at build time.
 
