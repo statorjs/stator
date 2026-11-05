@@ -16,6 +16,11 @@ export async function run(ctx: CliContext): Promise<void> {
         ? `${r.cssBytes} bytes reached from ${rel(r.entry)}\n`
         : `${r.cssBytes} bytes, every component (no index.ts barrel)\n`),
   )
+  if (!r.packageName) {
+    process.stdout.write(
+      '  note: no package name in package.json — scope ids are path-relative, so another library with the same file layout would share them\n',
+    )
+  }
   if (r.islands > 0) {
     process.stdout.write(
       `  note: ${plural(r.islands, 'island')} compiled, but a consuming app can't discover islands from a package yet — they stay in the app\n`,

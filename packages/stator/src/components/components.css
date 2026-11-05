@@ -1,7 +1,7 @@
 /* src/components/image.stator.ts */
 /* height:auto preserves the aspect ratio the width/height attributes
      declare; radius, margin, object-fit are the app's call. */
-:where(img[data-s-ff0b03fd]) {
+:where(img[data-s-afd5216f]) {
   display: block;
   max-width: 100%;
   height: auto;

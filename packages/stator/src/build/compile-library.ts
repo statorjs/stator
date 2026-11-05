@@ -5,7 +5,9 @@ import { walkFiles } from './islands.ts'
 import { entryCss } from './route-css.ts'
 
 export interface CompileLibraryOptions {
-  /** Package root. Compiled ids (scope hashes, diagnostics) are relative to it. */
+  /** Package root. Compiled ids (scope hashes, diagnostics) are relative to
+   *  it, qualified by the package name read from its `package.json` — two
+   *  libraries with the same file layout must not share a scope. */
   root: string
   /** Directory holding the `.stator` sources; walked recursively. */
   dir: string
@@ -25,6 +27,10 @@ export interface CompileLibraryResult {
   /** The barrel the stylesheet was aggregated from; undefined when every
    *  component's CSS was included. */
   entry?: string
+  /** The package name the compiled ids were qualified with; undefined when
+   *  the root has no named `package.json` (ids are then path-relative, and
+   *  the CLI says so). */
+  packageName?: string
 }
 
 /**
@@ -46,10 +52,11 @@ export async function compileLibrary(opts: CompileLibraryOptions): Promise<Compi
     )
   ).sort()
 
+  const packageName = await readPackageName(root)
   let islands = 0
   const compiled: string[] = []
   for (const file of files) {
-    const r = await compileComponentFile(file, root)
+    const r = await compileComponentFile(file, root, packageName ? { idPrefix: packageName } : {})
     if (r.isClient) islands++
     compiled.push(`${file}.ts`)
     if (r.clientFile) compiled.push(r.clientFile)
@@ -78,7 +85,27 @@ export async function compileLibrary(opts: CompileLibraryOptions): Promise<Compi
   // Always written, even empty, so the `./components.css` export resolves.
   await writeFile(cssOut, css)
 
-  return { compiled: files.length, islands, cssOut, cssBytes: css.length, entry }
+  return {
+    compiled: files.length,
+    islands,
+    cssOut,
+    cssBytes: css.length,
+    entry,
+    ...(packageName ? { packageName } : {}),
+  }
+}
+
+/** The `name` of the package at `root`, or undefined when there is no
+ *  readable, named `package.json` there. */
+async function readPackageName(root: string): Promise<string | undefined> {
+  try {
+    const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as {
+      name?: unknown
+    }
+    return typeof pkg.name === 'string' && pkg.name !== '' ? pkg.name : undefined
+  } catch {
+    return undefined
+  }
 }
 
 async function existing(path: string): Promise<string | undefined> {

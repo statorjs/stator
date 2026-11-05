@@ -13,14 +13,22 @@ export interface CompileComponentResult {
 
 /** Compile one `.stator` file to its sibling `.ts` (+ a sibling `.css` when
  *  it has scoped styles). Used by both `build.ts` and `compileLibrary`. */
+export interface CompileComponentOptions {
+  /** Prefix for the compiled id (scope hash, diagnostics) — a library passes
+   *  its package name, so two packages with the same file layout never share
+   *  a `data-s-<hash>`. The returned `rel` stays the plain relative path. */
+  idPrefix?: string
+}
+
 export async function compileComponentFile(
   file: string,
   baseDir: string,
+  opts: CompileComponentOptions = {},
 ): Promise<CompileComponentResult> {
   const source = await readFile(file, 'utf8')
   const { id: rel, kind } = sourceId(baseDir, file)
   const result = compile(source, {
-    id: rel,
+    id: opts.idPrefix ? `${opts.idPrefix}/${rel}` : rel,
     kind,
     resolveRegions: regionResolverFor(file, source),
   })
