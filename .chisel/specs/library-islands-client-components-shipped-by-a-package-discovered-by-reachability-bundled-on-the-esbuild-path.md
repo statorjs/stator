@@ -100,9 +100,22 @@ Four namespaces meet when islands come from more than one package. They differ i
 - **Packaging layout for `@indiepub/stator`.** It builds with tsup to `dist/*.js`; islands and server components ship as raw compiled `.stator.ts` siblings under `src/` with `exports` subpaths, as the guide's convention and the framework's own raw-TS packaging. Settle before the first publish.
 - **Workspace-linked dev watching** is a convenience; ship without it if the test bed does not need it.
 
+## Probe (run 2026-11-04, scratch app with the framework symlinked and a fake `@probe/blocks` package)
+
+The probe the route-injection spec asked for, against `main` after the scope-id fix. Three of tonysull.co's islands copied into the fake package, compiled with `compileLibrary`, then handed to `bundleIslandsEsbuild` from inside `node_modules`.
+
+- **The central assumption holds.** The compiled client entry of the admin command palette has exactly one import, `@statorjs/stator/client`, and the esbuild bundler took it from `node_modules` as plain TS with no changes: two entries (the package island and a local copy) came out as two 4.5 KiB entry chunks plus one 1.7 KiB shared runtime chunk — the client runtime once, deduplicated by real path through `splitting`. No `node:` builtins reached. The island id sanitised to `@probe_blocks_palette-<hash>.js`; the leading `@` is legal in a URL path but worth stripping for tidiness.
+- **The heavy case works.** The rich editor island, which imports `@indiepub/editor` (TipTap), bundled from `node_modules` at 670 KiB across 73 modules, 37 of them TipTap, resolved through the app's `node_modules` the way Node resolution walks up from the package. No framework change needed for npm client libraries.
+- **Reachability gap confirmed.** With the package shell registered, `routeIslandMap` listed the route importing the local island and not the route importing `@probe/blocks/palette.stator`. Approach 2 is exactly the missing piece.
+- **Machine-import gap confirmed, with a wrinkle.** The fixture stepper island's `import Counter from '../machines/counter.ts'` survives `build:lib` unchanged in the client entry, and the bundler follows it instead of stubbing it, because the stub plugin covers only the app's `machines/`. In the probe it failed at resolution (the fixture machine imports the framework by a relative path that does not exist inside a package); with a real `@statorjs/stator/server` import it would have pulled server code toward the browser. Either way the import is followed, which is what Approach 1's publish-time stub removes.
+- **Tag registration is a literal in the entry:** `defineElement(__CommandPaletteImpl, "command-palette")` on the last line. The collision check reads that call, not `customElements.define`, which lives in the runtime chunk.
+- **A fact about the test bed:** none of tonysull.co's seven islands imports a machine; their server interaction is forms and HTML. The publish-time stub is still required for correctness in general (the framework's own fixtures do import machines), but the IndiePub islands will not exercise it, so the fixture test is the proof for that path.
+
+Verdict: build the plumbing as specified. Nothing in the probe contradicts the approach; the only surprise was the `@` in the asset name.
+
 ## Implementation Notes
 
-- **First, standalone:** `build/compile-library.ts` passes a package-qualified id into `compile()` so scope hashes differ across packages; test with two fixture packages sharing a relative path. Own PR, own changeset, before anything below.
+- **First, standalone — landed 2026-11-04 (PR #200):** `build/compile-library.ts` passes a package-qualified id into `compile()` so scope hashes differ across packages; tested with two fixture packages sharing a relative path.
 - Build: `build/compile-library.ts` (machine-import rewrite in client entries, browser-safety dry pass, contract stamp), `build/islands.ts` (bare-specifier hop in `localImports`/`walkImports`, island detection by sibling, specifier-based rel, tag-collision check from the reached client entries), `build/build.ts` (islands from reachability rather than the source compile pass; contract-stamp check against reached packages), `build/islands-esbuild.ts` (entries under `node_modules`; nothing expected to change), `cli/commands/check.ts` (the same stamp check).
 - Dev: `server/dev-native.ts` island set from the same walk.
 - Docs: component-libraries guide loses the "Islands stay in the app" limit and gains the publish-time rules; the CLI reference for `build:lib`.
