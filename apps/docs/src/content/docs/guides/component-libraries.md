@@ -11,7 +11,7 @@ A package can ship `.stator` components, scoped styles included. A consuming app
 
 **Compiled output, not `.stator` source.** Both the dev server and the production build treat `node_modules` as an already-resolved boundary: they never compile anything inside it. So a library compiles its components before publishing — each `x.stator` becomes a sibling `x.stator.ts` (the server render module) plus `x.stator.css` when it has a `<style>` block. Svelte and Vue libraries have always worked this way.
 
-The CLI owns that step. `stator build:lib [dir]` walks the directory (default `src`), writes each component's siblings, rewrites `.stator` imports between them to the compiled modules, and aggregates the stylesheet described below. Wire it into `prepublishOnly`, or a workspace `build` script, and commit nothing it writes:
+The CLI owns that step. `stator build:lib [dir]` walks the directory (default `src`), writes each component's siblings, rewrites `.stator` imports between them to the compiled modules, and aggregates the stylesheet described below. Scope ids are qualified by the package name from `package.json`, so two libraries with the same file layout never share a `data-s-<hash>` and one's scoped rules can't reach the other's markup. Wire it into `prepublishOnly`, or a workspace `build` script, and commit nothing it writes:
 
 ```json
 {
