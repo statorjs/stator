@@ -165,7 +165,7 @@ fly deploy
 | `REDIS_URL` | Upstash / Fly Redis connection string. `rediss://` for TLS. |
 | `PORT` | Listen port. Defaults to `3000`. Fly sets this automatically. |
 | `NODE_ENV` | `production` enables the Secure cookie flag. |
-| `LOG_LEVEL` | `debug` / `info` (default) / `warn` / `error`. |
+| `LOG_LEVEL` | `silent` / `debug` / `info` (default) / `warn` / `error`. `stator test` defaults it to `silent`. |
 | `SESSION_TTL_SECONDS` | Per-session idle TTL. Defaults to `86400` (24h). |
 | `STATOR_SECURE_COOKIE` | `1` / `0` — overrides `NODE_ENV` cookie behavior. |
 | `STATOR_SHUTDOWN_TIMEOUT_MS` | Drain deadline for in-flight requests on SIGTERM/SIGINT. Defaults to `5000`. |
