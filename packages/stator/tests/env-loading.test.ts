@@ -1,7 +1,8 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createApp } from '../src/server/create-app.ts'
 import { loadDotenv } from '../src/server/env.ts'
 
 /**
@@ -61,5 +62,20 @@ describe('loadDotenv', () => {
     loadDotenv(dir)
     touched.push('LOCAL_ONLY')
     expect(process.env.LOCAL_ONLY).toBe('x')
+  })
+})
+
+describe('createApp root', () => {
+  it('reads .env from `root` and resolves relative dirs against it, wherever the process started', async () => {
+    writeFileSync(join(dir, '.env'), 'FROM_APP_ROOT=yes\n')
+    mkdirSync(join(dir, 'machines'))
+    mkdirSync(join(dir, 'routes'))
+    touched.push('FROM_APP_ROOT')
+    // The test process's cwd is the package, not `dir` — the old behaviour
+    // would have looked for .env there and found nothing.
+    const app = await createApp({ root: dir, machinesDir: 'machines', routesDir: 'routes' })
+    expect(process.env.FROM_APP_ROOT).toBe('yes')
+    const res = await app.fetch(new Request('http://localhost/nothing-here'))
+    expect(res.status).toBe(404)
   })
 })

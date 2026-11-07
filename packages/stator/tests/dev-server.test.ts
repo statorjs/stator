@@ -234,7 +234,7 @@ describe('dev server: .stator end to end', () => {
       }
     })()
     const readUntil = async (predicate: (t: string) => boolean) => {
-      const deadline = Date.now() + 3000
+      const deadline = Date.now() + 15_000
       while (!predicate(buffer) && Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 15))
       }

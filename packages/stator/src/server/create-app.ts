@@ -22,6 +22,13 @@ import { InMemoryStore, type Store } from './store.ts'
 import { persistencePosture } from './store-intent.ts'
 
 export interface CreateAppConfig extends DeprecatedFlatConfig {
+  /** The app root: where `.env.local` / `.env` are read from, and the base
+   *  for the relative paths below. Defaults to the process working
+   *  directory, which is what a `server.ts` started from the app directory
+   *  gets anyway — set it when the process starts elsewhere (a service
+   *  manager's working directory, `node /app/dist/server.js` from `/`). The
+   *  CLI resolves everything against `--root` before calling this. */
+  root?: string
   machinesDir: string
   routesDir: string
   staticDir?: string
@@ -134,10 +141,13 @@ export interface StatorApp {
 export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
   // Load .env before anything reads process.env (LOG_LEVEL below, app secrets).
   // No-op if the CLI already loaded it; covers the direct `server.ts` entry.
-  loadDotenv()
-  const machinesDir = resolve(config.machinesDir)
-  const routesDir = resolve(config.routesDir)
-  const staticDir = config.staticDir ? resolve(config.staticDir) : undefined
+  // Read from the app root, like the dev servers and the CLI — not from
+  // wherever the process happened to start.
+  const root = resolve(config.root ?? process.cwd())
+  loadDotenv(root)
+  const machinesDir = resolve(root, config.machinesDir)
+  const routesDir = resolve(root, config.routesDir)
+  const staticDir = config.staticDir ? resolve(root, config.staticDir) : undefined
 
   const resolved = resolveAppConfig(config)
   // Level precedence: LOG_LEVEL env > config > the production default (createApp
@@ -160,9 +170,9 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
 
   const routes = await discoverRoutes(routesDir)
   const middleware = config.middlewareFile
-    ? await discoverMiddleware(config.middlewareFile)
+    ? await discoverMiddleware(resolve(root, config.middlewareFile))
     : undefined
-  const bootDef = config.bootFile ? await discoverBoot(config.bootFile) : undefined
+  const bootDef = config.bootFile ? await discoverBoot(resolve(root, config.bootFile)) : undefined
   const inspector = resolved.inspector
   const images = config.images ? resolveImagesConfig(config.images) : undefined
   const app = await buildHonoApp({

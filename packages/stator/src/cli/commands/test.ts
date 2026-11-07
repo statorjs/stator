@@ -12,12 +12,21 @@ const REGISTER = new URL('../../register.js', import.meta.url).href
  * loader, kept alongside anything already there. Stator ships TypeScript,
  * and a runner hands `node_modules` to Node — so Stator, and every package
  * built on it (direct or transitive, hoisted or not), would otherwise reach
- * Node unloadable. Child processes and workers inherit it.
+ * Node unloadable. Child processes and workers inherit it. `LOG_LEVEL`
+ * defaults to `silent` unless the caller set one.
  */
 export function testEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const flag = `--import ${REGISTER}`
   const current = env.NODE_OPTIONS?.trim() ?? ''
-  return { ...env, NODE_OPTIONS: current.includes(flag) ? current : `${current} ${flag}`.trim() }
+  return {
+    ...env,
+    NODE_OPTIONS: current.includes(flag) ? current : `${current} ${flag}`.trim(),
+    // Tests are an environment: framework logging defaults to silent so a
+    // suite that exercises failure paths (guarded 403s, recovery from bad
+    // snapshots) doesn't narrate them over the runner's output. Exporting
+    // LOG_LEVEL restores any level for debugging a failing test.
+    LOG_LEVEL: env.LOG_LEVEL ?? 'silent',
+  }
 }
 
 /**
