@@ -15,6 +15,7 @@ Most apps don't call this directly — the [`stator` CLI](/introduction/installa
 function createApp(config: CreateAppConfig): Promise<StatorApp>
 
 interface CreateAppConfig {
+  root?: string                         // where .env is read and relative paths resolve; default process.cwd()
   machinesDir: string
   routesDir: string
   staticDir?: string
