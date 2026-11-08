@@ -1,8 +1,9 @@
+import assert from 'node:assert/strict'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
-import { afterAll, describe, expect, it } from 'vitest'
 import { generateDts } from '../src/compiler/dts.ts'
 
 /**
@@ -16,7 +17,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const cardStator = resolve(here, 'fixtures/typegen/card.stator')
 const cardDts = `${cardStator}.d.ts`
 
-afterAll(async () => {
+after(async () => {
   await rm(cardDts, { force: true })
 })
 
@@ -77,7 +78,7 @@ describe('typegen: generated .d.ts drives tsc prop checking', () => {
        const x = Card({ title: 'Hi', count: 3 })`,
       extra,
     )
-    expect(good).toEqual([])
+    assert.deepStrictEqual(good, [])
 
     const bad = typecheck(
       `/// <reference path="/ambient.d.ts" />
@@ -85,7 +86,7 @@ describe('typegen: generated .d.ts drives tsc prop checking', () => {
        const x = Card({ title: 'Hi', count: 'three' })`,
       extra,
     )
-    expect(bad.length).toBeGreaterThan(0)
-    expect(bad.join('\n')).toMatch(/count|string|number/)
+    assert.ok(bad.length > 0)
+    assert.match(bad.join('\n'), /count|string|number/)
   })
 })

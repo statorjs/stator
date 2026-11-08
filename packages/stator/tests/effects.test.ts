@@ -1,9 +1,11 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { describe, it, mock } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it, vi } from 'vitest'
 import { createActor, type EffectInvocation } from '../src/engine/index.ts'
 import { createApp } from '../src/server/create-app.ts'
 import { defineMachine } from '../src/server/define-machine.ts'
+import { waitFor } from './helpers/mocks.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixtures = resolve(here, 'fixtures')
@@ -62,11 +64,11 @@ describe('engine effects: local default scheduling (client plane / unit tests)',
     const actor = createActor(makeMachine()).start()
     actor.send({ type: 'GO' })
     // Sync commit happened before any async work:
-    expect(actor.getSnapshot().value).toEqual(['working'])
+    assert.deepStrictEqual(actor.getSnapshot().value, ['working'])
     await tick()
     await tick()
-    expect(actor.getSnapshot().value).toEqual(['done'])
-    expect(actor.getSnapshot().context.result).toMatch(/^ok:/)
+    assert.deepStrictEqual(actor.getSnapshot().value, ['done'])
+    assert.match(actor.getSnapshot().context.result, /^ok:/)
   })
 
   it('routes the declared failure event', async () => {
@@ -74,8 +76,8 @@ describe('engine effects: local default scheduling (client plane / unit tests)',
     actor.send({ type: 'GO', fail: true })
     await tick()
     await tick()
-    expect(actor.getSnapshot().value).toEqual(['idle'])
-    expect(actor.getSnapshot().context.result).toBe('err:bad')
+    assert.deepStrictEqual(actor.getSnapshot().value, ['idle'])
+    assert.equal(actor.getSnapshot().context.result, 'err:bad')
   })
 
   it('a throwing effect is logged and dropped, never crashes', async () => {
@@ -100,19 +102,22 @@ describe('engine effects: local default scheduling (client plane / unit tests)',
       },
       selectors: {},
     })
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const errSpy = mock.method(console, 'error', () => {})
     try {
       const actor = createActor(machine).start()
       actor.send({ type: 'GO' })
       await tick()
       await tick()
-      expect(actor.getSnapshot().value).toEqual(['working']) // stayed pending
-      expect(errSpy).toHaveBeenCalledWith(
-        expect.stringContaining('must catch and return their failure event'),
-        expect.any(Error),
+      assert.deepStrictEqual(actor.getSnapshot().value, ['working']) // stayed pending
+      assert.ok(
+        errSpy.mock.calls.some(
+          (c) =>
+            String(c.arguments[0]).includes('must catch and return their failure event') &&
+            c.arguments[1] instanceof Error,
+        ),
       )
     } finally {
-      errSpy.mockRestore()
+      errSpy.mock.restore()
     }
   })
 
@@ -127,10 +132,10 @@ describe('engine effects: local default scheduling (client plane / unit tests)',
     b.send({ type: 'GO' })
     await tick()
     await tick()
-    expect(ids).toHaveLength(2)
-    expect(ids[0]).not.toBe(ids[1])
+    assert.equal(ids.length, 2)
+    assert.notEqual(ids[0], ids[1])
     // The id threads through to the completion (idempotency-key property).
-    expect(a.getSnapshot().context.result).toBe(`ok:${ids[0]}`)
+    assert.equal(a.getSnapshot().context.result, `ok:${ids[0]}`)
   })
 
   it('stale completions are dropped by ordinary state semantics', async () => {
@@ -173,8 +178,8 @@ describe('engine effects: local default scheduling (client plane / unit tests)',
     await tick()
     await tick()
     // The OK arrived in 'idle', which has no handler for it — dropped.
-    expect(actor.getSnapshot().value).toEqual(['idle'])
-    expect(actor.getSnapshot().context.n).toBe(0)
+    assert.deepStrictEqual(actor.getSnapshot().value, ['idle'])
+    assert.equal(actor.getSnapshot().context.n, 0)
   })
 
   it('onEffect hands the invocation to the host instead of running it', async () => {
@@ -183,11 +188,11 @@ describe('engine effects: local default scheduling (client plane / unit tests)',
     actor.send({ type: 'GO' })
     await tick()
     await tick()
-    expect(actor.getSnapshot().value).toEqual(['working']) // host owns completion
-    expect(queued).toHaveLength(1)
-    expect(queued[0]!.machineName).toBe('FxMachine')
+    assert.deepStrictEqual(actor.getSnapshot().value, ['working']) // host owns completion
+    assert.equal(queued.length, 1)
+    assert.equal(queued[0]!.machineName, 'FxMachine')
     const completion = await queued[0]!.run()
-    expect(completion).toEqual({ type: 'OK', id: queued[0]!.effectId })
+    assert.deepStrictEqual(completion, { type: 'OK', id: queued[0]!.effectId })
   })
 })
 
@@ -231,24 +236,24 @@ describe('server effects: full HTTP loop', () => {
     const { app, cookie } = await boot()
 
     const res = await post(app, cookie, { type: 'SUBMIT' })
-    expect(res.status).toBe(200)
+    assert.equal(res.status, 200)
     // The response reflects the sync commit only: the status selector's value
     // hasn't changed yet (no receipt, no reason), so no patches — and
     // critically, no completion either. The effect is still in flight.
     const body = (await res.json()) as { patches: Array<{ value?: string }> }
-    expect(JSON.stringify(body.patches)).not.toContain('confirmed')
+    assert.ok(!JSON.stringify(body.patches).includes('confirmed'))
 
     // Completion re-enters through the event path and persists.
-    await vi.waitFor(async () => {
-      expect(await status(app, cookie)).toMatch(/^confirmed:r-/)
+    await waitFor(async () => {
+      assert.match((await status(app, cookie)) ?? '', /^confirmed:r-/)
     })
   })
 
   it('failure events land the same way', async () => {
     const { app, cookie } = await boot()
     await post(app, cookie, { type: 'SUBMIT', shouldFail: true })
-    await vi.waitFor(async () => {
-      expect(await status(app, cookie)).toBe('failed:declined')
+    await waitFor(async () => {
+      assert.equal(await status(app, cookie), 'failed:declined')
     })
   })
 
@@ -261,12 +266,12 @@ describe('server effects: full HTTP loop', () => {
     const before = performance.now()
     const pokeRes = await post(app, cookie, { type: 'POKE' })
     const elapsed = performance.now() - before
-    expect(pokeRes.status).toBe(200)
-    expect(elapsed).toBeLessThan(100)
+    assert.equal(pokeRes.status, 200)
+    assert.ok(elapsed < 100)
 
-    await vi.waitFor(
+    await waitFor(
       async () => {
-        expect(await status(app, cookie)).toMatch(/^confirmed:/)
+        assert.match((await status(app, cookie)) ?? '', /^confirmed:/)
       },
       { timeout: 2000 },
     )

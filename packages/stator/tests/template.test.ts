@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { createRenderState, type RenderState, runInRender } from '../src/server/render-context.ts'
@@ -83,11 +84,11 @@ describe('html templating', () => {
         () =>
           html`<input type="checkbox" checked="${false}" disabled="${null}" data-x="${undefined}" required="${true}" data-n="${3}" />`,
       )
-      expect(out.html).not.toContain('checked')
-      expect(out.html).not.toContain('disabled')
-      expect(out.html).not.toContain('data-x')
-      expect(out.html).toMatch(/required(=""| |\/|>)/)
-      expect(out.html).toContain('data-n="3"')
+      assert.ok(!out.html.includes('checked'))
+      assert.ok(!out.html.includes('disabled'))
+      assert.ok(!out.html.includes('data-x'))
+      assert.match(out.html, /required(=""| |\/|>)/)
+      assert.ok(out.html.includes('data-n="3"'))
     } finally {
       runtime.dispose()
     }
@@ -97,12 +98,12 @@ describe('html templating', () => {
     const { cart, state, runtime } = await buildRuntime()
     try {
       const out = runInRender(state, () => html`<p>Items: ${read(cart, (c) => c.itemCount)}</p>`)
-      expect(out.html).toBe('<p>Items: <span data-slot="s0">0</span></p>')
-      expect(state.bindings.size).toBe(1)
+      assert.equal(out.html, '<p>Items: <span data-slot="s0">0</span></p>')
+      assert.equal(state.bindings.size, 1)
       const b = state.bindings.get('s0')!
-      expect(b.kind).toBe('text')
-      expect(b.machineName).toBe('CartMachine')
-      expect(b.lastValue).toBe(0)
+      assert.equal(b.kind, 'text')
+      assert.equal(b.machineName, 'CartMachine')
+      assert.equal(b.lastValue, 0)
     } finally {
       runtime.dispose()
     }
@@ -115,13 +116,13 @@ describe('html templating', () => {
         state,
         () => html`<button class="${read(cart, (c) => (c.contains('p1') ? 'in' : ''))}">x</button>`,
       )
-      expect(out.html).toContain('data-stator-id="e0"')
-      expect(out.html).toContain('class=""')
+      assert.ok(out.html.includes('data-stator-id="e0"'))
+      assert.ok(out.html.includes('class=""'))
       const b = state.bindings.get('s0')!
-      expect(b.kind).toBe('attr')
+      assert.equal(b.kind, 'attr')
       if (b.kind !== 'attr') throw new Error('expected attr binding')
-      expect(b.attrName).toBe('class')
-      expect(b.parentId).toBe('e0')
+      assert.equal(b.attrName, 'class')
+      assert.equal(b.parentId, 'e0')
     } finally {
       runtime.dispose()
     }
@@ -135,11 +136,11 @@ describe('html templating', () => {
         () =>
           html`<button ${on('click', () => cart.send({ type: 'ADD', productId: 'p1', unitPrice: 5 }))}>Add</button>`,
       )
-      expect(out.html).toContain('data-stator-id="e0"')
-      expect(out.html).toContain('data-event-click="')
-      expect(out.html).toContain('CartMachine')
-      expect(out.html).toContain('ADD')
-      expect(out.html).toContain('p1')
+      assert.ok(out.html.includes('data-stator-id="e0"'))
+      assert.ok(out.html.includes('data-event-click="'))
+      assert.ok(out.html.includes('CartMachine'))
+      assert.ok(out.html.includes('ADD'))
+      assert.ok(out.html.includes('p1'))
     } finally {
       runtime.dispose()
     }
@@ -167,14 +168,14 @@ describe('html templating', () => {
             (item) => html`<li>${item.productId} x${item.quantity}</li>`,
           )}</ul>`,
       )
-      expect(out.html).toMatch(/<ul><!--s:s0-->.*<!--\/s:s0--><\/ul>/)
-      expect(out.html).toContain('<li>p1 x1</li>')
-      expect(out.html).toContain('<li>p2 x1</li>')
+      assert.match(out.html, /<ul><!--s:s0-->.*<!--\/s:s0--><\/ul>/)
+      assert.ok(out.html.includes('<li>p1 x1</li>'))
+      assert.ok(out.html.includes('<li>p2 x1</li>'))
       const listBinding = state.bindings.get('s0')!
-      expect(listBinding.kind).toBe('list')
+      assert.equal(listBinding.kind, 'list')
       if (listBinding.kind !== 'list') throw new Error('expected list binding')
-      expect(listBinding.machineName).toBe('CartMachine')
-      expect(listBinding.itemRenderer).toBeTypeOf('function')
+      assert.equal(listBinding.machineName, 'CartMachine')
+      assert.equal(typeof listBinding.itemRenderer, 'function')
     } finally {
       runtime.dispose()
     }
@@ -187,7 +188,7 @@ describe('html templating', () => {
         state,
         () => html`<header>Cart: ${read(cart, (c) => c.itemCount)}</header>`,
       )
-      expect(fragment.html).toContain('<span data-slot="s0">0</span>')
+      assert.ok(fragment.html.includes('<span data-slot="s0">0</span>'))
 
       runtime.processEvent('CartMachine', {
         type: 'ADD',
@@ -205,7 +206,7 @@ describe('html templating', () => {
           b.lastValue = newValue
         }
       }
-      expect(patches).toEqual([{ slot: 's0', value: 1 }])
+      assert.deepStrictEqual(patches, [{ slot: 's0', value: 1 }])
     } finally {
       runtime.dispose()
     }
@@ -229,7 +230,7 @@ describe('html templating', () => {
               html`<li>${item.productId} qty=${read(cart, (c) => c.items[idx]?.quantity ?? 0)}</li>`,
           )}</ul>`,
       )
-      expect(state.bindings.has('s0:i0:s0')).toBe(true)
+      assert.equal(state.bindings.has('s0:i0:s0'), true)
 
       runtime.processEvent('CartMachine', {
         type: 'ADD',
@@ -238,16 +239,16 @@ describe('html templating', () => {
       })
 
       const listBinding = state.bindings.get('s0')!
-      expect(listBinding.kind).toBe('list')
+      assert.equal(listBinding.kind, 'list')
       if (listBinding.kind !== 'list') throw new Error('expected list binding')
       const newItems = listBinding.selector(cart) as any[]
-      expect(newItems.length).toBe(2)
+      assert.equal(newItems.length, 2)
       const { html: newInner } = runInRender(state, () =>
         renderListBody(state, 's0', newItems, listBinding.itemRenderer),
       )
-      expect(newInner).toContain('p1 qty=')
-      expect(newInner).toContain('p2 qty=')
-      expect(state.bindings.has('s0:i1:s0')).toBe(true)
+      assert.ok(newInner.includes('p1 qty='))
+      assert.ok(newInner.includes('p2 qty='))
+      assert.equal(state.bindings.has('s0:i1:s0'), true)
     } finally {
       runtime.dispose()
     }

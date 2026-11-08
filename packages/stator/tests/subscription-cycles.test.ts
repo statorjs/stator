@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { withDispatchContext } from '../src/server/dispatch-context.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
@@ -61,10 +62,10 @@ describe('subscription cycle guards', () => {
     const { A, B } = cyclePair()
     const store = new MachineStore([A, B] as never, new InMemoryStore())
     const cycles = store.findSubscriptionCycles()
-    expect(cycles.length).toBeGreaterThan(0)
+    assert.ok(cycles.length > 0)
     const flat = cycles[0]!.join(' → ')
-    expect(flat).toContain('CycleA')
-    expect(flat).toContain('CycleB')
+    assert.ok(flat.includes('CycleA'))
+    assert.ok(flat.includes('CycleB'))
   })
 
   it('a runtime cascade cycle aborts with a named trail, not a stack overflow', async () => {
@@ -74,11 +75,13 @@ describe('subscription cycle guards', () => {
     await runtime.loadGraph([A] as never)
     runtime.wireSubscriptions()
 
-    expect(() =>
-      withDispatchContext({ sessionId: 's1' } as never, () =>
-        runtime.processEvent('CycleA', { type: 'GO' }),
-      ),
-    ).toThrowError(/emit cascade exceeded .* hops[\s\S]*CycleA —ping→ CycleB/)
+    assert.throws(
+      () =>
+        withDispatchContext({ sessionId: 's1' } as never, () =>
+          runtime.processEvent('CycleA', { type: 'GO' }),
+        ),
+      /emit cascade exceeded .* hops[\s\S]*CycleA —ping→ CycleB/,
+    )
   })
 
   it('an undefined `from` (circular-import symptom) gets the named diagnosis', () => {
@@ -96,7 +99,8 @@ describe('subscription cycle guards', () => {
       subscribes: [{ from: undefined as never, event: 'ping', dispatch: 'X' }],
       selectors: {},
     })
-    expect(() => new MachineStore([Broken] as never, new InMemoryStore())).toThrowError(
+    assert.throws(
+      () => new MachineStore([Broken] as never, new InMemoryStore()),
       /circular import between machine modules/,
     )
   })
@@ -133,6 +137,6 @@ describe('subscription cycle guards', () => {
       selectors: { seen: (ctx) => ctx.seen },
     })
     const store = new MachineStore([Source, Sink] as never, new InMemoryStore())
-    expect(store.findSubscriptionCycles()).toEqual([])
+    assert.deepStrictEqual(store.findSubscriptionCycles(), [])
   })
 })

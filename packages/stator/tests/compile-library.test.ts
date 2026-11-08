@@ -1,7 +1,8 @@
+import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, it } from 'node:test'
 import { compileLibrary } from '../src/build/compile-library.ts'
 import { scopeHash } from '../src/compiler/hash.ts'
 
@@ -44,34 +45,34 @@ describe('build: compileLibrary', () => {
   it('writes compiled siblings, rewrites .stator imports, aggregates what the barrel reaches', async () => {
     const src = await scaffold(true)
     const result = await compileLibrary({ root: root!, dir: src })
-    expect(result.compiled).toBe(3)
-    expect(result.islands).toBe(0)
-    expect(result.entry).toBe(join(src, 'index.ts'))
+    assert.equal(result.compiled, 3)
+    assert.equal(result.islands, 0)
+    assert.equal(result.entry, join(src, 'index.ts'))
 
     const card = await readFile(join(src, 'card.stator.ts'), 'utf8')
-    expect(card).toContain("'./icon.stator.ts'")
-    expect(card).not.toContain("'./icon.stator'")
-    await expect(readFile(join(src, 'icon.stator.css'), 'utf8')).resolves.toContain('.icon')
+    assert.ok(card.includes("'./icon.stator.ts'"))
+    assert.ok(!card.includes("'./icon.stator'"))
+    assert.ok((await readFile(join(src, 'icon.stator.css'), 'utf8')).includes('.icon'))
 
     const css = await readFile(join(src, 'components.css'), 'utf8')
-    expect(css).toContain('.card')
-    expect(css).toContain('.icon')
-    expect(css).not.toContain('.orphan')
-    expect(css).toContain('/* src/card.stator.ts */')
+    assert.ok(css.includes('.card'))
+    assert.ok(css.includes('.icon'))
+    assert.ok(!css.includes('.orphan'))
+    assert.ok(css.includes('/* src/card.stator.ts */'))
 
     const again = await compileLibrary({ root: root!, dir: src })
-    expect(again.cssBytes).toBe(result.cssBytes)
-    expect(await readFile(join(src, 'components.css'), 'utf8')).toBe(css)
+    assert.equal(again.cssBytes, result.cssBytes)
+    assert.equal(await readFile(join(src, 'components.css'), 'utf8'), css)
   })
 
   it('with no barrel, every component contributes', async () => {
     const src = await scaffold(false)
     const result = await compileLibrary({ root: root!, dir: src })
-    expect(result.entry).toBeUndefined()
+    assert.equal(result.entry, undefined)
     const css = await readFile(join(src, 'components.css'), 'utf8')
-    expect(css).toContain('.card')
-    expect(css).toContain('.icon')
-    expect(css).toContain('.orphan')
+    assert.ok(css.includes('.card'))
+    assert.ok(css.includes('.icon'))
+    assert.ok(css.includes('.orphan'))
   })
 })
 
@@ -104,19 +105,19 @@ describe('build: compileLibrary scope ids', () => {
   it('two packages with the same layout get different scope hashes', async () => {
     const a = await palette('@acme/blocks')
     const b = await palette('@other/blocks')
-    expect(a.hashes.size).toBe(1)
-    expect(b.hashes.size).toBe(1)
+    assert.equal(a.hashes.size, 1)
+    assert.equal(b.hashes.size, 1)
     const [ha] = a.hashes
     const [hb] = b.hashes
-    expect(ha).not.toBe(hb)
+    assert.notEqual(ha, hb)
     // Markup and stylesheet of one package agree with each other.
-    expect(a.css).toContain(`data-s-${ha}`)
-    expect(b.css).toContain(`data-s-${hb}`)
-    expect(ha).toBe(scopeHash('@acme/blocks/src/palette.stator'))
+    assert.ok(a.css.includes(`data-s-${ha}`))
+    assert.ok(b.css.includes(`data-s-${hb}`))
+    assert.equal(ha, scopeHash('@acme/blocks/src/palette.stator'))
   })
 
   it('a root with no package name falls back to the path-relative id', async () => {
     const { hashes } = await palette()
-    expect([...hashes]).toEqual([scopeHash('src/palette.stator')])
+    assert.deepStrictEqual([...hashes], [scopeHash('src/palette.stator')])
   })
 })

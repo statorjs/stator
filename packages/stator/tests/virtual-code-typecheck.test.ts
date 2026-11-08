@@ -1,8 +1,9 @@
+import assert from 'node:assert/strict'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
+import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
-import { afterAll, describe, expect, it } from 'vitest'
 import { toVirtualCode } from '../src/compiler/virtual-code.ts'
 
 /**
@@ -19,7 +20,7 @@ import { toVirtualCode } from '../src/compiler/virtual-code.ts'
 const here = dirname(fileURLToPath(import.meta.url))
 const dir = resolve(here, '.tmp-vtsx-typecheck')
 
-afterAll(() => {
+after(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
@@ -216,51 +217,51 @@ describe('virtual code under real tsc (the editor contract)', () => {
   it('a Stator.reads binding is assignable to InstanceOf props — no false positives', () => {
     // Regression: the ambient once typed reads with the engine (selectors-only)
     // InstanceOf, making every binding "missing send, state, snapshot".
-    expect(diags.get('route-good')).toEqual([])
-    expect(diags.get('customer-layout')).toEqual([])
+    assert.deepStrictEqual(diags.get('route-good'), [])
+    assert.deepStrictEqual(diags.get('customer-layout'), [])
   })
 
   it('a wrong prop shape is a real error at the usage site', () => {
     const bad = diags.get('route-bad')!
-    expect(bad.length).toBeGreaterThan(0)
-    expect(bad.join('\n')).toMatch(/notACart|not assignable/)
+    assert.ok(bad.length > 0)
+    assert.match(bad.join('\n'), /notACart|not assignable/)
   })
 
   it('a component forwards {...rest} onto a native element and typechecks clean', () => {
-    expect(diags.get('button')).toEqual([])
+    assert.deepStrictEqual(diags.get('button'), [])
   })
 
   it('a spread whose type conflicts with a known attribute is a real error', () => {
     const bad = diags.get('button-bad')!
-    expect(bad.length).toBeGreaterThan(0)
-    expect(bad.join('\n')).toMatch(/disabled|not assignable/)
+    assert.ok(bad.length > 0)
+    assert.match(bad.join('\n'), /disabled|not assignable/)
   })
 
   it('a forwarding component (Stator.forwarded + on:click on an inner element) typechecks clean', () => {
-    expect(diags.get('forward-button')).toEqual([])
+    assert.deepStrictEqual(diags.get('forward-button'), [])
   })
 
   it("Stator.forwarded rejects a string that isn't an on: directive name", () => {
     const bad = diags.get('forward-bad')!
-    expect(bad.length).toBeGreaterThan(0)
-    expect(bad.join('\n')).toMatch(/on:|not assignable/)
+    assert.ok(bad.length > 0)
+    assert.match(bad.join('\n'), /on:|not assignable/)
   })
 
   it('Stator.response.headers.set(...) typechecks clean — the real Headers API', () => {
-    expect(diags.get('response-headers-good')).toEqual([])
+    assert.deepStrictEqual(diags.get('response-headers-good'), [])
   })
 
   it('Stator.response.headers[...] = ... is a real type error, not a silent runtime no-op', () => {
     const bad = diags.get('response-headers-bad')!
-    expect(bad.length).toBeGreaterThan(0)
+    assert.ok(bad.length > 0)
   })
 
   it('input[form=] typechecks clean — associates it with a <form> outside its DOM subtree', () => {
-    expect(diags.get('input-form-attr')).toEqual([])
+    assert.deepStrictEqual(diags.get('input-form-attr'), [])
   })
 
   it('form[onsubmit=] typechecks clean — a native inline-handler attribute, distinct from on:submit', () => {
-    expect(diags.get('form-onsubmit-attr')).toEqual([])
+    assert.deepStrictEqual(diags.get('form-onsubmit-attr'), [])
   })
 
   it('a top-level await in frontmatter is a TS error (sync-frontmatter contract)', () => {
@@ -268,8 +269,6 @@ describe('virtual code under real tsc (the editor contract)', () => {
     // TS1308 — surfaced in-editor, matching the runtime. A regression that moved
     // the body back to module scope would make this pass silently.
     const awaited = diags.get('component-await')!
-    expect(awaited.join('\n')).toMatch(
-      /'await' expressions are only allowed within async functions/,
-    )
+    assert.match(awaited.join('\n'), /'await' expressions are only allowed within async functions/)
   })
 })

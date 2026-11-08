@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { SessionRuntime } from '../src/server/session-runtime.ts'
@@ -22,13 +23,13 @@ describe('MachineStore + SessionRuntime', () => {
     await store.bootAppMachines()
     const instance = store.appInstance('ProductsMachine')!.proxy as any
 
-    expect(instance.all).toEqual([{ id: 'p1', name: 'Notebook', price: 12 }])
-    expect(instance.byId('p1')).toEqual({
+    assert.deepStrictEqual(instance.all, [{ id: 'p1', name: 'Notebook', price: 12 }])
+    assert.deepStrictEqual(instance.byId('p1'), {
       id: 'p1',
       name: 'Notebook',
       price: 12,
     })
-    expect(instance.byId('nope')).toBeUndefined()
+    assert.equal(instance.byId('nope'), undefined)
   })
 
   it('hydrates a transient session actor from the Store, processes an event, and persists back', async () => {
@@ -85,15 +86,15 @@ describe('MachineStore + SessionRuntime', () => {
       try {
         await runtime.loadGraph([CartMachine])
         const cart = runtime.proxyFor('CartMachine') as any
-        expect(cart.itemCount).toBe(0)
+        assert.equal(cart.itemCount, 0)
 
         const touched = runtime.processEvent('CartMachine', {
           type: 'ADD_ITEM',
           productId: 'p1',
           unitPrice: 12,
         })
-        expect([...touched]).toEqual(['CartMachine'])
-        expect(cart.itemCount).toBe(1)
+        assert.deepStrictEqual([...touched], ['CartMachine'])
+        assert.equal(cart.itemCount, 1)
 
         await runtime.persistTouched(touched)
       } finally {
@@ -102,7 +103,7 @@ describe('MachineStore + SessionRuntime', () => {
     }
 
     // Verify the Store has the persisted snapshot.
-    expect(await persistence.has('session-a', 'CartMachine')).toBe(true)
+    assert.equal(await persistence.has('session-a', 'CartMachine'), true)
 
     // Second "request" — fresh runtime, hydrated from Store, state survives.
     {
@@ -110,9 +111,9 @@ describe('MachineStore + SessionRuntime', () => {
       try {
         await runtime.loadGraph([CartMachine])
         const cart = runtime.proxyFor('CartMachine') as any
-        expect(cart.itemCount).toBe(1)
-        expect(cart.total).toBe(12)
-        expect(cart.contains('p1')).toBe(true)
+        assert.equal(cart.itemCount, 1)
+        assert.equal(cart.total, 12)
+        assert.equal(cart.contains('p1'), true)
       } finally {
         runtime.dispose()
       }
@@ -147,8 +148,8 @@ describe('MachineStore + SessionRuntime', () => {
       await rb.loadGraph([CartMachine])
       const touched = ra.processEvent('CartMachine', { type: 'ADD', id: 'x' })
       await ra.persistTouched(touched)
-      expect((ra.proxyFor('CartMachine') as any).count).toBe(1)
-      expect((rb.proxyFor('CartMachine') as any).count).toBe(0)
+      assert.equal((ra.proxyFor('CartMachine') as any).count, 1)
+      assert.equal((rb.proxyFor('CartMachine') as any).count, 0)
     } finally {
       ra.dispose()
       rb.dispose()

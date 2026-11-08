@@ -1,5 +1,6 @@
-// @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest'
+// @env happy-dom
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { defineElement, StatorElement } from '../src/client/element.ts'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
@@ -36,7 +37,7 @@ describe('island live attrs', () => {
     el.setAttribute('stock', '5')
     el.setAttribute('stock', '2')
     el.setAttribute('tag', 'x') // no tagChanged defined — must not throw
-    expect(StockWatcher.seen).toEqual([5, 2])
+    assert.deepStrictEqual(StockWatcher.seen, [5, 2])
   })
 
   it('a read() island prop renders as a live attr binding and patches', async () => {
@@ -72,13 +73,13 @@ describe('island live attrs', () => {
         { stock: 'string' },
       ),
     )
-    expect(attrs).toContain('data-stator-id=')
-    expect(attrs).toContain('stock="3"')
+    assert.ok(attrs.includes('data-stator-id='))
+    assert.ok(attrs.includes('stock="3"'))
 
     store.appInstance('InvMachine')!.actor.send({ type: 'SET', qty: 9 } as never)
     const patches = recompute(state, 'InvMachine', runtime)
-    expect(patches).toHaveLength(1)
-    expect(patches[0]).toMatchObject({ op: 'attr', name: 'stock', value: '9' })
+    assert.equal(patches.length, 1)
+    assert.partialDeepStrictEqual(patches[0], { op: 'attr', name: 'stock', value: '9' })
   })
 
   it('an island rendered inside a when-arm: arm-scoped shell id, attr patches target it after the arm renders, the element upgrades and reacts', async () => {
@@ -136,7 +137,7 @@ describe('island live attrs', () => {
             ),
         )}</main>`,
     )
-    expect(page.html).not.toContain('<arm-watcher')
+    assert.ok(!page.html.includes('<arm-watcher'))
     document.body.innerHTML = page.html
 
     // The arm opens over the wire: the island's shell arrives in the branch
@@ -144,28 +145,31 @@ describe('island live attrs', () => {
     store.appInstance('ArmInv')!.actor.send({ type: 'EDIT' } as never)
     const flip = recompute(state, 'ArmInv', runtime)
     const branch = flip.find((p) => p.op === 'html')
-    expect(branch).toBeDefined()
+    assert.notEqual(branch, undefined)
     const shellId = /data-stator-id="([^"]+)"/.exec(String(branch!.value))?.[1]
-    expect(shellId).toMatch(/:btrue:e\d+$/)
-    expect(String(branch!.value)).toContain('stock="3"')
+    assert.match(shellId ?? '', /:btrue:e\d+$/)
+    assert.ok(String(branch!.value).includes('stock="3"'))
 
     applyPatches(flip)
     const el = document.querySelector('arm-watcher')
-    expect(el).toBeInstanceOf(ArmWatcher)
-    expect(el!.getAttribute('data-stator-id')).toBe(shellId)
+    assert.ok(el instanceof ArmWatcher)
+    assert.equal(el!.getAttribute('data-stator-id'), shellId)
 
     // A later change patches the attr at the arm-scoped id, and the upgraded
     // element observes it.
     store.appInstance('ArmInv')!.actor.send({ type: 'SET', qty: 9 } as never)
     const next = recompute(state, 'ArmInv', runtime)
-    expect(next.find((p) => p.op === 'attr')).toMatchObject({
-      op: 'attr',
-      name: 'stock',
-      value: '9',
-      target: { kind: 'element', id: shellId },
-    })
+    assert.partialDeepStrictEqual(
+      next.find((p) => p.op === 'attr'),
+      {
+        op: 'attr',
+        name: 'stock',
+        value: '9',
+        target: { kind: 'element', id: shellId },
+      },
+    )
     applyPatches(next)
-    expect(el!.getAttribute('stock')).toBe('9')
-    expect(ArmWatcher.seen.at(-1)).toBe(9)
+    assert.equal(el!.getAttribute('stock'), '9')
+    assert.equal(ArmWatcher.seen.at(-1), 9)
   })
 })

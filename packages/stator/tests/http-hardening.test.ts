@@ -1,8 +1,9 @@
+import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { afterEach, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { afterEach, describe, expect, it } from 'vitest'
 import { createApp, type StatorApp } from '../src/server/create-app.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -32,22 +33,22 @@ describe('/__events input hardening', () => {
   it('rejects a malformed route key with 400', async () => {
     const app = await boot()
     const res = await post(app, { 'X-Stator-Route': 'DELETE!!nonsense' }, VALID_EVENT)
-    expect(res.status).toBe(400)
-    expect(((await res.json()) as { error: string }).error).toContain('malformed route key')
+    assert.equal(res.status, 400)
+    assert.ok(((await res.json()) as { error: string }).error.includes('malformed route key'))
   })
 
   it('rejects an unknown route with 404', async () => {
     const app = await boot()
     const res = await post(app, { 'X-Stator-Route': 'GET /no-such-page' }, VALID_EVENT)
-    expect(res.status).toBe(404)
-    expect(((await res.json()) as { error: string }).error).toContain('unknown route')
+    assert.equal(res.status, 404)
+    assert.ok(((await res.json()) as { error: string }).error.includes('unknown route'))
   })
 
   it('rejects invalid JSON bodies with 400, not a crash', async () => {
     const app = await boot()
     const res = await post(app, { 'X-Stator-Route': 'GET /' }, '{not json')
-    expect(res.status).toBe(400)
-    expect(((await res.json()) as { error: string }).error).toContain('invalid event payload')
+    assert.equal(res.status, 400)
+    assert.ok(((await res.json()) as { error: string }).error.includes('invalid event payload'))
   })
 
   it('rejects schema-invalid payloads (missing machine / non-object event)', async () => {
@@ -59,7 +60,7 @@ describe('/__events input hardening', () => {
       JSON.stringify({ machine: 'CounterMachine', event: {} }),
     ]) {
       const res = await post(app, { 'X-Stator-Route': 'GET /' }, bad)
-      expect(res.status).toBe(400)
+      assert.equal(res.status, 400)
     }
   })
 
@@ -75,8 +76,8 @@ describe('/__events input hardening', () => {
         event: { type: '@set', key: 'count', value: 999 },
       }),
     )
-    expect(res.status).toBe(400)
-    expect(((await res.json()) as { error: string }).error).toContain('reserved')
+    assert.equal(res.status, 400)
+    assert.ok(((await res.json()) as { error: string }).error.includes('reserved'))
   })
 })
 
@@ -88,7 +89,7 @@ describe('CSRF origin check on mutating routes', () => {
       { 'X-Stator-Route': 'GET /', 'Sec-Fetch-Site': 'cross-site' },
       VALID_EVENT,
     )
-    expect(res.status).toBe(403)
+    assert.equal(res.status, 403)
   })
 
   it('blocks a cross-origin /__events POST via mismatched Origin header', async () => {
@@ -98,7 +99,7 @@ describe('CSRF origin check on mutating routes', () => {
       { 'X-Stator-Route': 'GET /', Origin: 'https://evil.example' },
       VALID_EVENT,
     )
-    expect(res.status).toBe(403)
+    assert.equal(res.status, 403)
   })
 
   it('allows same-origin and signal-less (non-browser) requests', async () => {
@@ -108,10 +109,10 @@ describe('CSRF origin check on mutating routes', () => {
       { 'X-Stator-Route': 'GET /', 'Sec-Fetch-Site': 'same-origin' },
       VALID_EVENT,
     )
-    expect(sameOrigin.status).toBe(200)
+    assert.equal(sameOrigin.status, 200)
     // No Sec-Fetch-Site / Origin at all (server-to-server / test harness): allowed.
     const noSignal = await post(app, { 'X-Stator-Route': 'GET /' }, VALID_EVENT)
-    expect(noSignal.status).toBe(200)
+    assert.equal(noSignal.status, 200)
   })
 })
 
@@ -124,14 +125,14 @@ describe('static file serving containment', () => {
     const app = await boot(staticDir)
 
     const ok = await app.fetch(new Request('http://localhost/static/app.css'))
-    expect(ok.status).toBe(200)
-    expect(await ok.text()).toContain('color:red')
+    assert.equal(ok.status, 200)
+    assert.ok((await ok.text()).includes('color:red'))
 
     // `/static//<abs>` → rel becomes an absolute path; resolve() would honor it
     // verbatim without the containment check.
     const abs = await app.fetch(new Request(`http://localhost/static/${secret}`))
-    expect(abs.status).toBe(403)
-    expect(await abs.text()).not.toContain('TOP-SECRET')
+    assert.equal(abs.status, 403)
+    assert.ok(!(await abs.text()).includes('TOP-SECRET'))
   })
 })
 
@@ -147,18 +148,18 @@ describe('session cookie flags', () => {
     const app = await boot()
     const res = await app.fetch(new Request('http://localhost/'))
     const cookie = res.headers.get('set-cookie')!
-    expect(cookie).toMatch(/^stator_sid=[0-9a-f-]{36};/)
-    expect(cookie).toContain('HttpOnly')
-    expect(cookie).toContain('SameSite=Lax')
-    expect(cookie).toContain('Path=/')
-    expect(cookie).not.toContain('Secure')
+    assert.match(cookie, /^stator_sid=[0-9a-f-]{36};/)
+    assert.ok(cookie.includes('HttpOnly'))
+    assert.ok(cookie.includes('SameSite=Lax'))
+    assert.ok(cookie.includes('Path=/'))
+    assert.ok(!cookie.includes('Secure'))
   })
 
   it('adds Secure when STATOR_SECURE_COOKIE=1', async () => {
     process.env.STATOR_SECURE_COOKIE = '1'
     const app = await boot()
     const res = await app.fetch(new Request('http://localhost/'))
-    expect(res.headers.get('set-cookie')).toContain('Secure')
+    assert.ok(res.headers.get('set-cookie')?.includes('Secure'))
   })
 
   it('does not reissue the cookie for a returning session', async () => {
@@ -168,7 +169,7 @@ describe('session cookie flags', () => {
     const second = await app.fetch(
       new Request('http://localhost/', { headers: { Cookie: cookie } }),
     )
-    expect(second.headers.get('set-cookie')).toBeNull()
+    assert.equal(second.headers.get('set-cookie'), null)
   })
 })
 
@@ -194,8 +195,8 @@ describe('committed reflects actual transitions', () => {
       committed: boolean
       patches: unknown[]
     }
-    expect(dropped.committed).toBe(false)
-    expect(dropped.patches).toEqual([])
+    assert.equal(dropped.committed, false)
+    assert.deepStrictEqual(dropped.patches, [])
   })
 })
 
@@ -208,27 +209,27 @@ describe('static caching headers', () => {
     const app = await boot(staticDir)
 
     const first = await app.fetch(new Request('http://localhost/static/site.css'))
-    expect(first.status).toBe(200)
-    expect(first.headers.get('cache-control')).toBe('public, max-age=0, must-revalidate')
+    assert.equal(first.status, 200)
+    assert.equal(first.headers.get('cache-control'), 'public, max-age=0, must-revalidate')
     const etag = first.headers.get('etag')
-    expect(etag).toMatch(/^"[0-9a-f]+-[0-9a-f]+"$/)
-    expect(first.headers.get('last-modified')).toBeTruthy()
+    assert.match(etag ?? '', /^"[0-9a-f]+-[0-9a-f]+"$/)
+    assert.ok(first.headers.get('last-modified'))
 
     const revalidated = await app.fetch(
       new Request('http://localhost/static/site.css', { headers: { 'If-None-Match': etag! } }),
     )
-    expect(revalidated.status).toBe(304)
-    expect(await revalidated.text()).toBe('')
+    assert.equal(revalidated.status, 304)
+    assert.equal(await revalidated.text(), '')
 
     const dated = await app.fetch(
       new Request('http://localhost/static/site.css', {
         headers: { 'If-Modified-Since': first.headers.get('last-modified')! },
       }),
     )
-    expect(dated.status).toBe(304)
+    assert.equal(dated.status, 304)
 
     const asset = await app.fetch(new Request('http://localhost/static/assets/app-AbCd1234.js'))
-    expect(asset.status).toBe(200)
-    expect(asset.headers.get('cache-control')).toBe('public, max-age=31536000, immutable')
+    assert.equal(asset.status, 200)
+    assert.equal(asset.headers.get('cache-control'), 'public, max-age=31536000, immutable')
   })
 })

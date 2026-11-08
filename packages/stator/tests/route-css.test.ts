@@ -1,7 +1,8 @@
+import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, it } from 'node:test'
 import { routeCssMap } from '../src/build/route-css.ts'
 
 /**
@@ -55,8 +56,8 @@ describe('route-css: routeCssMap', () => {
     const root = await buildFixture()
     const map = await routeCssMap({ routesDir: join(root, 'routes'), baseDir: root })
     const css = map.get(join(root, 'routes/x.ts'))
-    expect(css).toBeDefined()
-    expect(css).toContain('.button[data-s-fake1234] { color: red; }')
+    assert.notEqual(css, undefined)
+    assert.ok(css?.includes('.button[data-s-fake1234] { color: red; }'))
   })
 
   it('silently skips a bare specifier whose package declares no sibling .css', async () => {
@@ -65,13 +66,13 @@ describe('route-css: routeCssMap', () => {
     const css = map.get(join(root, 'routes/x.ts'))!
     // fake-lib/plain has no `./plain.css` export — reached, but contributes
     // nothing, and does not throw.
-    expect(css).not.toContain('plain')
+    assert.ok(!css.includes('plain'))
   })
 
   it('a route reaching no styled component at all has no entry', async () => {
     const root = await buildFixture()
     const map = await routeCssMap({ routesDir: join(root, 'routes'), baseDir: root })
-    expect(map.has(join(root, 'routes/y.ts'))).toBe(false)
+    assert.equal(map.has(join(root, 'routes/y.ts')), false)
   })
 
   it('does not mistake a doc-comment usage example for a real import', async () => {
@@ -86,6 +87,6 @@ describe('route-css: routeCssMap', () => {
         'export const z = 1\n',
     )
     const map = await routeCssMap({ routesDir: join(root, 'routes'), baseDir: root })
-    expect(map.has(join(root, 'routes/z.ts'))).toBe(false)
+    assert.equal(map.has(join(root, 'routes/z.ts')), false)
   })
 })

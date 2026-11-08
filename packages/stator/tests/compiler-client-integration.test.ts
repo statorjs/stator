@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { compile } from '../src/compiler/compile.ts'
 import { CompileError } from '../src/compiler/diagnostics.ts'
 
@@ -21,46 +22,47 @@ const CLIENT = `<quantity-stepper>
 describe('compiler: client-component integration (3b stage 6a)', () => {
   it('detects a client file and produces both server shell + client module', () => {
     const r = compile(CLIENT, { id: 'quantity-stepper.stator' })
-    expect(r.isClient).toBe(true)
-    expect(r.clientTag).toBe('quantity-stepper')
-    expect(r.clientCode).toContain('class __QuantityStepperImpl extends QuantityStepper')
-    expect(r.clientCode).toContain('defineElement(__QuantityStepperImpl, "quantity-stepper")')
+    assert.equal(r.isClient, true)
+    assert.equal(r.clientTag, 'quantity-stepper')
+    assert.ok(r.clientCode.includes('class __QuantityStepperImpl extends QuantityStepper'))
+    assert.ok(r.clientCode.includes('defineElement(__QuantityStepperImpl, "quantity-stepper")'))
   })
 
   it('server shell renders the custom-element root with declared attrs + inner markers', () => {
     const r = compile(CLIENT, { id: 'quantity-stepper.stator' })
-    expect(r.serverCode).toContain('export default function (props = {})')
+    assert.ok(r.serverCode.includes('export default function (props = {})'))
     // Third arg carries the root's own static attributes (none here → {}).
-    expect(r.serverCode).toContain('clientShellAttrs(props, { unitPrice: "number" }, {})')
-    expect(r.serverCode).toContain('<quantity-stepper')
-    expect(r.serverCode).toContain('</quantity-stepper>')
+    assert.ok(r.serverCode.includes('clientShellAttrs(props, { unitPrice: "number" }, {})'))
+    assert.ok(r.serverCode.includes('<quantity-stepper'))
+    assert.ok(r.serverCode.includes('</quantity-stepper>'))
     // inner shell carries the data-b markers, directives stripped
-    expect(r.serverCode).toContain('data-b="b0"')
-    expect(r.serverCode).toContain('data-b="b1"')
-    expect(r.serverCode).not.toContain('on:click')
-    expect(r.serverCode).not.toContain('read(qty')
+    assert.ok(r.serverCode.includes('data-b="b0"'))
+    assert.ok(r.serverCode.includes('data-b="b1"'))
+    assert.ok(!r.serverCode.includes('on:click'))
+    assert.ok(!r.serverCode.includes('read(qty'))
   })
 
   it('a component with no inline <script> stays on the server path', () => {
     const r = compile('<p>hi</p>')
-    expect(r.isClient).toBe(false)
-    expect(r.clientCode).toBe('')
-    expect(r.serverCode).toContain('export default function')
+    assert.equal(r.isClient, false)
+    assert.equal(r.clientCode, '')
+    assert.ok(r.serverCode.includes('export default function'))
   })
 
   it('errors on an inline <script> with no StatorElement (no longer silently dropped)', () => {
-    expect(() => compile('<p>hi</p>\n<script>console.log("x")</script>')).toThrow(
+    assert.throws(
+      () => compile('<p>hi</p>\n<script>console.log("x")</script>'),
       /no StatorElement subclass/,
     )
   })
 
   it('errors when the root is not a custom element', () => {
     const bad = `<div><my-toggle></my-toggle></div>\n<script>export class MyToggle extends StatorElement {}</script>`
-    expect(() => compile(bad)).toThrow(/root must be a custom element/)
+    assert.throws(() => compile(bad), /root must be a custom element/)
   })
 
   it('errors on a name mismatch (tag vs class)', () => {
     const bad = `<my-toggle></my-toggle>\n<script>export class OtherThing extends StatorElement {}</script>`
-    expect(() => compile(bad)).toThrow(CompileError)
+    assert.throws(() => compile(bad), CompileError)
   })
 })

@@ -1,5 +1,6 @@
-// @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest'
+// @env happy-dom
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import * as clientApi from '../src/client/index.ts'
 import { generateDts, statorPropsType } from '../src/compiler/dts.ts'
 import {
@@ -26,34 +27,36 @@ import { attrValue, setAttr, textValue } from '../src/wire/attr-value.ts'
 const VALUES: unknown[] = [false, true, null, undefined, '', 'x', 0, 3, ['a', 'b'], 'y z']
 
 describe('seam: static attr render ≡ patch-applied attr', () => {
-  it.each(VALUES.map((v) => [v] as [unknown]))('value %j agrees on both tiers', (v) => {
-    // Static tier: render the attribute through html``.
-    const state = createRenderState('seam', 'GET /probe')
-    const rendered = runInRender(state, () => html`<div data-x="${v}"></div>`).html
-    const holder = document.createElement('div')
-    holder.innerHTML = rendered
-    const staticEl = holder.firstElementChild as Element
+  for (const [v] of VALUES.map((v) => [v] as [unknown]))
+    it(`value ${JSON.stringify(v)} agrees on both tiers`, () => {
+      // Static tier: render the attribute through html``.
+      const state = createRenderState('seam', 'GET /probe')
+      const rendered = runInRender(state, () => html`<div data-x="${v}"></div>`).html
+      const holder = document.createElement('div')
+      holder.innerHTML = rendered
+      const staticEl = holder.firstElementChild as Element
 
-    // Patch tier: apply the same value through the shared wire contract
-    // (recompute normalizes with attrValue; apply.ts writes with setAttr).
-    const patchEl = document.createElement('div')
-    setAttr(patchEl, 'data-x', attrValue(v))
+      // Patch tier: apply the same value through the shared wire contract
+      // (recompute normalizes with attrValue; apply.ts writes with setAttr).
+      const patchEl = document.createElement('div')
+      setAttr(patchEl, 'data-x', attrValue(v))
 
-    expect(staticEl.hasAttribute('data-x')).toBe(patchEl.hasAttribute('data-x'))
-    expect(staticEl.getAttribute('data-x')).toBe(patchEl.getAttribute('data-x'))
-  })
+      assert.equal(staticEl.hasAttribute('data-x'), patchEl.hasAttribute('data-x'))
+      assert.equal(staticEl.getAttribute('data-x'), patchEl.getAttribute('data-x'))
+    })
 })
 
 describe('seam: static text render ≡ text patch value', () => {
-  it.each(VALUES.map((v) => [v] as [unknown]))('value %j agrees on both tiers', (v) => {
-    const state = createRenderState('seam-t', 'GET /probe')
-    const rendered = runInRender(state, () => html`<p>${v}</p>`).html
-    const holder = document.createElement('div')
-    holder.innerHTML = rendered
-    // The patch tier sets textContent to textValue(v) — the same function
-    // the static tier interpolates with (arrays join, null empties).
-    expect((holder.firstElementChild as Element).textContent).toBe(textValue(v))
-  })
+  for (const [v] of VALUES.map((v) => [v] as [unknown]))
+    it(`value ${JSON.stringify(v)} agrees on both tiers`, () => {
+      const state = createRenderState('seam-t', 'GET /probe')
+      const rendered = runInRender(state, () => html`<p>${v}</p>`).html
+      const holder = document.createElement('div')
+      holder.innerHTML = rendered
+      // The patch tier sets textContent to textValue(v) — the same function
+      // the static tier interpolates with (arrays join, null empties).
+      assert.equal((holder.firstElementChild as Element).textContent, textValue(v))
+    })
 })
 
 describe('seam: .d.ts props ≡ language-server virtual props', () => {
@@ -104,27 +107,28 @@ const { title } = Stator.props<{ title: string }>()
     ['static component', '<p>static</p>'],
   ]
 
-  it.each(CASES)('%s: the .d.ts carries exactly the shared props type', (_name, source) => {
-    // The .d.ts must carry exactly what statorPropsType computes — the same
-    // function buildServerTsx types its default export with. (Island virtual
-    // code is the SCRIPT module — importers see the .d.ts — so the .d.ts is
-    // the caller-facing contract on both CLI and editor tiers.)
-    const { frontmatter, template, scripts } = splitSource(source)
-    const { propsT } = statorPropsType(frontmatter, template, scripts)
-    const dts = generateDts(source, { kind: 'component' })
-    expect(dts).toContain(`(props: ${propsT})`)
-  })
+  for (const [_name, source] of CASES)
+    it(`${_name}: the .d.ts carries exactly the shared props type`, () => {
+      // The .d.ts must carry exactly what statorPropsType computes — the same
+      // function buildServerTsx types its default export with. (Island virtual
+      // code is the SCRIPT module — importers see the .d.ts — so the .d.ts is
+      // the caller-facing contract on both CLI and editor tiers.)
+      const { frontmatter, template, scripts } = splitSource(source)
+      const { propsT } = statorPropsType(frontmatter, template, scripts)
+      const dts = generateDts(source, { kind: 'component' })
+      assert.ok(dts?.includes(`(props: ${propsT})`))
+    })
 
   it('SERVER-component virtual code types its export with the same props type', () => {
     const source = CASES[3]![1]
     const { frontmatter, template, scripts } = splitSource(source)
     const { propsT } = statorPropsType(frontmatter, template, scripts)
-    expect(toVirtualCode(source).tsx.code).toContain(`(_props: ${propsT})`)
+    assert.ok(toVirtualCode(source).tsx.code.includes(`(_props: ${propsT})`))
   })
 
   it('an attrs-less island accepts arbitrary shell props', () => {
     const source = CASES[1]![1]
-    expect(generateDts(source, { kind: 'component' })).toContain('{ [prop: string]: unknown }')
+    assert.ok(generateDts(source, { kind: 'component' })?.includes('{ [prop: string]: unknown }'))
   })
 
   it("an island's fence is typed in the client virtual code, deduped against script imports", () => {
@@ -139,15 +143,15 @@ const first = TICKETS[0]
   export class FencedForm extends StatorElement {}
 </script>`
     const { code } = toVirtualCode(source).tsx
-    expect(code).toContain("import { TICKETS } from './rules.ts'")
-    expect(code).toContain('const first = TICKETS[0]')
+    assert.ok(code.includes("import { TICKETS } from './rules.ts'"))
+    assert.ok(code.includes('const first = TICKETS[0]'))
     // The shared import appears once — the script's copy wins.
-    expect(code.match(/import \{ helper \} from '\.\/shared\.ts'/g)).toHaveLength(1)
+    assert.equal(code.match(/import \{ helper \} from '\.\/shared\.ts'/g)?.length, 1)
   })
 
   it('a server component with an inline script does NOT take the island branch', () => {
     const { propsT } = statorPropsType('', '<p>static</p>', ['console.log("inline")'])
-    expect(propsT).toBe('Record<string, never>')
+    assert.equal(propsT, 'Record<string, never>')
   })
 })
 
@@ -161,13 +165,13 @@ describe('seam: emitted import names ≡ runtime module exports', () => {
       ...TEMPLATE_LOWERING_TARGETS,
       ...ISLAND_SHELL_EXTRAS,
     ]) {
-      expect(templateApi, n).toHaveProperty(n)
+      assert.ok(n in templateApi, n)
     }
   })
 
   it('every client name the compiler injects is a real client export', () => {
     for (const n of [...CLIENT_AUTHOR_GLOBALS, ...CLIENT_LOWERING_TARGETS]) {
-      expect(clientApi, n).toHaveProperty(n)
+      assert.ok(n in clientApi, n)
     }
   })
 })

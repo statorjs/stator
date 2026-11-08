@@ -1,5 +1,6 @@
-// @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest'
+// @env happy-dom
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import * as clientApi from '../src/client/index.ts'
 import { emitClientModule, rewriteMembers } from '../src/compiler/client-emit.ts'
 import type { ClientDirective } from '../src/compiler/client-script.ts'
@@ -7,13 +8,13 @@ import type { ClientDirective } from '../src/compiler/client-script.ts'
 describe('compiler: rewriteMembers', () => {
   const members = new Set(['qty', 'inc', 'count'])
   it('prefixes member references with this.', () => {
-    expect(rewriteMembers('qty.count', members)).toBe('this.qty.count')
-    expect(rewriteMembers('inc', members)).toBe('this.inc')
-    expect(rewriteMembers('qty.count + 5', members)).toBe('this.qty.count + 5')
+    assert.equal(rewriteMembers('qty.count', members), 'this.qty.count')
+    assert.equal(rewriteMembers('inc', members), 'this.inc')
+    assert.equal(rewriteMembers('qty.count + 5', members), 'this.qty.count + 5')
   })
   it('leaves non-members and property names alone', () => {
-    expect(rewriteMembers('qty.count + other', members)).toBe('this.qty.count + other')
-    expect(rewriteMembers('() => qty.send("INC")', members)).toBe('() => this.qty.send("INC")')
+    assert.equal(rewriteMembers('qty.count + other', members), 'this.qty.count + other')
+    assert.equal(rewriteMembers('() => qty.send("INC")', members), '() => this.qty.send("INC")')
   })
 })
 
@@ -40,15 +41,17 @@ export class QuantityStepper extends StatorElement {
       directives,
       members,
     })
-    expect(out).toContain(
-      'import { StatorElement, use, machine, defineElement, bind, effect, dispatch, bindSlot, attrValue, setAttr }',
+    assert.ok(
+      out.includes(
+        'import { StatorElement, use, machine, defineElement, bind, effect, dispatch, bindSlot, attrValue, setAttr }',
+      ),
     )
-    expect(out).toContain('export class QuantityStepper extends StatorElement')
-    expect(out).toContain('class __QuantityStepperImpl extends QuantityStepper')
-    expect(out).toContain('this.querySelectorAll("[data-b=\\"b0\\"]")')
-    expect(out).toContain('addEventListener("click", (e) => this.dec(e))')
-    expect(out).toContain('bindSlot(this, "s0", [this.qty], () => (this.qty.count))')
-    expect(out).toContain('defineElement(__QuantityStepperImpl, "quantity-stepper")')
+    assert.ok(out.includes('export class QuantityStepper extends StatorElement'))
+    assert.ok(out.includes('class __QuantityStepperImpl extends QuantityStepper'))
+    assert.ok(out.includes('this.querySelectorAll("[data-b=\\"b0\\"]")'))
+    assert.ok(out.includes('addEventListener("click", (e) => this.dec(e))'))
+    assert.ok(out.includes('bindSlot(this, "s0", [this.qty], () => (this.qty.count))'))
+    assert.ok(out.includes('defineElement(__QuantityStepperImpl, "quantity-stepper")'))
   })
 
   it('the emitted module runs end-to-end in the DOM', () => {
@@ -73,11 +76,11 @@ export class QuantityStepper extends StatorElement {
     const el = holder.querySelector('quantity-stepper')!
     const out1 = el.querySelector('span')!
 
-    expect(out1.textContent).toBe('1') // initial paint on connect
+    assert.equal(out1.textContent, '1') // initial paint on connect
     ;(el.querySelector('[data-b="b1"]') as HTMLElement).click() // inc
     ;(el.querySelector('[data-b="b1"]') as HTMLElement).click()
-    expect(out1.textContent).toBe('3')
+    assert.equal(out1.textContent, '3')
     ;(el.querySelector('[data-b="b0"]') as HTMLElement).click() // dec
-    expect(out1.textContent).toBe('2')
+    assert.equal(out1.textContent, '2')
   })
 })

@@ -1,19 +1,21 @@
-// @vitest-environment happy-dom
-import { afterEach, describe, expect, it, vi } from 'vitest'
+// @env happy-dom
+import assert from 'node:assert/strict'
+import { afterEach, describe, it, mock } from 'node:test'
 import { dispatch } from '../src/client/dispatch.ts'
 import type { AnyMachineDef } from '../src/engine/index.ts'
+import { stubGlobal, unstubAllGlobals } from './helpers/mocks.ts'
 
 /** The identity stub a browser bundle sees for a server-machine import
  *  (see vite/stub.ts) — dispatch only reads `.name`. */
 const Cart = { name: 'CartMachine' } as AnyMachineDef
 
 afterEach(() => {
-  vi.unstubAllGlobals()
+  unstubAllGlobals()
 })
 
 function stubFetch(response: () => Promise<Response>) {
-  const spy = vi.fn(response)
-  vi.stubGlobal('fetch', spy)
+  const spy = mock.fn(response)
+  stubGlobal('fetch', spy)
   return spy
 }
 
@@ -27,20 +29,20 @@ describe('client dispatch (island → server wire)', () => {
     )
 
     const result = await dispatch(Cart, { type: 'ADD', productId: 'p1' } as never)
-    expect(result.ok).toBe(true)
-    expect(result.committed).toBe(true)
+    assert.equal(result.ok, true)
+    assert.equal(result.committed, true)
 
-    const [url, init] = spy.mock.calls[0] as unknown as [string, RequestInit]
-    expect(url).toBe('/__events')
-    expect(init.method).toBe('POST')
-    expect((init.headers as Record<string, string>)['X-Stator-Route']).toMatch(/^GET /)
+    const [url, init] = spy.mock.calls[0]!.arguments as unknown as [string, RequestInit]
+    assert.equal(url, '/__events')
+    assert.equal(init.method, 'POST')
+    assert.match((init.headers as Record<string, string>)['X-Stator-Route'] ?? '', /^GET /)
     const body = JSON.parse(init.body as string)
-    expect(body).toMatchObject({
+    assert.partialDeepStrictEqual(body, {
       machine: 'CartMachine',
       event: { type: 'ADD', productId: 'p1' },
     })
-    expect(typeof body.eventId).toBe('string')
-    expect(document.querySelector('[data-slot="s0"]')!.textContent).toBe('new')
+    assert.equal(typeof body.eventId, 'string')
+    assert.equal(document.querySelector('[data-slot="s0"]')!.textContent, 'new')
   })
 
   it('applies directives from the response envelope', async () => {
@@ -54,20 +56,20 @@ describe('client dispatch (island → server wire)', () => {
     window.addEventListener('custom:done', (e) => seen.push((e as CustomEvent).detail))
 
     await dispatch(Cart, { type: 'ADD' } as never)
-    expect(seen).toEqual([{ x: 1 }])
+    assert.deepStrictEqual(seen, [{ x: 1 }])
   })
 
   it('returns false on HTTP errors without throwing', async () => {
     stubFetch(async () => new Response('nope', { status: 500 }))
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const errSpy = mock.method(console, 'error', () => {})
     try {
-      expect(await dispatch(Cart, { type: 'ADD' } as never)).toMatchObject({
+      assert.partialDeepStrictEqual(await dispatch(Cart, { type: 'ADD' } as never), {
         ok: false,
         committed: false,
         error: { phase: 'http', status: 500 },
       })
     } finally {
-      errSpy.mockRestore()
+      errSpy.mock.restore()
     }
   })
 
@@ -75,15 +77,15 @@ describe('client dispatch (island → server wire)', () => {
     stubFetch(async () => {
       throw new TypeError('network down')
     })
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const errSpy = mock.method(console, 'error', () => {})
     try {
-      expect(await dispatch(Cart, { type: 'ADD' } as never)).toMatchObject({
+      assert.partialDeepStrictEqual(await dispatch(Cart, { type: 'ADD' } as never), {
         ok: false,
         committed: false,
         error: { phase: 'network' },
       })
     } finally {
-      errSpy.mockRestore()
+      errSpy.mock.restore()
     }
   })
 })

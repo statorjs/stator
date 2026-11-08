@@ -1,6 +1,7 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
 import { createApp, type StatorApp } from '../src/server/create-app.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -34,24 +35,24 @@ function crossSitePost(app: StatorApp, origin: string) {
 describe('crossSiteGuard + trustedOrigins', () => {
   it('allows a cross-site write from a wildcard-trusted subdomain', async () => {
     const app = await boot(['https://*.tonysull.co'])
-    expect((await crossSitePost(app, 'https://app.tonysull.co')).status).toBe(200)
+    assert.equal((await crossSitePost(app, 'https://app.tonysull.co')).status, 200)
   })
 
   it('allows a cross-site write from an exact-trusted origin', async () => {
     const app = await boot(['https://partner.example.com'])
-    expect((await crossSitePost(app, 'https://partner.example.com')).status).toBe(200)
+    assert.equal((await crossSitePost(app, 'https://partner.example.com')).status, 200)
   })
 
   it('still blocks an untrusted cross-site origin', async () => {
     const app = await boot(['https://*.tonysull.co'])
     const res = await crossSitePost(app, 'https://evil.com')
-    expect(res.status).toBe(403)
-    expect(((await res.json()) as { error: string }).error).toContain('cross-site')
+    assert.equal(res.status, 403)
+    assert.ok(((await res.json()) as { error: string }).error.includes('cross-site'))
   })
 
   it('rejects the suffix-attack origin even with a matching wildcard entry', async () => {
     const app = await boot(['https://*.tonysull.co'])
-    expect((await crossSitePost(app, 'https://tonysull.co.evil.com')).status).toBe(403)
+    assert.equal((await crossSitePost(app, 'https://tonysull.co.evil.com')).status, 403)
   })
 
   it('403s a cross-site write to an unknown path before route-matching (no 404 leak)', async () => {
@@ -62,7 +63,7 @@ describe('crossSiteGuard + trustedOrigins', () => {
         headers: { 'Sec-Fetch-Site': 'cross-site', Origin: 'https://evil.com' },
       }),
     )
-    expect(res.status).toBe(403)
+    assert.equal(res.status, 403)
   })
 
   it('does not guard safe methods (a cross-site GET passes)', async () => {
@@ -72,7 +73,7 @@ describe('crossSiteGuard + trustedOrigins', () => {
         headers: { 'Sec-Fetch-Site': 'cross-site', Origin: 'https://evil.com' },
       }),
     )
-    expect(res.status).toBe(200)
+    assert.equal(res.status, 200)
   })
 
   it('allows same-site writes by default (Lax posture)', async () => {
@@ -88,7 +89,7 @@ describe('crossSiteGuard + trustedOrigins', () => {
         body: VALID,
       }),
     )
-    expect(res.status).toBe(200)
+    assert.equal(res.status, 200)
   })
 })
 
@@ -116,17 +117,17 @@ describe('crossSiteGuard strict posture (SameSite=Strict)', () => {
   it('sets the session cookie to SameSite=Strict', async () => {
     const app = await bootStrict()
     const res = await app.fetch(new Request('http://localhost/'))
-    expect(res.headers.get('set-cookie')).toContain('SameSite=Strict')
+    assert.ok(res.headers.get('set-cookie')?.includes('SameSite=Strict'))
   })
 
   it('blocks a same-site write not in the allowlist', async () => {
     const app = await bootStrict()
-    expect((await sameSitePost(app, 'https://sibling.tonysull.co')).status).toBe(403)
+    assert.equal((await sameSitePost(app, 'https://sibling.tonysull.co')).status, 403)
   })
 
   it('allows a same-site write from an allowlisted subdomain', async () => {
     const app = await bootStrict(['https://*.tonysull.co'])
-    expect((await sameSitePost(app, 'https://sibling.tonysull.co')).status).toBe(200)
+    assert.equal((await sameSitePost(app, 'https://sibling.tonysull.co')).status, 200)
   })
 
   it('still allows same-origin writes under strict', async () => {
@@ -142,6 +143,6 @@ describe('crossSiteGuard strict posture (SameSite=Strict)', () => {
         body: VALID,
       }),
     )
-    expect(res.status).toBe(200)
+    assert.equal(res.status, 200)
   })
 })

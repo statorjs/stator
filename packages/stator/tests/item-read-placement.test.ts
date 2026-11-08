@@ -1,11 +1,12 @@
-// @vitest-environment happy-dom
+// @env happy-dom
 // Item-read placement: a `read(item, …)` binding is owned by its each() row —
 // the row render supplies the item and the list's recompute re-diffs it. A
 // when()/match()/defer() arm re-renders on its own schedule (renderBranchBody),
 // WITHOUT row context, so an item read inside an arm is a compile-time error
 // (and a runtime error for hand-written templates). Shipped bug: todomvc's
 // label sat inside a when() arm and crashed recompute on EDIT_SAVE (#24).
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { lowerTemplate } from '../src/compiler/lower.ts'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
@@ -25,35 +26,44 @@ describe('lower: item-read placement gate', () => {
     `<ul>{each(read(m, s => s.rows), (r) => <li>${inner}</li>, { key: (r) => r.id })}</ul>`
 
   it('rejects an item read inside a when() arm', () => {
-    expect(() =>
-      lowerTemplate(row('{when(read(m, s => s.editing), () => <b>{read(r, (x) => x.label)}</b>)}')),
-    ).toThrow(/inside a when\(\) arm.*owned by its each\(\) row/s)
+    assert.throws(
+      () =>
+        lowerTemplate(
+          row('{when(read(m, s => s.editing), () => <b>{read(r, (x) => x.label)}</b>)}'),
+        ),
+      /inside a when\(\) arm.*owned by its each\(\) row/s,
+    )
   })
 
   it('rejects an item read inside a match() arm', () => {
-    expect(() =>
-      lowerTemplate(
-        row('{match(read(m, s => s.mode), { on: () => <b>{read(r, (x) => x.label)}</b> })}'),
-      ),
-    ).toThrow(/inside a match\(\) arm/)
+    assert.throws(
+      () =>
+        lowerTemplate(
+          row('{match(read(m, s => s.mode), { on: () => <b>{read(r, (x) => x.label)}</b> })}'),
+        ),
+      /inside a match\(\) arm/,
+    )
   })
 
   it('rejects an item read as a when() condition', () => {
-    expect(() => lowerTemplate(row('{when(read(r, (x) => x.done), () => <b>done</b>)}'))).toThrow(
+    assert.throws(
+      () => lowerTemplate(row('{when(read(r, (x) => x.done), () => <b>done</b>)}')),
       /cannot drive a when\(\)/,
     )
   })
 
   it('rejects reading an outer item from inside a nested each() row', () => {
-    expect(() =>
-      lowerTemplate(row('{each(r.items, (it) => <span>{read(r, (x) => x.label)}</span>)}')),
-    ).toThrow(/outer each\(\)/)
+    assert.throws(
+      () => lowerTemplate(row('{each(r.items, (it) => <span>{read(r, (x) => x.label)}</span>)}')),
+      /outer each\(\)/,
+    )
   })
 
   it('rejects an item read inside a class:list spec', () => {
-    expect(() =>
-      lowerTemplate(row('<span class:list={{ done: read(r, (x) => x.done) }}>x</span>')),
-    ).toThrow(/class:list spec/)
+    assert.throws(
+      () => lowerTemplate(row('<span class:list={{ done: read(r, (x) => x.done) }}>x</span>')),
+      /class:list spec/,
+    )
   })
 
   it('allows an item read bound to an each() nested inside an arm (the arm re-establishes row context)', () => {
@@ -62,15 +72,15 @@ describe('lower: item-read placement gate', () => {
     const out = lowerTemplate(
       '<div>{when(read(m, s => s.open), () => <ul>{each(read(m, s => s.rows), (r) => <li>{read(r, (x) => x.count)}</li>)}</ul>)}</div>',
     )
-    expect(out).toContain('itemBind((x) => x.count)')
+    assert.ok(out.includes('itemBind((x) => x.count)'))
   })
 
   it('allows a machine read inside an arm within a row', () => {
     const out = lowerTemplate(
       row('{when(read(m, s => s.editing), () => <b>{read(m, (s) => s.draft)}</b>)}'),
     )
-    expect(out).toContain('read(m, (s) => s.draft)')
-    expect(out).not.toContain('itemBind')
+    assert.ok(out.includes('read(m, (s) => s.draft)'))
+    assert.ok(!out.includes('itemBind'))
   })
 
   it('does not run the gate in a client-island shell (item reads are not lowered there)', () => {
@@ -78,7 +88,7 @@ describe('lower: item-read placement gate', () => {
       row('{when(read(m, s => s.editing), () => <b>{read(r, (x) => x.label)}</b>)}'),
       { client: { useFields: new Set<string>(), directives: [] } },
     )
-    expect(out).not.toContain('itemBind')
+    assert.ok(!out.includes('itemBind'))
   })
 })
 
@@ -148,11 +158,14 @@ describe('runtime: item reads beside (not inside) arms', () => {
     // throw, and the arm body arrives as an html patch.
     runtime.processEvent('ArmListMachine', { type: 'EDIT', id: 'a' })
     const patches = recompute(state, 'ArmListMachine', runtime)
-    expect(patches.some((p) => p.op === 'html' && p.value.includes('label-a'))).toBe(true)
+    assert.equal(
+      patches.some((p) => p.op === 'html' && p.value.includes('label-a')),
+      true,
+    )
 
     // And flip it back off — the #24 crash fired on this transition.
     runtime.processEvent('ArmListMachine', { type: 'EDIT', id: null })
-    expect(() => recompute(state, 'ArmListMachine', runtime)).not.toThrow()
+    assert.doesNotThrow(() => recompute(state, 'ArmListMachine', runtime))
   })
 
   it('an item read INSIDE an arm hits the itemBind ownership backstop on the arm re-render', async () => {
@@ -174,22 +187,24 @@ describe('runtime: item reads beside (not inside) arms', () => {
     recompute(state, 'ArmListMachine', runtime) // arm off — renders empty, no itemBind call
     runtime.processEvent('ArmListMachine', { type: 'EDIT', id: null })
     // Arm back on: renderBranchBody re-runs the arm body without row context.
-    expect(() => recompute(state, 'ArmListMachine', runtime)).toThrow(/owned by its row/)
+    assert.throws(() => recompute(state, 'ArmListMachine', runtime), /owned by its row/)
   })
 
   it('rejects an item read inside a class:list/style:list spec at render time', async () => {
     const { m, state } = await buildRuntime([{ id: 'a', label: 'label-a' }])
-    expect(() =>
-      runInRender(
-        state,
-        () =>
-          html`<ul>${each(
-            read(m, (s) => s.rows),
-            (_r: Row) =>
-              html`<li ${classList({ done: itemBind((x: Row) => x.label) as unknown as boolean })}>x</li>`,
-            { key: (r: Row) => r.id },
-          )}</ul>`,
-      ),
-    ).toThrow(/class:list\/style:list spec/)
+    assert.throws(
+      () =>
+        runInRender(
+          state,
+          () =>
+            html`<ul>${each(
+              read(m, (s) => s.rows),
+              (_r: Row) =>
+                html`<li ${classList({ done: itemBind((x: Row) => x.label) as unknown as boolean })}>x</li>`,
+              { key: (r: Row) => r.id },
+            )}</ul>`,
+        ),
+      /class:list\/style:list spec/,
+    )
   })
 })

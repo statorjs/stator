@@ -1,6 +1,7 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
 import { createApp, type StatorApp } from '../src/server/create-app.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -46,7 +47,7 @@ async function openSse(app: StatorApp, routeKey: string, cookie: string) {
       signal: abort.signal,
     }),
   )
-  expect(res.status).toBe(200)
+  assert.equal(res.status, 200)
   const reader = res.body!.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
@@ -83,17 +84,17 @@ describe('/__events idempotency (eventId replay cache)', () => {
     const cookie = await cookieFor(app, '/')
 
     const first = await postIncrement(app, cookie, 'evt-1')
-    expect(first.status).toBe(200)
+    assert.equal(first.status, 200)
     const firstBody = await first.text()
-    expect(firstBody).toContain('count is 1')
+    assert.ok(firstBody.includes('count is 1'))
 
     const dup = await postIncrement(app, cookie, 'evt-1')
-    expect(dup.status).toBe(200)
-    expect(await dup.text()).toBe(firstBody)
+    assert.equal(dup.status, 200)
+    assert.equal(await dup.text(), firstBody)
 
     // One commit total: a fresh render still shows 1.
     const page = await app.fetch(new Request('http://localhost/', { headers: { Cookie: cookie } }))
-    expect(await page.text()).toContain('count is 1')
+    assert.ok((await page.text()).includes('count is 1'))
   })
 
   it('commits twice when no eventId is sent (old behavior)', async () => {
@@ -104,7 +105,7 @@ describe('/__events idempotency (eventId replay cache)', () => {
     await postIncrement(app, cookie)
 
     const page = await app.fetch(new Request('http://localhost/', { headers: { Cookie: cookie } }))
-    expect(await page.text()).toContain('count is 2')
+    assert.ok((await page.text()).includes('count is 2'))
   })
 
   it('does not fan out again on replay', async () => {
@@ -130,18 +131,18 @@ describe('/__events idempotency (eventId replay cache)', () => {
           }),
         )
 
-      expect((await ping('ping-1')).status).toBe(200)
+      assert.equal((await ping('ping-1')).status, 200)
       await sse.readUntil((t) => /"value":"1"/.test(t))
 
       // Duplicate: replayed, no second bump pushed to A.
-      expect((await ping('ping-1')).status).toBe(200)
+      assert.equal((await ping('ping-1')).status, 200)
 
       // A THIRD genuine ping lands as 2 — the duplicate never became a bump
       // (had it, this would be 3).
-      expect((await ping('ping-2')).status).toBe(200)
+      assert.equal((await ping('ping-2')).status, 200)
       const buffer = await sse.readUntil((t) => /"value":"2"/.test(t))
-      expect(buffer).toContain('"value":"2"')
-      expect(buffer).not.toContain('"value":"3"')
+      assert.ok(buffer.includes('"value":"2"'))
+      assert.ok(!buffer.includes('"value":"3"'))
     } finally {
       sse.close()
     }
@@ -152,17 +153,17 @@ describe('/__events idempotency (eventId replay cache)', () => {
     const cookie = await cookieFor(app, '/')
 
     for (let i = 1; i <= 33; i++) {
-      expect((await postIncrement(app, cookie, `evt-${i}`)).status).toBe(200)
+      assert.equal((await postIncrement(app, cookie, `evt-${i}`)).status, 200)
     }
     // evt-1 was evicted on the 33rd insert — replaying it commits again.
     const replayed = await postIncrement(app, cookie, 'evt-1')
-    expect(await replayed.text()).toContain('count is 34')
+    assert.ok((await replayed.text()).includes('count is 34'))
   })
 
   it('rejects an oversized eventId', async () => {
     const app = await boot()
     const cookie = await cookieFor(app, '/')
     const res = await postIncrement(app, cookie, 'x'.repeat(129))
-    expect(res.status).toBe(400)
+    assert.equal(res.status, 400)
   })
 })

@@ -1,4 +1,5 @@
-import { afterAll, describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { after, describe, it } from 'node:test'
 import { RedisAppStore, RedisStore } from '../src/server/redis-store.ts'
 
 /**
@@ -9,67 +10,67 @@ import { RedisAppStore, RedisStore } from '../src/server/redis-store.ts'
  */
 const REDIS_URL = process.env.REDIS_URL
 
-describe.skipIf(!REDIS_URL)('RedisStore (session)', () => {
+describe('RedisStore (session)', { skip: !REDIS_URL }, () => {
   const prefix = `stator-test:${process.pid}:${Math.random().toString(36).slice(2, 8)}`
   const store = new RedisStore(REDIS_URL ?? '', prefix)
 
-  afterAll(async () => {
+  after(async () => {
     await store.raw.del(`${prefix}:s1`)
     await store.close()
   })
 
   it('round-trips snapshots and reports has()', async () => {
-    expect(await store.get('s1', 'CartMachine')).toBeNull()
-    expect(await store.has('s1', 'CartMachine')).toBe(false)
+    assert.equal(await store.get('s1', 'CartMachine'), null)
+    assert.equal(await store.has('s1', 'CartMachine'), false)
 
     const snapshot = { value: ['idle'], context: { items: [{ id: 'p1', qty: 2 }] } }
     await store.set('s1', 'CartMachine', snapshot)
-    expect(await store.get('s1', 'CartMachine')).toEqual(snapshot)
-    expect(await store.has('s1', 'CartMachine')).toBe(true)
+    assert.deepStrictEqual(await store.get('s1', 'CartMachine'), snapshot)
+    assert.equal(await store.has('s1', 'CartMachine'), true)
   })
 
   it('applies the per-session TTL on set and refreshes it', async () => {
     await store.set('s1', 'CartMachine', { value: ['idle'], context: {} }, { ttlSeconds: 120 })
     const ttl = await store.raw.ttl(`${prefix}:s1`)
-    expect(ttl).toBeGreaterThan(60)
-    expect(ttl).toBeLessThanOrEqual(120)
+    assert.ok(ttl > 60)
+    assert.ok(ttl <= 120)
 
     // A later write with a bigger TTL refreshes the WHOLE session hash.
     await store.set('s1', 'OtherMachine', { value: ['x'], context: {} }, { ttlSeconds: 600 })
-    expect(await store.raw.ttl(`${prefix}:s1`)).toBeGreaterThan(120)
+    assert.ok((await store.raw.ttl(`${prefix}:s1`)) > 120)
   })
 
   it('treats corrupted entries as missing instead of crashing', async () => {
     await store.raw.hset(`${prefix}:s1`, 'BrokenMachine', '{not json')
-    expect(await store.get('s1', 'BrokenMachine')).toBeNull()
+    assert.equal(await store.get('s1', 'BrokenMachine'), null)
   })
 
   it('deleteSession removes the whole hash', async () => {
     await store.set('s1', 'CartMachine', { value: ['idle'], context: {} })
     await store.deleteSession('s1')
-    expect(await store.has('s1', 'CartMachine')).toBe(false)
+    assert.equal(await store.has('s1', 'CartMachine'), false)
   })
 })
 
-describe.skipIf(!REDIS_URL)('RedisAppStore (app)', () => {
+describe('RedisAppStore (app)', { skip: !REDIS_URL }, () => {
   const prefix = `stator-test-app:${process.pid}:${Math.random().toString(36).slice(2, 8)}`
   const store = new RedisAppStore(REDIS_URL ?? '', prefix)
 
-  afterAll(async () => {
+  after(async () => {
     await store.close()
   })
 
   it('round-trips app snapshots with no TTL', async () => {
-    expect(await store.loadAppMachine('BoardMachine')).toBeNull()
+    assert.equal(await store.loadAppMachine('BoardMachine'), null)
     const snapshot = { value: ['ready'], context: { total: 42 } }
     await store.saveAppMachine('BoardMachine', snapshot)
-    expect(await store.loadAppMachine('BoardMachine')).toEqual(snapshot)
+    assert.deepStrictEqual(await store.loadAppMachine('BoardMachine'), snapshot)
   })
 
   it('treats corrupted blobs as missing', async () => {
     const raw = new RedisStore(REDIS_URL ?? '', 'unused')
     await raw.raw.set(`${prefix}:CorruptMachine`, 'not-json{')
-    expect(await store.loadAppMachine('CorruptMachine')).toBeNull()
+    assert.equal(await store.loadAppMachine('CorruptMachine'), null)
     await raw.raw.del(`${prefix}:CorruptMachine`, `${prefix}:BoardMachine`)
     await raw.close()
   })

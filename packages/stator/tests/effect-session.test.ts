@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { createActor } from '../src/engine/actor.ts'
 import type { EffectInvocation, EffectSession } from '../src/engine/types.ts'
 import { dispatchToApp } from '../src/server/app-dispatch.ts'
@@ -42,12 +43,12 @@ describe('meta.session on effects', () => {
     })
     const invocations: EffectInvocation[] = []
     createActor(def, { onEffect: (inv) => invocations.push(inv) }).start()
-    expect(invocations).toHaveLength(1)
+    assert.equal(invocations.length, 1)
     await invocations[0]!.run(undefined)
     await invocations[0]!.run(undefined, { id: 's1', claims: <T>() => ({ userId: 'u1' }) as T })
-    expect(seen[0]).toBeUndefined()
-    expect(seen[1]?.id).toBe('s1')
-    expect(seen[1]?.claims<Me>()).toEqual({ userId: 'u1' })
+    assert.equal(seen[0], undefined)
+    assert.equal(seen[1]?.id, 's1')
+    assert.deepStrictEqual(seen[1]?.claims<Me>(), { userId: 'u1' })
   })
 
   it('server: a session machine entry effect sees the session id and its claims', async () => {
@@ -87,15 +88,15 @@ describe('meta.session on effects', () => {
     scheduleSessionEffects(runtime, store, 's1')
     runtime.dispose()
     await sleep(50)
-    expect(session?.id).toBe('s1')
-    expect(session?.claims<Me>()).toEqual({ userId: 'u1' })
+    assert.equal(session?.id, 's1')
+    assert.deepStrictEqual(session?.claims<Me>(), { userId: 'u1' })
     // The completion re-entered the session: the durable fact was reloaded by identity.
     const snap = (await persistence.get('s1', 'CartMachine')) as {
       value: string[]
       context: { who: string }
     }
-    expect(snap.value).toEqual(['ready'])
-    expect(snap.context.who).toBe('u1')
+    assert.deepStrictEqual(snap.value, ['ready'])
+    assert.equal(snap.context.who, 'u1')
   })
 
   it('server: an app machine effect has no session', async () => {
@@ -128,6 +129,6 @@ describe('meta.session on effects', () => {
     await store.bootAppMachines()
     await dispatchToApp(store, Tally, { type: 'PING' })
     await sleep(20)
-    expect(session).toBeUndefined()
+    assert.equal(session, undefined)
   })
 })

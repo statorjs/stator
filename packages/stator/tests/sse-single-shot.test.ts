@@ -1,6 +1,7 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
 import { createApp, type StatorApp } from '../src/server/create-app.ts'
 import Tally from './fixtures/sse-probe/machines/tally.ts'
 
@@ -34,7 +35,7 @@ async function cycle(a: StatorApp, expected: number, budgetMs: number): Promise<
       signal: abort.signal,
     }),
   )
-  expect(res.status).toBe(200)
+  assert.equal(res.status, 200)
   const reader = res.body!.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
@@ -62,7 +63,7 @@ async function cycle(a: StatorApp, expected: number, budgetMs: number): Promise<
 
     const started = Date.now()
     const result = await a.dispatchToApp(Tally, { type: 'BUMP', by: 1 })
-    expect(result.committed).toBe(true)
+    assert.equal(result.committed, true)
 
     const arrived = await until((t) => t.includes(`"value":"${expected}"`), budgetMs)
     return arrived ? Date.now() - started : null
@@ -74,7 +75,7 @@ async function cycle(a: StatorApp, expected: number, budgetMs: number): Promise<
 }
 
 describe('SSE fan-out: single-shot delivery', () => {
-  it('every one-shot dispatch reaches a live connection', async () => {
+  it('every one-shot dispatch reaches a live connection', { timeout: 180_000 }, async () => {
     app = await createApp({
       machinesDir: resolve(root, 'machines'),
       routesDir: resolve(root, 'routes'),
@@ -92,9 +93,9 @@ describe('SSE fan-out: single-shot delivery', () => {
     // A single dropped push is a real defect: with the connection confirmed
     // live before the dispatch and the commit confirmed after it, there is no
     // window where losing the message is correct behavior.
-    expect(missed).toEqual([])
+    assert.deepStrictEqual(missed, [])
     // Delivery is in-process — a push measured in seconds means something is
     // stalling, even when it eventually lands.
-    expect(Math.max(...latencies)).toBeLessThan(1000)
-  }, 180_000)
+    assert.ok(Math.max(...latencies) < 1000)
+  })
 })

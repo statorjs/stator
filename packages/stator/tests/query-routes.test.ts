@@ -1,6 +1,7 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
 import { createApp, type StatorApp } from '../src/server/create-app.ts'
 import Board from './fixtures/machines/board.ts'
 
@@ -25,10 +26,10 @@ describe('data GET routes: response synthesis', () => {
     await app.dispatchToApp(Board, { type: 'BUMP', by: 7 })
 
     const res = await app.fetch(new Request('http://localhost/api-board'))
-    expect(res.status).toBe(200)
-    expect(res.headers.get('content-type')).toContain('application/json')
-    expect(res.headers.get('etag')).toBeTruthy()
-    expect(await res.json()).toEqual({ total: 7 })
+    assert.equal(res.status, 200)
+    assert.ok(res.headers.get('content-type')?.includes('application/json'))
+    assert.ok(res.headers.get('etag'))
+    assert.deepStrictEqual(await res.json(), { total: 7 })
   })
 
   it('answers If-None-Match with a bodyless 304', async () => {
@@ -39,47 +40,47 @@ describe('data GET routes: response synthesis', () => {
     const second = await app.fetch(
       new Request('http://localhost/api-board', { headers: { 'If-None-Match': etag } }),
     )
-    expect(second.status).toBe(304)
-    expect(await second.text()).toBe('')
+    assert.equal(second.status, 304)
+    assert.equal(await second.text(), '')
 
     // State moved → the ETag no longer matches → full body again.
     await app.dispatchToApp(Board, { type: 'BUMP', by: 1 })
     const third = await app.fetch(
       new Request('http://localhost/api-board', { headers: { 'If-None-Match': etag } }),
     )
-    expect(third.status).toBe(200)
-    expect(await third.json()).toEqual({ total: 1 })
+    assert.equal(third.status, 200)
+    assert.deepStrictEqual(await third.json(), { total: 1 })
   })
 
   it('a string result takes its Content-Type from the URL extension', async () => {
     const app = await boot()
     const res = await app.fetch(new Request('http://localhost/feed.xml'))
-    expect(res.status).toBe(200)
-    expect(res.headers.get('content-type')).toContain('application/xml')
-    expect(await res.text()).toContain('<rss>')
+    assert.equal(res.status, 200)
+    assert.ok(res.headers.get('content-type')?.includes('application/xml'))
+    assert.ok((await res.text()).includes('<rss>'))
   })
 
   it('a stylesheet route serves text/css with the free ETag/304 and derived Cache-Control', async () => {
     const app = await boot()
     const res = await app.fetch(new Request('http://localhost/theme.css'))
-    expect(res.status).toBe(200)
-    expect(res.headers.get('content-type')).toBe('text/css; charset=utf-8')
-    expect(res.headers.get('cache-control')).toContain('public')
-    expect(await res.text()).toContain('--accent')
+    assert.equal(res.status, 200)
+    assert.equal(res.headers.get('content-type'), 'text/css; charset=utf-8')
+    assert.ok(res.headers.get('cache-control')?.includes('public'))
+    assert.ok((await res.text()).includes('--accent'))
     const etag = res.headers.get('etag')!
     const revalidated = await app.fetch(
       new Request('http://localhost/theme.css', { headers: { 'if-none-match': etag } }),
     )
-    expect(revalidated.status).toBe(304)
+    assert.equal(revalidated.status, 304)
   })
 
   it('a raw Response passes through verbatim', async () => {
     const app = await boot()
     const res = await app.fetch(new Request('http://localhost/raw-data'))
-    expect(res.status).toBe(201)
-    expect(res.headers.get('content-type')).toBe('application/octet-stream')
-    expect(res.headers.get('x-fixture')).toBe('yes')
-    expect(await res.text()).toBe('raw-bytes')
+    assert.equal(res.status, 201)
+    assert.equal(res.headers.get('content-type'), 'application/octet-stream')
+    assert.equal(res.headers.get('x-fixture'), 'yes')
+    assert.equal(await res.text(), 'raw-bytes')
   })
 })
 
@@ -101,17 +102,17 @@ describe('data GET routes: machine access', () => {
         body: JSON.stringify({ machine: 'PingMachine', event: { type: 'PING' } }),
       }),
     )
-    expect(post.status).toBe(200)
+    assert.equal(post.status, 200)
 
     const forA = await app.fetch(
       new Request('http://localhost/my-count', { headers: { Cookie: cookieA } }),
     )
-    expect(await forA.json()).toEqual({ sent: 1 })
+    assert.deepStrictEqual(await forA.json(), { sent: 1 })
 
     const forB = await app.fetch(
       new Request('http://localhost/my-count', { headers: { Cookie: cookieB } }),
     )
-    expect(await forB.json()).toEqual({ sent: 0 })
+    assert.deepStrictEqual(await forB.json(), { sent: 0 })
   })
 
   it('a data GET and a command POST share one file and one URL', async () => {
@@ -122,8 +123,8 @@ describe('data GET routes: machine access', () => {
         headers: { Accept: 'application/json' },
       }),
     )
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ patches: [], directives: [] })
+    assert.equal(res.status, 200)
+    assert.deepStrictEqual(await res.json(), { patches: [], directives: [] })
   })
 })
 
@@ -133,8 +134,8 @@ describe('data GET routes: wire-endpoint guards', () => {
     const res = await app.fetch(
       new Request(`http://localhost/__sse?route=${encodeURIComponent('GET /api-board')}`),
     )
-    expect(res.status).toBe(400)
-    expect(await res.text()).toContain('data route')
+    assert.equal(res.status, 400)
+    assert.ok((await res.text()).includes('data route'))
   })
 
   it('/__events rejects a route key that targets a data route', async () => {
@@ -146,7 +147,7 @@ describe('data GET routes: wire-endpoint guards', () => {
         body: JSON.stringify({ machine: 'BoardMachine', event: { type: 'BUMP' } }),
       }),
     )
-    expect(res.status).toBe(404)
-    expect(await res.text()).toContain('data route')
+    assert.equal(res.status, 404)
+    assert.ok((await res.text()).includes('data route'))
   })
 })

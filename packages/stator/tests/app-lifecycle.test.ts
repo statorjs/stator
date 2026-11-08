@@ -1,9 +1,11 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it, vi } from 'vitest'
 import { dispatchToApp } from '../src/server/app-dispatch.ts'
 import { createApp } from '../src/server/create-app.ts'
 import CacheMachine from './fixtures/app-lifecycle/machines/cache.ts'
+import { waitFor } from './helpers/mocks.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixtures = resolve(here, 'fixtures/app-lifecycle')
@@ -23,21 +25,21 @@ describe('app-machine lifecycle parity (entry effects + `after`)', () => {
     const app = await boot()
     // boot schedules loading.entry (through the app effect scheduler, wired
     // before boot); it completes on a microtask and lands the stable `ready`.
-    await vi.waitFor(() => {
-      expect(stateOf(app)).toEqual(['ready'])
+    await waitFor(() => {
+      assert.deepStrictEqual(stateOf(app), ['ready'])
     })
-    expect(snap(app).context).toMatchObject({ data: 'v1', loads: 1 })
+    assert.partialDeepStrictEqual(snap(app).context, { data: 'v1', loads: 1 })
   })
 
   it('arms an `after` timer at app scope — the state self-expires on wall-clock', async () => {
     const app = await boot()
-    await vi.waitFor(() => expect(stateOf(app)).toEqual(['ready']))
+    await waitFor(() => assert.deepStrictEqual(stateOf(app), ['ready']))
 
     // Enter the timed state; no request, no session from here — the 40ms timer
     // fires purely on wall-clock and re-enters via dispatchToApp, landing `ticked`.
     await dispatchToApp(app.store, CacheMachine, { type: 'WATCH' })
-    expect(stateOf(app)).toEqual(['watching'])
-    await vi.waitFor(() => expect(stateOf(app)).toEqual(['ticked']), {
+    assert.deepStrictEqual(stateOf(app), ['watching'])
+    await waitFor(() => assert.deepStrictEqual(stateOf(app), ['ticked']), {
       timeout: 2000,
       interval: 10,
     })
@@ -45,17 +47,17 @@ describe('app-machine lifecycle parity (entry effects + `after`)', () => {
 
   it('cancels the `after` timer when the state is left first', async () => {
     const app = await boot()
-    await vi.waitFor(() => expect(stateOf(app)).toEqual(['ready']))
+    await waitFor(() => assert.deepStrictEqual(stateOf(app), ['ready']))
 
     await dispatchToApp(app.store, CacheMachine, { type: 'WATCH' })
     // Leave `watching` via PIN before its 40ms timeout — onStateExit cancels the
     // TICK timer.
     const { committed } = await dispatchToApp(app.store, CacheMachine, { type: 'PIN' })
-    expect(committed).toBe(true)
-    expect(stateOf(app)).toEqual(['pinned'])
+    assert.equal(committed, true)
+    assert.deepStrictEqual(stateOf(app), ['pinned'])
 
     // Past the original timeout: the cancelled timer must not fire TICK.
     await new Promise((r) => setTimeout(r, 100))
-    expect(stateOf(app)).toEqual(['pinned'])
+    assert.deepStrictEqual(stateOf(app), ['pinned'])
   })
 })

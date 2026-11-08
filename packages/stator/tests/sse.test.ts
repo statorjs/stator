@@ -1,6 +1,7 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it, vi } from 'vitest'
 import { dispatchToApp } from '../src/server/app-dispatch.ts'
 import { createApp, type StatorApp } from '../src/server/create-app.ts'
 import { defineMachine } from '../src/server/define-machine.ts'
@@ -24,6 +25,7 @@ import { each } from '../src/template/each.ts'
 import { html } from '../src/template/html.ts'
 import { read } from '../src/template/read.ts'
 import Board from './fixtures/machines/board.ts'
+import { waitFor } from './helpers/mocks.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixtures = resolve(here, 'fixtures')
@@ -52,7 +54,7 @@ async function openSse(app: StatorApp, routeKey: string, cookie: string, clientI
       signal: abort.signal,
     }),
   )
-  expect(res.status).toBe(200)
+  assert.equal(res.status, 200)
   const reader = res.body!.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
@@ -115,23 +117,23 @@ describe('SSE: /__sse endpoint validation', () => {
   it('rejects missing, malformed, unknown, and non-live route keys', async () => {
     const app = await boot()
 
-    expect((await app.fetch(new Request('http://localhost/__sse'))).status).toBe(400)
+    assert.equal((await app.fetch(new Request('http://localhost/__sse'))).status, 400)
 
     const malformed = await app.fetch(
       new Request(`http://localhost/__sse?route=${encodeURIComponent('POST /board')}`),
     )
-    expect(malformed.status).toBe(400)
+    assert.equal(malformed.status, 400)
 
     const unknown = await app.fetch(
       new Request(`http://localhost/__sse?route=${encodeURIComponent('GET /nope')}`),
     )
-    expect(unknown.status).toBe(404)
+    assert.equal(unknown.status, 404)
 
     const notLive = await app.fetch(
       new Request(`http://localhost/__sse?route=${encodeURIComponent('GET /ping')}`),
     )
-    expect(notLive.status).toBe(400)
-    expect(await notLive.text()).toContain('not declared live')
+    assert.equal(notLive.status, 400)
+    assert.ok((await notLive.text()).includes('not declared live'))
   })
 })
 
@@ -145,7 +147,7 @@ describe('SSE: cross-session fan-out', () => {
     const sse = await openSse(app, 'GET /board', cookieA)
     try {
       await sse.readUntil((t) => t.includes(': open'))
-      await vi.waitFor(() => expect(activeConnectionCount()).toBe(before + 1))
+      await waitFor(() => assert.equal(activeConnectionCount(), before + 1))
 
       // Session B (a different visitor) pings — the session machine emits,
       // BoardMachine (app) bumps, fan-out reaches A's connection.
@@ -161,17 +163,17 @@ describe('SSE: cross-session fan-out', () => {
           body: JSON.stringify({ machine: 'PingMachine', event: { type: 'PING' } }),
         }),
       )
-      expect(post.status).toBe(200)
+      assert.equal(post.status, 200)
 
       // The first patches message is the connect-time initial sync; wait for
       // the ping's actual value to arrive.
       const received = await sse.readUntil((t) => /"value":"1"/.test(t))
-      expect(received).toContain('"op":"text"')
-      expect(received).toContain('"value":"1"')
+      assert.ok(received.includes('"op":"text"'))
+      assert.ok(received.includes('"value":"1"'))
     } finally {
       sse.close()
     }
-    await vi.waitFor(() => expect(activeConnectionCount()).toBe(before))
+    await waitFor(() => assert.equal(activeConnectionCount(), before))
   })
 
   it('initial sync converges a page that missed changes between render and connect', async () => {
@@ -188,7 +190,7 @@ describe('SSE: cross-session fan-out', () => {
     try {
       const buf = await sse.readUntil((t) => t.includes('"patches"'))
       // The connect burst must carry the CURRENT value the page never saw.
-      expect(buf).toContain('"value":"3"')
+      assert.ok(buf.includes('"value":"3"'))
     } finally {
       sse.close()
     }
@@ -215,7 +217,7 @@ describe('SSE: cross-session fan-out', () => {
 
       // Two pushes, correctly diffed against the connection's own baseline:
       // the second reflects the accumulated total, not a reset.
-      expect(values.at(-1)! - Number(firstValue)).toBe(2)
+      assert.equal(values.at(-1)! - Number(firstValue), 2)
     } finally {
       sse.close()
     }
@@ -226,7 +228,7 @@ describe('app.dispatchToApp method', () => {
   it('is the store-bound equivalent of dispatchToApp(store, …)', async () => {
     const app = await boot()
     const result = await app.dispatchToApp(Board, { type: 'BUMP', by: 1 })
-    expect(result.committed).toBe(true)
+    assert.equal(result.committed, true)
   })
 })
 
@@ -321,7 +323,7 @@ describe('SSE: fan-out unit behavior', () => {
 
     // The page rendered and connected with three rows, then the channel died.
     const first = await connect()
-    expect(first.state.bindings.size).toBeGreaterThan(0)
+    assert.ok(first.state.bindings.size > 0)
     first.runtime.dispose()
 
     // Two rows removed while the page was away.
@@ -331,14 +333,14 @@ describe('SSE: fan-out unit behavior', () => {
     try {
       const sync = initialSyncPatches(second.state, second.runtime)
       const resets = sync.filter((p) => p.op === 'html')
-      expect(resets).toHaveLength(1)
-      expect(resets[0]).toMatchObject({ op: 'html', value: '<li>row2</li>' })
+      assert.equal(resets.length, 1)
+      assert.partialDeepStrictEqual(resets[0], { op: 'html', value: '<li>row2</li>' })
       // Wholesale, never positional: a positional op assumes a DOM row set the
       // page cannot vouch for.
       const positional = sync.filter(
         (p) => p.op === 'insert' || p.op === 'remove' || p.op === 'move',
       )
-      expect(positional).toHaveLength(0)
+      assert.equal(positional.length, 0)
     } finally {
       second.runtime.dispose()
     }
@@ -360,12 +362,12 @@ describe('SSE: fan-out unit behavior', () => {
       const outcome = await pushToConnection(conn, '{"ping":true}')
       const elapsed = Date.now() - started
 
-      expect(outcome).toBe('timeout')
-      expect(elapsed).toBeLessThan(2000)
+      assert.equal(outcome, 'timeout')
+      assert.ok(elapsed < 2000)
       // Dropped rather than retried: the client reconnects and gets a full
       // resync, which is cheap by design.
-      expect(activeConnectionCount()).toBe(before)
-      expect(conn.closed).toBe(true)
+      assert.equal(activeConnectionCount(), before)
+      assert.equal(conn.closed, true)
     } finally {
       delete process.env.STATOR_SSE_WRITE_TIMEOUT_MS
     }
@@ -377,9 +379,9 @@ describe('SSE: fan-out unit behavior', () => {
       sent.push(d)
     })
     try {
-      expect(await pushToConnection(conn, '{"ping":true}')).toBe('sent')
-      expect(sent).toEqual(['{"ping":true}'])
-      expect(conn.closed).toBe(false)
+      assert.equal(await pushToConnection(conn, '{"ping":true}'), 'sent')
+      assert.deepStrictEqual(sent, ['{"ping":true}'])
+      assert.equal(conn.closed, false)
     } finally {
       unregisterConnection(conn.id)
     }
@@ -459,17 +461,17 @@ describe('SSE: fan-out unit behavior', () => {
       const started = Date.now()
       await fanOut(new Set(['QueueMachine']))
       // The dispatch path never waits on a socket — not even the dead one.
-      expect(Date.now() - started).toBeLessThan(200)
-      expect(sent).toHaveLength(1)
+      assert.ok(Date.now() - started < 200)
+      assert.equal(sent.length, 1)
       // The deadline still reaps it, off the request path.
-      await vi.waitFor(() => expect(wedged.closed).toBe(true))
-      expect(healthy.closed).toBe(false)
+      await waitFor(() => assert.equal(wedged.closed, true))
+      assert.equal(healthy.closed, false)
     } finally {
       unregisterConnection(healthy.id)
       unregisterConnection(wedged.id)
       delete process.env.STATOR_SSE_WRITE_TIMEOUT_MS
     }
-    expect(activeConnectionCount()).toBe(before)
+    assert.equal(activeConnectionCount(), before)
   })
 
   it('writes to one connection stay in order across back-to-back fan-outs', async () => {
@@ -490,10 +492,10 @@ describe('SSE: fan-out unit behavior', () => {
       bump()
       await fanOut(new Set(['QueueMachine']))
       // The second waits behind the first rather than racing it.
-      expect(conn.queue).toHaveLength(1)
-      await vi.waitFor(() => expect(sent).toHaveLength(2))
-      expect(maxInFlight).toBe(1)
-      expect(sent.map(value)).toEqual(['1', '2'])
+      assert.equal(conn.queue.length, 1)
+      await waitFor(() => assert.equal(sent.length, 2))
+      assert.equal(maxInFlight, 1)
+      assert.deepStrictEqual(sent.map(value), ['1', '2'])
     } finally {
       unregisterConnection(conn.id)
     }
@@ -507,11 +509,11 @@ describe('SSE: fan-out unit behavior', () => {
     try {
       enqueue(conn, 'x'.repeat(200)) // in flight, wedged
       enqueue(conn, 'x'.repeat(200)) // waiting alone: over the cap, still fine
-      expect(conn.closed).toBe(false)
+      assert.equal(conn.closed, false)
       enqueue(conn, 'x'.repeat(10)) // two waiting, over the cap: dead
-      expect(conn.closed).toBe(true)
-      expect(conn.queue).toHaveLength(0)
-      expect(activeConnectionCount()).toBe(before)
+      assert.equal(conn.closed, true)
+      assert.equal(conn.queue.length, 0)
+      assert.equal(activeConnectionCount(), before)
     } finally {
       unregisterConnection(conn.id)
       delete process.env.STATOR_SSE_QUEUE_MAX_BYTES
@@ -532,23 +534,23 @@ describe('SSE: fan-out unit behavior', () => {
     try {
       // Nothing queued: the originator is skipped, its POST response delivers.
       bump()
-      expect(await fanOut(new Set(['QueueMachine']), { originClientId: 'tab-a' })).toEqual({
+      assert.deepStrictEqual(await fanOut(new Set(['QueueMachine']), { originClientId: 'tab-a' }), {
         originatorQueued: false,
       })
-      expect(hasBacklog(conn)).toBe(false)
+      assert.equal(hasBacklog(conn), false)
       // Someone else's fan-out puts a write in flight on its channel...
       bump()
       await fanOut(new Set(['QueueMachine']))
-      expect(hasBacklog(conn)).toBe(true)
+      assert.equal(hasBacklog(conn), true)
       // ...so its own diff must queue behind that, and the response carry none.
       bump()
-      expect(await fanOut(new Set(['QueueMachine']), { originClientId: 'tab-a' })).toEqual({
+      assert.deepStrictEqual(await fanOut(new Set(['QueueMachine']), { originClientId: 'tab-a' }), {
         originatorQueued: true,
       })
-      expect(conn.queue).toHaveLength(1)
+      assert.equal(conn.queue.length, 1)
       release()
-      await vi.waitFor(() => expect(sent).toHaveLength(2))
-      expect(sent.map(value)).toEqual(['2', '3'])
+      await waitFor(() => assert.equal(sent.length, 2))
+      assert.deepStrictEqual(sent.map(value), ['2', '3'])
     } finally {
       unregisterConnection(conn.id)
     }
@@ -560,7 +562,7 @@ describe('SSE: fan-out unit behavior', () => {
     })
     try {
       runtime.processEvent('PushMachine', { type: 'INC' })
-      await expect(fanOut(new Set(['PushMachine']))).resolves.toEqual({ originatorQueued: false })
+      assert.deepStrictEqual(await fanOut(new Set(['PushMachine'])), { originatorQueued: false })
     } finally {
       unregisterConnection(conn.id)
     }
@@ -573,7 +575,7 @@ describe('SSE: fan-out unit behavior', () => {
     })
     try {
       await fanOut(new Set(['UnrelatedMachine']))
-      expect(sent).toEqual([])
+      assert.deepStrictEqual(sent, [])
     } finally {
       unregisterConnection(conn.id)
     }
@@ -602,10 +604,10 @@ describe('SSE: session-machine live reads', () => {
           body: JSON.stringify({ machine: 'PingMachine', event: { type: 'PING' } }),
         }),
       )
-      expect(post.status).toBe(200)
+      assert.equal(post.status, 200)
 
       const buf = await sse.readUntil((t) => /"value":"1"/.test(t))
-      expect(buf).toContain('"value":"1"')
+      assert.ok(buf.includes('"value":"1"'))
     } finally {
       sse.close()
     }
@@ -634,7 +636,7 @@ describe('SSE: session-machine live reads', () => {
       )
 
       const buf = await sse.readUntil((t) => /"value":"1"/.test(t), 700)
-      expect(buf).not.toContain('"value":"1"')
+      assert.ok(!buf.includes('"value":"1"'))
     } finally {
       sse.close()
     }
@@ -656,14 +658,14 @@ describe('SSE: connection hygiene', () => {
     try {
       await second.readUntil((t) => t.includes(': open'))
       // Still one: the replacement took the slot rather than adding to it...
-      await vi.waitFor(() => expect(activeConnectionCount()).toBe(before + 1))
+      await waitFor(() => assert.equal(activeConnectionCount(), before + 1))
       // ...and the evicted one was actually hung up on, not just forgotten.
-      await vi.waitFor(() => expect(first.ended).toBe(true))
+      await waitFor(() => assert.equal(first.ended, true))
     } finally {
       first.close()
       second.close()
     }
-    await vi.waitFor(() => expect(activeConnectionCount()).toBe(before))
+    await waitFor(() => assert.equal(activeConnectionCount(), before))
   })
 
   it('unregisters a client that disconnects during the connect-time render', async () => {
@@ -682,7 +684,7 @@ describe('SSE: connection hygiene', () => {
       sse.close()
     }
 
-    await vi.waitFor(() => expect(activeConnectionCount()).toBe(before))
+    await waitFor(() => assert.equal(activeConnectionCount(), before))
   })
 
   it('keeps connections from different page-loads on the same route', async () => {
@@ -697,14 +699,14 @@ describe('SSE: connection hygiene', () => {
     try {
       await a.readUntil((t) => t.includes(': open'))
       await b.readUntil((t) => t.includes(': open'))
-      await vi.waitFor(() => expect(activeConnectionCount()).toBe(before + 2))
-      expect(a.ended).toBe(false)
-      expect(b.ended).toBe(false)
+      await waitFor(() => assert.equal(activeConnectionCount(), before + 2))
+      assert.equal(a.ended, false)
+      assert.equal(b.ended, false)
     } finally {
       a.close()
       b.close()
     }
-    await vi.waitFor(() => expect(activeConnectionCount()).toBe(before))
+    await waitFor(() => assert.equal(activeConnectionCount(), before))
   })
 })
 
@@ -736,8 +738,8 @@ describe('double delivery to the dispatching connection', () => {
       const buf = await sse.readUntil((t) => t.includes('"op":"insert"'), 800)
       const sseInserts = (buf.match(/"op":"insert"/g) ?? []).length
 
-      expect(responseInserts).toBe(1)
-      expect(sseInserts).toBe(0) // the response already delivered it
+      assert.equal(responseInserts, 1)
+      assert.equal(sseInserts, 0) // the response already delivered it
     } finally {
       sse.close()
     }
@@ -768,15 +770,15 @@ describe('double delivery to the dispatching connection', () => {
       await post('row1')
       // Tab B (didn't dispatch) must receive the insert.
       const bufB = await tabB.readUntil((t) => t.includes('"op":"insert"'))
-      expect((bufB.match(/"op":"insert"/g) ?? []).length).toBe(1)
+      assert.equal((bufB.match(/"op":"insert"/g) ?? []).length, 1)
 
       // Second dispatch: tab A's baseline advanced silently, so the wire
       // stays consistent — B receives exactly one more insert, A none.
       await post('row2')
       const bufB2 = await tabB.readUntil((t) => (t.match(/"op":"insert"/g) ?? []).length >= 2)
-      expect((bufB2.match(/"op":"insert"/g) ?? []).length).toBe(2)
+      assert.equal((bufB2.match(/"op":"insert"/g) ?? []).length, 2)
       const bufA = await tabA.readUntil((t) => t.includes('"op":"insert"'), 500)
-      expect((bufA.match(/"op":"insert"/g) ?? []).length).toBe(0)
+      assert.equal((bufA.match(/"op":"insert"/g) ?? []).length, 0)
     } finally {
       tabA.close()
       tabB.close()
@@ -816,18 +818,18 @@ describe('double delivery to the dispatching connection', () => {
       // insert applied out of order corrupts the list.
       const res = await post('tab-a', 'a1')
       const body = (await res.json()) as { patches: unknown[]; committed: boolean }
-      expect(body.committed).toBe(true)
-      expect(body.patches).toEqual([])
+      assert.equal(body.committed, true)
+      assert.deepStrictEqual(body.patches, [])
 
       // Its row arrives over the channel instead — after the backlog, once.
       tabA.resume()
       const bufA = await tabA.readUntil((t) => (t.match(/"op":"insert"/g) ?? []).length >= 6)
-      expect((bufA.match(/"op":"insert"/g) ?? []).length).toBe(6)
-      expect((bufA.match(/<li>a1<\/li>/g) ?? []).length).toBe(1)
-      expect(bufA.indexOf('<li>a1</li>')).toBeGreaterThan(bufA.indexOf('<li>b5</li>'))
+      assert.equal((bufA.match(/"op":"insert"/g) ?? []).length, 6)
+      assert.equal((bufA.match(/<li>a1<\/li>/g) ?? []).length, 1)
+      assert.ok(bufA.indexOf('<li>a1</li>') > bufA.indexOf('<li>b5</li>'))
       // Tab B, which did not dispatch it, receives it like any other insert.
       const bufB = await tabB.readUntil((t) => t.includes('<li>a1</li>'))
-      expect((bufB.match(/"op":"insert"/g) ?? []).length).toBe(1)
+      assert.equal((bufB.match(/"op":"insert"/g) ?? []).length, 1)
     } finally {
       tabA.close()
       tabB.close()
@@ -847,7 +849,7 @@ describe('SSE heartbeat', () => {
     const cookie = await cookieFor(app, '/board')
     const sse = await openSse(app, 'GET /board', cookie)
     const buffer = await sse.readUntil((text) => text.includes('{"ping":true}'), 2000)
-    expect(buffer).toContain('data: {"ping":true}')
+    assert.ok(buffer.includes('data: {"ping":true}'))
     sse.close()
   })
 })

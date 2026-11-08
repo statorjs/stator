@@ -1,5 +1,6 @@
-// @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest'
+// @env happy-dom
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { recompute } from '../src/server/recompute.ts'
@@ -91,9 +92,9 @@ describe('keyed each: render', () => {
             { key: (r) => r.id },
           )}</ul>`,
       )
-      expect(out.html).toContain('data-slot="s0:ka:s0"')
-      expect(out.html).toContain('data-slot="s0:kb:s0"')
-      expect(out.html).not.toContain(':i0:')
+      assert.ok(out.html.includes('data-slot="s0:ka:s0"'))
+      assert.ok(out.html.includes('data-slot="s0:kb:s0"'))
+      assert.ok(!out.html.includes(':i0:'))
     } finally {
       runtime.dispose()
     }
@@ -107,17 +108,19 @@ describe('keyed each: render', () => {
         () =>
           html`<ul>${each([{ n: 1 }, { n: 2 }], (r) => html`<li>${r.n}</li>`, { key: (r) => r.n })}</ul>`,
       )
-      expect(numbered.html).toContain('<!--s:s0-->')
+      assert.ok(numbered.html.includes('<!--s:s0-->'))
 
-      expect(() =>
-        runInRender(
-          state,
-          () =>
-            html`<ul>${each([{ n: 1 }], (r) => html`<li>${r.n}</li>`, {
-              key: (r) => r as unknown as string,
-            })}</ul>`,
-        ),
-      ).toThrow(/must be a string or finite number/)
+      assert.throws(
+        () =>
+          runInRender(
+            state,
+            () =>
+              html`<ul>${each([{ n: 1 }], (r) => html`<li>${r.n}</li>`, {
+                key: (r) => r as unknown as string,
+              })}</ul>`,
+          ),
+        /must be a string or finite number/,
+      )
     } finally {
       runtime.dispose()
     }
@@ -126,21 +129,25 @@ describe('keyed each: render', () => {
   it('rejects duplicate keys and multi-root items', async () => {
     const { runtime, state } = await buildRuntime([])
     try {
-      expect(() =>
-        runInRender(
-          state,
-          () =>
-            html`<ul>${each(rows('a', 'a'), (r) => html`<li>${r.label}</li>`, { key: (r) => r.id })}</ul>`,
-        ),
-      ).toThrow(/duplicate key "a"/)
+      assert.throws(
+        () =>
+          runInRender(
+            state,
+            () =>
+              html`<ul>${each(rows('a', 'a'), (r) => html`<li>${r.label}</li>`, { key: (r) => r.id })}</ul>`,
+          ),
+        /duplicate key "a"/,
+      )
 
-      expect(() =>
-        runInRender(
-          state,
-          () =>
-            html`<ul>${each(rows('a'), (r) => html`<li>${r.label}</li><li>x</li>`, { key: (r) => r.id })}</ul>`,
-        ),
-      ).toThrow(/exactly one root element/)
+      assert.throws(
+        () =>
+          runInRender(
+            state,
+            () =>
+              html`<ul>${each(rows('a'), (r) => html`<li>${r.label}</li><li>x</li>`, { key: (r) => r.id })}</ul>`,
+          ),
+        /exactly one root element/,
+      )
     } finally {
       runtime.dispose()
     }
@@ -148,9 +155,9 @@ describe('keyed each: render', () => {
 
   it('encodes unsafe key characters into slot-id-safe tokens', () => {
     const token = keyToken('a b"c_d')
-    expect(token).toMatch(/^[A-Za-z0-9_-]+$/)
+    assert.match(token, /^[A-Za-z0-9_-]+$/)
     // Injective: the escape char itself is escaped.
-    expect(keyToken('_62')).not.toBe(keyToken('b'))
+    assert.notEqual(keyToken('_62'), keyToken('b'))
   })
 })
 
@@ -160,14 +167,13 @@ describe('keyed each: diff ops', () => {
     try {
       renderKeyedList(state, list)
       const patches = update(runtime, state, rows('a', 'b', 'c'))
-      expect(patches).toEqual([
-        {
-          target: { kind: 'slot', id: 's0' },
-          op: 'insert',
-          index: 2,
-          value: expect.stringContaining('label-c'),
-        },
-      ])
+      assert.equal(patches.length, 1)
+      assert.partialDeepStrictEqual(patches[0], {
+        target: { kind: 'slot', id: 's0' },
+        op: 'insert',
+        index: 2,
+      })
+      assert.ok(String((patches[0] as { value?: unknown }).value).includes('label-c'))
     } finally {
       runtime.dispose()
     }
@@ -178,7 +184,9 @@ describe('keyed each: diff ops', () => {
     try {
       renderKeyedList(state, list)
       const patches = update(runtime, state, rows('a', 'c'))
-      expect(patches).toEqual([{ target: { kind: 'slot', id: 's0' }, op: 'remove', index: 1 }])
+      assert.deepStrictEqual(patches, [
+        { target: { kind: 'slot', id: 's0' }, op: 'remove', index: 1 },
+      ])
     } finally {
       runtime.dispose()
     }
@@ -189,8 +197,13 @@ describe('keyed each: diff ops', () => {
     try {
       renderKeyedList(state, list)
       const patches = update(runtime, state, rows('c', 'a', 'b'))
-      expect(patches).toEqual([{ target: { kind: 'slot', id: 's0' }, op: 'move', from: 2, to: 0 }])
-      expect(patches.some((p) => p.op === 'insert' || p.op === 'html')).toBe(false)
+      assert.deepStrictEqual(patches, [
+        { target: { kind: 'slot', id: 's0' }, op: 'move', from: 2, to: 0 },
+      ])
+      assert.equal(
+        patches.some((p) => p.op === 'insert' || p.op === 'html'),
+        false,
+      )
     } finally {
       runtime.dispose()
     }
@@ -216,7 +229,7 @@ describe('keyed each: diff ops', () => {
           dom.splice(p.to, 0, k!)
         }
       }
-      expect(dom).toEqual(after)
+      assert.deepStrictEqual(dom, after)
     } finally {
       runtime.dispose()
     }
@@ -232,7 +245,7 @@ describe('keyed each: diff ops', () => {
       ])
       // Retained rows are never re-rendered by the keyed path; content
       // updates flow through nested bindings (next test).
-      expect(patches).toEqual([])
+      assert.deepStrictEqual(patches, [])
     } finally {
       runtime.dispose()
     }
@@ -255,7 +268,7 @@ describe('keyed each: diff ops', () => {
         { id: 'a', label: 'renamed' },
         { id: 'b', label: 'label-b' },
       ])
-      expect(patches).toEqual([
+      assert.deepStrictEqual(patches, [
         { target: { kind: 'slot', id: 's0:ka:s0' }, op: 'text', value: 'renamed' },
       ])
     } finally {
@@ -276,12 +289,14 @@ describe('keyed each: diff ops', () => {
             { key: (r) => r.id },
           )}</ul>`,
       )
-      expect(state.bindings.has('s0:ka:s0')).toBe(true)
+      assert.equal(state.bindings.has('s0:ka:s0'), true)
 
       const patches = update(runtime, state, rows('b'))
-      expect(patches).toEqual([{ target: { kind: 'slot', id: 's0' }, op: 'remove', index: 0 }])
-      expect(state.bindings.has('s0:ka:s0')).toBe(false)
-      expect(state.bindings.has('s0:kb:s0')).toBe(true)
+      assert.deepStrictEqual(patches, [
+        { target: { kind: 'slot', id: 's0' }, op: 'remove', index: 0 },
+      ])
+      assert.equal(state.bindings.has('s0:ka:s0'), false)
+      assert.equal(state.bindings.has('s0:kb:s0'), true)
     } finally {
       runtime.dispose()
     }
@@ -298,7 +313,7 @@ describe('keyed each: DOM application (happy-dom)', () => {
       // the rows are direct children of the <ul>, between the markers.
       const container = document.querySelector('ul')!
       const texts = () => Array.from(container.children).map((el) => el.textContent)
-      expect(texts()).toEqual(['label-a', 'label-b', 'label-c'])
+      assert.deepStrictEqual(texts(), ['label-a', 'label-b', 'label-c'])
 
       const nodeB = container.children[1]!
 
@@ -306,10 +321,10 @@ describe('keyed each: DOM application (happy-dom)', () => {
       const patches = update(runtime, state, rows('c', 'b', 'x'))
       applyPatches(patches)
 
-      expect(texts()).toEqual(['label-c', 'label-b', 'label-x'])
+      assert.deepStrictEqual(texts(), ['label-c', 'label-b', 'label-x'])
       // The b row is the SAME element after the shuffle — this is the
       // focus/transition-survival property, observable as node identity.
-      expect(container.children[1]).toBe(nodeB)
+      assert.equal(container.children[1], nodeB)
     } finally {
       runtime.dispose()
     }
@@ -318,13 +333,13 @@ describe('keyed each: DOM application (happy-dom)', () => {
 
 describe('isSingleRootElement', () => {
   it('accepts single roots and rejects everything else', () => {
-    expect(isSingleRootElement('<li>x</li>')).toBe(true)
-    expect(isSingleRootElement('  <div a="<b>">nested <b>ok</b></div> ')).toBe(true)
-    expect(isSingleRootElement('<img src="x">')).toBe(true)
-    expect(isSingleRootElement('<!-- c --><li>x</li>')).toBe(true)
-    expect(isSingleRootElement('<li>a</li><li>b</li>')).toBe(false)
-    expect(isSingleRootElement('text')).toBe(false)
-    expect(isSingleRootElement('<li>a</li> trailing')).toBe(false)
-    expect(isSingleRootElement('')).toBe(false)
+    assert.equal(isSingleRootElement('<li>x</li>'), true)
+    assert.equal(isSingleRootElement('  <div a="<b>">nested <b>ok</b></div> '), true)
+    assert.equal(isSingleRootElement('<img src="x">'), true)
+    assert.equal(isSingleRootElement('<!-- c --><li>x</li>'), true)
+    assert.equal(isSingleRootElement('<li>a</li><li>b</li>'), false)
+    assert.equal(isSingleRootElement('text'), false)
+    assert.equal(isSingleRootElement('<li>a</li> trailing'), false)
+    assert.equal(isSingleRootElement(''), false)
   })
 })

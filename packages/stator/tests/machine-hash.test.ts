@@ -1,8 +1,9 @@
+import assert from 'node:assert/strict'
 import { realpathSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { after, before, describe, it } from 'node:test'
 import { hashMachines } from '../src/server/machine-hash.ts'
 
 /**
@@ -56,21 +57,21 @@ const hashAll = async () =>
   })
 const cartHash = async () => (await hashAll()).get(join(machinesDir(), 'cart.ts'))!
 
-beforeAll(async () => {
+before(async () => {
   // realpath: esbuild reports real paths (macOS /var → /private/var) and so does `inputs`.
   root = realpathSync(await mkdtemp(join(tmpdir(), 'stator-hash-')))
   await write('lib/rules.ts', LIB)
   await write('machines/cart.ts', CART())
   await write('machines/audit.ts', AUDIT())
 })
-afterAll(() => rm(root, { recursive: true, force: true }))
+after(() => rm(root, { recursive: true, force: true }))
 
 describe('machine code hash', () => {
   it('is deterministic for unchanged code', async () => {
     const a = await cartHash()
     const b = await cartHash()
-    expect(a.hash).toMatch(/^[0-9a-f]{64}$/)
-    expect(b.hash).toBe(a.hash)
+    assert.match(a.hash, /^[0-9a-f]{64}$/)
+    assert.equal(b.hash, a.hash)
   })
 
   it('ignores comments and whitespace', async () => {
@@ -79,35 +80,35 @@ describe('machine code hash', () => {
       'machines/cart.ts',
       `// new header comment\n\n${CART().replace('  name:', '    name:')}`,
     )
-    expect((await cartHash()).hash).toBe(before)
+    assert.equal((await cartHash()).hash, before)
     await write('machines/cart.ts', CART())
   })
 
   it('changes when a guard body changes', async () => {
     const before = (await cartHash()).hash
     await write('machines/cart.ts', CART('ctx.items.length < 5'))
-    expect((await cartHash()).hash).not.toBe(before)
+    assert.notEqual((await cartHash()).hash, before)
     await write('machines/cart.ts', CART())
   })
 
   it('changes when a context default changes', async () => {
     const before = (await cartHash()).hash
     await write('machines/cart.ts', CART(undefined, "['seeded']"))
-    expect((await cartHash()).hash).not.toBe(before)
+    assert.notEqual((await cartHash()).hash, before)
     await write('machines/cart.ts', CART())
   })
 
   it('changes when a USED export of an imported module changes', async () => {
     const before = (await cartHash()).hash
     await write('lib/rules.ts', LIB.replace('MAX = 3', 'MAX = 4'))
-    expect((await cartHash()).hash).not.toBe(before)
+    assert.notEqual((await cartHash()).hash, before)
     await write('lib/rules.ts', LIB)
   })
 
   it('does not change when an UNUSED export of an imported module changes', async () => {
     const before = (await cartHash()).hash
     await write('lib/rules.ts', LIB.replace("'nobody imports me'", "'still nobody'"))
-    expect((await cartHash()).hash).toBe(before)
+    assert.equal((await cartHash()).hash, before)
     await write('lib/rules.ts', LIB)
   })
 
@@ -117,21 +118,24 @@ describe('machine code hash', () => {
     const cartBefore = all.get(join(machinesDir(), 'cart.ts'))!.hash
     await write('machines/cart.ts', CART('ctx.items.length < 9'))
     const after = await hashAll()
-    expect(after.get(join(machinesDir(), 'cart.ts'))!.hash).not.toBe(cartBefore)
+    assert.notEqual(after.get(join(machinesDir(), 'cart.ts'))!.hash, cartBefore)
     // Audit imports Cart for identity only, but a sibling import may also carry
     // values (a default mirrored into context) — so the importer resets too.
-    expect(after.get(join(machinesDir(), 'audit.ts'))!.hash).not.toBe(auditBefore)
+    assert.notEqual(after.get(join(machinesDir(), 'audit.ts'))!.hash, auditBefore)
     await write('machines/cart.ts', CART())
   })
 
   it('reports the bundled inputs — the machine, its app modules and siblings, not packages', async () => {
     const all = await hashAll()
     const cart = all.get(join(machinesDir(), 'cart.ts'))!
-    expect(cart.inputs).toContain(join(machinesDir(), 'cart.ts'))
-    expect(cart.inputs).toContain(join(root, 'lib/rules.ts'))
+    assert.ok(cart.inputs.includes(join(machinesDir(), 'cart.ts')))
+    assert.ok(cart.inputs.includes(join(root, 'lib/rules.ts')))
     const audit = all.get(join(machinesDir(), 'audit.ts'))!
-    expect(audit.inputs).toContain(join(machinesDir(), 'cart.ts'))
-    expect(audit.inputs.some((p) => p.includes('node_modules'))).toBe(false)
+    assert.ok(audit.inputs.includes(join(machinesDir(), 'cart.ts')))
+    assert.equal(
+      audit.inputs.some((p) => p.includes('node_modules')),
+      false,
+    )
   })
 
   it('lists an imported module even when its only used export is an inlined constant', async () => {
@@ -147,13 +151,14 @@ export default defineMachine({ name: 'Stepper', context: { n: 0 }, initial: 'idl
       machinesDir: machinesDir(),
     })
     const entry = res.get(join(machinesDir(), 'stepper.ts'))!
-    expect(entry.inputs).toContain(join(root, 'lib/step.ts'))
+    assert.ok(entry.inputs.includes(join(root, 'lib/step.ts')))
     await write('lib/step.ts', 'export const STEP = 2\n')
-    expect(
+    assert.notEqual(
       (await hashMachines([join(machinesDir(), 'stepper.ts')], { machinesDir: machinesDir() })).get(
         join(machinesDir(), 'stepper.ts'),
       )!.hash,
-    ).not.toBe(entry.hash)
+      entry.hash,
+    )
     await rm(join(machinesDir(), 'stepper.ts'))
   })
 
@@ -162,9 +167,10 @@ export default defineMachine({ name: 'Stepper', context: { n: 0 }, initial: 'idl
       'machines/broken.ts',
       `import { nope } from '../lib/missing.ts'\nexport default nope`,
     )
-    await expect(
+    await assert.rejects(
       hashMachines([join(machinesDir(), 'broken.ts')], { machinesDir: machinesDir() }),
-    ).rejects.toThrow(/cannot hash machine closure[\s\S]*missing\.ts/)
+      /cannot hash machine closure[\s\S]*missing\.ts/,
+    )
     await rm(join(machinesDir(), 'broken.ts'))
   })
 })
@@ -192,48 +198,51 @@ export default defineMachine({ name: 'Pkg', context: { n: 0 }, initial: 'idle', 
   const one = async () =>
     (await hashMachines([file()], { machinesDir: machinesDir() })).get(file())!
 
-  beforeAll(async () => {
+  before(async () => {
     await pkg('@acme/rules', '1.0.0')
     await pkg('@acme/other', '1.0.0')
     await write('machines/pkg.ts', PKG_MACHINE)
   })
-  afterAll(async () => {
+  after(async () => {
     await rm(join(root, 'node_modules'), { recursive: true, force: true })
     await rm(file(), { force: true })
   })
 
   it('reports the packages a machine reaches, by name@version, and keeps them out of inputs', async () => {
     const res = await one()
-    expect(res.packages).toEqual(['@acme/rules@1.0.0'])
-    expect(res.inputs.some((p) => p.includes('node_modules'))).toBe(false)
+    assert.deepStrictEqual(res.packages, ['@acme/rules@1.0.0'])
+    assert.equal(
+      res.inputs.some((p) => p.includes('node_modules')),
+      false,
+    )
   })
 
   it("changes when an imported package's version changes", async () => {
     const before = (await one()).hash
     await pkg('@acme/rules', '1.1.0')
     const after = await one()
-    expect(after.packages).toEqual(['@acme/rules@1.1.0'])
-    expect(after.hash).not.toBe(before)
+    assert.deepStrictEqual(after.packages, ['@acme/rules@1.1.0'])
+    assert.notEqual(after.hash, before)
     await pkg('@acme/rules', '1.0.0')
-    expect((await one()).hash).toBe(before)
+    assert.equal((await one()).hash, before)
   })
 
   it('does not change when a package it does not reach changes', async () => {
     const before = (await one()).hash
     await pkg('@acme/other', '9.9.9')
-    expect((await one()).hash).toBe(before)
+    assert.equal((await one()).hash, before)
   })
 
   it("does not change when a package's code changes without a version bump (the version is the boundary)", async () => {
     const before = (await one()).hash
     await pkg('@acme/rules', '1.0.0', 'export const LIMIT = 99\n')
-    expect((await one()).hash).toBe(before)
+    assert.equal((await one()).hash, before)
     await pkg('@acme/rules', '1.0.0')
   })
 
   it('leaves a machine that reaches no package with a package-free digest', async () => {
     const cart = await cartHash()
-    expect(cart.packages).toEqual([])
+    assert.deepStrictEqual(cart.packages, [])
   })
 
   it('bundles a bare specifier that resolves to app code through tsconfig paths', async () => {
@@ -254,10 +263,10 @@ export default defineMachine({ name: 'Aliased', context: { n: 0 }, initial: 'idl
     const hashIt = async () =>
       (await hashMachines([aliased()], { machinesDir: machinesDir() })).get(aliased())!
     const before = await hashIt()
-    expect(before.inputs).toContain(join(root, 'lib/rules.ts'))
-    expect(before.packages).toEqual([])
+    assert.ok(before.inputs.includes(join(root, 'lib/rules.ts')))
+    assert.deepStrictEqual(before.packages, [])
     await write('lib/rules.ts', LIB.replace('MAX = 3', 'MAX = 4'))
-    expect((await hashIt()).hash).not.toBe(before.hash)
+    assert.notEqual((await hashIt()).hash, before.hash)
     await write('lib/rules.ts', LIB)
     await rm(aliased())
     await rm(join(root, 'tsconfig.json'))
@@ -273,8 +282,8 @@ export default defineMachine({ name: 'Missing', context: { x }, initial: 'idle',
     )
     const f = join(machinesDir(), 'missing-pkg.ts')
     const res = (await hashMachines([f], { machinesDir: machinesDir() })).get(f)!
-    expect(res.hash).toMatch(/^[0-9a-f]{64}$/)
-    expect(res.packages).toEqual([])
+    assert.match(res.hash, /^[0-9a-f]{64}$/)
+    assert.deepStrictEqual(res.packages, [])
     await rm(f)
   })
 })

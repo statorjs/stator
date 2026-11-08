@@ -1,5 +1,6 @@
-// @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest'
+// @env happy-dom
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { bind } from '../src/client/bind.ts'
 import { defineElement, StatorElement } from '../src/client/element.ts'
 import { machine } from '../src/client/machine.ts'
@@ -21,9 +22,9 @@ describe('client runtime (3b stage 0)', () => {
         select: { atMax: (s) => s.count >= 3 },
       },
     )
-    expect(Qty.name).toBe('ClientMachine')
-    expect(Qty.context).toEqual({ count: 1 })
-    expect(Object.keys(Qty.selectors)).toContain('atMax')
+    assert.equal(Qty.name, 'ClientMachine')
+    assert.deepStrictEqual(Qty.context, { count: 1 })
+    assert.ok(Object.keys(Qty.selectors).includes('atMax'))
   })
 
   it('use() exposes live context + selectors and send() drives them', () => {
@@ -40,11 +41,11 @@ describe('client runtime (3b stage 0)', () => {
     )
     const inst = use(Qty)
     inst.__actor.start()
-    expect(inst.count).toBe(1)
-    expect(inst.doubled).toBe(2)
+    assert.equal(inst.count, 1)
+    assert.equal(inst.doubled, 2)
     inst.send('INC')
-    expect(inst.count).toBe(2)
-    expect(inst.doubled).toBe(4)
+    assert.equal(inst.count, 2)
+    assert.equal(inst.doubled, 4)
   })
 
   it('seeds initial context from a value (narrow hydration seed)', () => {
@@ -62,9 +63,9 @@ describe('client runtime (3b stage 0)', () => {
     // No cast: `lineTotal` is on the typed instance now.
     const inst = use(Cart, { unitPrice: 12 })
     inst.__actor.start()
-    expect(inst.lineTotal).toBe(12)
+    assert.equal(inst.lineTotal, 12)
     inst.send('INC')
-    expect(inst.lineTotal).toBe(24)
+    assert.equal(inst.lineTotal, 24)
   })
 
   it('StatorElement owns actor lifecycle and bind() updates the DOM', () => {
@@ -112,11 +113,11 @@ describe('client runtime (3b stage 0)', () => {
     const out = el.querySelector('[data-ref="count"]')!
 
     // After upgrade + connect: initial paint.
-    expect(out.textContent).toBe('1')
+    assert.equal(out.textContent, '1')
 
     // Click drives the machine → bind writes the DOM.
     ;(el.querySelector('[data-ref="inc"]') as HTMLElement).click()
-    expect(out.textContent).toBe('2')
+    assert.equal(out.textContent, '2')
   })
 
   it('refs resolves data-ref handles within the island', () => {
@@ -126,8 +127,8 @@ describe('client runtime (3b stage 0)', () => {
     holder.innerHTML = '<ref-widget><button data-ref="go">x</button></ref-widget>'
     document.body.appendChild(holder)
     const el = holder.querySelector('ref-widget') as RefWidget
-    expect(el.refs.go).toBe(el.querySelector('[data-ref="go"]'))
-    expect(el.refs.missing).toBeNull()
+    assert.equal(el.refs.go, el.querySelector('[data-ref="go"]'))
+    assert.equal(el.refs.missing, null)
   })
 
   it('this.attrs reads declared attrs (camel→kebab, coerced, presence booleans)', () => {
@@ -141,9 +142,9 @@ describe('client runtime (3b stage 0)', () => {
     const el = holder.querySelector('price-widget') as PriceWidget & {
       attrs: { unitPrice: number; label: string; selected: boolean }
     }
-    expect(el.attrs.unitPrice).toBe(98.5) // Number coercion, kebab attr
-    expect(el.attrs.label).toBe('Runner')
-    expect(el.attrs.selected).toBe(true) // present → true
+    assert.equal(el.attrs.unitPrice, 98.5) // Number coercion, kebab attr
+    assert.equal(el.attrs.label, 'Runner')
+    assert.equal(el.attrs.selected, true) // present → true
 
     const holder2 = document.createElement('div')
     holder2.innerHTML = '<price-widget unit-price="10"></price-widget>'
@@ -151,7 +152,7 @@ describe('client runtime (3b stage 0)', () => {
     const el2 = holder2.querySelector('price-widget') as PriceWidget & {
       attrs: { selected: boolean }
     }
-    expect(el2.attrs.selected).toBe(false) // absent → false
+    assert.equal(el2.attrs.selected, false) // absent → false
   })
 
   it('attr() reads + coerces a seed attribute', () => {
@@ -159,7 +160,7 @@ describe('client runtime (3b stage 0)', () => {
     defineElement(PriceTag, 'price-tag')
     document.body.innerHTML = '<price-tag unit-price="12.50"></price-tag>'
     const el = document.querySelector('price-tag') as PriceTag
-    expect(el.attr('unit-price', Number)).toBe(12.5)
-    expect(el.attr('missing', Number)).toBeUndefined()
+    assert.equal(el.attr('unit-price', Number), 12.5)
+    assert.equal(el.attr('missing', Number), undefined)
   })
 })

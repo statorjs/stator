@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { createActor, defineMachine } from '../src/engine/index.ts'
 
 describe('engine: defineMachine + createActor', () => {
@@ -35,11 +36,11 @@ describe('engine: defineMachine + createActor', () => {
     a.send({ type: 'SET', field: 'name', value: 'Ada' })
     a.send({ type: 'SET', field: 'city', value: 'London' })
 
-    expect(a.getSnapshot().context).toEqual({ name: 'Ada', city: 'London' })
-    expect(M.selectors.filled!(a.getSnapshot().context)).toBe(true)
+    assert.deepStrictEqual(a.getSnapshot().context, { name: 'Ada', city: 'London' })
+    assert.equal(M.selectors.filled!(a.getSnapshot().context), true)
 
     a.send({ type: 'CLEAR' })
-    expect(M.selectors.filled!(a.getSnapshot().context)).toBe(false)
+    assert.equal(M.selectors.filled!(a.getSnapshot().context), false)
   })
 
   it('honors guards and state transitions (checkout-shaped)', () => {
@@ -85,19 +86,19 @@ describe('engine: defineMachine + createActor', () => {
 
     // Guard blocks: no name yet.
     a.send({ type: 'SUBMIT_SHIPPING' })
-    expect(a.getSnapshot().value).toEqual(['shipping'])
+    assert.deepStrictEqual(a.getSnapshot().value, ['shipping'])
 
     a.send({ type: 'SET_FIELD', field: 'name', value: 'Ada' })
     a.send({ type: 'SUBMIT_SHIPPING' })
-    expect(a.getSnapshot().value).toEqual(['payment'])
+    assert.deepStrictEqual(a.getSnapshot().value, ['payment'])
 
     // Guard blocks: card not 4 digits.
     a.send({ type: 'SUBMIT_PAYMENT' })
-    expect(a.getSnapshot().value).toEqual(['payment'])
+    assert.deepStrictEqual(a.getSnapshot().value, ['payment'])
 
     a.send({ type: 'SET_FIELD', field: 'card', value: '4242' })
     a.send({ type: 'SUBMIT_PAYMENT' })
-    expect(a.getSnapshot().value).toEqual(['complete'])
+    assert.deepStrictEqual(a.getSnapshot().value, ['complete'])
   })
 
   it('picks the first matching candidate in a guarded transition array', () => {
@@ -144,11 +145,11 @@ describe('engine: defineMachine + createActor', () => {
     a.send({ type: 'ADD', id: 'p1' }) // repeat → QTY_CHANGED
     a.send({ type: 'ADD', id: 'p2' }) // new → ITEM_ADDED
 
-    expect(a.getSnapshot().context.items).toEqual([
+    assert.deepStrictEqual(a.getSnapshot().context.items, [
       { id: 'p1', qty: 2 },
       { id: 'p2', qty: 1 },
     ])
-    expect(emits).toEqual(['ITEM_ADDED', 'QTY_CHANGED', 'ITEM_ADDED'])
+    assert.deepStrictEqual(emits, ['ITEM_ADDED', 'QTY_CHANGED', 'ITEM_ADDED'])
   })
 
   it('fires declared emits with post-mutation payloads to on() listeners', () => {
@@ -185,7 +186,7 @@ describe('engine: defineMachine + createActor', () => {
     a.send({ type: 'ADD', item: 'pad' })
 
     // Payload reflects post-mutation context (count after push).
-    expect(seen).toEqual([
+    assert.deepStrictEqual(seen, [
       { type: 'ITEM_ADDED', count: 1 },
       { type: 'ITEM_ADDED', count: 2 },
     ])
@@ -215,9 +216,9 @@ describe('engine: defineMachine + createActor', () => {
     a.send({ type: 'INC' })
 
     const b = createActor(M).start() // fresh actor, untouched initial context
-    expect(a.getSnapshot().context.n).toBe(2)
-    expect(b.getSnapshot().context.n).toBe(0)
-    expect(M.context.n).toBe(0)
+    assert.equal(a.getSnapshot().context.n, 2)
+    assert.equal(b.getSnapshot().context.n, 0)
+    assert.equal(M.context.n, 0)
   })
 
   it('round-trips through a persisted snapshot (hydration)', () => {
@@ -247,8 +248,8 @@ describe('engine: defineMachine + createActor', () => {
 
     // Re-hydrate a new actor (server: from Store; client: from seed).
     const b = createActor(M, { snapshot: persisted }).start()
-    expect(b.getSnapshot().context.n).toBe(3)
-    expect(b.getSnapshot().value).toEqual(['go'])
+    assert.equal(b.getSnapshot().context.n, 3)
+    assert.deepStrictEqual(b.getSnapshot().value, ['go'])
   })
 
   it('types helpers.reads from the inferred reads tuple (selectors preserved), and resolves through the injected resolver', () => {
@@ -307,7 +308,7 @@ describe('engine: defineMachine + createActor', () => {
     }).start()
 
     cart.send({ type: 'ADD', productId: 'p1' })
-    expect(cart.getSnapshot().context.lines).toEqual([{ id: 'p1', price: 12 }])
+    assert.deepStrictEqual(cart.getSnapshot().context.lines, [{ id: 'p1', price: 12 }])
   })
 
   it('tags capabilities: reads-free is portable, reads make it server-pinned', () => {
@@ -327,8 +328,8 @@ describe('engine: defineMachine + createActor', () => {
       states: { idle: {} },
     })
 
-    expect(Products.capabilities.serverPinned).toBe(false) // reads-free → portable
-    expect(Cart.capabilities.serverPinned).toBe(true)
-    expect(Cart.capabilities.reasons[0]).toContain('Products')
+    assert.equal(Products.capabilities.serverPinned, false) // reads-free → portable
+    assert.equal(Cart.capabilities.serverPinned, true)
+    assert.ok(Cart.capabilities.reasons[0]?.includes('Products'))
   })
 })

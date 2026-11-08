@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { dispatchToApp } from '../src/server/app-dispatch.ts'
 import { InMemoryAppStore } from '../src/server/app-store.ts'
 import { defineMachine } from '../src/server/define-machine.ts'
@@ -6,6 +7,7 @@ import { wireAppEffects } from '../src/server/effects.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { SessionRuntime } from '../src/server/session-runtime.ts'
 import { InMemoryStore } from '../src/server/store.ts'
+import { waitFor } from './helpers/mocks.ts'
 
 type TallyEvents = { type: 'BUMP'; by: number } | { type: 'SETTLED'; total: number }
 
@@ -35,17 +37,19 @@ function makeTally(opts?: { persist?: boolean }) {
 
 describe('app-machine persistence', () => {
   it('rejects persist: true on a session machine at define time', () => {
-    expect(() =>
-      defineMachine({
-        name: 'Bad',
-        lifecycle: 'session',
-        persist: true,
-        context: { n: 0 },
-        initial: 'idle',
-        states: { idle: {} },
-        selectors: {},
-      }),
-    ).toThrow(/persist: true but is session-lifecycle/)
+    assert.throws(
+      () =>
+        defineMachine({
+          name: 'Bad',
+          lifecycle: 'session',
+          persist: true,
+          context: { n: 0 },
+          initial: 'idle',
+          states: { idle: {} },
+          selectors: {},
+        }),
+      /persist: true but is session-lifecycle/,
+    )
   })
 
   it('persists on dispatchToApp and hydrates on the next boot', async () => {
@@ -61,7 +65,7 @@ describe('app-machine persistence', () => {
     const store2 = new MachineStore([makeTally()], new InMemoryStore(), { appStore })
     await store2.bootAppMachines()
     const snapshot = store2.appInstance('TallyMachine')!.actor.getSnapshot()
-    expect((snapshot.context as { count: number }).count).toBe(7)
+    assert.equal((snapshot.context as { count: number }).count, 7)
   })
 
   it('does not persist machines that did not opt in', async () => {
@@ -71,14 +75,14 @@ describe('app-machine persistence', () => {
     const store1 = new MachineStore([Tally], new InMemoryStore(), { appStore })
     await store1.bootAppMachines()
     await dispatchToApp(store1, Tally, { type: 'BUMP', by: 5 })
-    expect(await appStore.loadAppMachine('TallyMachine')).toBeNull()
+    assert.equal(await appStore.loadAppMachine('TallyMachine'), null)
 
     const store2 = new MachineStore([makeTally({ persist: false })], new InMemoryStore(), {
       appStore,
     })
     await store2.bootAppMachines()
     const snapshot = store2.appInstance('TallyMachine')!.actor.getSnapshot()
-    expect((snapshot.context as { count: number }).count).toBe(0)
+    assert.equal((snapshot.context as { count: number }).count, 0)
   })
 
   it('boots fresh (loudly) when the persisted snapshot is unusable', async () => {
@@ -88,7 +92,7 @@ describe('app-machine persistence', () => {
     const store = new MachineStore([makeTally()], new InMemoryStore(), { appStore })
     await store.bootAppMachines() // must not throw
     const snapshot = store.appInstance('TallyMachine')!.actor.getSnapshot()
-    expect((snapshot.context as { count: number }).count).toBe(0)
+    assert.equal((snapshot.context as { count: number }).count, 0)
   })
 
   it('persists app machines touched via session→app subscriptions', async () => {
@@ -143,7 +147,7 @@ describe('app-machine persistence', () => {
       await runtime.loadGraph([Clicker])
       runtime.wireSubscriptions()
       const touched = runtime.processEvent('ClickerMachine', { type: 'CLICK' })
-      expect(touched.has('TallyMachine')).toBe(true)
+      assert.equal(touched.has('TallyMachine'), true)
       await runtime.persistTouched(touched)
     } finally {
       runtime.dispose()
@@ -152,7 +156,7 @@ describe('app-machine persistence', () => {
     const saved = (await appStore.loadAppMachine('TallyMachine')) as {
       context: { count: number }
     }
-    expect(saved.context.count).toBe(1)
+    assert.equal(saved.context.count, 1)
   })
 })
 
@@ -193,15 +197,15 @@ describe('app-plane effects (stage 2)', () => {
 
     await dispatchToApp(store, Settler, { type: 'BUMP', by: 3 })
 
-    await vi.waitFor(async () => {
+    await waitFor(async () => {
       const snap = store.appInstance('SettlerMachine')!.actor.getSnapshot()
-      expect((snap.context as { settled: number }).settled).toBe(30)
+      assert.equal((snap.context as { settled: number }).settled, 30)
     })
     // The completion's state change was persisted too.
     const saved = (await appStore.loadAppMachine('SettlerMachine')) as {
       context: { settled: number }
     }
-    expect(saved.context.settled).toBe(30)
+    assert.equal(saved.context.settled, 30)
   })
 
   it('dispatchToApp rejects session machines and unknown machines', async () => {
@@ -217,9 +221,9 @@ describe('app-plane effects (stage 2)', () => {
     const store = new MachineStore([Sess], new InMemoryStore())
     await store.bootAppMachines()
 
-    await expect(dispatchToApp(store, Sess, { type: 'X' })).rejects.toThrow(/not app-lifecycle/)
+    await assert.rejects(dispatchToApp(store, Sess, { type: 'X' }), /not app-lifecycle/)
     const Ghost = { ...Sess, name: 'GhostMachine' }
-    await expect(dispatchToApp(store, Ghost, { type: 'X' })).rejects.toThrow(/unknown machine/)
+    await assert.rejects(dispatchToApp(store, Ghost, { type: 'X' }), /unknown machine/)
   })
 })
 
@@ -253,9 +257,9 @@ describe('dispatchToApp reports committed', () => {
     await store.bootAppMachines()
 
     const dropped = await dispatchToApp(store, Gate, { type: 'OPEN', key: 'wrong' })
-    expect(dropped.committed).toBe(false)
+    assert.equal(dropped.committed, false)
 
     const opened = await dispatchToApp(store, Gate, { type: 'OPEN', key: 'sesame' })
-    expect(opened.committed).toBe(true)
+    assert.equal(opened.committed, true)
   })
 })

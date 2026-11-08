@@ -1,8 +1,9 @@
+import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { after, before, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../src/build/build.ts'
 import { type CopySet, resolveCopySet } from '../src/build/copy-set.ts'
 
@@ -22,43 +23,46 @@ const root = resolve(here, 'fixtures/copy-set-app')
 
 let set: CopySet
 
-beforeAll(async () => {
-  set = await resolveCopySet({ root })
-}, 30_000)
+before(
+  async () => {
+    set = await resolveCopySet({ root })
+  },
+  { timeout: 30_000 },
+)
 
 describe('copy set: what the graph reaches', () => {
   it('copies the directories reached from routes, machines and templates', () => {
     // `templates` and `lib` are consequences of imports, not known names.
-    expect(set.dirs).toContain('templates')
-    expect(set.dirs).toContain('lib')
-    expect(set.dirs).toContain('routes')
-    expect(set.dirs).toContain('machines')
+    assert.ok(set.dirs.includes('templates'))
+    assert.ok(set.dirs.includes('lib'))
+    assert.ok(set.dirs.includes('routes'))
+    assert.ok(set.dirs.includes('machines'))
   })
 
   it('always copies static/, which the framework serves by path', () => {
     // static/ holds files nothing imports — the framework reads them by URL —
     // so it can never be discovered by a module graph and is never subject to
     // it. Present in the source root means present in dist, always.
-    expect(set.dirs).toContain('static')
-    expect(set.reached).not.toContain('static/site.css') // not via imports
+    assert.ok(set.dirs.includes('static'))
+    assert.ok(!set.reached.includes('static/site.css')) // not via imports
   })
 
   it('follows a tsconfig paths alias', () => {
     // The naive "starts with a dot" test — what a regex scanner does — would
     // treat `@app/helper.ts` as a package and miss this directory entirely.
-    expect(set.dirs).toContain('aliased')
-    expect(set.reached).toContain('aliased/helper.ts')
+    assert.ok(set.dirs.includes('aliased'))
+    assert.ok(set.reached.includes('aliased/helper.ts'))
   })
 
   it('follows an extensionless specifier', () => {
-    expect(set.reached).toContain('lib/step.ts')
+    assert.ok(set.reached.includes('lib/step.ts'))
   })
 
   it('follows imports declared in .stator frontmatter', () => {
     // data/seed.json is reachable ONLY through the template's frontmatter
     // import of lib/loader.ts.
-    expect(set.reached).toContain('templates/panel.stator')
-    expect(set.dirs).toContain('data')
+    assert.ok(set.reached.includes('templates/panel.stator'))
+    assert.ok(set.dirs.includes('data'))
   })
 
   it('ignores comments and string literals that merely talk about imports', () => {
@@ -67,40 +71,46 @@ describe('copy set: what the graph reaches', () => {
     // build, and a comment mentioning a `new URL(...)` path invented a
     // directory that does not exist. Both scans read the syntax tree now, and
     // comments and string contents are not part of it.
-    expect(set.untraced).toEqual([])
-    expect(set.dirs).not.toContain('ghost-directory')
-    expect(set.unused).not.toContain('ghost-directory')
+    assert.deepStrictEqual(set.untraced, [])
+    assert.ok(!set.dirs.includes('ghost-directory'))
+    assert.ok(!set.unused.includes('ghost-directory'))
   })
 
   it('follows both traceable dynamic-import forms', () => {
-    expect(set.reached).toContain('lib/late.ts') // string literal
-    expect(set.reached).toContain('lib/locales/en.ts') // template literal, glob-expanded
-    expect(set.untraced).toEqual([])
+    assert.ok(set.reached.includes('lib/late.ts')) // string literal
+    assert.ok(set.reached.includes('lib/locales/en.ts')) // template literal, glob-expanded
+    assert.deepStrictEqual(set.untraced, [])
   })
 
   it('copies a root-level file a module opens by URL', () => {
-    expect(set.files).toContain('app.data')
+    assert.ok(set.files.includes('app.data'))
   })
 
   it('leaves out a directory nothing reaches, and says so', () => {
-    expect(set.dirs).not.toContain('unreferenced')
-    expect(set.unused).toContain('unreferenced')
+    assert.ok(!set.dirs.includes('unreferenced'))
+    assert.ok(set.unused.includes('unreferenced'))
   })
 
   it('records bare specifiers as packages without tracing them', () => {
-    expect(set.packages).not.toContain('node:fs') // builtins aren't packages
-    expect(set.reached.some((f) => f.includes('node_modules'))).toBe(false)
+    assert.ok(!set.packages.includes('node:fs')) // builtins aren't packages
+    assert.equal(
+      set.reached.some((f) => f.includes('node_modules')),
+      false,
+    )
   })
 
   it('reports app files reached outside the root rather than copying them', () => {
     // The fixture imports the framework by relative path (../../../../src),
     // which dist cannot contain — a warning, not a failure.
-    expect(set.external.some((f) => f.endsWith('src/server/index.ts'))).toBe(true)
+    assert.equal(
+      set.external.some((f) => f.endsWith('src/server/index.ts')),
+      true,
+    )
   })
 })
 
 describe('copy set: path handling across platforms', () => {
-  it('contains files under a symlinked root', async () => {
+  it('contains files under a symlinked root', { timeout: 30_000 }, async () => {
     // esbuild reports real paths, and on macOS /var is a symlink to
     // /private/var — so a root spelled through the symlink must still contain
     // its own files. The same test protects Windows, where paths are
@@ -119,16 +129,20 @@ describe('copy set: path handling across platforms', () => {
     }
 
     const result = await resolveCopySet({ root: app })
-    expect(result.dirs).toEqual(expect.arrayContaining(['lib', 'routes', 'static', 'templates']))
-    expect(result.files).toContain('app.data')
+    for (const dir of ['lib', 'routes', 'static', 'templates'])
+      assert.ok(result.dirs.includes(dir), dir)
+    assert.ok(result.files.includes('app.data'))
     // The failure mode being guarded: everything classified as external.
-    expect(result.external.filter((f) => f.includes('/app/'))).toEqual([])
+    assert.deepStrictEqual(
+      result.external.filter((f) => f.includes('/app/')),
+      [],
+    )
     await rm(base, { recursive: true, force: true })
-  }, 30_000)
+  })
 })
 
 describe('copy set: dependencies', () => {
-  it('records direct dependencies only, never their transitives', async () => {
+  it('records direct dependencies only, never their transitives', { timeout: 30_000 }, async () => {
     // The graph stops at the first bare specifier: a dependency is marked
     // external and never loaded, so its own imports are never resolved. That is
     // the right granularity for a generated manifest — `npm ci` resolves
@@ -177,17 +191,17 @@ describe('copy set: dependencies', () => {
     )
 
     const result = await resolveCopySet({ root: app })
-    expect(result.packages).toContain('primary')
-    expect(result.packages).toContain('@scope/pkg') // a subpath collapses to the package
-    expect(result.packages).not.toContain('secondary') // primary's own dependency
+    assert.ok(result.packages.includes('primary'))
+    assert.ok(result.packages.includes('@scope/pkg')) // a subpath collapses to the package
+    assert.ok(!result.packages.includes('secondary')) // primary's own dependency
     // A type-only import is elided before resolution, so it is not a runtime
     // dependency — which is what makes it safe to check this list against
     // `dependencies` rather than `devDependencies`.
-    expect(result.packages).not.toContain('typesonly')
+    assert.ok(!result.packages.includes('typesonly'))
     await rm(base, { recursive: true, force: true })
-  }, 30_000)
+  })
 
-  it('never traces or copies an in-root node_modules', async () => {
+  it('never traces or copies an in-root node_modules', { timeout: 30_000 }, async () => {
     // The bug this guards, found by running against an app outside this
     // monorepo: a real app's `node_modules` lives INSIDE its root, so root
     // containment alone classifies every dependency as app source. The whole
@@ -222,18 +236,21 @@ describe('copy set: dependencies', () => {
     )
 
     const result = await resolveCopySet({ root: app })
-    expect(result.dirs).not.toContain('node_modules')
-    expect(result.packages).toContain('mypkg')
-    expect(result.reached.filter((f) => f.includes('node_modules'))).toEqual([])
-    expect(result.untraced).toEqual([])
+    assert.ok(!result.dirs.includes('node_modules'))
+    assert.ok(result.packages.includes('mypkg'))
+    assert.deepStrictEqual(
+      result.reached.filter((f) => f.includes('node_modules')),
+      [],
+    )
+    assert.deepStrictEqual(result.untraced, [])
     await rm(base, { recursive: true, force: true })
-  }, 30_000)
+  })
 })
 
 describe('copy set: untraceable dynamic imports', () => {
   let tmp: string
 
-  beforeAll(async () => {
+  before(async () => {
     const base = await mkdtemp(join(tmpdir(), 'stator-copyset-'))
     const app = join(base, 'app')
     const { mkdir } = await import('node:fs/promises')
@@ -260,22 +277,24 @@ describe('copy set: untraceable dynamic imports', () => {
     tmp = app
   })
 
-  afterAll(async () => {
+  after(async () => {
     await rm(dirname(tmp), { recursive: true, force: true })
   })
 
   it('locates each one with file and line', async () => {
     const result = await resolveCopySet({ root: tmp })
-    expect(result.untraced).toHaveLength(1)
-    expect(result.untraced[0]!.file).toBe('routes/index.ts')
-    expect(result.untraced[0]!.source).toContain('import(name)')
+    assert.equal(result.untraced.length, 1)
+    assert.equal(result.untraced[0]!.file, 'routes/index.ts')
+    assert.ok(result.untraced[0]!.source.includes('import(name)'))
   })
 
   it('fails the build by default, and says how to proceed', async () => {
-    await expect(buildApp({ root: tmp, outDir: join(tmp, 'dist') })).rejects.toThrow(
+    await assert.rejects(
+      buildApp({ root: tmp, outDir: join(tmp, 'dist') }),
       /dynamic import.*cannot be traced/s,
     )
-    await expect(buildApp({ root: tmp, outDir: join(tmp, 'dist') })).rejects.toThrow(
+    await assert.rejects(
+      buildApp({ root: tmp, outDir: join(tmp, 'dist') }),
       /build\.include|untracedImports/,
     )
   })
@@ -286,37 +305,39 @@ describe('copy set: untraceable dynamic imports', () => {
       outDir: join(tmp, 'dist'),
       untracedImports: 'warn',
     })
-    expect(result.copySet.untraced).toHaveLength(1)
+    assert.equal(result.copySet.untraced.length, 1)
   })
 })
 
 describe('copy set: build.include', () => {
   it('copies a directory no import reaches', async () => {
     const set2 = await resolveCopySet({ root, include: ['unreferenced'] })
-    expect(set2.dirs).toContain('unreferenced')
-    expect(set2.unused).not.toContain('unreferenced')
+    assert.ok(set2.dirs.includes('unreferenced'))
+    assert.ok(!set2.unused.includes('unreferenced'))
   })
 })
 
 describe('copy set: what lands in dist', () => {
   const outDir = resolve(here, 'fixtures/.tmp-copy-set-dist')
 
-  afterAll(async () => {
+  after(async () => {
     await rm(outDir, { recursive: true, force: true })
   })
 
-  it('writes the reached tree, the root data file, and nothing else', async () => {
+  it('writes the reached tree, the root data file, and nothing else', {
+    timeout: 60_000,
+  }, async () => {
     const result = await buildApp({ root, outDir })
     const { readdir } = await import('node:fs/promises')
     const top = (await readdir(outDir)).sort()
 
-    expect(top).toContain('app.data') // the old copy step never got this far
-    expect(top).toContain('data')
-    expect(top).toContain('aliased')
-    expect(top).not.toContain('unreferenced')
+    assert.ok(top.includes('app.data')) // the old copy step never got this far
+    assert.ok(top.includes('data'))
+    assert.ok(top.includes('aliased'))
+    assert.ok(!top.includes('unreferenced'))
 
     // The root data file is copied byte-for-byte, not just touched.
-    expect(await readFile(join(outDir, 'app.data'), 'utf8')).toBe('root-data\n')
-    expect(result.copySet.unused).toContain('unreferenced')
-  }, 60_000)
+    assert.equal(await readFile(join(outDir, 'app.data'), 'utf8'), 'root-data\n')
+    assert.ok(result.copySet.unused.includes('unreferenced'))
+  })
 })

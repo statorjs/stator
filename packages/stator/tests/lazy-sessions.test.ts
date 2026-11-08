@@ -1,6 +1,7 @@
+import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
+import { after, before, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createApp, type StatorApp } from '../src/server/index.ts'
 
 /**
@@ -20,7 +21,7 @@ function dirnameOf(url: string): string {
 let app: StatorApp
 let uncached: StatorApp
 
-beforeAll(async () => {
+before(async () => {
   app = await createApp({
     machinesDir: resolve(fixtures, 'machines'),
     routesDir: resolve(fixtures, 'routes'),
@@ -32,7 +33,7 @@ beforeAll(async () => {
   })
 })
 
-afterAll(async () => {
+after(async () => {
   // Neither app listened; nothing to close.
 })
 
@@ -42,26 +43,26 @@ const get = (a: StatorApp, path: string, headers: Record<string, string> = {}) =
 describe('layer 1 — lazy establishment', () => {
   it('an app-machine live page sets no cookie', async () => {
     const res = await get(app, '/board')
-    expect(res.status).toBe(200)
-    expect(res.headers.get('set-cookie')).toBeNull()
+    assert.equal(res.status, 200)
+    assert.equal(res.headers.get('set-cookie'), null)
   })
 
   it('a read-free data route sets no cookie', async () => {
     const res = await get(app, '/feed.xml')
-    expect(res.status).toBe(200)
-    expect(res.headers.get('set-cookie')).toBeNull()
+    assert.equal(res.status, 200)
+    assert.equal(res.headers.get('set-cookie'), null)
   })
 
   it('a session-machine page establishes (cookie set)', async () => {
     const res = await get(app, '/plain')
-    expect(res.status).toBe(200)
-    expect(res.headers.get('set-cookie')).toContain('stator_sid=')
+    assert.equal(res.status, 200)
+    assert.ok(res.headers.get('set-cookie')?.includes('stator_sid='))
   })
 
   it('a session-machine data route establishes', async () => {
     const res = await get(app, '/my-pings')
-    expect(res.status).toBe(200)
-    expect(res.headers.get('set-cookie')).toContain('stator_sid=')
+    assert.equal(res.status, 200)
+    assert.ok(res.headers.get('set-cookie')?.includes('stator_sid='))
   })
 
   it('a first-contact dispatch establishes; a presented sid resumes without a new cookie', async () => {
@@ -78,12 +79,12 @@ describe('layer 1 — lazy establishment', () => {
         }),
       )
     const anonymous = await post()
-    expect(anonymous.status).toBe(200)
-    expect(anonymous.headers.get('set-cookie')).toContain('stator_sid=')
+    assert.equal(anonymous.status, 200)
+    assert.ok(anonymous.headers.get('set-cookie')?.includes('stator_sid='))
 
     const resumed = await post(`stator_sid=${crypto.randomUUID()}`)
-    expect(resumed.status).toBe(200)
-    expect(resumed.headers.get('set-cookie')).toBeNull()
+    assert.equal(resumed.status, 200)
+    assert.equal(resumed.headers.get('set-cookie'), null)
   })
 
   it('an SSE connect establishes', async () => {
@@ -93,7 +94,7 @@ describe('layer 1 — lazy establishment', () => {
         signal: abort.signal,
       }),
     )
-    expect(res.headers.get('set-cookie')).toContain('stator_sid=')
+    assert.ok(res.headers.get('set-cookie')?.includes('stator_sid='))
     abort.abort()
   })
 })
@@ -101,40 +102,41 @@ describe('layer 1 — lazy establishment', () => {
 describe('layer 3 — derived Cache-Control', () => {
   it('a provably-anonymous page is cache-marked with the defaults', async () => {
     const res = await get(app, '/board')
-    expect(res.headers.get('cache-control')).toBe(
+    assert.equal(
+      res.headers.get('cache-control'),
       'public, max-age=0, s-maxage=60, stale-while-revalidate=300',
     )
   })
 
   it('a provably-anonymous data route is cache-marked, 304s included', async () => {
     const res = await get(app, '/feed.xml')
-    expect(res.headers.get('cache-control')).toContain('public, max-age=0, s-maxage=60')
+    assert.ok(res.headers.get('cache-control')?.includes('public, max-age=0, s-maxage=60'))
     const etag = res.headers.get('etag')!
     const revalidated = await get(app, '/feed.xml', { 'if-none-match': etag })
-    expect(revalidated.status).toBe(304)
-    expect(revalidated.headers.get('cache-control')).toContain('public, max-age=0, s-maxage=60')
+    assert.equal(revalidated.status, 304)
+    assert.ok(revalidated.headers.get('cache-control')?.includes('public, max-age=0, s-maxage=60'))
   })
 
   it('a session-reading page is never cache-marked', async () => {
     const res = await get(app, '/plain')
-    expect(res.headers.get('cache-control')).toBeNull()
+    assert.equal(res.headers.get('cache-control'), null)
   })
 
   it('a session-reading data route is never cache-marked', async () => {
     const res = await get(app, '/my-pings')
-    expect(res.headers.get('cache-control')).toBeNull()
+    assert.equal(res.headers.get('cache-control'), null)
   })
 
   it('a returning visitor with a cookie still gets the cacheable response uncookied', async () => {
     const res = await get(app, '/board', { Cookie: `stator_sid=${crypto.randomUUID()}` })
-    expect(res.headers.get('set-cookie')).toBeNull()
-    expect(res.headers.get('cache-control')).toContain('public')
+    assert.equal(res.headers.get('set-cookie'), null)
+    assert.ok(res.headers.get('cache-control')?.includes('public'))
   })
 
   it('caching: false disables emission entirely', async () => {
     const res = await get(uncached, '/board')
-    expect(res.headers.get('set-cookie')).toBeNull()
-    expect(res.headers.get('cache-control')).toBeNull()
+    assert.equal(res.headers.get('set-cookie'), null)
+    assert.equal(res.headers.get('cache-control'), null)
   })
 })
 
@@ -142,25 +144,25 @@ describe('the revision ledger', () => {
   it('a revision match answers 304 without invoking the handler', async () => {
     const { state } = await import('./fixtures/routes/revisioned.json.ts')
     const first = await get(app, '/revisioned.json')
-    expect(first.status).toBe(200)
-    expect(await first.json()).toEqual({ runs: 1 })
+    assert.equal(first.status, 200)
+    assert.deepStrictEqual(await first.json(), { runs: 1 })
     const etag = first.headers.get('etag')!
-    expect(etag).toMatch(/^"r-/)
-    expect(first.headers.get('cache-control')).toContain('public')
+    assert.match(etag, /^"r-/)
+    assert.ok(first.headers.get('cache-control')?.includes('public'))
 
     const probe = await get(app, '/revisioned.json', { 'if-none-match': etag })
-    expect(probe.status).toBe(304)
-    expect(probe.headers.get('etag')).toBe(etag)
-    expect(probe.headers.get('cache-control')).toContain('public')
+    assert.equal(probe.status, 304)
+    assert.equal(probe.headers.get('etag'), etag)
+    assert.ok(probe.headers.get('cache-control')?.includes('public'))
     // The whole point: the handler never ran.
-    expect(state.handlerRuns).toBe(1)
+    assert.equal(state.handlerRuns, 1)
 
     // A revision bump invalidates the token — the next probe renders anew.
     state.revision = 2
     const fresh = await get(app, '/revisioned.json', { 'if-none-match': etag })
-    expect(fresh.status).toBe(200)
-    expect(state.handlerRuns).toBe(2)
-    expect(fresh.headers.get('etag')).not.toBe(etag)
+    assert.equal(fresh.status, 200)
+    assert.equal(state.handlerRuns, 2)
+    assert.notEqual(fresh.headers.get('etag'), etag)
   })
 })
 
@@ -177,33 +179,33 @@ function lastSid(res: Response): string {
 describe('layer 3 — the proof is precise', () => {
   it('a page that reads a request header is never cache-marked', async () => {
     const res = await get(app, '/lang', { 'accept-language': 'fr' })
-    expect(res.status).toBe(200)
-    expect(res.headers.get('set-cookie')).toBeNull()
-    expect(res.headers.get('cache-control')).toBeNull()
+    assert.equal(res.status, 200)
+    assert.equal(res.headers.get('set-cookie'), null)
+    assert.equal(res.headers.get('cache-control'), null)
   })
 
   it('reading the Cookie header withdraws the proof even when no cookie arrived', async () => {
     const res = await get(app, '/cookie-gate')
-    expect(await res.text()).toContain('live')
-    expect(res.headers.get('cache-control')).toBeNull()
+    assert.ok((await res.text()).includes('live'))
+    assert.equal(res.headers.get('cache-control'), null)
   })
 
   it('a data route that reads a request header is never cache-marked', async () => {
     const res = await get(app, '/ua.json', { 'user-agent': 'probe' })
-    expect(await res.json()).toEqual({ ua: 'probe' })
-    expect(res.headers.get('cache-control')).toBeNull()
+    assert.deepStrictEqual(await res.json(), { ua: 'probe' })
+    assert.equal(res.headers.get('cache-control'), null)
   })
 
   it('a claims peek that finds nothing keeps the proof, anonymous or cookied', async () => {
     const anonymous = await get(app, '/whoami')
-    expect(await anonymous.text()).toContain('anonymous')
-    expect(anonymous.headers.get('set-cookie')).toBeNull()
-    expect(anonymous.headers.get('cache-control')).toContain('public')
+    assert.ok((await anonymous.text()).includes('anonymous'))
+    assert.equal(anonymous.headers.get('set-cookie'), null)
+    assert.ok(anonymous.headers.get('cache-control')?.includes('public'))
 
     const cookied = await get(app, '/whoami', { Cookie: `stator_sid=${crypto.randomUUID()}` })
-    expect(await cookied.text()).toContain('anonymous')
-    expect(cookied.headers.get('set-cookie')).toBeNull()
-    expect(cookied.headers.get('cache-control')).toContain('public')
+    assert.ok((await cookied.text()).includes('anonymous'))
+    assert.equal(cookied.headers.get('set-cookie'), null)
+    assert.ok(cookied.headers.get('cache-control')?.includes('public'))
   })
 
   it('a claims peek that finds claims withdraws the proof', async () => {
@@ -218,7 +220,7 @@ describe('layer 3 — the proof is precise', () => {
       }),
     )
     const res = await get(app, '/whoami', { Cookie: `stator_sid=${lastSid(login)}` })
-    expect(await res.text()).toContain('u1')
-    expect(res.headers.get('cache-control')).toBeNull()
+    assert.ok((await res.text()).includes('u1'))
+    assert.equal(res.headers.get('cache-control'), null)
   })
 })

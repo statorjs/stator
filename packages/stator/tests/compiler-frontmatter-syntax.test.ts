@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { compile } from '../src/compiler/compile.ts'
 import { CompileError } from '../src/compiler/diagnostics.ts'
 import { toVirtualCode } from '../src/compiler/virtual-code.ts'
@@ -15,13 +16,13 @@ describe('compiler: frontmatter syntax', () => {
       compile(src, { id: 'routes/x.stator', kind: 'route' })
       throw new Error('expected throw')
     } catch (e) {
-      expect(e).toBeInstanceOf(CompileError)
+      assert.ok(e instanceof CompileError)
       const err = e as CompileError
-      expect(err.message).toContain("JSX isn't allowed in frontmatter")
-      expect(err.message).toContain('routes/404.stator')
-      expect(err.loc?.line).toBe(3)
-      expect(err.loc?.column).toBe(19)
-      expect(err.loc?.file).toBe('routes/x.stator')
+      assert.ok(err.message.includes("JSX isn't allowed in frontmatter"))
+      assert.ok(err.message.includes('routes/404.stator'))
+      assert.equal(err.loc?.line, 3)
+      assert.equal(err.loc?.column, 19)
+      assert.equal(err.loc?.file, 'routes/x.stator')
     }
   })
 
@@ -31,25 +32,25 @@ describe('compiler: frontmatter syntax', () => {
       compile(src, { id: 'x.stator' })
       throw new Error('expected throw')
     } catch (e) {
-      expect(e).toBeInstanceOf(CompileError)
+      assert.ok(e instanceof CompileError)
       const err = e as CompileError
-      expect(err.message).toContain('frontmatter syntax error')
-      expect(err.message).toContain('Expression expected')
-      expect(err.loc?.line).toBe(2)
+      assert.ok(err.message.includes('frontmatter syntax error'))
+      assert.ok(err.message.includes('Expression expected'))
+      assert.equal(err.loc?.line, 2)
     }
   })
 
   it('a generic arrow function in the fence stays legal', () => {
     const src = `---\nconst id = <T>(a: T) => a\nconst n = id(1)\n---\n<p>{n}</p>\n`
-    expect(() => compile(src, { id: 'x.stator' })).not.toThrow()
+    assert.doesNotThrow(() => compile(src, { id: 'x.stator' }))
   })
 
   it('the editor model emits a broken statement as a string, never as JSX that looks fine', () => {
     const src = `---\nconst page = null\nif (!page) return <p>not found</p>\n---\n<main>ok</main>\n`
     const { code } = toVirtualCode(src).tsx
-    expect(code).toContain(JSON.stringify('if (!page) return <p>not'))
-    expect(code).toContain(JSON.stringify('found</p>'))
-    expect(code).not.toMatch(/^\s*if \(!page\) return <p>/m)
-    expect(code).toContain('const page = null')
+    assert.ok(code.includes(JSON.stringify('if (!page) return <p>not')))
+    assert.ok(code.includes(JSON.stringify('found</p>')))
+    assert.doesNotMatch(code, /^\s*if \(!page\) return <p>/m)
+    assert.ok(code.includes('const page = null'))
   })
 })

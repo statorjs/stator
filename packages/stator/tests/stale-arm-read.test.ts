@@ -1,5 +1,6 @@
-// @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest'
+// @env happy-dom
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { recompute } from '../src/server/recompute.ts'
@@ -85,8 +86,8 @@ describe('read() inside a re-rendered arm is fresh on fan-out (FINDINGS #3)', ()
     // The branch flipped loading->ready; the temp slot inside its html patch must
     // carry the fresh 28, not the stale 0 from the connect-time proxy.
     const branch = patches.find((p) => p.op === 'html')
-    expect(branch).toBeDefined()
-    expect(String(branch!.value)).toContain('>28</span>')
-    expect(String(branch!.value)).not.toContain('>0</span>')
+    assert.notEqual(branch, undefined)
+    assert.ok(String(branch!.value).includes('>28</span>'))
+    assert.ok(!String(branch!.value).includes('>0</span>'))
   })
 })

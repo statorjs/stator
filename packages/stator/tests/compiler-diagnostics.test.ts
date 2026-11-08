@@ -1,22 +1,23 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { compile } from '../src/compiler/compile.ts'
 import { CompileError, codeFrame, offsetToLineCol } from '../src/compiler/diagnostics.ts'
 
 describe('compiler: diagnostics', () => {
   it('offsetToLineCol returns 1-based line/column', () => {
     const src = 'ab\ncde\nf'
-    expect(offsetToLineCol(src, 0)).toEqual({ line: 1, column: 1 })
-    expect(offsetToLineCol(src, 1)).toEqual({ line: 1, column: 2 })
-    expect(offsetToLineCol(src, 3)).toEqual({ line: 2, column: 1 }) // first char of line 2
-    expect(offsetToLineCol(src, 5)).toEqual({ line: 2, column: 3 })
-    expect(offsetToLineCol(src, 7)).toEqual({ line: 3, column: 1 })
+    assert.deepStrictEqual(offsetToLineCol(src, 0), { line: 1, column: 1 })
+    assert.deepStrictEqual(offsetToLineCol(src, 1), { line: 1, column: 2 })
+    assert.deepStrictEqual(offsetToLineCol(src, 3), { line: 2, column: 1 }) // first char of line 2
+    assert.deepStrictEqual(offsetToLineCol(src, 5), { line: 2, column: 3 })
+    assert.deepStrictEqual(offsetToLineCol(src, 7), { line: 3, column: 1 })
   })
 
   it('codeFrame marks the offending line with a caret', () => {
     const src = 'line one\nline two\nline three'
     const frame = codeFrame(src, 2, 6)
-    expect(frame).toContain('> 2 | line two')
-    expect(frame).toContain('^')
+    assert.ok(frame.includes('> 2 | line two'))
+    assert.ok(frame.includes('^'))
   })
 
   it('locates an unsupported directive at the right line/column in the original .stator', () => {
@@ -31,13 +32,13 @@ const x = 1
       compile(src, { id: 'comp.stator' })
       throw new Error('expected compile to throw')
     } catch (e) {
-      expect(e).toBeInstanceOf(CompileError)
+      assert.ok(e instanceof CompileError)
       const err = e as CompileError
-      expect(err.loc).toBeDefined()
+      assert.notEqual(err.loc, undefined)
       // `<span` is on line 5 of the original file.
-      expect(err.loc!.line).toBe(5)
-      expect(err.loc!.file).toBe('comp.stator')
-      expect(err.loc!.frame).toContain('bind:text')
+      assert.equal(err.loc!.line, 5)
+      assert.equal(err.loc!.file, 'comp.stator')
+      assert.ok(err.loc!.frame.includes('bind:text'))
     }
   })
 
@@ -48,7 +49,7 @@ const x = 1
       throw new Error('expected throw')
     } catch (e) {
       const err = e as CompileError
-      expect(err.loc!.line).toBe(2) // the <button> line
+      assert.equal(err.loc!.line, 2) // the <button> line
     }
   })
 })
@@ -62,11 +63,11 @@ describe('compiler: defer/machine boundary (build-time gate)', () => {
       compile(src, { id: 'p.stator' })
       throw new Error('expected compile to throw')
     } catch (e) {
-      expect(e).toBeInstanceOf(CompileError)
+      assert.ok(e instanceof CompileError)
       const err = e as CompileError
-      expect(err.message).toContain('defer() arm')
-      expect(err.loc!.line).toBe(2) // the read() is on line 2
-      expect(err.loc!.frame).toContain('read(cart')
+      assert.ok(err.message.includes('defer() arm'))
+      assert.equal(err.loc!.line, 2) // the read() is on line 2
+      assert.ok(err.loc!.frame.includes('read(cart'))
     }
   })
 
@@ -76,7 +77,7 @@ describe('compiler: defer/machine boundary (build-time gate)', () => {
     ready: () => <div>{when(read(cart, c => c.open), () => <p>open</p>)}</div>,
   })}
 </main>`
-    expect(() => compile(src, { id: 'p.stator' })).toThrow(/defer\(\) arm/)
+    assert.throws(() => compile(src, { id: 'p.stator' }), /defer\(\) arm/)
   })
 
   it('allows a read() as a SIBLING of a defer (the correct composition)', () => {
@@ -84,32 +85,36 @@ describe('compiler: defer/machine boundary (build-time gate)', () => {
   <span>{read(cart, c => c.total)}</span>
   {defer(() => db.get(1), { ready: (v) => <p>{v}</p> })}
 </main>`
-    expect(() => compile(src, { id: 'p.stator' })).not.toThrow()
+    assert.doesNotThrow(() => compile(src, { id: 'p.stator' }))
   })
 })
 
 describe('RCDATA placement gate', () => {
   it('rejects read() inside <textarea> — the slot wrapper would render as literal text', () => {
-    expect(() =>
-      compile(
-        `---\nimport M from '../machines/m.ts'\nconst [m] = Stator.reads([M])\n---\n<textarea>{read(m, (x) => x.draft)}</textarea>`,
-        { id: 'routes/t.stator', kind: 'route' },
-      ),
-    ).toThrow(/cannot appear inside <textarea>/)
+    assert.throws(
+      () =>
+        compile(
+          `---\nimport M from '../machines/m.ts'\nconst [m] = Stator.reads([M])\n---\n<textarea>{read(m, (x) => x.draft)}</textarea>`,
+          { id: 'routes/t.stator', kind: 'route' },
+        ),
+      /cannot appear inside <textarea>/,
+    )
   })
 
   it('rejects each() inside <title>; attribute reads on the element stay legal', () => {
-    expect(() =>
-      compile(
-        `---\nimport M from '../machines/m.ts'\nconst [m] = Stator.reads([M])\n---\n<title>{each(read(m, (x) => x.items), (i) => i)}</title>`,
-        { id: 'routes/t.stator', kind: 'route' },
-      ),
-    ).toThrow(/cannot appear inside <title>/)
-    expect(() =>
+    assert.throws(
+      () =>
+        compile(
+          `---\nimport M from '../machines/m.ts'\nconst [m] = Stator.reads([M])\n---\n<title>{each(read(m, (x) => x.items), (i) => i)}</title>`,
+          { id: 'routes/t.stator', kind: 'route' },
+        ),
+      /cannot appear inside <title>/,
+    )
+    assert.doesNotThrow(() =>
       compile(
         `---\nimport M from '../machines/m.ts'\nconst [m] = Stator.reads([M])\n---\n<textarea placeholder={read(m, (x) => x.hint)}></textarea>`,
         { id: 'routes/t.stator', kind: 'route' },
       ),
-    ).not.toThrow()
+    )
   })
 })

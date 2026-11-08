@@ -1,5 +1,6 @@
+import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, it } from 'node:test'
 import { createApp, type StatorApp } from '../src/server/create-app.ts'
 
 const here = resolve(new URL('.', import.meta.url).pathname)
@@ -36,11 +37,17 @@ describe('cookie jar', () => {
   it('writes survive the no-directive 204 path', async () => {
     const app = await boot()
     const res = await post(app)
-    expect(res.status).toBe(204)
+    assert.equal(res.status, 204)
     const jar = setCookies(res)
     // The app cookie set in the handler is present alongside the session cookie.
-    expect(jar.some((c) => c.startsWith('seen=yes'))).toBe(true)
-    expect(jar.some((c) => c.includes('HttpOnly'))).toBe(true)
+    assert.equal(
+      jar.some((c) => c.startsWith('seen=yes')),
+      true,
+    )
+    assert.equal(
+      jar.some((c) => c.includes('HttpOnly')),
+      true,
+    )
   })
 
   it('get() reads the inbound request cookie', async () => {
@@ -48,6 +55,9 @@ describe('cookie jar', () => {
     // Send an existing session so only app cookies are new, plus pref=dark.
     const res = await post(app, 'stator_sid=fixed-sid; pref=dark')
     const jar = setCookies(res)
-    expect(jar.some((c) => c.startsWith('echoed=dark'))).toBe(true)
+    assert.equal(
+      jar.some((c) => c.startsWith('echoed=dark')),
+      true,
+    )
   })
 })

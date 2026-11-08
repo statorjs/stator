@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { findPollLoops } from '../src/server/dev-lint.ts'
 
@@ -50,8 +51,8 @@ const rescueShaped = () =>
 describe('findPollLoops', () => {
   it('flags an after-driven cycle with an entry effect on the loop', () => {
     const findings = findPollLoops([pollShaped()])
-    expect(findings).toHaveLength(1)
-    expect(findings[0]).toMatchObject({
+    assert.equal(findings.length, 1)
+    assert.partialDeepStrictEqual(findings[0], {
       machine: 'Poll',
       state: 'ready',
       event: 'REVALIDATE',
@@ -60,7 +61,7 @@ describe('findPollLoops', () => {
   })
 
   it('does NOT flag after-rescue (timer fires once into a terminal state)', () => {
-    expect(findPollLoops([rescueShaped()])).toHaveLength(0)
+    assert.equal(findPollLoops([rescueShaped()]).length, 0)
   })
 
   it('does NOT flag a cycle with no entry effect on the loop', () => {
@@ -76,7 +77,7 @@ describe('findPollLoops', () => {
       },
       selectors: {},
     })
-    expect(findPollLoops([M])).toHaveLength(0)
+    assert.equal(findPollLoops([M]).length, 0)
   })
 
   it('does NOT flag app machines (housekeeping is their legitimate niche)', () => {
@@ -98,6 +99,6 @@ describe('findPollLoops', () => {
       },
       selectors: {},
     })
-    expect(findPollLoops([M])).toHaveLength(0)
+    assert.equal(findPollLoops([M]).length, 0)
   })
 })

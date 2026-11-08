@@ -1,5 +1,6 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import type { Context } from 'hono'
-import { describe, expect, it } from 'vitest'
 import type { AnyMachineDef } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { getOrCreateSessionId } from '../src/server/session.ts'
@@ -28,21 +29,21 @@ describe('establish-once session', () => {
     const c = fakeContext()
     const first = getOrCreateSessionId(c)
     const second = getOrCreateSessionId(c) // e.g. middleware then a route handler
-    expect(first.isNew).toBe(true)
-    expect(second.sessionId).toBe(first.sessionId)
-    expect(c.setCookies.length).toBe(1) // NOT two — the double-create bug is closed
+    assert.equal(first.isNew, true)
+    assert.equal(second.sessionId, first.sessionId)
+    assert.equal(c.setCookies.length, 1) // NOT two — the double-create bug is closed
   })
 
   it('reads an existing cookie without re-issuing', () => {
     const c = fakeContext('stator_sid=abc-123')
-    expect(getOrCreateSessionId(c)).toEqual({ sessionId: 'abc-123', isNew: false })
-    expect(c.setCookies.length).toBe(0)
+    assert.deepStrictEqual(getOrCreateSessionId(c), { sessionId: 'abc-123', isNew: false })
+    assert.equal(c.setCookies.length, 0)
   })
 })
 
 describe('reserved machine-name guard', () => {
   it('rejects a machine name using the reserved "__" prefix', () => {
     const def = { name: '__claims' } as AnyMachineDef
-    expect(() => new MachineStore([def], new InMemoryStore())).toThrow(/reserved/)
+    assert.throws(() => new MachineStore([def], new InMemoryStore()), /reserved/)
   })
 })

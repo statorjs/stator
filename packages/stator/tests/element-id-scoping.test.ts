@@ -1,5 +1,6 @@
-// @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest'
+// @env happy-dom
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
@@ -65,10 +66,10 @@ describe('element-id scoping (FINDINGS #2)', () => {
         )}`,
     )
     const ids = idsOf(out.html)
-    expect(ids[0]).toBe('e0') // top-level scope: unprefixed
+    assert.equal(ids[0], 'e0') // top-level scope: unprefixed
     // The in-arm node is scoped by its branch arm, so its id doesn't depend on
     // how many element-id'd siblings rendered before it.
-    expect(ids[1]).toMatch(/:btrue:e\d+$/)
+    assert.match(ids[1] ?? '', /:btrue:e\d+$/)
   })
 
   it('re-rendering a branch arm reproduces the IDENTICAL in-arm element id', async () => {
@@ -87,8 +88,8 @@ describe('element-id scoping (FINDINGS #2)', () => {
       )
     const first = idsOf(renderArm())[0]!
     const second = idsOf(renderArm())[0]!
-    expect(first).toMatch(/^s0:btrue:e\d+$/)
-    expect(second).toBe(first) // flat counter would give e0 then e1 → wrong target
+    assert.match(first, /^s0:btrue:e\d+$/)
+    assert.equal(second, first) // flat counter would give e0 then e1 → wrong target
   })
 
   it('element ids inside keyed-list items are key-scoped (stable across a wholesale re-render)', async () => {
@@ -105,6 +106,6 @@ describe('element-id scoping (FINDINGS #2)', () => {
     )
     // Key-scoped, so the SSE initial-sync (which re-renders keyed lists
     // wholesale) reproduces the same ids the server's bindings target.
-    expect(idsOf(out.html)).toEqual(['s0:ka:e0', 's0:kb:e0'])
+    assert.deepStrictEqual(idsOf(out.html), ['s0:ka:e0', 's0:kb:e0'])
   })
 })

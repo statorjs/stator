@@ -1,8 +1,9 @@
-// @vitest-environment happy-dom
+// @env happy-dom
 // Attribute-position `read(item, …)` → itemBind: emits `attr` patches (not
 // `text`), with boolean attribute semantics, and targets the row's key-scoped
 // element id — stable across a move (the scope/identity seam).
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { recompute } from '../src/server/recompute.ts'
@@ -89,26 +90,26 @@ describe('attr-position item bindings', () => {
         )}</ul>`,
     )
     const patches = update(rt, state, [row('a', 'blue')])
-    expect(patches).toHaveLength(1)
-    expect(patches[0]!.op).toBe('attr')
-    expect((patches[0] as { name: string }).name).toBe('class')
-    expect((patches[0] as { value: string }).value).toBe('blue')
+    assert.equal(patches.length, 1)
+    assert.equal(patches[0]!.op, 'attr')
+    assert.equal((patches[0] as { name: string }).name, 'class')
+    assert.equal((patches[0] as { value: string }).value, 'blue')
   })
 
   it('boolean attr: checked true→false emits an attr patch that removes it', async () => {
     const { rt, list, state } = await build([row('a', 'red', true)])
     renderKeyed(state, list)
     const patches = update(rt, state, [row('a', 'red', false)])
-    expect(patches).toHaveLength(1)
-    expect(patches[0]!.op).toBe('attr')
-    expect((patches[0] as { name: string }).name).toBe('checked')
-    expect((patches[0] as { value: string | null }).value).toBeNull()
+    assert.equal(patches.length, 1)
+    assert.equal(patches[0]!.op, 'attr')
+    assert.equal((patches[0] as { name: string }).name, 'checked')
+    assert.equal((patches[0] as { value: string | null }).value, null)
   })
 
   it('unchanged attrs emit nothing on churn', async () => {
     const { rt, list, state } = await build([row('a', 'red', true)])
     renderKeyed(state, list)
-    expect(update(rt, state, [row('a', 'red', true)])).toHaveLength(0)
+    assert.equal(update(rt, state, [row('a', 'red', true)]).length, 0)
   })
 
   it('keyed: an attr patch targets the row’s own element, wherever it moved (the seam)', async () => {
@@ -116,17 +117,20 @@ describe('attr-position item bindings', () => {
     const out = renderKeyed(state, list)
     // <li> element ids in render order: [a's, b's].
     const liIds = [...out.html.matchAll(/<li data-stator-id="([^"]+)"/g)].map((m) => m[1])
-    expect(liIds).toHaveLength(2)
+    assert.equal(liIds.length, 2)
     const bLiId = liIds[1]
 
     // Reorder [a,b] → [b,a] AND change b's color.
     const patches = update(rt, state, [row('b', 'blue'), row('a', 'red')])
-    expect(patches.some((p) => p.op === 'move')).toBe(true)
+    assert.equal(
+      patches.some((p) => p.op === 'move'),
+      true,
+    )
     const classPatch = patches.find(
       (p) => p.op === 'attr' && (p as { name: string }).name === 'class',
     ) as { value: string; target: { id: string } } | undefined
-    expect(classPatch?.value).toBe('blue')
+    assert.equal(classPatch?.value, 'blue')
     // The patch addresses b's element by its key-scoped id — not a's.
-    expect(classPatch?.target.id).toBe(bLiId)
+    assert.equal(classPatch?.target.id, bLiId)
   })
 })

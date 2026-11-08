@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { createActor, defineMachine } from '../src/engine/index.ts'
 
 // Machine-level `on:` — handlers that apply in any state, consulted only when the
@@ -53,26 +54,26 @@ describe('machine-level on:', () => {
     a.send({ type: 'PING' })
     a.send({ type: 'GO' }) // → 'b', also no PING handler
     a.send({ type: 'PING' })
-    expect(a.getSnapshot().context.pings).toBe(2)
+    assert.equal(a.getSnapshot().context.pings, 2)
   })
 
   it('a state-scoped handler wins over the machine-level one (most specific)', () => {
     const a = createActor(make()).start() // state 'a' declares BUMP
     a.send({ type: 'BUMP' })
-    expect(a.getSnapshot().context.localBumps).toBe(1)
-    expect(a.getSnapshot().context.bumps).toBe(0) // machine-level not consulted
+    assert.equal(a.getSnapshot().context.localBumps, 1)
+    assert.equal(a.getSnapshot().context.bumps, 0) // machine-level not consulted
 
     a.send({ type: 'GO' }) // → 'b', which does NOT declare BUMP
     a.send({ type: 'BUMP' })
-    expect(a.getSnapshot().context.bumps).toBe(1) // now the machine-level fires
-    expect(a.getSnapshot().context.localBumps).toBe(1)
+    assert.equal(a.getSnapshot().context.bumps, 1) // now the machine-level fires
+    assert.equal(a.getSnapshot().context.localBumps, 1)
   })
 
   it('an event no state and no machine-level handler declares is still dropped', () => {
     const a = createActor(make()).start()
     const before = a.getSnapshot().context
     a.send({ type: 'NOPE' } as unknown as Events)
-    expect(a.getSnapshot().context).toEqual(before)
+    assert.deepStrictEqual(a.getSnapshot().context, before)
   })
 })
 
@@ -106,7 +107,7 @@ describe('state-union inference', () => {
     })
     const actor = createActor(def).start()
     actor.send({ type: 'PING' })
-    expect(actor.getSnapshot().value).toEqual(['c'])
-    expect(actor.getSnapshot().context.pings).toBe(1)
+    assert.deepStrictEqual(actor.getSnapshot().value, ['c'])
+    assert.equal(actor.getSnapshot().context.pings, 1)
   })
 })

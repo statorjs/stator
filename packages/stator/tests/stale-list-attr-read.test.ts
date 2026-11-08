@@ -1,5 +1,6 @@
-// @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest'
+// @env happy-dom
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { recompute } from '../src/server/recompute.ts'
@@ -75,8 +76,8 @@ describe('class:list read is fresh on fan-out after rehydrate', () => {
     const isClassAttr = (p: Patch): p is Extract<Patch, { op: 'attr' }> =>
       p.op === 'attr' && p.name === 'class'
     const attr = patches.find(isClassAttr)
-    expect(attr).toBeDefined()
-    expect(String(attr!.value)).toBe('btn spinning')
+    assert.notEqual(attr, undefined)
+    assert.equal(String(attr!.value), 'btn spinning')
 
     // And back again — the un-spin patch a second commit must produce.
     const worker2 = new SessionRuntime(sid, store)
@@ -85,7 +86,7 @@ describe('class:list read is fresh on fan-out after rehydrate', () => {
     await conn.rehydrate('M')
     const patches2 = recompute(state, 'M', conn)
     const attr2 = patches2.find(isClassAttr)
-    expect(attr2).toBeDefined()
-    expect(String(attr2!.value)).toBe('btn')
+    assert.notEqual(attr2, undefined)
+    assert.equal(String(attr2!.value), 'btn')
   })
 })

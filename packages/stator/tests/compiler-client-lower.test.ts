@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { type ClientDirective, inferDeps } from '../src/compiler/client-script.ts'
 import { type LowerMeta, lowerTemplate } from '../src/compiler/lower.ts'
 
@@ -23,26 +24,30 @@ function lowerClient(template: string, useFields: string[]) {
 
 describe('compiler: inferDeps', () => {
   it('extracts use-field object references, not property names', () => {
-    expect(inferDeps('qty.count', new Set(['qty']))).toEqual(['qty'])
-    expect(inferDeps('qty.count + other.x', new Set(['qty', 'other']))).toEqual(['qty', 'other'])
+    assert.deepStrictEqual(inferDeps('qty.count', new Set(['qty'])), ['qty'])
+    assert.deepStrictEqual(inferDeps('qty.count + other.x', new Set(['qty', 'other'])), [
+      'qty',
+      'other',
+    ])
   })
   it('ignores identifiers that are not use-fields', () => {
-    expect(inferDeps('qty.count + 5', new Set(['qty']))).toEqual(['qty'])
-    expect(inferDeps('localConst', new Set(['qty']))).toEqual([])
+    assert.deepStrictEqual(inferDeps('qty.count + 5', new Set(['qty'])), ['qty'])
+    assert.deepStrictEqual(inferDeps('localConst', new Set(['qty'])), [])
   })
 })
 
 describe('compiler: client-component lowering', () => {
   it('bind: is a located removal error pointing at read()', () => {
-    expect(() => lowerClient('<span bind:text={qty.count}></span>', ['qty'])).toThrow(
+    assert.throws(
+      () => lowerClient('<span bind:text={qty.count}></span>', ['qty']),
       /bind:text was removed in 2\.0.*read\(\)/s,
     )
   })
 
   it('a client-machine read() in text position lowers to a slot marker', () => {
     const { shell, directives } = lowerClient('<span>{read(qty, (q) => q.count)}</span>', ['qty'])
-    expect(shell).toBe('html`<span><!--s0--></span>`')
-    expect(directives).toEqual([
+    assert.equal(shell, 'html`<span><!--s0--></span>`')
+    assert.deepStrictEqual(directives, [
       {
         marker: 's0',
         kind: 'slot',
@@ -54,8 +59,8 @@ describe('compiler: client-component lowering', () => {
 
   it('collects on: handlers (no deps) and strips them', () => {
     const { shell, directives } = lowerClient('<button on:click={inc}>+</button>', ['qty'])
-    expect(shell).toBe('html`<button data-b="b0">+</button>`')
-    expect(directives).toEqual([
+    assert.equal(shell, 'html`<button data-b="b0">+</button>`')
+    assert.deepStrictEqual(directives, [
       { marker: 'b0', kind: 'on', event: 'click', expr: 'inc', deps: [] },
     ])
   })
@@ -65,9 +70,12 @@ describe('compiler: client-component lowering', () => {
       '<button on:click={inc} disabled={read(qty, (q) => q.atMax)}>+</button>',
       ['qty'],
     )
-    expect(shell).toBe('html`<button data-b="b0">+</button>`')
-    expect(directives.map((d) => d.marker)).toEqual(['b0', 'b0'])
-    expect(directives[1]).toMatchObject({
+    assert.equal(shell, 'html`<button data-b="b0">+</button>`')
+    assert.deepStrictEqual(
+      directives.map((d) => d.marker),
+      ['b0', 'b0'],
+    )
+    assert.partialDeepStrictEqual(directives[1], {
       kind: 'bind',
       target: 'disabled',
       deps: ['qty'],
@@ -79,20 +87,24 @@ describe('compiler: client-component lowering', () => {
       '<div><button on:click={dec}>-</button><span>{read(qty, (q) => q.count)}</span><button on:click={inc}>+</button></div>',
       ['qty'],
     )
-    expect(shell).toBe(
+    assert.equal(
+      shell,
       'html`<div><button data-b="b0">-</button><span><!--s0--></span><button data-b="b1">+</button></div>`',
     )
-    expect(directives.map((d) => d.marker)).toEqual(['b0', 's0', 'b1'])
+    assert.deepStrictEqual(
+      directives.map((d) => d.marker),
+      ['b0', 's0', 'b1'],
+    )
   })
 
   it('keeps ref: (data-ref) alongside collected client wiring', () => {
     const { shell, directives } = lowerClient('<input ref:field on:change={commit} />', ['draft'])
-    expect(shell).toBe('html`<input data-ref="field" data-b="b0">`')
-    expect(directives[0]).toMatchObject({ kind: 'on', event: 'change' })
+    assert.equal(shell, 'html`<input data-ref="field" data-b="b0">`')
+    assert.partialDeepStrictEqual(directives[0], { kind: 'on', event: 'change' })
   })
 
   it('leaves plain attributes and text untouched', () => {
     const { shell } = lowerClient('<button class="x" type="button" on:click={go}>Go</button>', [])
-    expect(shell).toBe('html`<button class="x" type="button" data-b="b0">Go</button>`')
+    assert.equal(shell, 'html`<button class="x" type="button" data-b="b0">Go</button>`')
   })
 })

@@ -1,11 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { createResource } from '../src/template/resource.ts'
 
 describe('peekable resource', () => {
   it('fulfills a synchronous value immediately (defer degrades to inline render)', () => {
     const r = createResource(() => 42)
-    expect(r.status).toBe('fulfilled')
-    expect(r.value).toBe(42)
+    assert.equal(r.status, 'fulfilled')
+    assert.equal(r.value, 42)
   })
 
   it('a synchronous throw is a rejected resource, not an exception', () => {
@@ -13,17 +14,17 @@ describe('peekable resource', () => {
     const r = createResource(() => {
       throw err
     })
-    expect(r.status).toBe('rejected')
-    expect(r.reason).toBe(err)
+    assert.equal(r.status, 'rejected')
+    assert.equal(r.reason, err)
   })
 
   it('is pending until an async value settles, then fulfilled', async () => {
     const r = createResource(() => Promise.resolve('hi'))
-    expect(r.status).toBe('pending')
-    expect(r.value).toBeUndefined()
+    assert.equal(r.status, 'pending')
+    assert.equal(r.value, undefined)
     await r.settled
-    expect(r.status).toBe('fulfilled')
-    expect(r.value).toBe('hi')
+    assert.equal(r.status, 'fulfilled')
+    assert.equal(r.value, 'hi')
   })
 
   it('records a rejection as status=rejected + reason; settled resolves (never rejects)', async () => {
@@ -31,8 +32,8 @@ describe('peekable resource', () => {
     const r = createResource(() => Promise.reject(err))
     // If settled rejected, this await would throw and fail the test.
     await r.settled
-    expect(r.status).toBe('rejected')
-    expect(r.reason).toBe(err)
+    assert.equal(r.status, 'rejected')
+    assert.equal(r.reason, err)
   })
 
   it('a batch of resources can be awaited together, bounded by the slowest', async () => {
@@ -40,6 +41,6 @@ describe('peekable resource', () => {
     const slow = createResource(() => new Promise((res) => setTimeout(() => res('b'), 20)))
     const sync = createResource(() => 'c')
     await Promise.all([fast.settled, slow.settled, sync.settled])
-    expect([fast.value, slow.value, sync.value]).toEqual(['a', 'b', 'c'])
+    assert.deepStrictEqual([fast.value, slow.value, sync.value], ['a', 'b', 'c'])
   })
 })

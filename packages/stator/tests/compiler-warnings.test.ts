@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { compile } from '../src/compiler/compile.ts'
 import { compileWarnings, RAW_SCRIPT_WARNING } from '../src/compiler/warnings.ts'
 
@@ -13,14 +14,14 @@ const json = '{"prerender":[]}'
 ---
 <head>{json ? raw(\`<script type="speculationrules">\${json}</script>\`) : null}</head>`
     const out = compile(src, { id: 'speculation.stator', kind: 'component' })
-    expect(out.scripts).toEqual([])
-    expect(out.isClient).toBe(false)
+    assert.deepStrictEqual(out.scripts, [])
+    assert.equal(out.isClient, false)
 
     const warnings = compileWarnings(src)
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]!.message).toBe(RAW_SCRIPT_WARNING)
-    expect(warnings[0]!.offset).toBe(at(src, '`<script'))
-    expect(warnings[0]!.loc.line).toBe(5)
+    assert.equal(warnings.length, 1)
+    assert.equal(warnings[0]!.message, RAW_SCRIPT_WARNING)
+    assert.equal(warnings[0]!.offset, at(src, '`<script'))
+    assert.equal(warnings[0]!.loc.line, 5)
   })
 
   it('warns in frontmatter too, and for a plain string literal', () => {
@@ -29,33 +30,39 @@ const tag = raw('<script>go()</script>')
 ---
 <p>{tag}</p>`
     const warnings = compileWarnings(src)
-    expect(warnings.map((w) => w.offset)).toEqual([at(src, "'<script>")])
-    expect(warnings[0]!.loc.line).toBe(2)
+    assert.deepStrictEqual(
+      warnings.map((w) => w.offset),
+      [at(src, "'<script>")],
+    )
+    assert.equal(warnings[0]!.loc.line, 2)
   })
 
   it('warns inside an attribute expression and nested JSX', () => {
     const src = `<div data-x={raw('<script src="a.js"></script>')}>{ok && <p>{raw("<SCRIPT>x</SCRIPT>")}</p>}</div>`
-    expect(compileWarnings(src).map((w) => w.offset)).toEqual([
-      at(src, `'<script src`),
-      at(src, '"<SCRIPT>'),
-    ])
+    assert.deepStrictEqual(
+      compileWarnings(src).map((w) => w.offset),
+      [at(src, `'<script src`), at(src, '"<SCRIPT>')],
+    )
   })
 
   it("doesn't warn for a variable passed to raw()", () => {
-    expect(compileWarnings('<head>{raw(snippet)}</head>')).toEqual([])
+    assert.deepStrictEqual(compileWarnings('<head>{raw(snippet)}</head>'), [])
   })
 
   it("doesn't warn for a plain string, which is escaped on output", () => {
-    expect(compileWarnings(`<pre>{'Use <script>…</script> for client code'}</pre>`)).toEqual([])
+    assert.deepStrictEqual(
+      compileWarnings(`<pre>{'Use <script>…</script> for client code'}</pre>`),
+      [],
+    )
   })
 
   it("doesn't warn for a <style> string", () => {
-    expect(compileWarnings(`<head>{raw('<style>p {}</style>')}</head>`)).toEqual([])
+    assert.deepStrictEqual(compileWarnings(`<head>{raw('<style>p {}</style>')}</head>`), [])
   })
 
   it("doesn't warn for a top-level <script> or a lookalike tag", () => {
     const src = `<p>{raw('<scripted-thing></scripted-thing>')}</p>
 <script>export class A extends StatorElement { m() { return raw('<script>') } }</script>`
-    expect(compileWarnings(src)).toEqual([])
+    assert.deepStrictEqual(compileWarnings(src), [])
   })
 })

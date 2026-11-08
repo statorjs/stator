@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import * as server from '../src/server/index.ts'
 import * as runtime from '../src/server/runtime.ts'
 
@@ -16,14 +17,17 @@ describe('/server and /server/runtime', () => {
       'fanOut',
       'isStatorRoute',
     ]) {
-      expect(name in runtime, name).toBe(true)
+      assert.equal(name in runtime, true, name)
     }
   })
 
   // Flips to "shares no value export" in the next major, when the
   // deprecated re-export on /server is removed.
   it('every runtime export is still reachable from /server in 2.x', () => {
-    expect(Object.keys(runtime).filter((k) => !(k in server))).toEqual([])
+    assert.deepStrictEqual(
+      Object.keys(runtime).filter((k) => !(k in server)),
+      [],
+    )
   })
 
   it('the app surface is on /server', () => {
@@ -37,7 +41,7 @@ describe('/server and /server/runtime', () => {
       'probeImage',
       'sessionStore',
     ]) {
-      expect(name in server, name).toBe(true)
+      assert.equal(name in server, true, name)
     }
   })
 })

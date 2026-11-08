@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { compile } from '../src/compiler/compile.ts'
 import { CompileError } from '../src/compiler/diagnostics.ts'
 
@@ -19,15 +20,17 @@ const [cart, products] = Stator.reads([CartMachine, ProductsMachine])
       kind: 'route',
     })
 
-    expect(serverCode).toContain("import { defineRoute } from '@statorjs/stator/server'")
-    expect(serverCode).toContain('export const GET = defineRoute({')
-    expect(serverCode).toContain('reads: [CartMachine, ProductsMachine],')
-    expect(serverCode).toContain('render: (__ctx, __req) => {')
+    assert.ok(serverCode.includes("import { defineRoute } from '@statorjs/stator/server'"))
+    assert.ok(serverCode.includes('export const GET = defineRoute({'))
+    assert.ok(serverCode.includes('reads: [CartMachine, ProductsMachine],'))
+    assert.ok(serverCode.includes('render: (__ctx, __req) => {'))
     // positional binding via runtime machine .name keys
-    expect(serverCode).toContain(
-      'const [cart, products] = [__ctx[CartMachine.name], __ctx[ProductsMachine.name]]',
+    assert.ok(
+      serverCode.includes(
+        'const [cart, products] = [__ctx[CartMachine.name], __ctx[ProductsMachine.name]]',
+      ),
     )
-    expect(serverCode).toContain('return html`')
+    assert.ok(serverCode.includes('return html`'))
   })
 
   it('emits live: true for the // @stator live pragma', () => {
@@ -41,7 +44,7 @@ const [admin] = Stator.reads([AdminMachine])
       id: 'routes/admin.stator',
       kind: 'route',
     })
-    expect(serverCode).toContain('live: true,')
+    assert.ok(serverCode.includes('live: true,'))
   })
 
   it('rewrites Stator.request / Stator.response in a route', () => {
@@ -54,23 +57,23 @@ Stator.response.headers.set('x-test', '1')
       id: 'routes/x.stator',
       kind: 'route',
     })
-    expect(serverCode).toContain("const lang = __req.headers.get('accept-language')")
-    expect(serverCode).toContain("__ctx.response.headers.set('x-test', '1')")
+    assert.ok(serverCode.includes("const lang = __req.headers.get('accept-language')"))
+    assert.ok(serverCode.includes("__ctx.response.headers.set('x-test', '1')"))
   })
 
   it('errors on an unknown pragma', () => {
     const src = `---\n// @stator liev\n---\n<p>x</p>`
-    expect(() => compile(src, { id: 'routes/x.stator', kind: 'route' })).toThrow(/unknown pragma/)
+    assert.throws(() => compile(src, { id: 'routes/x.stator', kind: 'route' }), /unknown pragma/)
   })
 
   describe('capability matrix', () => {
     it('errors: Stator.reads in a component', () => {
       const src = `---\nconst [x] = Stator.reads([M])\n---\n<p/>`
-      expect(() => compile(src, { kind: 'component' })).toThrow(/only available in a route/)
+      assert.throws(() => compile(src, { kind: 'component' }), /only available in a route/)
     })
     it('errors: Stator.props in a route', () => {
       const src = `---\nconst { x } = Stator.props<{ x: number }>()\n---\n<p>{x}</p>`
-      expect(() => compile(src, { kind: 'route' })).toThrow(/not available in a route/)
+      assert.throws(() => compile(src, { kind: 'route' }), /not available in a route/)
     })
     it('errors: Stator.request in a component', () => {
       const src = `---\nconst h = Stator.request.headers\n---\n<p/>`
@@ -78,13 +81,13 @@ Stator.response.headers.set('x-test', '1')
         compile(src, { kind: 'component' })
         throw new Error('expected throw')
       } catch (e) {
-        expect(e).toBeInstanceOf(CompileError)
-        expect((e as CompileError).message).toContain('only available in a route')
+        assert.ok(e instanceof CompileError)
+        assert.ok((e as CompileError).message.includes('only available in a route'))
       }
     })
     it('errors: // @stator live in a component', () => {
       const src = `---\n// @stator live\n---\n<p/>`
-      expect(() => compile(src, { kind: 'component' })).toThrow(/only valid in a route/)
+      assert.throws(() => compile(src, { kind: 'component' }), /only valid in a route/)
     })
   })
 })

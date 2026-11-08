@@ -1,6 +1,8 @@
-// @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+// @env happy-dom
+import assert from 'node:assert/strict'
+import { afterEach, beforeEach, describe, it, mock } from 'node:test'
 import { initLiveChannel } from '../src/client/runtime.ts'
+import { stubGlobal, unstubAllGlobals, useFakeTimers } from './helpers/mocks.ts'
 
 /** Test-driven EventSource: the runtime sees the standard surface, tests
  *  drive open/message/error. A closed instance goes inert, matching the
@@ -57,12 +59,12 @@ function listen(name: string): unknown[] {
 let handle: { close(): void } | undefined
 
 beforeEach(() => {
-  vi.useFakeTimers()
-  vi.stubGlobal('EventSource', FakeEventSource)
+  useFakeTimers()
+  stubGlobal('EventSource', FakeEventSource)
   FakeEventSource.instances = []
   document.head.innerHTML = '<meta name="stator-live" content="true">'
-  vi.spyOn(console, 'warn').mockImplementation(() => {})
-  vi.spyOn(console, 'error').mockImplementation(() => {})
+  mock.method(console, 'warn', () => {})
+  mock.method(console, 'error', () => {})
 })
 
 afterEach(() => {
@@ -75,9 +77,9 @@ afterEach(() => {
   // `hidden` is stamped onto the document itself, so it outlives the test
   // that set it unless it's put back.
   Object.defineProperty(document, 'hidden', { value: false, configurable: true })
-  vi.unstubAllGlobals()
-  vi.useRealTimers()
-  vi.restoreAllMocks()
+  unstubAllGlobals()
+  mock.timers.reset()
+  mock.restoreAll()
 })
 
 function connectionAttr(): string | null {
@@ -101,22 +103,22 @@ describe('live channel (SSE client)', () => {
   it('marks the page connected on open and applies pushed patches', () => {
     document.body.innerHTML = '<span data-slot="s0">old</span>'
     handle = initLiveChannel()
-    expect(FakeEventSource.instances).toHaveLength(1)
+    assert.equal(FakeEventSource.instances.length, 1)
     const es = FakeEventSource.instances[0]!
 
     es.emitOpen()
-    expect(connectionAttr()).toBe('connected')
+    assert.equal(connectionAttr(), 'connected')
 
     es.emitMessage({ patches: [{ target: { kind: 'slot', id: 's0' }, op: 'text', value: 'new' }] })
-    expect(document.querySelector('[data-slot="s0"]')!.textContent).toBe('new')
+    assert.equal(document.querySelector('[data-slot="s0"]')!.textContent, 'new')
   })
 
   it('does nothing on a non-live route', () => {
     document.head.innerHTML = ''
     handle = initLiveChannel()
-    expect(handle).toBeUndefined()
-    expect(FakeEventSource.instances).toHaveLength(0)
-    expect(connectionAttr()).toBeNull()
+    assert.equal(handle, undefined)
+    assert.equal(FakeEventSource.instances.length, 0)
+    assert.equal(connectionAttr(), null)
   })
 
   it('announces disconnected once across repeated errors (change guard)', () => {
@@ -129,8 +131,8 @@ describe('live channel (SSE client)', () => {
     es.emitError()
     es.emitError()
 
-    expect(connectionAttr()).toBe('disconnected')
-    expect(states).toMatchObject([{ state: 'connected' }, { state: 'disconnected' }])
+    assert.equal(connectionAttr(), 'disconnected')
+    assert.partialDeepStrictEqual(states, [{ state: 'connected' }, { state: 'disconnected' }])
   })
 
   it('stays on one connection while ping frames arrive', () => {
@@ -139,12 +141,12 @@ describe('live channel (SSE client)', () => {
     es.emitOpen()
 
     for (let i = 0; i < 5; i++) {
-      vi.advanceTimersByTime(25_000)
+      mock.timers.tick(25_000)
       es.emitMessage({ ping: true })
     }
 
-    expect(FakeEventSource.instances).toHaveLength(1)
-    expect(connectionAttr()).toBe('connected')
+    assert.equal(FakeEventSource.instances.length, 1)
+    assert.equal(connectionAttr(), 'connected')
   })
 
   it('rebuilds a stale channel in place instead of reloading, and the new sync applies', () => {
@@ -155,25 +157,25 @@ describe('live channel (SSE client)', () => {
     first.emitOpen()
 
     // 70s of silence: two missed pings on a visible page → watchdog fires.
-    vi.advanceTimersByTime(70_000)
+    mock.timers.tick(70_000)
 
-    expect(FakeEventSource.instances).toHaveLength(2)
-    expect(first.readyState).toBe(FakeEventSource.CLOSED)
-    expect(states).toMatchObject([{ state: 'connected' }, { state: 'stale' }])
+    assert.equal(FakeEventSource.instances.length, 2)
+    assert.equal(first.readyState, FakeEventSource.CLOSED)
+    assert.partialDeepStrictEqual(states, [{ state: 'connected' }, { state: 'stale' }])
 
     // The rebuilt connection's server-side initial sync converges the DOM.
     const second = FakeEventSource.instances[1]!
     second.emitOpen()
-    expect(connectionAttr()).toBe('connected')
+    assert.equal(connectionAttr(), 'connected')
     second.emitMessage({
       patches: [{ target: { kind: 'slot', id: 's0' }, op: 'text', value: 'synced' }],
     })
-    expect(document.querySelector('[data-slot="s0"]')!.textContent).toBe('synced')
+    assert.equal(document.querySelector('[data-slot="s0"]')!.textContent, 'synced')
 
     // Another silent stretch produces exactly one more rebuild — the fresh
     // grace period on connect prevents a tight reconnect loop.
-    vi.advanceTimersByTime(70_000)
-    expect(FakeEventSource.instances).toHaveLength(3)
+    mock.timers.tick(70_000)
+    assert.equal(FakeEventSource.instances.length, 3)
   })
 })
 
@@ -186,27 +188,27 @@ describe('live channel — proactive release', () => {
     first.emitOpen()
 
     setHidden(true)
-    vi.advanceTimersByTime(29_000)
-    expect(first.readyState).toBe(FakeEventSource.OPEN) // still inside the grace
+    mock.timers.tick(29_000)
+    assert.equal(first.readyState, FakeEventSource.OPEN) // still inside the grace
 
-    vi.advanceTimersByTime(2_000)
-    expect(first.readyState).toBe(FakeEventSource.CLOSED)
-    expect(connectionAttr()).toBe('idle')
-    expect(FakeEventSource.instances).toHaveLength(1) // released, not rebuilt
+    mock.timers.tick(2_000)
+    assert.equal(first.readyState, FakeEventSource.CLOSED)
+    assert.equal(connectionAttr(), 'idle')
+    assert.equal(FakeEventSource.instances.length, 1) // released, not rebuilt
 
     setHidden(false)
-    expect(FakeEventSource.instances).toHaveLength(2)
+    assert.equal(FakeEventSource.instances.length, 2)
     const second = FakeEventSource.instances[1]!
     second.emitOpen()
-    expect(connectionAttr()).toBe('connected')
+    assert.equal(connectionAttr(), 'connected')
 
     // Reconnect is a full resync — the server's initial sync converges the DOM
     // over whatever it missed while released.
     second.emitMessage({
       patches: [{ target: { kind: 'slot', id: 's0' }, op: 'text', value: 'caught up' }],
     })
-    expect(document.querySelector('[data-slot="s0"]')!.textContent).toBe('caught up')
-    expect(states).toMatchObject([
+    assert.equal(document.querySelector('[data-slot="s0"]')!.textContent, 'caught up')
+    assert.partialDeepStrictEqual(states, [
       { state: 'connected' },
       { state: 'idle' },
       { state: 'connected' },
@@ -220,41 +222,41 @@ describe('live channel — proactive release', () => {
 
     for (let i = 0; i < 3; i++) {
       setHidden(true)
-      vi.advanceTimersByTime(20_000)
+      mock.timers.tick(20_000)
       setHidden(false)
-      vi.advanceTimersByTime(1_000)
+      mock.timers.tick(1_000)
     }
 
-    expect(es.readyState).toBe(FakeEventSource.OPEN)
-    expect(FakeEventSource.instances).toHaveLength(1)
-    expect(connectionAttr()).toBe('connected')
+    assert.equal(es.readyState, FakeEventSource.OPEN)
+    assert.equal(FakeEventSource.instances.length, 1)
+    assert.equal(connectionAttr(), 'connected')
   })
 
   it('reports idle, not disconnected — offline banners key off the fault states', () => {
     handle = initLiveChannel()
     FakeEventSource.instances[0]!.emitOpen()
     setHidden(true)
-    vi.advanceTimersByTime(31_000)
+    mock.timers.tick(31_000)
 
     // The three shipped apps hang `body::before` off these two selectors; a
     // deliberate release must not trip them on every tab switch.
-    expect(connectionAttr()).not.toBe('disconnected')
-    expect(connectionAttr()).not.toBe('stale')
-    expect(connectionAttr()).toBe('idle')
+    assert.notEqual(connectionAttr(), 'disconnected')
+    assert.notEqual(connectionAttr(), 'stale')
+    assert.equal(connectionAttr(), 'idle')
   })
 
   it('does not run the staleness watchdog while released', () => {
     handle = initLiveChannel()
     FakeEventSource.instances[0]!.emitOpen()
     setHidden(true)
-    vi.advanceTimersByTime(31_000)
-    expect(FakeEventSource.instances).toHaveLength(1)
+    mock.timers.tick(31_000)
+    assert.equal(FakeEventSource.instances.length, 1)
 
     // Long past STALE_MS. A released channel is not a stale one — the watchdog
     // must not resurrect a connection for a page nobody is watching.
-    vi.advanceTimersByTime(300_000)
-    expect(FakeEventSource.instances).toHaveLength(1)
-    expect(connectionAttr()).toBe('idle')
+    mock.timers.tick(300_000)
+    assert.equal(FakeEventSource.instances.length, 1)
+    assert.equal(connectionAttr(), 'idle')
   })
 
   it('releases on pagehide and reconnects on a bfcache restore', () => {
@@ -263,20 +265,20 @@ describe('live channel — proactive release', () => {
     first.emitOpen()
 
     window.dispatchEvent(new Event('pagehide'))
-    expect(first.readyState).toBe(FakeEventSource.CLOSED)
-    expect(connectionAttr()).toBe('idle')
+    assert.equal(first.readyState, FakeEventSource.CLOSED)
+    assert.equal(connectionAttr(), 'idle')
 
     firePageShow(true)
-    expect(FakeEventSource.instances).toHaveLength(2)
+    assert.equal(FakeEventSource.instances.length, 2)
     FakeEventSource.instances[1]!.emitOpen()
-    expect(connectionAttr()).toBe('connected')
+    assert.equal(connectionAttr(), 'connected')
   })
 
   it('ignores a non-persisted pageshow (ordinary load, runtime already connected)', () => {
     handle = initLiveChannel()
     FakeEventSource.instances[0]!.emitOpen()
     firePageShow(false)
-    expect(FakeEventSource.instances).toHaveLength(1)
+    assert.equal(FakeEventSource.instances.length, 1)
   })
 
   it('releases immediately on freeze — a frozen tab runs no timers', () => {
@@ -286,12 +288,12 @@ describe('live channel — proactive release', () => {
 
     setHidden(true)
     document.dispatchEvent(new Event('freeze'))
-    expect(first.readyState).toBe(FakeEventSource.CLOSED)
-    expect(connectionAttr()).toBe('idle')
+    assert.equal(first.readyState, FakeEventSource.CLOSED)
+    assert.equal(connectionAttr(), 'idle')
 
     setHidden(false)
     document.dispatchEvent(new Event('resume'))
-    expect(FakeEventSource.instances).toHaveLength(2)
+    assert.equal(FakeEventSource.instances.length, 2)
   })
 
   it('replaces rather than stacks when the channel is re-initialized', () => {
@@ -300,14 +302,14 @@ describe('live channel — proactive release', () => {
     first.emitOpen()
 
     handle = initLiveChannel()
-    expect(first.readyState).toBe(FakeEventSource.CLOSED)
-    expect(FakeEventSource.instances).toHaveLength(2)
+    assert.equal(first.readyState, FakeEventSource.CLOSED)
+    assert.equal(FakeEventSource.instances.length, 2)
 
     // The superseded channel's watchdog is gone too — otherwise its interval
     // would keep firing forever with nothing able to reach it.
     FakeEventSource.instances[1]!.emitOpen()
-    vi.advanceTimersByTime(70_000)
-    expect(FakeEventSource.instances).toHaveLength(3)
+    mock.timers.tick(70_000)
+    assert.equal(FakeEventSource.instances.length, 3)
   })
 
   it('emits the raw envelope for observers before interpreting it', () => {
@@ -317,6 +319,6 @@ describe('live channel — proactive release', () => {
     es.emitOpen()
     es.emitMessage({ dev: { type: 'error', message: 'boom' } })
 
-    expect(seen).toMatchObject([{ envelope: { dev: { type: 'error', message: 'boom' } } }])
+    assert.partialDeepStrictEqual(seen, [{ envelope: { dev: { type: 'error', message: 'boom' } } }])
   })
 })

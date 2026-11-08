@@ -1,7 +1,9 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it, vi } from 'vitest'
 import { createApp } from '../src/server/create-app.ts'
+import { waitFor } from './helpers/mocks.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const efFixtures = resolve(here, 'fixtures/entry-effects')
@@ -30,13 +32,13 @@ describe('`after` state timeouts', () => {
     const app = await boot()
     const r1 = await get(app)
     const cookie = r1.headers.get('set-cookie')!.split(';')[0]!
-    expect(statusOf(await r1.text())).toBe('loading') // initial render, timer armed
+    assert.equal(statusOf(await r1.text()), 'loading') // initial render, timer armed
 
     // loading.entry returns null (no LOADED) — only the `after` timer moves the
     // machine on. It fires ~20ms later, re-enters TIMEOUT, and lands `error`.
-    await vi.waitFor(
+    await waitFor(
       async () => {
-        expect(await statusVia(app, cookie)).toBe('error')
+        assert.equal(await statusVia(app, cookie), 'error')
       },
       { timeout: 2000, interval: 10 },
     )
@@ -59,12 +61,12 @@ describe('`after` state timeouts', () => {
         body: JSON.stringify({ machine: 'TimeoutLoaderMachine', event: { type: 'LOADED' } }),
       }),
     )
-    expect(res.status).toBe(200)
-    expect(await statusVia(app, cookie)).toBe('ready')
+    assert.equal(res.status, 200)
+    assert.equal(await statusVia(app, cookie), 'ready')
 
     // Past the original timeout: the cancelled timer must not fire TIMEOUT, so
     // the machine stays `ready` rather than being knocked to `error`.
     await new Promise((r) => setTimeout(r, 60))
-    expect(await statusVia(app, cookie)).toBe('ready')
+    assert.equal(await statusVia(app, cookie), 'ready')
   })
 })

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { buildHonoApp } from '../src/server/http.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { type DiscoveredRoute, sortRoutes } from '../src/server/route-discovery.ts'
@@ -76,8 +77,8 @@ describe('cascading 404s', () => {
     const app = await appWithRoutes([specific, catchAll])
 
     const res = await app.fetch(new Request('http://localhost/posts/known'))
-    expect(res.status).toBe(200)
-    expect(await res.text()).toBe('specific: known post')
+    assert.equal(res.status, 200)
+    assert.equal(await res.text(), 'specific: known post')
   })
 
   it('data route: a 404 from the specific match cascades into the catch-all, which succeeds', async () => {
@@ -104,8 +105,8 @@ describe('cascading 404s', () => {
     const app = await appWithRoutes([specific, catchAll])
 
     const res = await app.fetch(new Request('http://localhost/posts/unknown-slug'))
-    expect(res.status).toBe(200)
-    expect(await res.text()).toBe('catch-all: unknown-slug')
+    assert.equal(res.status, 200)
+    assert.equal(await res.text(), 'catch-all: unknown-slug')
   })
 
   it('data route: every matching candidate 404ing returns the LAST one’s own response, not a generic 404', async () => {
@@ -136,9 +137,9 @@ describe('cascading 404s', () => {
     const app = await appWithRoutes([specific, catchAll])
 
     const res = await app.fetch(new Request('http://localhost/dead-end/anything'))
-    expect(res.status).toBe(404)
-    expect(await res.text()).toBe('catch-all dead end')
-    expect(res.headers.get('x-candidate')).toBe('catch-all')
+    assert.equal(res.status, 404)
+    assert.equal(await res.text(), 'catch-all dead end')
+    assert.equal(res.headers.get('x-candidate'), 'catch-all')
   })
 
   it('page route: a more specific match that succeeds wins outright, status 200', async () => {
@@ -176,8 +177,8 @@ describe('cascading 404s', () => {
     const app = await appWithRoutes([specific, catchAll])
 
     const res = await app.fetch(new Request('http://localhost/pages/known'))
-    expect(res.status).toBe(200)
-    expect(await res.text()).toContain('specific page: known')
+    assert.equal(res.status, 200)
+    assert.ok((await res.text()).includes('specific page: known'))
   })
 
   it('page route: a 404 from the specific match cascades into the catch-all page — status 200, not stuck at 404', async () => {
@@ -220,14 +221,14 @@ describe('cascading 404s', () => {
     // c.status(...) for a non-200 status, so a losing 404 candidate ahead of
     // a winning 200 one would leave the final response's status stuck at
     // 404 even though 200-page content actually went out.
-    expect(res.status).toBe(200)
-    expect(await res.text()).toContain('catch-all page')
+    assert.equal(res.status, 200)
+    assert.ok((await res.text()).includes('catch-all page'))
   })
 
   it('a path matching no route at all still 404s normally (no candidates to cascade through)', async () => {
     const app = await appWithRoutes([])
     const res = await app.fetch(new Request('http://localhost/nothing-matches-this'))
-    expect(res.status).toBe(404)
+    assert.equal(res.status, 404)
   })
 })
 
@@ -263,14 +264,14 @@ describe('the 404 convention (a 404.stator/404.ts file) composes with cascading'
     // The user's catch-all can still fully serve a request on its own —
     // the 404 fallback never even runs.
     const hit = await app.fetch(new Request('http://localhost/blog/archive'))
-    expect(hit.status).toBe(200)
-    expect(await hit.text()).toBe('user catch-all: archive index')
+    assert.equal(hit.status, 200)
+    assert.equal(await hit.text(), 'user catch-all: archive index')
 
     // Only once the user's own catch-all ALSO 404s does it cascade past it
     // into the 404-fallback route.
     const miss = await app.fetch(new Request('http://localhost/blog/no-such-post'))
-    expect(miss.status).toBe(404)
-    expect(await miss.text()).toBe('the actual 404 page')
+    assert.equal(miss.status, 404)
+    assert.equal(await miss.text(), 'the actual 404 page')
   })
 })
 
@@ -306,9 +307,9 @@ describe('cascading never crosses the suffixed-vs-bare-param boundary', () => {
     const app = await appWithRoutes([jsonData, htmlPage])
 
     const res = await app.fetch(new Request('http://localhost/p/nope1234.json'))
-    expect(res.status).toBe(404)
-    expect(res.headers.get('content-type')).toContain('json')
-    expect(await res.json()).toEqual({ error: 'no such poll' })
+    assert.equal(res.status, 404)
+    assert.ok(res.headers.get('content-type')?.includes('json'))
+    assert.deepStrictEqual(await res.json(), { error: 'no such poll' })
   })
 
   it('a bare param route on its own (no suffixed sibling) still 404s normally — this is about the pairing, not bare params generally', async () => {
@@ -329,7 +330,7 @@ describe('cascading never crosses the suffixed-vs-bare-param boundary', () => {
     const app = await appWithRoutes([htmlPage])
 
     const res = await app.fetch(new Request('http://localhost/p/nope'))
-    expect(res.status).toBe(404)
+    assert.equal(res.status, 404)
   })
 
   it("a suffixed param route's 404 ALSO does not cascade into a rest/catch-all sibling — the same wrong-content-type failure, just via a different candidate kind", async () => {
@@ -360,8 +361,8 @@ describe('cascading never crosses the suffixed-vs-bare-param boundary', () => {
     const app = await appWithRoutes([jsonData, htmlCatchAll])
 
     const res = await app.fetch(new Request('http://localhost/p/nope1234.json'))
-    expect(res.status).toBe(404)
-    expect(res.headers.get('content-type')).toContain('json')
-    expect(await res.json()).toEqual({ error: 'no such poll' })
+    assert.equal(res.status, 404)
+    assert.ok(res.headers.get('content-type')?.includes('json'))
+    assert.deepStrictEqual(await res.json(), { error: 'no such poll' })
   })
 })

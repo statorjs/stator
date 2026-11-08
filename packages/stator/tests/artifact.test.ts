@@ -1,9 +1,10 @@
+import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { afterEach, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { afterEach, describe, expect, it } from 'vitest'
 import { writeArtifactDeps } from '../src/build/artifact.ts'
 
 /**
@@ -55,14 +56,14 @@ describe('artifact deps: a self-contained app', () => {
       packages: ['@statorjs/stator'],
     })
 
-    expect(deps.kind).toBe('copied')
-    expect(deps.files).toEqual(['package.json', 'package-lock.json'])
-    expect(deps.install).toBe('npm ci --omit=dev')
+    assert.equal(deps.kind, 'copied')
+    assert.deepStrictEqual(deps.files, ['package.json', 'package-lock.json'])
+    assert.equal(deps.install, 'npm ci --omit=dev')
     // Verbatim: a rewritten manifest would fail `npm ci`'s sync check, and a
     // frozen pnpm install compares the lockfile's importer manifest to this file.
     const copied = JSON.parse(await readFile(join(root, 'out/package.json'), 'utf8'))
-    expect(copied.dependencies['@statorjs/stator']).toBe('^2.9.0')
-    expect(copied.version).toBe('1.2.3')
+    assert.equal(copied.dependencies['@statorjs/stator'], '^2.9.0')
+    assert.equal(copied.version, '1.2.3')
   })
 
   it('infers the install command from the lockfile it finds', async () => {
@@ -71,8 +72,8 @@ describe('artifact deps: a self-contained app', () => {
       'pnpm-lock.yaml': "lockfileVersion: '9.0'\n",
     })
     const deps = await writeArtifactDeps({ root, outDir: join(root, 'out'), packages: [] })
-    expect(deps.kind).toBe('copied')
-    expect(deps.install).toBe('pnpm install --frozen-lockfile --prod')
+    assert.equal(deps.kind, 'copied')
+    assert.equal(deps.install, 'pnpm install --frozen-lockfile --prod')
   })
 })
 
@@ -97,16 +98,16 @@ describe('artifact deps: a workspace member', () => {
       packages: ['@statorjs/stator', 'debug'],
     })
 
-    expect(deps.kind).toBe('generated')
-    expect(deps.pinned).toEqual({ '@statorjs/stator': '2.9.1', debug: '4.4.3' })
-    expect(deps.unpinned).toBeUndefined()
+    assert.equal(deps.kind, 'generated')
+    assert.deepStrictEqual(deps.pinned, { '@statorjs/stator': '2.9.1', debug: '4.4.3' })
+    assert.equal(deps.unpinned, undefined)
 
     const generated = JSON.parse(await readFile(join(root, 'out/package.json'), 'utf8'))
     // `workspace:*` became a real, installable version.
-    expect(generated.dependencies['@statorjs/stator']).toBe('2.9.1')
+    assert.equal(generated.dependencies['@statorjs/stator'], '2.9.1')
     // dist becomes the deploy root, with nothing above it to inherit `type` from.
-    expect(generated.type).toBe('module')
-    expect(generated.scripts.start).toBe('stator start')
+    assert.equal(generated.type, 'module')
+    assert.equal(generated.scripts.start, 'stator start')
   })
 
   it('declares only what the app reached', async () => {
@@ -120,7 +121,7 @@ describe('artifact deps: a workspace member', () => {
       'node_modules/unused/package.json': JSON.stringify({ name: 'unused', version: '1.0.0' }),
     })
     const deps = await writeArtifactDeps({ root, outDir: join(root, 'out'), packages: ['used'] })
-    expect(Object.keys(deps.pinned ?? {})).toEqual(['used'])
+    assert.deepStrictEqual(Object.keys(deps.pinned ?? {}), ['used'])
   })
 
   it('reports a dependency it could not pin instead of inventing a version', async () => {
@@ -132,8 +133,8 @@ describe('artifact deps: a workspace member', () => {
       }),
     })
     const deps = await writeArtifactDeps({ root, outDir: join(root, 'out'), packages: ['ghost'] })
-    expect(deps.unpinned).toEqual(['ghost'])
-    expect(deps.pinned?.ghost).toBe('^3.1.0') // the declared range, not a guess
+    assert.deepStrictEqual(deps.unpinned, ['ghost'])
+    assert.equal(deps.pinned?.ghost, '^3.1.0') // the declared range, not a guess
   })
 })
 
@@ -141,7 +142,7 @@ describe('artifact deps: no manifest at all', () => {
   it('writes nothing', async () => {
     const root = await app({ 'routes/index.ts': 'export const GET = {}\n' })
     const deps = await writeArtifactDeps({ root, outDir: join(root, 'out'), packages: [] })
-    expect(deps).toEqual({ kind: 'none', files: [] })
+    assert.deepStrictEqual(deps, { kind: 'none', files: [] })
   })
 })
 
@@ -162,7 +163,7 @@ describe('stator start: the artifact must be complete', { timeout: 30_000 }, () 
       out += b
     })
     const code = await new Promise<number | null>((done) => child.once('exit', done))
-    expect(code, `expected a non-zero exit, got:\n${out}`).not.toBe(0)
+    assert.notEqual(code, 0, `expected a non-zero exit, got:\n${out}`)
     return out
   }
 
@@ -192,7 +193,7 @@ describe('stator start: the artifact must be complete', { timeout: 30_000 }, () 
     // "no config" and "the config didn't travel" are indistinguishable here, and
     // guessing wrong silently downgrades persistence to in-memory.
     const root = await artifact({ statorVersion: undefined }, false)
-    expect(await startFails(root)).toMatch(/older stator|run `stator build`/)
+    assert.match(await startFails(root), /older stator|run `stator build`/)
   })
 
   it('refuses an artifact compiled by a different framework minor', async () => {
@@ -205,8 +206,8 @@ describe('stator start: the artifact must be complete', { timeout: 30_000 }, () 
     // by 2.9.1, framework installed at 2.0.0.
     const root = await artifact({ config: null, statorVersion: '1.4.0' }, false)
     const out = await startFails(root)
-    expect(out).toMatch(/compiled by @statorjs\/stator 1\.4\.0/)
-    expect(out).toMatch(/rebuild/)
+    assert.match(out, /compiled by @statorjs\/stator 1\.4\.0/)
+    assert.match(out, /rebuild/)
   })
 
   it('accepts a patch-level difference, which cannot change the emit', async () => {
@@ -218,11 +219,11 @@ describe('stator start: the artifact must be complete', { timeout: 30_000 }, () 
     // Not the version guard — it gets far enough to fail on something else
     // (no machines/ in this hand-built artifact), which is the point.
     const out = await startFails(root)
-    expect(out).not.toMatch(/compiled by @statorjs/)
+    assert.doesNotMatch(out, /compiled by @statorjs/)
   })
 
   it('refuses an artifact whose recorded config is missing', async () => {
     const root = await artifact({ config: 'stator.config.ts' }, false)
-    expect(await startFails(root)).toMatch(/incomplete|not in the artifact/)
+    assert.match(await startFails(root), /incomplete|not in the artifact/)
   })
 })
