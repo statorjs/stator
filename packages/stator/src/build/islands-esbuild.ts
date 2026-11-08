@@ -141,7 +141,9 @@ export const bundleIslandsEsbuild: IslandBundler = async (opts: BundleIslandsOpt
     format: 'esm',
     write: false,
     metafile: true,
-    minify: true,
+    // Dev bundles (the mapped ones) keep their identifiers, so the debugger's
+    // scope shows `clouds`, not a minified `z`; production stays minified.
+    minify: !opts.sourcemap,
     publicPath,
     sourcemap: opts.sourcemap ? 'inline' : false,
     entryNames: '[name]-[hash]',
