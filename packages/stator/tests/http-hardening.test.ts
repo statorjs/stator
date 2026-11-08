@@ -175,7 +175,7 @@ describe('session cookie flags', () => {
 })
 
 describe('committed reflects actual transitions', () => {
-  it('a guard-dropped / unhandled event reports committed: false, zero patches', async () => {
+  it('an event the chart handles elsewhere reports committed: false; one it never handles is a 400', async () => {
     const app = await boot()
     const page = await app.fetch(new Request('http://localhost/submitter'))
     const cookie = page.headers.get('set-cookie')!.split(';')[0]!
@@ -191,13 +191,22 @@ describe('committed reflects actual transitions', () => {
           body: JSON.stringify({ machine: 'SubmitterMachine', event }),
         }),
       )
-    // An event no state handles: HTTP 200, but nothing committed.
-    const dropped = (await (await post({ type: 'NO_SUCH_EVENT' })).json()) as {
-      committed: boolean
-      patches: unknown[]
-    }
+    // DONE is handled in `pending`, not in `idle`: a stale event, which reaches
+    // the machine and commits nothing.
+    const stale = await post({ type: 'DONE', receipt: 'x' })
+    assert.equal(stale.status, 200)
+    const dropped = (await stale.json()) as { committed: boolean; patches: unknown[] }
     assert.equal(dropped.committed, false)
     assert.deepStrictEqual(dropped.patches, [])
+    // An event no part of the chart handles can never commit: refused, named.
+    const unknown = await post({ type: 'NO_SUCH_EVENT' })
+    assert.equal(unknown.status, 400)
+    assert.match(
+      ((await unknown.json()) as { error: string }).error,
+      /handles no event "NO_SUCH_EVENT"/,
+    )
+    // A prototype name is not a handler either.
+    assert.equal((await post({ type: 'toString' })).status, 400)
   })
 })
 

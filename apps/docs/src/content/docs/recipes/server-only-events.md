@@ -40,6 +40,8 @@ Whether *this* user may commit an event they *are* allowed to send is still the 
 
 The gate runs everywhere. Because the declaration is explicit — you asserted these events are server-generated — there is no false-positive risk and no dev/prod divergence: a UI that accidentally dispatches a server-only event fails the same 403 locally that it would in production, so you catch it while building.
 
+The wire has one more rule beside it. An event type the machine's chart never handles, in any state or at machine level, is refused with **400** naming it: it can never commit, so it is a typo or a client from an older deploy. An event the chart handles in a *different* state is not refused; the same click can be valid now and stale a moment later, so it reaches the machine and reports `committed: false`.
+
 ## When a completion needs to carry proof
 
 `serverOnly` closes the wire path. If you also want a completion to be unforgeable on the *internal* path — say an effect in one machine dispatches into another, and you want to prove it was your effect that did it — fall back to the pattern the whole engine is built on: make the event **carry its own proof**. The effect stashes a server-set nonce in context and the completion's guard requires it.
