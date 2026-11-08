@@ -1,5 +1,17 @@
 # @statorjs/stator
 
+## 3.0.0-next.0
+
+### Major Changes
+
+- 7ee7692: `stator test` runs Node's built-in test runner instead of Vitest. Tests use `node:test` and `node:assert/strict`, with `mock.fn`, `mock.method` and `mock.timers` for spies and fake timers, so an app installs nothing to test. Every `*.test.ts` and `*.spec.ts` under the app runs, each file in its own process; arguments pass through (`stator test --watch`, `stator test tests/cart.test.ts`). A file that needs browser globals puts `// @env happy-dom` on its own line and keeps happy-dom as a dev dependency; no other file sees a DOM. Wire tests boot the dev app in-process with no Vite and no `STATOR_VITE_DEV`. The preload is exported as `@statorjs/stator/test-env` for runs outside the CLI.
+
+  Migrating: replace `import { describe, it, expect, vi } from 'vitest'` with `node:test` and `node:assert/strict` imports (`expect(a).toBe(b)` → `assert.equal(a, b)`, `toEqual` → `assert.deepStrictEqual`, `toMatchObject` → `assert.partialDeepStrictEqual`, `toThrow` → `assert.throws`, `vi.fn` → `mock.fn`, `vi.spyOn(o, 'm')` → `mock.method(o, 'm')`, fake timers → `mock.timers`), rename `beforeAll`/`afterAll` to `before`/`after`, and change a `@vitest-environment happy-dom` comment to `// @env happy-dom`. Vitest's `toEqual` ignored keys whose value is `undefined`; `deepStrictEqual` does not.
+
+- 7ee7692: Vite is gone. `stator dev` has run apps natively since 2.6; now the transitional Vite dev server (`STATOR_VITE_DEV=1`), the Vite island bundler (`STATOR_ISLAND_BUNDLER`), the `@statorjs/stator/vite` plugin and the optional `vite` peer dependency are removed, and esbuild bundles client islands in dev and in `stator build` alike. `DevApp.vite` and the deprecated `createNativeDevApp` alias are removed; `createDevApp` is the native dev server.
+
+  Migrating: remove `vite` from your dev dependencies and any `STATOR_VITE_DEV` or `STATOR_ISLAND_BUNDLER` from scripts and CI. Tests that booted the dev app in-process with `STATOR_VITE_DEV=1` run without it under `stator test`. Stator never read a `vite.config.*`, so there is nothing else to move.
+
 ## 2.16.0
 
 ### Minor Changes
