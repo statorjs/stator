@@ -93,7 +93,14 @@ export async function load(url, context, nextLoad) {
       : { id: path, kind: /[\\/]routes[\\/]/.test(path) ? 'route' : 'component' }
     let result
     try {
-      result = compile(source, { id, kind, resolveRegions: regionResolverFor(path, source) })
+      result = compile(source, {
+        id,
+        kind,
+        resolveRegions: regionResolverFor(path, source),
+        // esbuild chains this map through its transform below, so stack traces
+        // and breakpoints land on the .stator file itself.
+        sourceMap: { source: path },
+      })
     } catch (err) {
       // Errors cross back to the main thread as plain Errors (custom props are
       // dropped), so bake file:line:column + the code frame into the message.

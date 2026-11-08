@@ -31,6 +31,9 @@ import { scanTemplate, type TemplateBlock } from './template-scan.ts'
 export interface ParsedStator {
   /** TS/JS between the `---` fences. Empty string when there's no fence. */
   frontmatter: string
+  /** Character offset in the original source where `frontmatter` (trimmed)
+   *  begins — maps frontmatter positions back to the source. */
+  frontmatterOffset: number
   /** The template body with `<style>` and bare `<script>` regions removed. */
   template: string
   /** Contents of each bare `<style>` region, in source order. */
@@ -67,10 +70,13 @@ export function splitStator(source: string): ParsedStator {
   let rest = source
   let frontmatter = ''
   let frontmatterLen = 0
+  let frontmatterOffset = 0
 
   const fm = rest.match(FRONTMATTER_RE)
   if (fm) {
-    frontmatter = (fm[1] ?? '').trim()
+    const raw = fm[1] ?? ''
+    frontmatter = raw.trim()
+    frontmatterOffset = fm[0].indexOf('\n') + 1 + (raw.length - raw.trimStart().length)
     frontmatterLen = fm[0].length
     rest = rest.slice(frontmatterLen)
   }
@@ -100,6 +106,7 @@ export function splitStator(source: string): ParsedStator {
 
   return {
     frontmatter,
+    frontmatterOffset,
     template: template.trim(),
     styles,
     scripts,

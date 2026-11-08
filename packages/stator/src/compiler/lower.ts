@@ -3,6 +3,7 @@ import { isVoidElement } from '../template/void-elements.ts'
 import { elementMarker, ISLAND_MARKER_ATTR, slotMarker } from '../wire/island-markers.ts'
 import { type ClientDirective, inferDeps } from './client-script.ts'
 import { CompileError, type DiagnosticLocation, locAt } from './diagnostics.ts'
+import { mark, splice } from './source-map.ts'
 
 export { CompileError } from './diagnostics.ts'
 
@@ -81,6 +82,9 @@ export interface LowerOptions {
   source?: string
   /** Character offset in `source` where the template body begins. */
   templateOffset?: number
+  /** Drop source-map marks (see `source-map.ts`) on every expression and
+   *  component call. Needs `source` + `templateOffset`; ignored for islands. */
+  marks?: boolean
   /** File path, for diagnostics. */
   file?: string
   /** Out-param: the lowerer populates this with analysis metadata for
@@ -134,12 +138,22 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
   // `${…}`) that must not pass through the JSX parser. Swap each for a text
   // placeholder now and splice the literal markup back into the output later.
   const inlineScripts: string[] = []
-  template = template.replace(INLINE_SCRIPT_RE, (_m, attrs: string, body: string) => {
-    const stripped = attrs.replace(/\s*is:inline(?:=("[^"]*"|'[^']*'|\{[^}]*\}))?/i, '')
-    const i = inlineScripts.length
-    inlineScripts.push(`<script${stripped}>${body}</script>`)
-    return inlineMarker(i)
-  })
+  // Where each placeholder sits in the parsed text, so a parsed position maps
+  // back to the source past any script it stands in for.
+  const inlineShifts: Array<{ at: number; markerLen: number; sourceLen: number }> = []
+  let shift = 0
+  template = template.replace(
+    INLINE_SCRIPT_RE,
+    (m: string, attrs: string, body: string, offset: number) => {
+      const stripped = attrs.replace(/\s*is:inline(?:=("[^"]*"|'[^']*'|\{[^}]*\}))?/i, '')
+      const i = inlineScripts.length
+      inlineScripts.push(`<script${stripped}>${body}</script>`)
+      const marker = inlineMarker(i)
+      inlineShifts.push({ at: offset + shift, markerLen: marker.length, sourceLen: m.length })
+      shift += marker.length - m.length
+      return marker
+    },
+  )
 
   const wrapped = `const __t = (<>${template}</>);`
   const sf = ts.createSourceFile(
@@ -237,9 +251,26 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
   // `.stator` source (when source-mapping context was provided).
   const loc = (node: ts.Node): DiagnosticLocation | undefined => {
     if (opts.source == null || opts.templateOffset == null) return undefined
-    const orig = opts.templateOffset + doctypeLen + (node.getStart(sf) - WRAP_PREFIX_LEN)
-    return locAt(opts.source, orig, opts.file)
+    return locAt(opts.source, sourceOffset(node.getStart(sf)), opts.file)
   }
+  // A position in the parsed (wrapped) template → its offset in the source.
+  const sourceOffset = (pos: number): number => {
+    let p = pos - WRAP_PREFIX_LEN
+    let delta = 0
+    for (const s of inlineShifts) {
+      if (p >= s.at + s.markerLen) delta += s.sourceLen - s.markerLen
+      else {
+        if (p >= s.at) p = s.at
+        break
+      }
+    }
+    return (opts.templateOffset ?? 0) + doctypeLen + p + delta
+  }
+  const toSource =
+    opts.marks && opts.source != null && opts.templateOffset != null && !opts.client
+      ? sourceOffset
+      : undefined
+  const markAt = (node: ts.Node): string => (toSource ? mark(toSource(node.getStart(sf))) : '')
 
   let fragment: ts.JsxFragment | undefined
   const find = (node: ts.Node): void => {
@@ -512,7 +543,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       if (tag === 'children') return lowerChildrenPlaceholder(node.openingElement.attributes)
       if (isComponentTag(tag)) {
         if (meta) meta.components.add(tag)
-        return `\${${lowerComponent(tag, node.openingElement.attributes, node.children)}}`
+        return `\${${markAt(node)}${lowerComponent(tag, node.openingElement.attributes, node.children)}}`
       }
       if (meta && tag.includes('-')) meta.customElements.add(tag)
       const attrs = lowerAttributes(node.openingElement.attributes)
@@ -523,7 +554,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       if (tag === 'children') return lowerChildrenPlaceholder(node.attributes)
       if (isComponentTag(tag)) {
         if (meta) meta.components.add(tag)
-        return `\${${lowerComponent(tag, node.attributes, undefined)}}`
+        return `\${${markAt(node)}${lowerComponent(tag, node.attributes, undefined)}}`
       }
       if (meta && tag.includes('-')) meta.customElements.add(tag)
       const open = `<${tag}${lowerAttributes(node.attributes)}${scopeSuffix}>`
@@ -547,7 +578,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     }
 
     const exprStart = expr.getStart(sf)
-    let text = expr.getText(sf)
+    const text = expr.getText(sf)
     const repls: Array<[start: number, end: number, replacement: string]> = []
     const visit = (n: ts.Node): void => {
       if (
@@ -572,12 +603,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       ts.forEachChild(n, visit)
     }
     ts.forEachChild(expr, visit)
-
-    repls.sort((a, b) => b[0] - a[0])
-    for (const [start, end, replacement] of repls) {
-      text = text.slice(0, start - exprStart) + replacement + text.slice(end - exprStart)
-    }
-    return text
+    return splice(text, exprStart, repls, toSource)
   }
 
   const lowerAttributes = (attrs: ts.JsxAttributes): string => {

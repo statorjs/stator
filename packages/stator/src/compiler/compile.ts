@@ -16,6 +16,14 @@ import {
 } from './emit-names.ts'
 import { scopeHash } from './hash.ts'
 import { type LowerMeta, lowerTemplate } from './lower.ts'
+import {
+  canMark,
+  finalizeSourceMap,
+  inlineSourceMapComment,
+  markVerbatim,
+  type SourceMapV3,
+  splice,
+} from './source-map.ts'
 import { splitStator } from './split.ts'
 import { scopeCss } from './styles.ts'
 
@@ -51,6 +59,9 @@ export interface CompileResult {
   /** Custom-element tag this client component defines (e.g. `quantity-stepper`),
    *  or undefined for a server component. */
   clientTag?: string
+  /** The map from `serverCode` back to the `.stator` source, when
+   *  `sourceMap` was asked for (also inlined at the end of `serverCode`). */
+  map?: SourceMapV3
 }
 
 const PRIMITIVES_IMPORT = importLine(
@@ -80,11 +91,26 @@ export interface CompileOptions {
    *  declares, for cross-file `child="x"` validation. The dev server and the build
    *  supply this (reads sibling `.stator` files). Omitted → validation skipped. */
   resolveRegions?: (componentName: string) => Set<string> | null
+  /** Map `serverCode` back to this source: frontmatter statements line for
+   *  line, template expressions and component calls at their position. The
+   *  map is inlined as a trailing `sourceMappingURL` comment (esbuild chains
+   *  it through its own transform) and returned as `map`. `source` is the
+   *  map's `sources` entry — whatever path its consumer resolves the
+   *  `.stator` file by. Islands are not mapped yet. */
+  sourceMap?: { source: string }
 }
 
 export function compile(source: string, opts: CompileOptions = {}): CompileResult {
-  const { frontmatter, template, styles, scripts, scriptOffsets, templateOffset } =
-    splitStator(source)
+  const {
+    frontmatter,
+    frontmatterOffset,
+    template,
+    styles,
+    scripts,
+    scriptOffsets,
+    templateOffset,
+  } = splitStator(source)
+  const marks = opts.sourceMap != null && canMark(source)
   const kind = opts.kind ?? 'component'
 
   const hasStyles = styles.length > 0
@@ -101,7 +127,7 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
       // The island's SERVER FENCE (2.1): runs per shell render, on the
       // server only, with its bindings in template scope. The <script>
       // never sees it, in either direction.
-      const fm = processFrontmatter(frontmatter, 'island', source, opts.id)
+      const fm = processFrontmatter(frontmatter, 'island', source, frontmatterOffset, opts.id)
       return compileClient(template, script, {
         hash,
         scopeAttr,
@@ -136,15 +162,22 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
     file: opts.id,
     meta,
     resolveRegions: opts.resolveRegions,
+    marks,
   })
   const css = hasStyles ? scopeCss(styles.join('\n'), hash) : ''
 
-  const fm = processFrontmatter(frontmatter, kind, source, opts.id)
-  const serverCode =
+  const fm = processFrontmatter(frontmatter, kind, source, frontmatterOffset, opts.id, marks)
+  let serverCode =
     kind === 'route' ? emitRoute(fm, htmlExpr, meta) : emitComponent(fm, htmlExpr, meta)
+  let map: SourceMapV3 | undefined
+  if (opts.sourceMap) {
+    ;({ code: serverCode, map } = finalizeSourceMap(serverCode, source, opts.sourceMap.source))
+    serverCode += `${inlineSourceMapComment(map)}\n`
+  }
 
   return {
     serverCode,
+    ...(map ? { map } : {}),
     scopeHash: hash,
     css,
     scripts,
@@ -386,9 +419,11 @@ function processFrontmatter(
   fm: string,
   kind: 'route' | 'component' | 'island',
   source: string,
+  fmStart: number,
   file?: string,
+  marks = false,
 ): FrontmatterParts {
-  const pragmas = parsePragmas(fm, kind, source, file)
+  const pragmas = parsePragmas(fm, kind, source, fmStart, file)
   if (!fm.trim()) return { hoisted: '', body: '', reads: [], pragmas }
 
   const sf = ts.createSourceFile('fm.ts', fm, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
@@ -398,7 +433,7 @@ function processFrontmatter(
   const reads: string[] = []
 
   const locInFm = (node: ts.Node): DiagnosticLocation =>
-    locAt(source, fmOffset(source) + node.getStart(sf), file)
+    locAt(source, fmStart + node.getStart(sf), file)
 
   // The fence is plain TypeScript (ScriptKind.TS): a bare `<p>` lexes as an
   // old-style type assertion, so JSX here used to surface only as esbuild's
@@ -419,7 +454,7 @@ function processFrontmatter(
     const d = syntax[0]!
     throw new CompileError(
       `stator: frontmatter syntax error — ${ts.flattenDiagnosticMessageText(d.messageText, '\n')}`,
-      locAt(source, fmOffset(source) + d.start, file),
+      locAt(source, fmStart + d.start, file),
     )
   }
 
@@ -429,12 +464,12 @@ function processFrontmatter(
       ts.isTypeAliasDeclaration(stmt) ||
       ts.isInterfaceDeclaration(stmt)
     ) {
-      hoisted.push(stmt.getText(sf))
+      const text = stmt.getText(sf)
+      hoisted.push(marks ? markVerbatim(text, fmStart + stmt.getStart(sf)) : text)
       continue
     }
 
     const stmtStart = stmt.getStart(sf)
-    let text = stmt.getText(sf)
     const repls: Array<[start: number, end: number, replacement: string]> = []
     const visit = (n: ts.Node): void => {
       if (ts.isCallExpression(n) && isStatorCall(n, 'props')) {
@@ -516,10 +551,7 @@ function processFrontmatter(
       ts.forEachChild(n, visit)
     }
     visit(stmt)
-    repls.sort((a, b) => b[0] - a[0])
-    for (const [start, end, replacement] of repls) {
-      text = text.slice(0, start - stmtStart) + replacement + text.slice(end - stmtStart)
-    }
+    const text = splice(stmt.getText(sf), stmtStart, repls, marks ? (p) => fmStart + p : undefined)
     body.push(`  ${text}`)
   }
 
@@ -603,6 +635,7 @@ function parsePragmas(
   fm: string,
   kind: 'route' | 'component' | 'island',
   source: string,
+  fmStart: number,
   file?: string,
 ): Set<string> {
   const out = new Set<string>()
@@ -612,13 +645,13 @@ function parsePragmas(
     if (!VALID_PRAGMAS.has(flag)) {
       throw new CompileError(
         `stator: unknown pragma "// @stator ${flag}". Known flags: ${[...VALID_PRAGMAS].join(', ')}.`,
-        locAt(source, fmOffset(source) + m.index, file),
+        locAt(source, fmStart + m.index, file),
       )
     }
     if (kind !== 'route') {
       throw new CompileError(
         `stator: "// @stator ${flag}" is only valid in a route page, not a component.`,
-        locAt(source, fmOffset(source) + m.index, file),
+        locAt(source, fmStart + m.index, file),
       )
     }
     out.add(flag)
@@ -640,8 +673,6 @@ function requireRoute(
   }
 }
 
-/** Character offset of the frontmatter body in the original source (after the
- *  opening `---\n`). 4 = `---\n`; good enough for diagnostics line/col. */
 /** The node a `<p>` or `<NotFound>` becomes when parsed as TS: a type assertion
  *  whose type is a bare identifier reference. A generic arrow (`<T>(a: T) => a`)
  *  is not one, so it stays legal. */
@@ -662,10 +693,6 @@ function findJsxLikeAssertion(sf: ts.SourceFile): ts.TypeAssertion | undefined {
   }
   visit(sf)
   return found
-}
-
-function fmOffset(source: string): number {
-  return source.startsWith('---') ? source.indexOf('\n') + 1 : 0
 }
 
 function isStatorCall(call: ts.CallExpression, member: string): boolean {

@@ -1,4 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises'
+import { dirname, relative, sep } from 'node:path'
 import { compile, regionResolverFor } from '../compiler/index.ts'
 import { sourceId } from './source-id.ts'
 
@@ -18,6 +19,10 @@ export interface CompileComponentOptions {
    *  its package name, so two packages with the same file layout never share
    *  a `data-s-<hash>`. The returned `rel` stays the plain relative path. */
   idPrefix?: string
+  /** The file the compiled module's source map points at, when `file` is a
+   *  copy (the app build compiles copies in `dist/`, so the map points back at
+   *  the app's own source). Defaults to `file`. */
+  sourcePath?: string
 }
 
 export async function compileComponentFile(
@@ -31,6 +36,12 @@ export async function compileComponentFile(
     id: opts.idPrefix ? `${opts.idPrefix}/${rel}` : rel,
     kind,
     resolveRegions: regionResolverFor(file, source),
+    // Relative to the emitted sibling, which is where a consumer resolves it.
+    sourceMap: {
+      source: relative(dirname(file), opts.sourcePath ?? file)
+        .split(sep)
+        .join('/'),
+    },
   })
   await writeFile(`${file}.ts`, result.serverCode)
   let clientFile: string | undefined
