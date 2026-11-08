@@ -186,7 +186,9 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   const statorFiles = await walkFiles(outDir, (f) => f.endsWith('.stator'))
   const islands: Array<{ rel: string; entry: string }> = []
   for (const file of statorFiles) {
-    const { rel, isClient, clientFile } = await compileComponentFile(file, outDir)
+    const { rel, isClient, clientFile } = await compileComponentFile(file, outDir, {
+      sourcePath: join(root, relative(outDir, file)),
+    })
     if (isClient) islands.push({ rel, entry: clientFile! })
   }
   for (const file of statorFiles) await rm(file)
