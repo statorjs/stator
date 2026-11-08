@@ -1,5 +1,18 @@
 # @statorjs/stator
 
+## 3.0.0-next.1
+
+### Major Changes
+
+- 2ad3987: `POST /__events` refuses an event type the target machine's chart never handles, in any state or at machine level, with a 400 that names it. Before, such an event reached the machine and silently committed nothing, which hid typos and stale clients. An event the chart handles in a different state still reaches the machine and reports `committed: false`, since the same interaction can be valid one moment and stale the next. Server-side dispatch (`dispatchToApp`, effect completions, `subscribes`) is unchanged.
+- 2ad3987: The flat `createApp` and `createDevApp` options deprecated in 2.2 are removed. Use the nested shape that `stator.config.ts` already has: `store` → `persistence.session`, `appStore` → `persistence.app`, `sessionTtlSeconds` → `sessions.ttlSeconds`, `ssePingMs` → `realtime.pingMs`, `inspector` → `dev.inspector`. Passing a removed key throws with its new home rather than being ignored. Apps configured through `stator.config.ts` are unaffected.
+- 2ad3987: Stator declares `engines: { node: ">=24" }`, the current LTS. 2.x promised no Node floor for the runtime; 3.0 stands on Node's own test runner, assertion and mock APIs, and TypeScript stripping (`stator test` runs `node --test`), so the floor is now stated where package managers can check it.
+- 2ad3987: `@statorjs/stator/server` no longer re-exports the Toolchain tier (`MachineStore`, `SessionRuntime`, `buildHonoApp`, `discoverMachines`, `renderRoute`, `recompute`, `fanOut` and the rest of the plumbing). Those moved to `@statorjs/stator/server/runtime` in 2.12, where the import path carries the tier; the deprecated re-export from `/server` is removed. Import them from `/server/runtime`.
+
+### Minor Changes
+
+- 4913c40: `.stator` files get source maps. The compiler maps its server module back to the `.stator` source: frontmatter line for line, and each template expression and component call at the position it is written. The dev loader chains the map through esbuild and `stator build` inlines it in every compiled `.stator.ts` sibling, pointing back at the app's own file, so stack traces and editor breakpoints land on `.stator` lines in dev and production alike. `compile()` takes a new `sourceMap: { source }` option and returns the map. Template diagnostics after a `<script is:inline>`, and frontmatter diagnostics in a fence that opens with blank lines, now report the right position too. An island's server fence and client script are not mapped yet.
+
 ## 3.0.0-next.0
 
 ### Major Changes
