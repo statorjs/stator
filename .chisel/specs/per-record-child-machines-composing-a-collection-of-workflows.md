@@ -38,7 +38,7 @@ The "decision deferred to a second collection example" condition is met, three t
 
 ### Evidence 6 — the fleet app: families of families, and settlement per group (2026-11-08)
 
-Tony's other production app watches a fleet of robots and raises alerts to an operations team. Each robot is a machine whose context comes from the database; each rule (written in markdown) is evaluated by its own machine per robot. On a robot state change (debounced 5 s) the robot machine updates, then every rule machine for that robot recomputes its alert from the robot's new state and its own previous evaluation; some rules wait 30 s before a condition raises. Each rule machine logs raise and clear to Elastic (async), and **only after every rule machine for that robot has settled** does the app write the robot's full alert list to Elastic and the database. The app built its own synchronisation layer to know when that moment had come.
+Tony's other production app watches a fleet of robots and raises alerts to an operations team. Each robot is a machine whose context comes from the database; each rule (written in markdown) is evaluated by its own machine per robot. On a robot state change (debounced 5 s) the robot machine updates, then every rule machine for that robot recomputes its alert from the robot's new state and its own previous evaluation; some rules wait 30 s before a condition raises, which the app does without timers: the rule records when the condition was first met, and a later robot update raises once 30 s have passed (exact timing does not matter, and robots update often). Scale: about 80 robots and 4 rules today, expected to reach roughly 160 robots and 12 rules, so around 2,000 rule instances. Each rule machine logs raise and clear to Elastic (async), and **only after every rule machine for that robot has settled** does the app write the robot's full alert list to Elastic and the database. The app built its own synchronisation layer to know when that moment had come.
 
 What it adds to the requirements: two families, one addressing the other by key (`Robot[robotId]` and `RuleEvaluation[robotId/ruleId]`); one event multicast to every instance in a group (all rules of a robot); settlement grouped by that robot, so one reaction per robot rather than per change; a delayed raise that triggers its own settled reaction later; and summary writes that must not land out of order when updates overlap.
 
@@ -168,7 +168,7 @@ subscribes: [{
 // Its effect writes the alert list, computed from the rules' current state.
 ```
 
-A robot update settles once all its rule instances have transitioned and their Elastic logs have returned, and `Robot[robotId]` gets one `RULES_SETTLED`. A rule's 30 s delayed raise is a timer, so a new change: it touches one rule instance, settles, and produces one more `RULES_SETTLED` for that robot, which rewrites the list with the raised alert. That is the app's behaviour, with no synchronisation layer of its own.
+A robot update settles once all its rule instances have transitioned and their Elastic logs have returned, and `Robot[robotId]` gets one `RULES_SETTLED`. The app's delayed raise is checked inside a later robot update, so it is part of that update's change and the same grouped settlement covers it. A rule that must raise exactly on time can use a per-instance `after` instead; that timer firing is a new change, which settles and produces one more `RULES_SETTLED` for the robot. Either way the app needs no synchronisation layer of its own.
 
 The outside surface makes tests deterministic (no polling for "has everything caught up"); the inside one keeps the reaction in a chart, which is where policy belongs.
 
@@ -198,7 +198,7 @@ Target: a 3.x minor, or a late 3.0 beta if stage 2 lands before the release; not
 - **Aggregate reads at scale.** Recomputing a family-wide read on every instance change is O(n); fine for hundreds, to be measured before thousands.
 - ~~**Settled versus idle.**~~ Answered by the fleet app: settlement per change, grouped by a key (the robot), not family-wide idle.
 - ~~**Do timers belong to the change?**~~ Answered by the fleet app: no. A delayed raise holding the robot update open would delay every summary by 30 s; as its own change it produces the summary the app wants when it fires.
-- **Scale.** The fleet app is robots × rules instances, each possibly with a timer; the size of the largest fleet sets the bar for aggregate reads, timer count and memory, and should be measured in the spike.
+- ~~**Scale.**~~ The fleet app peaks around 2,000 instances (160 robots × 12 rules), trivially within reach for timers, memory and an O(n) family-wide read; the spike measures at 10× that to leave headroom.
 - **Keys in `subscribes`.** Whether a subscription into a family must name its key function explicitly or always uses the family's own `key`.
 
 ## Implementation Notes
