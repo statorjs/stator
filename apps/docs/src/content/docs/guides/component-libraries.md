@@ -21,35 +21,22 @@ The CLI owns that step. `stator build:lib [dir]` walks the directory (default `s
 
 The same operation is `compileLibrary()` on `@statorjs/stator/build` for a script that needs to do more around it.
 
-## The exports map decides CSS granularity
+## CSS follows what a route reaches
 
-A consuming build walks its own import graph file by file, but stops at a bare specifier: it resolves `${specifier}.css` through the package's `exports` map, once, and takes whatever that returns. The library's layout is opaque to it. So **the granularity of CSS a consumer gets follows the specifier it imports, not how the files are laid out.**
+A consuming app collects a route's CSS by walking its import graph. The walk crosses into a package at the bare specifier the app imports, follows that package's own relative imports, and continues into any Stator package it imports in turn, so a library component composing others is reached whole. Each reached component contributes its sibling `.css`, read by path beside the compiled module. A route gets the styles of exactly the components it can reach, the same way it does for the app's own components, however the library lays out its files or names its exports.
 
-A barrel ships one stylesheet for everything it re-exports:
+So the `exports` map only needs entries for what an app imports, a barrel or per-component subpaths, and no `.css` entries for Stator apps:
 
 ```json
 {
   "exports": {
     "./components": "./src/index.ts",
-    "./components.css": "./src/components.css"
+    "./hero.stator": "./src/hero.stator.ts"
   }
 }
 ```
 
-That `components.css` is the aggregate of every sibling `.css` the barrel's entry reaches. The framework does the same for `@statorjs/stator/components`, and it's the right call while most of a library is reached from every page anyway.
-
-Per-component subpaths give per-component CSS, with the same consumer and the same tracer:
-
-```json
-{
-  "exports": {
-    "./hero.stator": "./src/hero.stator.ts",
-    "./hero.stator.css": "./src/hero.stator.css"
-  }
-}
-```
-
-An app importing `@acme/blocks/hero.stator` then pulls in only the hero's styles. Emitting those entries is a few lines in the compile script. Both shapes can coexist.
+`stator build:lib` still writes an aggregate `components.css` of everything the barrel reaches, for a page that is not a Stator app. Export it if you want that audience.
 
 ## Packaging the compiled siblings
 
@@ -67,7 +54,7 @@ node_modules
 
 ## Consuming a library
 
-Nothing to configure. `stator dev` and `stator build` fold each bare specifier's sibling CSS into the stylesheet of every route that reaches the component — including through an inactive `match`/`when`/`each` arm, since a live update can activate the arm with no fresh request. See [Scoped styles](/guides/scoped-styles/).
+Nothing to configure. `stator dev` and `stator build` fold each reached library component's sibling CSS into the stylesheet of every route that reaches it, including through an inactive `match`/`when`/`each` arm, since a live update can activate the arm with no fresh request. The walk follows a library into the packages it imports, to any depth, as long as they are Stator packages (`@statorjs/stator` itself, or a package that depends on it), so a library component that renders `<Image>` brings `<Image>`'s CSS with it. Packages that don't depend on Stator are never walked. See [Scoped styles](/guides/scoped-styles/).
 
 ## Limits
 

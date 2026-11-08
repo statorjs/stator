@@ -7,8 +7,9 @@ import { routeCssMap } from '../src/build/route-css.ts'
 
 /**
  * `routeCssMap`'s `node_modules` path: a route that imports a bare specifier
- * gets that package's sibling `${specifier}.css` export folded into its own
- * route artifact, resolved through the package's `exports` map.
+ * from a Stator package gets each reached package module's sibling `.css`
+ * folded into its own route artifact, read by path beside the module (no
+ * `.css` entry in the package's `exports` map is needed).
  *
  * The `node_modules` fixture is built in a temp dir at test time rather than
  * checked into `tests/fixtures/`, since `node_modules/` is gitignored
@@ -32,14 +33,15 @@ async function buildFixture(): Promise<string> {
     join(lib, 'package.json'),
     JSON.stringify({
       name: 'fake-lib',
+      peerDependencies: { '@statorjs/stator': '*' },
       exports: {
         './button': './button.js',
-        './button.css': './button.css',
         './plain': './plain.js',
       },
     }),
   )
   await writeFile(join(lib, 'button.js'), 'export default {}\n')
+  await writeFile(join(lib, 'plain.js'), 'export default {}\n')
   await writeFile(join(lib, 'button.css'), '.button[data-s-fake1234] { color: red; }\n')
   await writeFile(
     join(root, 'routes/x.ts'),
@@ -52,7 +54,7 @@ async function buildFixture(): Promise<string> {
 }
 
 describe('route-css: routeCssMap', () => {
-  it('resolves a node_modules package sibling .css export for a reached bare specifier', async () => {
+  it("folds a reached package module's sibling .css, read by path", async () => {
     const root = await buildFixture()
     const map = await routeCssMap({ routesDir: join(root, 'routes'), baseDir: root })
     const css = map.get(join(root, 'routes/x.ts'))
@@ -61,11 +63,11 @@ describe('route-css: routeCssMap', () => {
     assert.ok(css.includes('.button[data-s-fake1234] { color: red; }'))
   })
 
-  it('silently skips a bare specifier whose package declares no sibling .css', async () => {
+  it('silently skips a reached package module with no sibling .css', async () => {
     const root = await buildFixture()
     const map = await routeCssMap({ routesDir: join(root, 'routes'), baseDir: root })
     const css = map.get(join(root, 'routes/x.ts'))!
-    // fake-lib/plain has no `./plain.css` export — reached, but contributes
+    // fake-lib/plain has no `plain.css` beside it: reached, but contributes
     // nothing, and does not throw.
     assert.ok(!css.includes('plain'))
   })
