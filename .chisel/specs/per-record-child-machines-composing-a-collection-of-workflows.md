@@ -209,8 +209,8 @@ Target: a 3.x minor, or a late 3.0 beta if stage 2 lands before the release; not
 ## Open Questions
 
 - ~~**Name.**~~ Decided (Tony): `family` and *instance*; existence is *creation* and *completion*, residence is *activation* and *passivation*, defined under *Lifecycle terms*.
-- **Group membership.** A rule removed from the markdown set leaves its instances orphaned: nothing addresses those keys again. Proposal: a multicast may declare it is a group's full membership (`members(event)` rather than `keys(event)`), and instances in the group but not listed are completed in the same turn. Alternative: an explicit removal event the app dispatches per removed rule.
-- **Residence default** for app families: `resident` (this draft) versus `stored`.
+- ~~**Group membership.**~~ Deferred until a case needs it. In the fleet app a rule removed from the markdown set is a code change and a redeploy, and a resident unpersisted family is rebuilt from storage at boot, so the removed rule's instances are never created again. Only a group whose members change at runtime, or a persisted family, would need a multicast that declares full membership (`members(event)`, completing unlisted instances) or an explicit removal event.
+- ~~**Residence default.**~~ Decided: `resident`, matching app machines today and both production cases (the fleet's robot and rule machines are app machines, always in memory).
 - **Materialisation.** Implicit on a `creates` event (this draft) versus an explicit `CREATE`-style event the app dispatches; the draft keeps it declarative and refuses unknown keys otherwise.
 - **Completion timing.** Complete on reaching a `final` state immediately, or after a `retain` window so the UI can show "sent" before the row disappears. The outbox wants a window in the admin; `retain` defaults to zero.
 - **Aggregate reads at scale.** Recomputing a family-wide read on every instance change is O(n); fine for hundreds, to be measured before thousands.
