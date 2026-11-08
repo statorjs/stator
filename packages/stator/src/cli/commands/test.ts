@@ -1,6 +1,4 @@
 import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
 import type { CliContext } from '../run.ts'
 
 /** `@statorjs/stator/register`, by absolute URL so it resolves whatever the
@@ -29,26 +27,46 @@ export function testEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv
   }
 }
 
+/** The preload every test file gets: silent logging, and happy-dom for
+ *  files marked `// @env happy-dom` (see src/test-env.ts). */
+const TEST_ENV = new URL('../../test-env.ts', import.meta.url).href
+
+/** What `stator test` runs when given no file patterns: test files anywhere
+ *  under the app (Node already skips node_modules). Node's own defaults would
+ *  also run every file inside a `test/` directory, fixtures included. */
+export const DEFAULT_PATTERNS = ['**/*.test.ts', '**/*.spec.ts']
+
+/** The runner's arguments: the loader and the preload, Node's runner, a
+ *  force-exit so a test that leaves a server or watcher open cannot hang the
+ *  run, then the caller's flags and patterns (or the defaults when the
+ *  caller named no files). */
+export function testArgs(rest: string[]): string[] {
+  const named = rest.some((a) => !a.startsWith('-'))
+  return [
+    '--import',
+    REGISTER,
+    '--import',
+    TEST_ENV,
+    '--test',
+    '--test-force-exit',
+    ...rest,
+    ...(named ? [] : DEFAULT_PATTERNS),
+  ]
+}
+
 /**
- * Run the test suite. The runner is a deliberately swappable seam — today it
- * wraps the app's local Vitest; as the platform matures this becomes
- * `node --test` (with a `.stator` loader hook), invisibly to callers.
+ * Run the test suite with Node's own runner (`node --test`). Assertions come
+ * from `node:assert/strict`, spies and fake timers from `node:test`'s `mock`;
+ * nothing to install. Extra arguments pass through: `stator test --watch`,
+ * `stator test tests/cart.test.ts`.
  */
 export async function run(ctx: CliContext): Promise<void> {
-  const bin = join(
-    ctx.root,
-    'node_modules',
-    '.bin',
-    process.platform === 'win32' ? 'vitest.cmd' : 'vitest',
-  )
-  if (!existsSync(bin)) {
-    throw new Error(
-      'vitest not found in node_modules — install it, or run your test script directly',
-    )
-  }
-  const args = ctx.rest.length > 0 ? ctx.rest : ['run']
   await new Promise<void>((resolvePromise, reject) => {
-    const child = spawn(bin, args, { stdio: 'inherit', cwd: ctx.root, env: testEnv() })
+    const child = spawn(process.execPath, testArgs(ctx.rest), {
+      stdio: 'inherit',
+      cwd: ctx.root,
+      env: testEnv(),
+    })
     child.on('error', reject)
     child.on('exit', (code) =>
       code === 0 ? resolvePromise() : reject(new Error(`tests failed (exit ${code})`)),

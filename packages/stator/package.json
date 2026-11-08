@@ -48,6 +48,7 @@
       "default": "./src/server/dev.ts"
     },
     "./register": "./src/register.js",
+    "./test-env": "./src/test-env.ts",
     "./build": {
       "types": "./src/build/index.ts",
       "default": "./src/build/index.ts"
@@ -80,8 +81,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --import ./tests/env/setup.ts --import @statorjs/stator/register --test --test-force-exit --test-timeout=60000 'tests/**/*.test.ts'",
-    "test:watch": "node --import ./tests/env/setup.ts --import @statorjs/stator/register --test --watch 'tests/**/*.test.ts'",
+    "test": "node --import @statorjs/stator/register --import @statorjs/stator/test-env --test --test-force-exit --test-timeout=60000 'tests/**/*.test.ts'",
+    "test:watch": "node --import @statorjs/stator/register --import @statorjs/stator/test-env --test --watch 'tests/**/*.test.ts'",
     "test:browser": "node browser-tests/tables.mjs",
     "build:client": "esbuild src/client/runtime.ts --bundle --format=iife --target=es2020 --outfile=dist/client.js",
     "build:components": "node src/cli/stator.js build:lib src/components && biome check --write src/components/",
