@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { describe, it } from 'node:test'
-import { pathToFileURL } from 'node:url'
+import { dirname, join, resolve } from 'node:path'
+import { after, describe, it } from 'node:test'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { transform } from 'esbuild'
+import { bundleIslands } from '../src/build/islands.ts'
 import { CompileError, compile } from '../src/compiler/index.ts'
 import type { SourceMapV3 } from '../src/compiler/source-map.ts'
 
@@ -63,8 +64,13 @@ function decode(mappings: string): Array<[number, number, number, number]> {
 }
 
 /** Where `needle`'s first occurrence in `code` maps, by the nearest preceding segment. */
-function sourceOf(code: string, map: SourceMapV3, needle: string): { line: number; col: number } {
-  const at = code.indexOf(needle)
+function sourceOf(
+  code: string,
+  map: SourceMapV3,
+  needle: string,
+  from = 0,
+): { line: number; col: number } {
+  const at = code.indexOf(needle, from)
   assert.notEqual(at, -1, needle)
   const genLine = code.slice(0, at).split('\n').length - 1
   const genCol = at - (code.lastIndexOf('\n', at - 1) + 1)
@@ -76,12 +82,12 @@ function sourceOf(code: string, map: SourceMapV3, needle: string): { line: numbe
 }
 
 /** 0-based line/col of `needle` in the source. */
-function inSource(needle: string): { line: number; col: number } {
-  const at = ROUTE.indexOf(needle)
+function inSource(needle: string, src = ROUTE): { line: number; col: number } {
+  const at = src.indexOf(needle)
   assert.notEqual(at, -1, needle)
   return {
-    line: ROUTE.slice(0, at).split('\n').length - 1,
-    col: at - (ROUTE.lastIndexOf('\n', at - 1) + 1),
+    line: src.slice(0, at).split('\n').length - 1,
+    col: at - (src.lastIndexOf('\n', at - 1) + 1),
   }
 }
 
@@ -188,8 +194,125 @@ describe('diagnostic positions the source-map offsets fixed', () => {
     assert.deepStrictEqual(errorAt(src), { line: 3, column: 6 })
   })
 
+  it("an error in an island's markup points at its own line (it had no location)", () => {
+    const src = `<tick-counter>\n  <button on:click>tick</button>\n</tick-counter>\n\n<script>\n  export class TickCounter extends StatorElement {}\n</script>\n`
+    assert.deepStrictEqual(errorAt(src), { line: 2, column: 11 })
+  })
+
   it('a frontmatter error in a fence that opens with blank lines points at its own line', () => {
     const src = `---\n\n\nconst r = Stator.request\n---\n<p>hi</p>\n`
     assert.deepStrictEqual(errorAt(src), { line: 4, column: 11 })
+  })
+})
+
+const ISLAND = `---
+import { label } from './label.ts'
+
+const title = label('ticks')
+---
+<tick-counter>
+  <h2>{title.toUpperCase()}</h2>
+  <button on:click={inc}>tick</button>
+  <span>{read(n, (x) => x.count)}</span>
+</tick-counter>
+
+<script>
+  import { machine, StatorElement, use } from '@statorjs/stator/client'
+
+  const N = machine({ count: 0 }, { on: { INC: (s) => { s.count++ } } })
+  export class TickCounter extends StatorElement {
+    n = use(N)
+    inc() {
+      this.n.send('INC')
+    }
+  }
+</script>
+`
+
+describe('island source maps', () => {
+  const plain = compile(ISLAND, { id: 'templates/tick-counter.stator' })
+  const mapped = compile(ISLAND, {
+    id: 'templates/tick-counter.stator',
+    sourceMap: { source: '/app/templates/tick-counter.stator' },
+  })
+  const strip = (code: string) => code.split(/(?=\/\/# sourceMappingURL=)/)[0]
+
+  it('changes neither half but for the trailing map comments', () => {
+    assert.equal(mapped.isClient, true)
+    assert.equal(strip(mapped.serverCode), plain.serverCode)
+    assert.equal(strip(mapped.clientCode), plain.clientCode)
+    assert.match(mapped.clientCode, /\/\/# sourceMappingURL=data:application\/json;base64,/)
+  })
+
+  it('maps the server fence and the shell template', () => {
+    assert.ok(mapped.map)
+    for (const needle of [
+      "import { label } from './label.ts'",
+      "label('ticks')",
+      'title.toUpperCase()',
+    ]) {
+      assert.deepStrictEqual(
+        sourceOf(mapped.serverCode, mapped.map, needle),
+        inSource(needle, ISLAND),
+        needle,
+      )
+    }
+  })
+
+  it('maps the script line for line, past the stripped client import', () => {
+    assert.ok(mapped.clientMap)
+    for (const needle of ['const N = machine(', 'n = use(N)', "this.n.send('INC')"]) {
+      assert.deepStrictEqual(
+        sourceOf(mapped.clientCode, mapped.clientMap, needle),
+        inSource(needle, ISLAND),
+        needle,
+      )
+    }
+  })
+
+  it('maps each wiring line to the directive it wires', () => {
+    assert.ok(mapped.clientMap)
+    const setup = mapped.clientCode.indexOf('setup()')
+    assert.equal(
+      sourceOf(mapped.clientCode, mapped.clientMap, 'addEventListener', setup).line,
+      inSource('on:click', ISLAND).line,
+    )
+    assert.equal(
+      sourceOf(mapped.clientCode, mapped.clientMap, 'bindSlot', setup).line,
+      inSource('read(n,', ISLAND).line,
+    )
+  })
+})
+
+describe('island maps through the dev bundler', () => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const dir = resolve(here, 'fixtures/.tmp-island-map')
+  after(() => rmSync(dir, { recursive: true, force: true }))
+
+  it("the bundle's map names the .stator and lands the script's lines on it", async () => {
+    mkdirSync(join(dir, 'templates'), { recursive: true })
+    mkdirSync(join(dir, 'machines'), { recursive: true })
+    const file = join(dir, 'templates', 'tick-counter.stator')
+    const src = ISLAND.replace(/^---[\s\S]*?---\n/, '')
+    writeFileSync(file, src)
+    const bundle = await bundleIslands({
+      root: dir,
+      machinesDir: join(dir, 'machines'),
+      entries: [{ rel: 'templates/tick-counter.stator', file }],
+      sourcemap: true,
+    })
+    const url = bundle.islandUrls['templates/tick-counter.stator']
+    assert.ok(url)
+    const chunk = bundle.assets.find((a) => url.endsWith(a.fileName))
+    assert.ok(chunk)
+    const code = String(chunk.source)
+    const b64 = /sourceMappingURL=data:application\/json;base64,(\S+)\s*$/.exec(code)?.[1]
+    assert.ok(b64)
+    const map = JSON.parse(Buffer.from(b64, 'base64').toString()) as SourceMapV3
+    const index = map.sources.findIndex((s) => s.endsWith('templates/tick-counter.stator'))
+    assert.notEqual(index, -1, map.sources.join(', '))
+    // esbuild rewrites the send call's text; find it by its stable part.
+    const line = sourceOf(code.replace(/\/\/# sourceMappingURL=.*$/s, ''), map, '.send("INC")').line
+    assert.equal(line, inSource("this.n.send('INC')", src).line)
   })
 })

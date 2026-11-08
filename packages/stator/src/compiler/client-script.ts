@@ -232,6 +232,9 @@ export interface ClientDirective {
   /** Reactive client-actor deps referenced by the expression (`use()` fields).
    *  Only meaningful for `bind:`; `on:` handlers fire on the event, not on state. */
   deps: string[]
+  /** Where the directive is written in the `.stator` source, when the compile
+   *  is source-mapped: the wiring line the client emits maps back to it. */
+  at?: number
 }
 
 /**
