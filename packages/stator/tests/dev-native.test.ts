@@ -95,9 +95,11 @@ describe('native dev server: .stator end to end, no Vite', () => {
     const m = html.match(/data-s-([0-9a-f]{8})/)
     assert.ok(m)
     const hash = m![1]
-    // Scoped CSS is linked exactly as in production, served from memory.
-    assert.ok(html.includes('<link rel="stylesheet" href="/static/components.css">'))
-    const cssRes = await get('/static/components.css')
+    // Scoped CSS is linked exactly as in production (the route's own sheet at
+    // the build's URL), served from memory.
+    const href = /<link rel="stylesheet" href="(\/static\/css\/[^"]+\.css)">/.exec(html)?.[1]
+    assert.ok(href, 'the route links its own stylesheet')
+    const cssRes = await get(href)
     assert.equal(cssRes.status, 200)
     assert.ok(cssRes.headers.get('content-type'))
     assert.ok(cssRes.headers.get('content-type')!.includes('text/css'))

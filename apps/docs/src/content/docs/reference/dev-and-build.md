@@ -42,6 +42,8 @@ Sourcemaps work on both planes: the CLI opts the process into Node's sourcemap a
 
 Session state is governed by the same rule as production: a machine whose code changed starts fresh on its next request (its snapshot carries the hash of the code that wrote it — see [What survives a deploy](/guides/persistence/#what-survives-a-deploy)); everything else keeps its state, cart contents and all. Nothing clears your store on a save.
 
+Scoped CSS reaches the page the way it does in production: each route links its own stylesheet at the URL `stator build` writes it to, holding only the components that route's imports reach, so a rule that leaks onto another route's markup in production leaks the same way in dev, and one that doesn't, doesn't.
+
 The **inspector toolbar** is injected by default (`dev: { inspector: false }` disables it), with two tabs. **Wire** shows the wire itself — one row per outgoing event (↑) and incoming patch envelope (↓), including patches arriving over a live route's SSE channel with their apply time; it's the fastest way to see exactly which slots a dispatch touched. **Machines** shows the state behind the wire: every machine's current state and context (your own session's, plus app-lifecycle machines — those are process-global and labeled), the events its current state accepts (server-only and guarded ones marked), and each route's `reads`. A machine your session has never touched shows the def's initial context, dimmed; a `stale` chip means the persisted snapshot was written by different machine code, so that session starts fresh on its next request (see [What survives a deploy](/guides/persistence/#what-survives-a-deploy)).
 
 The tab is laid out master-detail — machines listed with their live state (your session's first, then app machines), detail beside — and it cross-links: a route's `reads` chips jump to that machine, a machine's detail lists the routes that read it, and static GET routes are real links to the page. The drawer's top edge drags to resize; height, tab, and selection persist across dev reloads.
@@ -68,7 +70,7 @@ interface BuildConfig {
 interface BuildResult {
   outDir: string
   compiled: number  // .stator files compiled
-  hasCss: boolean   // components.css written
+  hasCss: boolean   // any route stylesheet written
   islands: number   // client components bundled
   machines: number  // machines hashed for the snapshot hydration policy
   machineHashMs: number
@@ -79,7 +81,7 @@ interface BuildResult {
 }
 ```
 
-The production build: compiles the app to a `dist/` of plain `.ts` that `stator start` serves, and bundles client islands with esbuild. It copies the app dirs, compiles each `*.stator` to a sibling `*.stator.ts`, rewrites `.stator` import specifiers, and concatenates scoped CSS into `dist/static/components.css`. When the app has client components, every island entry is bundled in one Vite build (hashed assets, server-machine imports stubbed to `{ name }`) and `dist/stator-manifest.json` maps each route file to the island script URLs it reaches:
+The production build: compiles the app to a `dist/` of plain `.ts` that `stator start` serves, and bundles client islands with esbuild. It copies the app dirs, compiles each `*.stator` to a sibling `*.stator.ts`, rewrites `.stator` import specifiers, and writes each route's scoped CSS to its own stylesheet under `dist/static/css/`, from the components that route reaches. When the app has client components, every island entry is bundled in one Vite build (hashed assets, server-machine imports stubbed to `{ name }`) and `dist/stator-manifest.json` maps each route file to the island script URLs it reaches:
 
 ```ts
 interface StatorManifest {
@@ -105,7 +107,7 @@ function loadProductionHead(
 }>
 ```
 
-Reads a built `dist/`'s manifest and returns two things for `createApp`: `headExtras` (links `components.css` when the build produced one and injects each route's island `<script type="module">` tags) and `buildId` (the per-build id for the deploy-aware [reload handshake](/guides/realtime-sse/)):
+Reads a built `dist/`'s manifest and returns two things for `createApp`: `headExtras` (links the route's stylesheet when it has one and injects each route's island `<script type="module">` tags) and `buildId` (the per-build id for the deploy-aware [reload handshake](/guides/realtime-sse/)):
 
 ```ts
 const { headExtras, buildId, machines } = await loadProductionHead('dist')

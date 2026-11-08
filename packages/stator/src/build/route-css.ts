@@ -98,45 +98,52 @@ async function importsOf(
   return { local, external }
 }
 
-/** A file's direct bare-specifier imports only — no recursion, no relative
- *  resolution. Used by `dev-native.ts`'s incremental graph tracking. */
-export async function bareSpecifiersOf(file: string): Promise<string[]> {
-  let code: string
-  try {
-    code = await readFile(file, 'utf8')
-  } catch {
-    return []
-  }
-  code = stripComments(code)
-  const external: string[] = []
-  for (const match of code.matchAll(IMPORT_SPECIFIER_RE)) {
-    const spec = match[1]!
-    if (!spec.startsWith('.') && !spec.startsWith('node:')) external.push(spec)
-  }
-  return external
-}
+/** One walk's memo of each file's imports, shared across the routes it visits. */
+type ImportsCache = Map<string, Promise<{ local: string[]; external: string[] }>>
 
 async function walkReachable(
   file: string,
   baseDir: string,
   seen: Set<string>,
   out: Reached,
+  cache: ImportsCache,
 ): Promise<void> {
   if (seen.has(file)) return
   seen.add(file)
   out.local.add(file)
-  const { local, external } = await importsOf(file, baseDir)
+  let imports = cache.get(file)
+  if (!imports) {
+    imports = importsOf(file, baseDir)
+    cache.set(file, imports)
+  }
+  const { local, external } = await imports
   for (const spec of external) out.external.add(spec)
-  for (const target of local) await walkReachable(target, baseDir, seen, out)
+  for (const target of local) await walkReachable(target, baseDir, seen, out, cache)
 }
 
 /** Every local file and bare specifier reachable from one entry file's
  *  import graph. */
-export async function reachableFrom(entryFile: string, baseDir: string): Promise<Reached> {
+export async function reachableFrom(
+  entryFile: string,
+  baseDir: string,
+  cache: ImportsCache = new Map(),
+): Promise<Reached> {
   const reached: Reached = { local: new Set(), external: new Set() }
-  await walkReachable(resolve(entryFile), resolve(baseDir), new Set(), reached)
+  await walkReachable(resolve(entryFile), resolve(baseDir), new Set(), reached, cache)
   return reached
 }
+
+/** Where a route's stylesheet is served, under `/static/`: the route's path
+ *  relative to the app root, compiled extension dropped, `.css` added. A build
+ *  (`routes/index.stator.ts`) and dev (`routes/index.stator`) name the same
+ *  route the same way: `css/routes/index.stator.css`. */
+export function routeCssPath(routeRel: string): string {
+  return `css/${routeRel.replace(/\\/g, '/').replace(/\.(ts|js)$/, '')}.css`
+}
+
+/** A reached local module's CSS. The build reads the sibling `.css` it wrote
+ *  beside each compiled module; dev hands in its in-memory compile. */
+export type CssLookup = (file: string) => string | undefined | Promise<string | undefined>
 
 /** A reached local module's sibling CSS — `foo.ts` → `foo.css`. Most reached
  *  modules have no sibling; that's a silent, expected miss. */
@@ -168,11 +175,18 @@ function relFrom(baseDir: string, file: string): string {
 
 /** Collect the sibling CSS of everything in a `Reached` set, local and
  *  external alike — one algorithm, no branching on origin. */
-async function cssOf(reached: Reached, baseDir: string): Promise<string> {
+async function cssOf(
+  reached: Reached,
+  baseDir: string,
+  cssFor: CssLookup = siblingCss,
+): Promise<string> {
   let css = ''
   for (const file of [...reached.local].sort()) {
-    const text = await siblingCss(file)
-    if (text) css += `/* ${relFrom(baseDir, file)} */\n${text}\n`
+    const text = await cssFor(file)
+    // Named by source (`x.stator`, not the build's `x.stator.ts`), so dev and
+    // build write the same sheet.
+    if (text)
+      css += `/* ${relFrom(baseDir, file).replace(/\.stator\.ts$/, '.stator')} */\n${text}\n`
   }
   for (const spec of [...reached.external].sort()) {
     const text = await externalCss(spec, baseDir)
@@ -189,15 +203,18 @@ async function cssOf(reached: Reached, baseDir: string): Promise<string> {
 export async function routeCssMap(opts: {
   routesDir: string
   baseDir: string
+  /** A reached module's CSS; defaults to its sibling `.css` file. */
+  cssFor?: CssLookup
 }): Promise<Map<string, string>> {
   const baseDir = resolve(opts.baseDir)
   const routeFiles = await walkFiles(opts.routesDir, (f) => /\.(ts|js|stator)$/.test(f)).catch(
     () => [] as string[],
   )
   const out = new Map<string, string>()
+  const cache: ImportsCache = new Map()
   for (const routeFile of routeFiles) {
-    const reached = await reachableFrom(routeFile, baseDir)
-    const css = await cssOf(reached, baseDir)
+    const reached = await reachableFrom(routeFile, baseDir, cache)
+    const css = await cssOf(reached, baseDir, opts.cssFor)
     if (css) out.set(routeFile, css)
   }
   return out

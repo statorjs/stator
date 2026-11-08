@@ -6,8 +6,8 @@ import { after, before, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 /**
- * Dev-native's `/static/components.css` includes a `node_modules` component
- * library's own CSS, resolved the same way production does (`externalCss`,
+ * A dev route's stylesheet includes a `node_modules` component library's own
+ * CSS when the route imports it, resolved the same way production does (`externalCss`,
  * via the package's `exports` map) — not just locally authored `.stator`
  * files. This fixture imports the real `@statorjs/stator/components`, which
  * resolves through this package's own self-referencing `node_modules`
@@ -79,8 +79,11 @@ after(async () => {
 })
 
 describe('native dev server: node_modules component CSS', () => {
-  it('serves a node_modules component library CSS via components.css, resolved through its exports map', async () => {
-    const res = await fetch(`${base}/static/components.css`)
+  it("serves a node_modules component library's CSS in the route's sheet, resolved through its exports map", async () => {
+    const html = await (await fetch(`${base}/`)).text()
+    const href = /<link rel="stylesheet" href="([^"]+)">/.exec(html)?.[1]
+    assert.equal(href, '/static/css/routes/index.css')
+    const res = await fetch(`${base}${href}`)
     assert.equal(res.status, 200)
     const css = await res.text()
     assert.ok(css.includes('/* @statorjs/stator/components */'))
