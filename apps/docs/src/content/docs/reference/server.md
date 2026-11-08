@@ -9,7 +9,7 @@ sidebar:
 
 ## createApp
 
-Most apps don't call this directly — the [`stator` CLI](/introduction/installation/#the-cli) (`stator dev`/`build`/`start`) is the entry point, and configuration lives in [`stator.config.ts`](/reference/config/). `createApp` underlies `stator start` and is exported for hand-wiring a custom production entry. Its config mirrors `stator.config.ts`; the deprecated flat keys (`store`, `appStore`, `sessionTtlSeconds`, `ssePingMs`, `inspector`) still work but are superseded by the nested shape.
+Most apps don't call this directly — the [`stator` CLI](/introduction/installation/#the-cli) (`stator dev`/`build`/`start`) is the entry point, and configuration lives in [`stator.config.ts`](/reference/config/). `createApp` underlies `stator start` and is exported for hand-wiring a custom production entry. Its config mirrors `stator.config.ts`. The flat keys of 2.x (`store`, `appStore`, `sessionTtlSeconds`, `ssePingMs`, `inspector`) were removed in 3.0; passing one throws with its nested home.
 
 ```ts
 function createApp(config: CreateAppConfig): Promise<StatorApp>

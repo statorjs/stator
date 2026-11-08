@@ -69,16 +69,6 @@ export interface DevAppConfig {
   secret?: string
   /** Cross-origin READ policy (CORS); `origins` defaults to `trustedOrigins`. */
   cors?: { origins?: string[]; credentials?: boolean }
-  // Deprecated flat keys — accepted (typed) so 2.1.0 callers don't break; nested
-  // wins. `createDevApp` never shipped `ssePingMs`, so it's not accepted here.
-  /** @deprecated use `persistence.session` */
-  store?: Store
-  /** @deprecated use `persistence.app` */
-  appStore?: AppStore
-  /** @deprecated use `sessions.ttlSeconds` */
-  sessionTtlSeconds?: number
-  /** @deprecated use `dev.inspector` */
-  inspector?: boolean
 }
 
 export interface DevApp {
