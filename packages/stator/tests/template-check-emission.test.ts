@@ -25,9 +25,12 @@ const ISLAND = `<updated-at hidden></updated-at>
 describe('island d.ts props from static attrs', () => {
   it('each attr accepts its kind or a ReadResult of it', () => {
     const dts = generateDts(ISLAND)
-    assert.ok(dts?.includes('at?: number | __SReadResult<number>'))
-    assert.ok(dts?.includes('clock?: string | __SReadResult<string>'))
-    assert.ok(dts?.includes('live?: boolean | __SReadResult<boolean>'))
+    assert.ok(dts)
+    assert.ok(dts.includes('at?: number | __SReadResult<number>'))
+    assert.ok(dts)
+    assert.ok(dts.includes('clock?: string | __SReadResult<string>'))
+    assert.ok(dts)
+    assert.ok(dts.includes('live?: boolean | __SReadResult<boolean>'))
     assert.ok(
       dts?.includes("import type { ReadResult as __SReadResult } from '@statorjs/stator/template'"),
     )
@@ -39,7 +42,8 @@ const { name } = Stator.props<{ name: string }>()
 ---
 <p>{name}</p>
 `
-    assert.ok(generateDts(src)?.includes('(props: { name: string })'))
+    assert.ok(generateDts(src))
+    assert.ok(generateDts(src)!.includes('(props: { name: string })'))
   })
 })
 

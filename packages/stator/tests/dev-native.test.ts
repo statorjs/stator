@@ -99,7 +99,8 @@ describe('native dev server: .stator end to end, no Vite', () => {
     assert.ok(html.includes('<link rel="stylesheet" href="/static/components.css">'))
     const cssRes = await get('/static/components.css')
     assert.equal(cssRes.status, 200)
-    assert.ok(cssRes.headers.get('content-type')?.includes('text/css'))
+    assert.ok(cssRes.headers.get('content-type'))
+    assert.ok(cssRes.headers.get('content-type')!.includes('text/css'))
     const css = await cssRes.text()
     assert.ok(css.includes(`.label[data-s-${hash}]`))
     assert.ok(css.includes('rebeccapurple'))
@@ -136,7 +137,8 @@ describe('native dev server: .stator end to end, no Vite', () => {
     assert.ok(m)
     const asset = await get(m![1]!)
     assert.equal(asset.status, 200)
-    assert.ok(asset.headers.get('content-type')?.includes('javascript'))
+    assert.ok(asset.headers.get('content-type'))
+    assert.ok(asset.headers.get('content-type')!.includes('javascript'))
     const code = await asset.text()
     assert.ok(code.includes('tick-counter'))
     // Dev bundles carry an INLINE sourcemap (browser devtools show island
@@ -251,7 +253,8 @@ describe('native dev server: .stator end to end, no Vite', () => {
     assert.ok(names.includes('CounterMachine'))
     assert.ok(names.includes('TallyMachine'))
     // App machines are live-snapshotted; hashes come from the running defs.
-    assert.ok((payload.app.TallyMachine?.value.length ?? 0) > 0)
+    assert.ok(payload.app.TallyMachine)
+    assert.ok(payload.app.TallyMachine.value.length > 0)
     assert.equal(
       payload.machines.every((m) => typeof m.hash === 'string'),
       true,
@@ -315,7 +318,8 @@ describe('native dev server: .stator end to end, no Vite', () => {
   it('serves a data GET route as JSON', async () => {
     const res = await get('/api-tally')
     assert.equal(res.status, 200)
-    assert.ok(res.headers.get('content-type')?.includes('application/json'))
+    assert.ok(res.headers.get('content-type'))
+    assert.ok(res.headers.get('content-type')!.includes('application/json'))
     assert.equal(typeof ((await res.json()) as { total: number }).total, 'number')
   })
 
@@ -324,7 +328,8 @@ describe('native dev server: .stator end to end, no Vite', () => {
     assert.equal(data.status, 200)
     assert.deepStrictEqual(await data.json(), { id: 'abc' })
     const page = await get('/pp/abc')
-    assert.ok(page.headers.get('content-type')?.includes('text/html'))
+    assert.ok(page.headers.get('content-type'))
+    assert.ok(page.headers.get('content-type')!.includes('text/html'))
     assert.ok((await page.text()).includes('page abc'))
   })
 

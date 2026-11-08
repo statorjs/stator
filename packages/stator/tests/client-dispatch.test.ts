@@ -35,7 +35,8 @@ describe('client dispatch (island → server wire)', () => {
     const [url, init] = spy.mock.calls[0]!.arguments as unknown as [string, RequestInit]
     assert.equal(url, '/__events')
     assert.equal(init.method, 'POST')
-    assert.match((init.headers as Record<string, string>)['X-Stator-Route'] ?? '', /^GET /)
+    assert.ok((init.headers as Record<string, string>)['X-Stator-Route'])
+    assert.match((init.headers as Record<string, string>)['X-Stator-Route']!, /^GET /)
     const body = JSON.parse(init.body as string)
     assert.partialDeepStrictEqual(body, {
       machine: 'CartMachine',

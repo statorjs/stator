@@ -69,7 +69,8 @@ describe('element-id scoping (FINDINGS #2)', () => {
     assert.equal(ids[0], 'e0') // top-level scope: unprefixed
     // The in-arm node is scoped by its branch arm, so its id doesn't depend on
     // how many element-id'd siblings rendered before it.
-    assert.match(ids[1] ?? '', /:btrue:e\d+$/)
+    assert.ok(ids[1])
+    assert.match(ids[1]!, /:btrue:e\d+$/)
   })
 
   it('re-rendering a branch arm reproduces the IDENTICAL in-arm element id', async () => {

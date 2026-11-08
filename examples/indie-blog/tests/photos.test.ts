@@ -80,12 +80,14 @@ describe('photo posts over multipart', () => {
     const photo = new File([PNG], 'harbor.png', { type: 'image/png' })
     const result = await publish(sid, { title: '', content: 'Harbor at dusk.', photo_alt: 'A harbor at dusk' }, photo)
     const to = result.directives?.[0]?.to
-    assert.match(to ?? '', /^\/posts\//)
+    assert.ok(to)
+    assert.match(to, /^\/posts\//)
 
     const html = await (await fetch(`${base}${to}`)).text()
     assert.ok(html.includes('class="u-photo"'))
     const src = html.match(/src="(\/media\/[^"]+)"/)?.[1]
-    assert.match(src ?? '', /^\/media\/\d{4}\/\d{2}\/.+\.png$/)
+    assert.ok(src)
+    assert.match(src, /^\/media\/\d{4}\/\d{2}\/.+\.png$/)
     assert.ok(html.includes('alt="A harbor at dusk"'))
 
     const media = await fetch(`${base}${src}`)
@@ -120,7 +122,9 @@ describe('photo posts over multipart', () => {
 
   it('a plain urlencoded publish still works (no photo entry at all)', async () => {
     const result = await publish(sid, { title: 'Words', content: 'Just words.', photo_alt: '' })
-    assert.match(result.directives?.[0]?.to ?? '', /^\/posts\/words/)
+    const to = result.directives?.[0]?.to
+    assert.ok(to)
+    assert.match(to, /^\/posts\/words/)
   })
 })
 

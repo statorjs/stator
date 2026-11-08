@@ -57,7 +57,8 @@ describe('route-css: routeCssMap', () => {
     const map = await routeCssMap({ routesDir: join(root, 'routes'), baseDir: root })
     const css = map.get(join(root, 'routes/x.ts'))
     assert.notEqual(css, undefined)
-    assert.ok(css?.includes('.button[data-s-fake1234] { color: red; }'))
+    assert.ok(css)
+    assert.ok(css.includes('.button[data-s-fake1234] { color: red; }'))
   })
 
   it('silently skips a bare specifier whose package declares no sibling .css', async () => {

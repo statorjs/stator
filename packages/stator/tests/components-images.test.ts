@@ -28,7 +28,8 @@ describe('getImage', () => {
   it('format swaps the extension — the URL is the delivery contract', () => {
     const r = getImage({ src: '/media/x.jpg', width: 900, height: 600, format: 'webp' })
     assert.equal(r.src, '/media/x.webp')
-    assert.ok(r.srcset?.includes('/media/x.webp?w=400 400w'))
+    assert.ok(r.srcset)
+    assert.ok(r.srcset.includes('/media/x.webp?w=400 400w'))
   })
 
   it('remote URLs, GIFs and SVGs pass through with no srcset', () => {
@@ -39,8 +40,10 @@ describe('getImage', () => {
 
   it('crop emits w+h URLs and reports the CROPPED box, not the source shape', () => {
     const r = getImage({ src: '/media/x.jpg', width: 2048, height: 1536, crop: 1 })
-    assert.ok(r.srcset?.includes('/media/x.jpg?w=400&h=400 400w'))
-    assert.ok(r.srcset?.includes('/media/x.jpg?w=1600&h=1600 1600w'))
+    assert.ok(r.srcset)
+    assert.ok(r.srcset.includes('/media/x.jpg?w=400&h=400 400w'))
+    assert.ok(r.srcset)
+    assert.ok(r.srcset.includes('/media/x.jpg?w=1600&h=1600 1600w'))
     // src is the largest rung, and width/height describe THAT resource — so
     // the reserved box is square even though the original is 4:3.
     assert.equal(r.src, '/media/x.jpg?w=1600&h=1600')

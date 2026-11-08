@@ -159,7 +159,8 @@ describe('session cookie flags', () => {
     process.env.STATOR_SECURE_COOKIE = '1'
     const app = await boot()
     const res = await app.fetch(new Request('http://localhost/'))
-    assert.ok(res.headers.get('set-cookie')?.includes('Secure'))
+    assert.ok(res.headers.get('set-cookie'))
+    assert.ok(res.headers.get('set-cookie')!.includes('Secure'))
   })
 
   it('does not reissue the cookie for a returning session', async () => {
@@ -212,7 +213,8 @@ describe('static caching headers', () => {
     assert.equal(first.status, 200)
     assert.equal(first.headers.get('cache-control'), 'public, max-age=0, must-revalidate')
     const etag = first.headers.get('etag')
-    assert.match(etag ?? '', /^"[0-9a-f]+-[0-9a-f]+"$/)
+    assert.ok(etag)
+    assert.match(etag, /^"[0-9a-f]+-[0-9a-f]+"$/)
     assert.ok(first.headers.get('last-modified'))
 
     const revalidated = await app.fetch(

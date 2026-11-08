@@ -136,7 +136,8 @@ describe('checkout flow', () => {
     assert.deepStrictEqual(actor.getSnapshot().value, ['confirmed'])
     assert.deepStrictEqual(ctx.lines, [])
     assert.equal(ctx.lastOrder?.amountCents, 15600) // 2 × $78, server-computed
-    assert.ok(ctx.lastOrder?.summary.includes('The Longshore'))
+    assert.ok(ctx.lastOrder)
+    assert.ok(ctx.lastOrder.summary.includes('The Longshore'))
   })
 
   it('SUBMIT re-checks stock: a shortage stays in review with a named error', () => {

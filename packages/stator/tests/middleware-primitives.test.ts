@@ -20,7 +20,8 @@ describe('cors()', () => {
     )
     assert.equal(res.headers.get('access-control-allow-origin'), 'https://app.tonysull.co')
     assert.equal(res.headers.get('access-control-allow-credentials'), 'true')
-    assert.ok(res.headers.get('vary')?.includes('Origin'))
+    assert.ok(res.headers.get('vary'))
+    assert.ok(res.headers.get('vary')!.includes('Origin'))
   })
 
   it('does not reflect a disallowed origin', async () => {
@@ -48,7 +49,8 @@ describe('cors()', () => {
       }),
     )
     assert.equal(res.status, 204)
-    assert.ok(res.headers.get('access-control-allow-methods')?.includes('POST'))
+    assert.ok(res.headers.get('access-control-allow-methods'))
+    assert.ok(res.headers.get('access-control-allow-methods')!.includes('POST'))
   })
 
   it('defaults cors origins to trustedOrigins when cors is unconfigured', async () => {

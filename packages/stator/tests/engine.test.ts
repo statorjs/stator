@@ -330,6 +330,7 @@ describe('engine: defineMachine + createActor', () => {
 
     assert.equal(Products.capabilities.serverPinned, false) // reads-free → portable
     assert.equal(Cart.capabilities.serverPinned, true)
-    assert.ok(Cart.capabilities.reasons[0]?.includes('Products'))
+    assert.ok(Cart.capabilities.reasons[0])
+    assert.ok(Cart.capabilities.reasons[0]!.includes('Products'))
   })
 })
