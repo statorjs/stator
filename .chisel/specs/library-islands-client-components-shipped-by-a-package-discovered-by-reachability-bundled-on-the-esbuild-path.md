@@ -2,7 +2,7 @@
 title: 'Library islands: client components shipped by a package, discovered by reachability, bundled on the esbuild path'
 status: draft
 created: 2026-11-04
-updated: 2026-11-04
+updated: 2026-11-08
 area: tooling
 ---
 
@@ -118,6 +118,25 @@ Verdict: build the plumbing as specified. Nothing in the probe contradicts the a
 - **One hop only.** The walk crosses a bare specifier once, from an app file into the package, and follows relative imports inside that package; a package importing another package's island is not reached. The error for a second hop names both packages so the author knows to re-export from the first.
 - **Collisions are found at build.** `stator build` fails when two reached client entries register one custom element tag, naming both source paths. Dev does not pre-scan; it must not be silent either: when a component reached later in a dev session (a route visited for the first time, a lazily imported page) registers a tag another reached entry already holds, the dev server logs a clear error naming both paths and the page that reached the second one, and keeps serving the first. The same collision then fails the next build, which is where it is meant to be caught.
 - **Sequencing:** this lands on the 3.0 line after the Vite deletion, on the esbuild path only.
+
+## Build plan on the 3.0 line (2026-11-08, Tony)
+
+Since this spec was drafted, Vite is gone, `.stator` server modules carry source maps, dev serves each route's stylesheet from the build's own walk, and the editor reads the project's `@statorjs/stator/editor`. The plan below folds those in.
+
+**Decided:**
+
+- **Island source maps land first, as their own PR.** A published library bakes its compiled island files, so maps added after library islands ship would reach users only when each library republishes. The server fence takes marks through the frontmatter path routes use; the client entry maps the `<script>` region line for line from its source offset; both inline. esbuild's bundler chains an input file's inline map (probed 2026-11-08: the bundle's map names `palette.stator`, rebased to the outdir), so app islands compiled in memory and library entries in `node_modules` both map. `sourcesContent` stays inline: a browser cannot fetch a `.stator` out of `node_modules`.
+- **Package CSS comes from siblings by real path.** With one walk following imports into a package, every reached module, app or package, contributes its sibling `.css` the same way. Library CSS becomes usage-driven per route like app CSS, and Stator consumers no longer need `.css` entries in a library's `exports` map; they stay useful for non-Stator consumers. This supersedes Approach 5's exports-map resolution and the barrel aggregate for Stator apps.
+- **IndiePub tracks 3.0 on a `next` dist-tag** with the peer range widened to accept 3.0 prereleases; IndiePub's `latest` stays on 2.x for production until 3.0 ships.
+
+**Order of work:**
+
+1. Island source maps (server fence, client script).
+2. One reachability module replacing the near-duplicate walks in `build/route-css.ts` and `build/islands.ts`: comment-aware, one bare-specifier hop resolved with Node resolution from the importer, relative imports followed inside that package, a second hop an error naming both packages. Per route it yields the reached modules with their text, and route CSS, route islands, the contract-stamp check and the tag-collision check all read that one result. Dev already runs the build's CSS walk, so dev and build share the island set too.
+3. `build:lib`: the contract pragma on line 1, added before the map is finalised so the map accounts for it; the machine stub rewritten line for line (one import line becomes one `const X = { name }` line), so every other line keeps its mapping; the browser-safety dry pass; inline maps with `sources` naming the shipped `.stator` sibling.
+4. Consumers' build and dev take the island set from the walk (a reached `x.stator.ts` with an `x.stator.client.ts` beside it), identity by bare specifier with the leading `@` stripped from bundle entry names, the stamp check in `stator build` and `stator check`, and the tag collision failing the build and logging a located error in dev.
+5. The contract-fingerprint gate. The fingerprint excludes the `sourceMappingURL` comment and the pragma itself: maps are not part of the compiled contract.
+6. Test bed: `@indiepub/stator` ships the command palette on its `next` tag, tonysull.co's `next/stator-3` branch consumes it, then the rich editor as the heavy case.
 
 ## Implementation Notes
 
