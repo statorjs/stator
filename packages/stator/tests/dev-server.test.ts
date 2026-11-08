@@ -216,61 +216,73 @@ describe('dev server: .stator end to end', () => {
       routesDir: resolve(root, 'routes'),
     })
 
-    // Render the live page for a session cookie, then open its stream.
-    const page = await app.fetch(new Request('http://localhost/tally'))
-    assert.equal(page.status, 200)
-    // Lazy sessions: the app-machine page sets no cookie; mint a sid.
-    const cookie = `stator_sid=${crypto.randomUUID()}`
-
-    const abort = new AbortController()
-    const res = await app.fetch(
-      new Request(`http://localhost/__sse?route=${encodeURIComponent('GET /tally')}`, {
-        headers: { Cookie: cookie },
-        signal: abort.signal,
-      }),
-    )
-    assert.equal(res.status, 200)
-    const reader = res.body!.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    const pump = (async () => {
-      try {
-        while (true) {
-          const r = await reader.read()
-          if (r.done) break
-          buffer += decoder.decode(r.value, { stream: true })
+    // Open the live page's stream, dispatch, and wait for the push. On a cold
+    // CI runner the Vite hatch can re-optimise dependencies mid-test and
+    // re-instantiate the framework modules, leaving an open stream on a
+    // stale module copy that no fan-out reaches (seen on CI under Vitest and
+    // under node:test; never locally, where the .vite cache is warm). A
+    // stream opened again lands on the current copy, so this retries the
+    // round trip a bounded number of times. The hatch goes with Vite in 3.0.
+    const attempt = async (): Promise<{ committed: boolean; pushed: boolean; total: number }> => {
+      const page = await app!.fetch(new Request('http://localhost/tally'))
+      assert.equal(page.status, 200)
+      // Lazy sessions: the app-machine page sets no cookie; mint a sid.
+      const cookie = `stator_sid=${crypto.randomUUID()}`
+      const abort = new AbortController()
+      const res = await app!.fetch(
+        new Request(`http://localhost/__sse?route=${encodeURIComponent('GET /tally')}`, {
+          headers: { Cookie: cookie },
+          signal: abort.signal,
+        }),
+      )
+      assert.equal(res.status, 200)
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      const pump = (async () => {
+        try {
+          while (true) {
+            const r = await reader.read()
+            if (r.done) break
+            buffer += decoder.decode(r.value, { stream: true })
+          }
+        } catch {
+          // stream aborted — fine
         }
-      } catch {
-        // stream aborted — fine
+      })()
+      const readUntil = async (predicate: (t: string) => boolean, ms: number) => {
+        const deadline = Date.now() + ms
+        while (!predicate(buffer) && Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 15))
+        }
+        return predicate(buffer)
       }
-    })()
-    const readUntil = async (predicate: (t: string) => boolean) => {
-      const deadline = Date.now() + 15_000
-      while (!predicate(buffer) && Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 15))
+      try {
+        await readUntil((t) => t.includes(': open'), 10_000)
+        // The def is natively imported (as a user's server.ts would) while the
+        // dev app loaded its own copy through Vite — dispatchToApp resolves by
+        // name, so the identities never need to match.
+        const result = await app!.dispatchToApp(Tally, { type: 'BUMP', by: 4 })
+        const { total } = (await (
+          await app!.fetch(new Request('http://localhost/api-tally'))
+        ).json()) as {
+          total: number
+        }
+        // The push must arrive on THIS stream: the dispatch ran in the
+        // Vite-loaded runtime whose SSE registry holds the connection.
+        const pushed = await readUntil((t) => t.includes(`"value":"${total}"`), 5_000)
+        return { committed: result.committed, pushed, total }
+      } finally {
+        abort.abort()
+        reader.cancel().catch(() => {})
+        void pump
       }
-      return buffer
     }
 
-    try {
-      await readUntil((t) => t.includes(': open'))
-
-      // The def is natively imported (as a user's server.ts would) while the
-      // dev app loaded its own copy through Vite — dispatchToApp resolves by
-      // name, so the identities never need to match.
-      const result = await app.dispatchToApp(Tally, { type: 'BUMP', by: 4 })
-      assert.equal(result.committed, true)
-
-      // The push must arrive on THIS stream: the dispatch ran in the
-      // Vite-loaded runtime whose SSE registry holds the connection. A
-      // natively-imported dispatchToApp would commit but reach nobody.
-      const buf = await readUntil((t) => /"value":"4"/.test(t))
-      assert.ok(buf.includes('"value":"4"'))
-    } finally {
-      abort.abort()
-      reader.cancel().catch(() => {})
-      void pump
-    }
+    let last = { committed: false, pushed: false, total: 0 }
+    for (let i = 0; i < 3 && !last.pushed; i++) last = await attempt()
+    assert.equal(last.committed, true)
+    assert.ok(last.pushed, `no push carried the committed value ${last.total} after 3 attempts`)
   })
 
   it('serves a data GET route as JSON through the Vite loader', async () => {
