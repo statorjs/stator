@@ -89,8 +89,8 @@ export interface LowerOptions {
   /** Resolve a component identifier to the set of named regions it declares
    *  (`<children name="x"/>`). Returns null if unresolvable (e.g. not a
    *  `.stator` import, or no resolver wired) — in which case named-child
-   *  validation is skipped for that component. Supplied by the Vite plugin /
-   *  build, which can read sibling `.stator` files. */
+   *  validation is skipped for that component. Supplied by the dev server and
+   *  the build, which can read sibling `.stator` files. */
   resolveRegions?: (componentName: string) => Set<string> | null
   /** Client-component mode. When set, `on:` directives and client-machine
    *  `read()`s are *collected* (with node/slot markers injected) instead of

@@ -308,7 +308,8 @@ describe('cascading never crosses the suffixed-vs-bare-param boundary', () => {
 
     const res = await app.fetch(new Request('http://localhost/p/nope1234.json'))
     assert.equal(res.status, 404)
-    assert.ok(res.headers.get('content-type')?.includes('json'))
+    assert.ok(res.headers.get('content-type'))
+    assert.ok(res.headers.get('content-type')!.includes('json'))
     assert.deepStrictEqual(await res.json(), { error: 'no such poll' })
   })
 
@@ -362,7 +363,8 @@ describe('cascading never crosses the suffixed-vs-bare-param boundary', () => {
 
     const res = await app.fetch(new Request('http://localhost/p/nope1234.json'))
     assert.equal(res.status, 404)
-    assert.ok(res.headers.get('content-type')?.includes('json'))
+    assert.ok(res.headers.get('content-type'))
+    assert.ok(res.headers.get('content-type')!.includes('json'))
     assert.deepStrictEqual(await res.json(), { error: 'no such poll' })
   })
 })

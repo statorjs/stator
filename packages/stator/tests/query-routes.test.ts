@@ -27,7 +27,8 @@ describe('data GET routes: response synthesis', () => {
 
     const res = await app.fetch(new Request('http://localhost/api-board'))
     assert.equal(res.status, 200)
-    assert.ok(res.headers.get('content-type')?.includes('application/json'))
+    assert.ok(res.headers.get('content-type'))
+    assert.ok(res.headers.get('content-type')!.includes('application/json'))
     assert.ok(res.headers.get('etag'))
     assert.deepStrictEqual(await res.json(), { total: 7 })
   })
@@ -56,7 +57,8 @@ describe('data GET routes: response synthesis', () => {
     const app = await boot()
     const res = await app.fetch(new Request('http://localhost/feed.xml'))
     assert.equal(res.status, 200)
-    assert.ok(res.headers.get('content-type')?.includes('application/xml'))
+    assert.ok(res.headers.get('content-type'))
+    assert.ok(res.headers.get('content-type')!.includes('application/xml'))
     assert.ok((await res.text()).includes('<rss>'))
   })
 
@@ -65,7 +67,8 @@ describe('data GET routes: response synthesis', () => {
     const res = await app.fetch(new Request('http://localhost/theme.css'))
     assert.equal(res.status, 200)
     assert.equal(res.headers.get('content-type'), 'text/css; charset=utf-8')
-    assert.ok(res.headers.get('cache-control')?.includes('public'))
+    assert.ok(res.headers.get('cache-control'))
+    assert.ok(res.headers.get('cache-control')!.includes('public'))
     assert.ok((await res.text()).includes('--accent'))
     const etag = res.headers.get('etag')!
     const revalidated = await app.fetch(

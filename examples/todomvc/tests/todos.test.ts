@@ -1,5 +1,6 @@
 import { createActor } from '@statorjs/stator/machine'
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import TodosMachine from '../machines/todos.ts'
 
 /**
@@ -14,8 +15,8 @@ describe('todos', () => {
     actor.send({ type: 'ADD', title: '  feed the cat  ' })
     actor.send({ type: 'ADD', title: '   ' }) // guard-dropped
     const { todos } = actor.getSnapshot().context
-    expect(todos).toHaveLength(1)
-    expect(todos[0]!.title).toBe('feed the cat')
+    assert.equal(todos.length, 1)
+    assert.equal(todos[0]!.title, 'feed the cat')
   })
 
   it('toggle-all flips everything; flips back when all done', () => {
@@ -23,9 +24,9 @@ describe('todos', () => {
     actor.send({ type: 'ADD', title: 'a' })
     actor.send({ type: 'ADD', title: 'b' })
     actor.send({ type: 'TOGGLE_ALL' })
-    expect(actor.getSnapshot().context.todos.every((t) => t.done)).toBe(true)
+    assert.equal(actor.getSnapshot().context.todos.every((t) => t.done), true)
     actor.send({ type: 'TOGGLE_ALL' })
-    expect(actor.getSnapshot().context.todos.every((t) => !t.done)).toBe(true)
+    assert.equal(actor.getSnapshot().context.todos.every((t) => !t.done), true)
   })
 
   it('saving an emptied title deletes the todo (TodoMVC convention)', () => {
@@ -34,8 +35,8 @@ describe('todos', () => {
     const id = actor.getSnapshot().context.todos[0]!.id
     actor.send({ type: 'EDIT_START', id })
     actor.send({ type: 'EDIT_SAVE', id, title: '  ' })
-    expect(actor.getSnapshot().context.todos).toHaveLength(0)
-    expect(actor.getSnapshot().context.editingId).toBe('')
+    assert.equal((actor.getSnapshot().context.todos).length, 0)
+    assert.equal(actor.getSnapshot().context.editingId, '')
   })
 
   it('clear-completed keeps only active todos', () => {
@@ -45,6 +46,6 @@ describe('todos', () => {
     const dropId = actor.getSnapshot().context.todos[1]!.id
     actor.send({ type: 'TOGGLE', id: dropId })
     actor.send({ type: 'CLEAR_COMPLETED' })
-    expect(actor.getSnapshot().context.todos.map((t) => t.title)).toEqual(['keep'])
+    assert.deepStrictEqual(actor.getSnapshot().context.todos.map((t) => t.title), ['keep'])
   })
 })

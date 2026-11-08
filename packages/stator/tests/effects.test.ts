@@ -245,7 +245,9 @@ describe('server effects: full HTTP loop', () => {
 
     // Completion re-enters through the event path and persists.
     await waitFor(async () => {
-      assert.match((await status(app, cookie)) ?? '', /^confirmed:r-/)
+      const current = await status(app, cookie)
+      assert.ok(current)
+      assert.match(current, /^confirmed:r-/)
     })
   })
 
@@ -271,7 +273,9 @@ describe('server effects: full HTTP loop', () => {
 
     await waitFor(
       async () => {
-        assert.match((await status(app, cookie)) ?? '', /^confirmed:/)
+        const current = await status(app, cookie)
+        assert.ok(current)
+        assert.match(current, /^confirmed:/)
       },
       { timeout: 2000 },
     )

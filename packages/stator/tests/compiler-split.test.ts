@@ -26,7 +26,8 @@ import type CartMachine from '../machines/cart.ts'
     assert.equal(r.template, '<div class="cart">Total: {read(cart, c => c.total)}</div>')
     assert.deepStrictEqual(r.styles, ['.cart { color: red; }'])
     assert.equal(r.scripts.length, 1)
-    assert.ok(r.scripts[0]?.includes("console.log('client')"))
+    assert.ok(r.scripts[0])
+    assert.ok(r.scripts[0]!.includes("console.log('client')"))
   })
 
   it('handles a template with no frontmatter', () => {
@@ -67,7 +68,8 @@ import type CartMachine from '../machines/cart.ts'
 </script>`
     const r = splitStator(src)
     assert.equal(r.scripts.length, 1)
-    assert.ok(r.scripts[0]?.includes('StatorElement'))
+    assert.ok(r.scripts[0])
+    assert.ok(r.scripts[0]!.includes('StatorElement'))
     assert.ok(r.template.includes('<script src="/x.js"></script>'))
     assert.ok(!r.template.includes('StatorElement'))
   })
@@ -81,7 +83,8 @@ import type CartMachine from '../machines/cart.ts'
 </script>`
     const r = splitStator(src)
     assert.equal(r.scripts.length, 1)
-    assert.ok(r.scripts[0]?.includes('class Widget'))
+    assert.ok(r.scripts[0])
+    assert.ok(r.scripts[0]!.includes('class Widget'))
     assert.equal(r.template, '<div>page</div>')
   })
 

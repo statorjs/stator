@@ -142,7 +142,8 @@ describe('persistence posture: what startup reports', () => {
       production: true,
     })
     assert.equal(warnings.length, 1)
-    assert.ok(warnings[0]?.includes('REDIS_URL is empty'))
+    assert.ok(warnings[0])
+    assert.ok(warnings[0]!.includes('REDIS_URL is empty'))
   })
 
   it('falls back to a general warning when nothing was configured', () => {
@@ -153,8 +154,10 @@ describe('persistence posture: what startup reports', () => {
       production: true,
     })
     assert.equal(warnings.length, 1)
-    assert.ok(warnings[0]?.includes('no durable session store'))
-    assert.ok(warnings[0]?.includes('2 session machines'))
+    assert.ok(warnings[0])
+    assert.ok(warnings[0]!.includes('no durable session store'))
+    assert.ok(warnings[0])
+    assert.ok(warnings[0]!.includes('2 session machines'))
   })
 
   it('stays quiet when there is no session state to lose', () => {
@@ -177,7 +180,8 @@ describe('persistence posture: what startup reports', () => {
     })
     assert.ok(posture.label.includes('app in-memory'))
     assert.equal(posture.warnings.length, 1)
-    assert.ok(posture.warnings[0]?.includes('2 persisted app machines'))
+    assert.ok(posture.warnings[0])
+    assert.ok(posture.warnings[0]!.includes('2 persisted app machines'))
   })
 
   it('is silent when everything is durable', () => {

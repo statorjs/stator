@@ -147,7 +147,8 @@ describe('island live attrs', () => {
     const branch = flip.find((p) => p.op === 'html')
     assert.notEqual(branch, undefined)
     const shellId = /data-stator-id="([^"]+)"/.exec(String(branch!.value))?.[1]
-    assert.match(shellId ?? '', /:btrue:e\d+$/)
+    assert.ok(shellId)
+    assert.match(shellId, /:btrue:e\d+$/)
     assert.ok(String(branch!.value).includes('stock="3"'))
 
     applyPatches(flip)

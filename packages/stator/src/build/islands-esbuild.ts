@@ -9,7 +9,7 @@ import type { BundleIslandsOptions, IslandAsset, IslandBundler } from './islands
  * shared modules — the client runtime above all — land in shared chunks
  * instead of duplicating per island.
  *
- * Same contract as the Vite implementation in `islands.ts`: entries are
+ * The contract `islands.ts` defines: entries are
  * `.stator` sources (compiled to their client module here) or prebuilt client
  * entry modules; server-machine imports collapse to `{ name }` stubs; nothing
  * is written — callers own the assets.

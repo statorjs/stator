@@ -2,14 +2,8 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-
-// Wire tests boot the dev app IN-PROCESS, which needs the transitional Vite dev
-// server: the native default (the Vite exit) loads app modules through Node
-// loader hooks that vitest's module runner bypasses. Migrates to the
-// CLI-subprocess harness when the Vite implementation retires (see the
-// framework's dev-native.test.ts for the pattern).
-process.env.STATOR_VITE_DEV = '1'
+import assert from 'node:assert/strict'
+import { after, before, describe, it } from 'node:test'
 
 
 /**
@@ -26,7 +20,7 @@ process.env.INDIE_BLOG_ORIGIN = `http://localhost:${PORT}`
 const here = dirname(fileURLToPath(import.meta.url))
 let app: import('@statorjs/stator/dev').DevApp
 
-beforeAll(async () => {
+before(async () => {
   const { createDevApp } = await import('@statorjs/stator/dev')
   app = await createDevApp({
     root: resolve(here, '..'),
@@ -35,9 +29,9 @@ beforeAll(async () => {
     staticDir: resolve(here, '../static'),
   })
   await app.listen(PORT)
-}, 30_000)
+}, { timeout: 30_000 })
 
-afterAll(async () => {
+after(async () => {
   await app.close()
 })
 
@@ -91,29 +85,29 @@ async function until(check: () => Promise<boolean>, ms = 4000): Promise<boolean>
 describe('the indie-blog loop', () => {
   let sid: string
 
-  beforeAll(async () => {
+  before(async () => {
     sid = sidOf(await fetch(`${base}/`))!
   })
 
   it('serves the empty front page with feed + webmention advertisement', async () => {
     const html = await page('/')
-    expect(html).toContain('rel="webmention"')
-    expect(html).toContain('href="/feed.xml"')
-    expect(html).toContain('h-feed')
+    assert.ok(html.includes('rel="webmention"'))
+    assert.ok(html.includes('href="/feed.xml"'))
+    assert.ok(html.includes('h-feed'))
   })
 
   it('rejects publishing while signed out', async () => {
     const res = await postForm('/admin/publish', sid, { title: '', content: 'sneaky' })
-    expect(await res.text()).toContain('not-signed-in')
+    assert.ok((await res.text()).includes('not-signed-in'))
   })
 
   it('signs in with the owner password (wrong one bounces)', async () => {
     const bad = await postForm('/admin/login', sid, { password: 'nope' })
-    expect(await bad.text()).toContain('bad-password')
+    assert.ok((await bad.text()).includes('bad-password'))
     const good = await postForm('/admin/login', sid, { password: 'owls-at-dusk' })
     const rotated = sidOf(good)
-    expect(rotated).toBeTruthy()
-    expect(rotated).not.toBe(sid)
+    assert.ok(rotated)
+    assert.notEqual(rotated, sid)
     sid = rotated!
   })
 
@@ -123,32 +117,32 @@ describe('the indie-blog loop', () => {
       content: 'The first post.\n\nIt has two paragraphs.',
     })
     const post = await page('/posts/hello-world')
-    expect(post).toContain('h-entry')
-    expect(post).toContain('dt-published')
-    expect(post).toContain('two paragraphs')
+    assert.ok(post.includes('h-entry'))
+    assert.ok(post.includes('dt-published'))
+    assert.ok(post.includes('two paragraphs'))
 
     const home = await page('/')
-    expect(home).toContain('Hello World')
+    assert.ok(home.includes('Hello World'))
   })
 
   it('serves all three feeds, ETagged', async () => {
     const rss = await fetch(`${base}/feed.xml`)
-    expect(rss.status).toBe(200)
-    expect(await rss.text()).toContain('<rss')
+    assert.equal(rss.status, 200)
+    assert.ok((await rss.text()).includes('<rss'))
     const etag = rss.headers.get('etag')
-    expect(etag).toBeTruthy()
+    assert.ok(etag)
     const conditional = await fetch(`${base}/feed.xml`, {
       headers: { 'if-none-match': etag! },
     })
-    expect(conditional.status).toBe(304)
-    expect((await fetch(`${base}/atom.xml`)).status).toBe(200)
+    assert.equal(conditional.status, 304)
+    assert.equal((await fetch(`${base}/atom.xml`)).status, 200)
     const json = await (await fetch(`${base}/feed.json`)).json()
-    expect(json.items[0].url).toContain('/posts/hello-world')
+    assert.ok(json.items[0].url.includes('/posts/hello-world'))
   })
 
   it('refuses malformed and foreign webmentions', async () => {
     const missing = await fetch(`${base}/webmention`, { method: 'POST', body: new URLSearchParams({}) })
-    expect(missing.status).toBe(400)
+    assert.equal(missing.status, 400)
     const foreign = await fetch(`${base}/webmention`, {
       method: 'POST',
       body: new URLSearchParams({
@@ -156,7 +150,7 @@ describe('the indie-blog loop', () => {
         target: 'https://not-this-site.dev/posts/hello-world',
       }),
     })
-    expect(foreign.status).toBe(400)
+    assert.equal(foreign.status, 400)
     const noSuchPost = await fetch(`${base}/webmention`, {
       method: 'POST',
       body: new URLSearchParams({
@@ -164,7 +158,7 @@ describe('the indie-blog loop', () => {
         target: `${base}/posts/never-was`,
       }),
     })
-    expect(noSuchPost.status).toBe(400)
+    assert.equal(noSuchPost.status, 400)
   })
 
   it('the blog webmentions itself: reply post → verify over the real port → moderate → live on the page', async () => {
@@ -175,7 +169,7 @@ describe('the indie-blog loop', () => {
     })
     const home = await page('/')
     const noteSlug = /href="\/posts\/(replying-to[^"]*)"/.exec(home)?.[1]
-    expect(noteSlug).toBeTruthy()
+    assert.ok(noteSlug)
 
     // Send the mention: B is the source, A the target.
     const accepted = await fetch(`${base}/webmention`, {
@@ -185,32 +179,30 @@ describe('the indie-blog loop', () => {
         target: `${base}/posts/hello-world`,
       }),
     })
-    expect(accepted.status).toBe(202)
+    assert.equal(accepted.status, 202)
 
     // Verification fetches B's real page and finds the autolinked target.
     const verified = await until(async () =>
       (await page('/admin', sid)).includes('APPROVE_MENTION'),
     )
-    expect(verified).toBe(true)
+    assert.equal(verified, true)
 
     // Approve it through the owner machine (typed event over the wire).
     const id = /"id":"([a-z0-9]+)"/.exec(
       /APPROVE_MENTION[^}]*}/.exec((await page('/admin', sid)).replaceAll('&quot;', '"'))?.[0] ?? '',
     )?.[1]
-    expect(id).toBeTruthy()
-    expect((await postEvent(sid, 'OwnerMachine', { type: 'APPROVE_MENTION', id })).committed).toBe(
-      true,
-    )
+    assert.ok(id)
+    assert.equal((await postEvent(sid, 'OwnerMachine', { type: 'APPROVE_MENTION', id })).committed, true)
 
     // The approved mention shows on A's page as a plain-mention row.
     const post = await page('/posts/hello-world')
-    expect(post).toContain('mentions ·')
-    expect(post).toContain(`/posts/${noteSlug}`)
+    assert.ok(post.includes('mentions ·'))
+    assert.ok(post.includes(`/posts/${noteSlug}`))
   })
 
   it('the outbox recorded the self-send workflow', async () => {
     const admin = await page('/admin', sid)
-    expect(admin).toContain('outbox')
-    expect(admin).toMatch(/replying-to[^<]*→/)
+    assert.ok(admin.includes('outbox'))
+    assert.match(admin, /replying-to[^<]*→/)
   })
 })

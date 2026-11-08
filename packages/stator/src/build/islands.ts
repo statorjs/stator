@@ -9,8 +9,8 @@ import { join, resolve } from 'node:path'
  * files, a rel→URL map, and the list of source modules that went in, out.
  * Nothing is written or served here — `buildApp` writes the assets under
  * `dist/static/assets/`, the native dev server keeps them in memory. That is
- * what makes the bundler a one-implementation swap (Vite today; esbuild is the
- * Option E candidate) with the same core feeding both sides.
+ * what keeps the bundler one implementation (esbuild) with the same core
+ * feeding both sides.
  *
  * The entry contract is deliberately tiny: an entry is either the island's
  * `.stator` SOURCE (the bundler compiles its `<script>` to the client module)
@@ -59,22 +59,13 @@ export interface BundleIslandsOptions {
 export type IslandBundler = (opts: BundleIslandsOptions) => Promise<IslandBundle>
 
 /**
- * The seam's one export: dispatches to an implementation. Vite (impl #1,
- * `islands-vite.ts`) is the default; `STATOR_ISLAND_BUNDLER=esbuild` selects
- * impl #2 (`islands-esbuild.ts`, the Option E candidate — Spike 1). Both run
- * the same contract tests; the default flips (and #1 is deleted) when the
- * Phase 2 gate in the toolchain-adapter spec passes.
+ * The seam's one export. esbuild bundles islands in dev and in the production
+ * build alike (`islands-esbuild.ts`); the seam stays a function so a future
+ * bundler is one implementation behind the same contract tests.
  */
 export const bundleIslands: IslandBundler = async (opts) => {
-  const choice = process.env.STATOR_ISLAND_BUNDLER ?? 'vite'
-  if (choice === 'esbuild') {
-    const { bundleIslandsEsbuild } = await import('./islands-esbuild.ts')
-    return bundleIslandsEsbuild(opts)
-  }
-  if (choice !== 'vite')
-    throw new Error(`stator: unknown STATOR_ISLAND_BUNDLER "${choice}" (vite | esbuild)`)
-  const { bundleIslandsVite } = await import('./islands-vite.ts')
-  return bundleIslandsVite(opts)
+  const { bundleIslandsEsbuild } = await import('./islands-esbuild.ts')
+  return bundleIslandsEsbuild(opts)
 }
 
 /**

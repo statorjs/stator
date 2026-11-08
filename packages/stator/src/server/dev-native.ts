@@ -60,7 +60,7 @@ import { InMemoryStore } from './store.ts'
  *    Vite's HMR websocket. A failed rebuild keeps the last good
  *    graph serving and renders the error (with its code frame) in an overlay.
  *  - **Scoped CSS + island scripts** — islands bundle through the
- *    `bundleIslands` seam (Vite today, never on the SSR path) and are served
+ *    `bundleIslands` seam (esbuild, never on the SSR path) and are served
  *    from memory with the concatenated scoped CSS, local and `node_modules`
  *    alike, on the same URLs and with the same `<head>` shape as production.
  *

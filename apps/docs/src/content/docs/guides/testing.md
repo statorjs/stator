@@ -5,13 +5,15 @@ sidebar:
   order: 16
 ---
 
-In client-canonical frameworks, business logic lives inside components, so testing it means rendering — jsdom, testing-library, mock servers, and a slow suite that still misses things. Stator's architecture inverts that: your business logic is a machine that **doesn't know the UI exists**, so the bulk of your tests are millisecond-fast functions of events in, state out. The examples below use [Vitest](https://vitest.dev), but nothing here is runner-specific.
+In client-canonical frameworks, business logic lives inside components, so testing it means rendering — jsdom, testing-library, mock servers, and a slow suite that still misses things. Stator's architecture inverts that: your business logic is a machine that **doesn't know the UI exists**, so the bulk of your tests are millisecond-fast functions of events in, state out. The examples below use Node's built-in test runner, which is what `stator test` runs, but nothing here is runner-specific.
 
 ## Machines: test the logic without rendering anything
 
-`createActor` (from `@statorjs/stator/machine`) spins up an [actor](/concepts/state-machines/#definition-actor-instance) — a running machine — anywhere, including a plain test file. Send events, assert snapshots:
+`createActor` (from `@statorjs/stator/machine`) spins up an [actor](/concepts/state-machines/#definition-actor-instance) — a running machine — anywhere, including a plain test file. Send events, assert snapshots. Tests use Node's own runner and assertions (`node:test`, `node:assert/strict`), so there is nothing to install:
 
 ```ts
+import assert from 'node:assert/strict'
+import { it } from 'node:test'
 import { createActor } from '@statorjs/stator/machine'
 import Checkout from '../machines/checkout.ts'
 
@@ -19,7 +21,7 @@ it('refuses to submit an empty cart', () => {
   const actor = createActor(Checkout).start()
   actor.send({ type: 'SUBMIT', token: 'tok' })
   // The guard blocked it: still reviewing.
-  expect(actor.getSnapshot().value).toEqual(['reviewing'])
+  assert.deepStrictEqual(actor.getSnapshot().value, ['reviewing'])
 })
 
 it('a full cart moves to submitting', () => {
@@ -27,7 +29,7 @@ it('a full cart moves to submitting', () => {
     snapshot: { value: ['reviewing'], context: { items: [{ sku: 'desk-01' }], receipt: '' } },
   }).start()
   actor.send({ type: 'SUBMIT', token: 'tok' })
-  expect(actor.getSnapshot().value).toEqual(['submitting'])
+  assert.deepStrictEqual(actor.getSnapshot().value, ['submitting'])
 })
 ```
 
@@ -36,9 +38,9 @@ Notice the second test: the `snapshot` option **arranges any starting state dire
 Selectors are plain functions of context — test the interesting ones the same way you'd test any pure function, through the actor:
 
 ```ts
-expect(actor.getSnapshot().context.items).toHaveLength(1)
+assert.equal(actor.getSnapshot().context.items.length, 1)
 // or through the machine's own lens:
-expect(Checkout.selectors.phase(actor.getSnapshot().context)).toBe('ready')
+assert.equal(Checkout.selectors.phase(actor.getSnapshot().context), 'ready')
 ```
 
 ## Effects: deterministic async without mocking timers
@@ -49,11 +51,11 @@ In a bare actor, [effects](/guides/effects/) run on a microtask and feed their c
 it('a declined charge lands back in reviewing with the error', async () => {
   const actor = createActor(Checkout, { snapshot: fullCart }).start()
   actor.send({ type: 'SUBMIT', token: 'tok_declined' })
-  expect(actor.getSnapshot().value).toEqual(['submitting']) // sync commit
+  assert.deepStrictEqual(actor.getSnapshot().value, ['submitting']) // sync commit
 
   await new Promise((r) => setTimeout(r, 0)) // let the effect settle
-  expect(actor.getSnapshot().value).toEqual(['reviewing'])
-  expect(actor.getSnapshot().context.error).toBe('card declined')
+  assert.deepStrictEqual(actor.getSnapshot().value, ['reviewing'])
+  assert.equal(actor.getSnapshot().context.error, 'card declined')
 })
 ```
 
@@ -64,7 +66,7 @@ const invocations: EffectInvocation[] = []
 const actor = createActor(Checkout, { onEffect: (inv) => invocations.push(inv) }).start()
 actor.send({ type: 'SUBMIT', token: 'tok' })
 
-expect(invocations).toHaveLength(1)          // it was scheduled…
+assert.equal(invocations.length, 1)          // it was scheduled…
 const completion = await invocations[0].run() // …run it when YOU choose
 actor.send(completion!)                       // …and deliver it when you choose
 ```
@@ -100,9 +102,7 @@ it('adding to the cart patches the header count', async () => {
   )
 
   const { patches } = await res.json()
-  expect(patches).toContainEqual(
-    expect.objectContaining({ op: 'text', value: 'count is 1' }),
-  )
+  assert.ok(patches.some((p: { op: string; value?: string }) => p.op === 'text' && p.value === 'count is 1'))
 })
 ```
 
@@ -110,16 +110,18 @@ The first GET establishes the session and its render bindings; the POST asserts 
 
 ## Client islands: the same engine, so the same tests
 
-Island state is built from `machine()` and the same actor engine, so its logic tests exactly like server machines — in Node, no DOM. When you do want DOM assertions (bindings, `attrs` coercion), [happy-dom](https://github.com/capricorn86/happy-dom) is enough; reserve real-browser tests for the few interactions that earn them.
+Island state is built from `machine()` and the same actor engine, so its logic tests exactly like server machines — in Node, no DOM. When you do want DOM assertions (bindings, `attrs` coercion), [happy-dom](https://github.com/capricorn86/happy-dom) is enough: add it as a dev dependency and put `// @env happy-dom` on its own line in that test file, and `stator test` gives that file, and only that file, browser globals. Reserve real-browser tests for the few interactions that earn them.
 
 ## Running the suite
 
-Stator ships its source as TypeScript and loads it with its own loader. Packages built on Stator (component libraries, runtime packages) ship JS that imports that source. Node won't strip types inside `node_modules`, so any process that imports such a package needs Stator's loader registered first. `stator dev`, `start` and `build` register it themselves, and `stator test` passes it to Vitest.
+`stator test` runs every `*.test.ts` and `*.spec.ts` under the app with Node's test runner, each file in its own process. Arguments pass through: name files to run only those (`stator test tests/cart.test.ts`), or add Node's flags (`stator test --watch`, `--test-name-pattern`, `--experimental-test-coverage`). Framework logging is silent during tests; export `LOG_LEVEL` to bring it back while debugging. Spies and fake timers come from `node:test`'s `mock` (`mock.fn`, `mock.method`, `mock.timers`).
 
-Anything else that runs your code (an editor's test runner, `npx vitest`, a maintenance script, another test runner) registers it with one flag:
+Stator ships its source as TypeScript and loads it with its own loader. Packages built on Stator (component libraries, runtime packages) ship JS that imports that source. Node won't strip types inside `node_modules`, so any process that imports such a package needs Stator's loader registered first. `stator dev`, `start`, `build` and `test` register it themselves.
+
+Anything else that runs your code (an editor's test runner, a maintenance script) registers it with one flag:
 
 ```sh
-NODE_OPTIONS="--import @statorjs/stator/register" npx vitest
+node --import @statorjs/stator/register --test tests/cart.test.ts
 node --import @statorjs/stator/register scripts/backfill.ts
 ```
 

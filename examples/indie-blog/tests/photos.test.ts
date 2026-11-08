@@ -1,10 +1,8 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-
-// In-process dev app needs the transitional Vite server (see wire.test.ts).
-process.env.STATOR_VITE_DEV = '1'
+import assert from 'node:assert/strict'
+import { after, before, describe, it } from 'node:test'
 
 const PORT = 3909
 process.env.INDIE_BLOG_DB = join(mkdtempSync(join(tmpdir(), 'indie-photos-')), 'test.db')
@@ -20,7 +18,7 @@ const PNG = Uint8Array.from(
   (c) => c.charCodeAt(0),
 )
 
-beforeAll(async () => {
+before(async () => {
   const { createDevApp } = await import('@statorjs/stator/dev')
   const { resetDb } = await import('../lib/db.ts')
   resetDb()
@@ -35,9 +33,9 @@ beforeAll(async () => {
     images: { dir: process.env.INDIE_BLOG_MEDIA as string, path: '/media' },
   })
   await app.listen(PORT)
-}, 30_000)
+}, { timeout: 30_000 })
 
-afterAll(async () => {
+after(async () => {
   await app?.close()
 })
 
@@ -62,7 +60,7 @@ let sid: string
 
 describe('photo posts over multipart', () => {
 
-  beforeAll(async () => {
+  before(async () => {
     const first = await fetch(`${base}/admin`)
     sid = sidOf(first)!
     const login = await fetch(`${base}/admin/login`, {
@@ -82,47 +80,51 @@ describe('photo posts over multipart', () => {
     const photo = new File([PNG], 'harbor.png', { type: 'image/png' })
     const result = await publish(sid, { title: '', content: 'Harbor at dusk.', photo_alt: 'A harbor at dusk' }, photo)
     const to = result.directives?.[0]?.to
-    expect(to).toMatch(/^\/posts\//)
+    assert.ok(to)
+    assert.match(to, /^\/posts\//)
 
     const html = await (await fetch(`${base}${to}`)).text()
-    expect(html).toContain('class="u-photo"')
+    assert.ok(html.includes('class="u-photo"'))
     const src = html.match(/src="(\/media\/[^"]+)"/)?.[1]
-    expect(src).toMatch(/^\/media\/\d{4}\/\d{2}\/.+\.png$/)
-    expect(html).toContain('alt="A harbor at dusk"')
+    assert.ok(src)
+    assert.match(src, /^\/media\/\d{4}\/\d{2}\/.+\.png$/)
+    assert.ok(html.includes('alt="A harbor at dusk"'))
 
     const media = await fetch(`${base}${src}`)
-    expect(media.status).toBe(200)
-    expect(media.headers.get('content-type')).toBe('image/png')
+    assert.equal(media.status, 200)
+    assert.equal(media.headers.get('content-type'), 'image/png')
     const etag = media.headers.get('etag')
-    expect(etag).toBeTruthy()
+    assert.ok(etag)
     const revalidated = await fetch(`${base}${src}`, { headers: { 'If-None-Match': etag! } })
-    expect(revalidated.status).toBe(304)
+    assert.equal(revalidated.status, 304)
 
     // Intrinsic dimensions were probed at upload and rendered for CLS.
-    expect(html).toMatch(/width="1"[^>]*height="1"|height="1"[^>]*width="1"/)
+    assert.match(html, /width="1"[^>]*height="1"|height="1"[^>]*width="1"/)
 
     // The URL's extension is the delivery format: request the stored PNG as
     // webp and the endpoint transcodes. An off-allowlist width is a 400.
     const webp = await fetch(`${base}${src!.replace(/\.png$/, '.webp')}?w=400`)
-    expect(webp.status).toBe(200)
-    expect(webp.headers.get('content-type')).toBe('image/webp')
-    expect((await fetch(`${base}${src}?w=999`)).status).toBe(400)
+    assert.equal(webp.status, 200)
+    assert.equal(webp.headers.get('content-type'), 'image/webp')
+    assert.equal((await fetch(`${base}${src}?w=999`)).status, 400)
   })
 
   it('rejects a photo without alt text', async () => {
     const photo = new File([PNG], 'x.png', { type: 'image/png' })
     const result = await publish(sid, { title: '', content: 'No alt.', photo_alt: '' }, photo)
-    expect(result.directives?.[0]?.to).toBe('/admin?error=photo-alt')
+    assert.equal(result.directives?.[0]?.to, '/admin?error=photo-alt')
   })
 
   it('a media path that escapes the dir or has no known extension 404s', async () => {
-    expect((await fetch(`${base}/media/../../etc/passwd`)).status).toBe(404)
-    expect((await fetch(`${base}/media/2026/08/nope.txt`)).status).toBe(404)
+    assert.equal((await fetch(`${base}/media/../../etc/passwd`)).status, 404)
+    assert.equal((await fetch(`${base}/media/2026/08/nope.txt`)).status, 404)
   })
 
   it('a plain urlencoded publish still works (no photo entry at all)', async () => {
     const result = await publish(sid, { title: 'Words', content: 'Just words.', photo_alt: '' })
-    expect(result.directives?.[0]?.to).toMatch(/^\/posts\/words/)
+    const to = result.directives?.[0]?.to
+    assert.ok(to)
+    assert.match(to, /^\/posts\/words/)
   })
 })
 
@@ -133,18 +135,18 @@ describe('compose draft recovery', () => {
     const bounced = await (
       await fetch(`${base}/admin`, { headers: { Cookie: `stator_sid=${sid}` } })
     ).text()
-    expect(bounced).toContain('value="Draft Title"')
-    expect(bounced).toContain('re-pick your file')
+    assert.ok(bounced.includes('value="Draft Title"'))
+    assert.ok(bounced.includes('re-pick your file'))
     // The textarea pre-fill must be RAW text — a live-slot wrapper inside
     // RCDATA renders as literal markup (the bug that shipped first).
     const textarea = bounced.match(/<textarea[^>]*>([\s\S]*?)<\/textarea>/)?.[1] ?? ''
-    expect(textarea).toContain('Typed words.')
-    expect(textarea).not.toContain('data-slot')
+    assert.ok(textarea.includes('Typed words.'))
+    assert.ok(!textarea.includes('data-slot'))
 
     await publish(sid, { title: 'Draft Title', content: 'Typed words.', photo_alt: 'alt' }, photo)
     const after = await (
       await fetch(`${base}/admin`, { headers: { Cookie: `stator_sid=${sid}` } })
     ).text()
-    expect(after).not.toContain('value="Draft Title"')
+    assert.ok(!after.includes('value="Draft Title"'))
   })
 })

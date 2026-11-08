@@ -1,13 +1,7 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-
-// Wire tests boot the dev app IN-PROCESS, which needs the transitional Vite dev
-// server: the native default (the Vite exit) loads app modules through Node
-// loader hooks that vitest's module runner bypasses. Migrates to the
-// CLI-subprocess harness when the Vite implementation retires (see the
-// framework's dev-native.test.ts for the pattern).
-process.env.STATOR_VITE_DEV = '1'
+import assert from 'node:assert/strict'
+import { after, before, describe, it } from 'node:test'
 
 
 /**
@@ -18,16 +12,16 @@ process.env.STATOR_VITE_DEV = '1'
 const here = dirname(fileURLToPath(import.meta.url))
 let app: import('@statorjs/stator/dev').DevApp
 
-beforeAll(async () => {
+before(async () => {
   const { createDevApp } = await import('@statorjs/stator/dev')
   app = await createDevApp({
     root: resolve(here, '..'),
     machinesDir: resolve(here, '../machines'),
     routesDir: resolve(here, '../routes'),
   })
-}, 30_000)
+}, { timeout: 30_000 })
 
-afterAll(async () => {
+after(async () => {
   await app.close()
 })
 
@@ -49,26 +43,27 @@ describe('the /p/:id.json results route', () => {
     // The home page lists the new poll — lift its id from the link.
     const home = await (await app.fetch(new Request('http://test/'))).text()
     const id = home.match(/\/p\/([a-z0-9]+)/)?.[1]
-    expect(id).toBeTruthy()
+    assert.ok(id)
 
     const res = await app.fetch(new Request(`http://test/p/${id}.json`))
-    expect(res.status).toBe(200)
-    expect(res.headers.get('content-type')).toContain('application/json')
-    expect(res.headers.get('etag')).toBeTruthy()
+    assert.equal(res.status, 200)
+    assert.ok(res.headers.get('content-type'))
+    assert.ok(res.headers.get('content-type')!.includes('application/json'))
+    assert.ok(res.headers.get('etag'))
     const poll = (await res.json()) as {
       question: string
       totalVotes: number
       options: Array<{ text: string; count: number }>
     }
-    expect(poll.question).toBe('Tabs or spaces?')
-    expect(poll.totalVotes).toBe(0)
-    expect(poll.options.map((o) => o.text)).toEqual(['Tabs', 'Spaces'])
-    expect(JSON.stringify(poll)).not.toContain('voterSessions')
+    assert.equal(poll.question, 'Tabs or spaces?')
+    assert.equal(poll.totalVotes, 0)
+    assert.deepStrictEqual(poll.options.map((o) => o.text), ['Tabs', 'Spaces'])
+    assert.ok(!(JSON.stringify(poll)).includes('voterSessions'))
   })
 
   it('an unknown poll id is a JSON 404', async () => {
     const res = await app.fetch(new Request('http://test/p/nope1234.json'))
-    expect(res.status).toBe(404)
-    expect((await res.json()) as object).toEqual({ error: 'no such poll' })
+    assert.equal(res.status, 404)
+    assert.deepStrictEqual((await res.json()) as object, { error: 'no such poll' })
   })
 })

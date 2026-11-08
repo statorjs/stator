@@ -95,6 +95,7 @@ describe('stator test', () => {
       /^--max-old-space-size=2048 --import file:\/\/.*\/src\/register\.js$/,
     )
     assert.equal(testEnv(env).NODE_OPTIONS, env.NODE_OPTIONS)
-    assert.match(testEnv({}).NODE_OPTIONS ?? '', /^--import file:/)
+    assert.ok(testEnv({}).NODE_OPTIONS)
+    assert.match(testEnv({}).NODE_OPTIONS!, /^--import file:/)
   })
 })

@@ -8,8 +8,7 @@ import type { CliContext } from '../run.ts'
  *  hand-wrote a `server.ts` for.
  *
  *  The app runs natively from its source tree, exactly as `stator start` runs a
- *  build. `STATOR_VITE_DEV=1` keeps the previous Vite-embedded dev server for
- *  one minor as an escape hatch. */
+ *  build. */
 export async function run(ctx: CliContext): Promise<void> {
   const config = await loadConfig(ctx.root)
   const app = await createDevApp({

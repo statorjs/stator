@@ -92,7 +92,8 @@ describe('build: buildApp', () => {
     // The manifest carries a build-id for the reload handshake.
     assert.match(manifest.buildId, /[0-9a-f-]{36}/)
     const url = manifest.islands['templates/stepper.stator']
-    assert.match(url ?? '', /^\/static\/assets\/templates_stepper-[\w-]+\.js$/)
+    assert.ok(url)
+    assert.match(url, /^\/static\/assets\/templates_stepper-[\w-]+\.js$/)
 
     // Route reachability: only the stepper route reaches the island.
     assert.deepStrictEqual(manifest.routes['routes/stepper.ts'], [url])
@@ -127,7 +128,8 @@ describe('build: buildApp', () => {
     const manifest = JSON.parse(await readFile(join(outDir, 'stator-manifest.json'), 'utf8')) as {
       machines: Record<string, string>
     }
-    assert.match(manifest.machines['counter.ts'] ?? '', /^[0-9a-f]{64}$/)
+    assert.ok(manifest.machines['counter.ts'])
+    assert.match(manifest.machines['counter.ts']!, /^[0-9a-f]{64}$/)
     const { machines } = await loadProductionHead(outDir)
     assert.deepStrictEqual(machines, manifest.machines)
   })

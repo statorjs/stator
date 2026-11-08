@@ -28,7 +28,6 @@ interface DevAppConfig {
 
 interface DevApp {
   fetch(request: Request): Response | Promise<Response>
-  vite: ViteDevServer | undefined  // deprecated — see below
   dispatchToApp(machine: MachineDef, event: EventOf<typeof machine>): Promise<{ committed: boolean }>
   listen(port: number): Promise<void>
   close(): Promise<void>
@@ -42,8 +41,6 @@ On a source change the server recompiles what changed and re-evaluates exactly t
 Sourcemaps work on both planes: the CLI opts the process into Node's sourcemap application, so server stack traces resolve to your TS source (a `.stator` frame resolves to its compiled server module), and dev island bundles carry inline maps so browser devtools show island source. Production island bundles ship unmapped.
 
 Session state is governed by the same rule as production: a machine whose code changed starts fresh on its next request (its snapshot carries the hash of the code that wrote it — see [What survives a deploy](/guides/persistence/#what-survives-a-deploy)); everything else keeps its state, cart contents and all. Nothing clears your store on a save.
-
-**Transitional:** `STATOR_VITE_DEV=1` boots the previous Vite-embedded dev server instead, kept for one minor as an escape hatch — if something forces you onto it, please open an issue. `DevApp.vite` is deprecated: it is `undefined` on the native dev server (with a one-time warning) and will be removed in the next major; under the escape hatch it is still the real `ViteDevServer`.
 
 The **inspector toolbar** is injected by default (`dev: { inspector: false }` disables it), with two tabs. **Wire** shows the wire itself — one row per outgoing event (↑) and incoming patch envelope (↓), including patches arriving over a live route's SSE channel with their apply time; it's the fastest way to see exactly which slots a dispatch touched. **Machines** shows the state behind the wire: every machine's current state and context (your own session's, plus app-lifecycle machines — those are process-global and labeled), the events its current state accepts (server-only and guarded ones marked), and each route's `reads`. A machine your session has never touched shows the def's initial context, dimmed; a `stale` chip means the persisted snapshot was written by different machine code, so that session starts fresh on its next request (see [What survives a deploy](/guides/persistence/#what-survives-a-deploy)).
 
@@ -82,7 +79,7 @@ interface BuildResult {
 }
 ```
 
-The production build: compiles the app to a `dist/` of plain `.ts` that `stator start` serves with **no Vite at runtime**. It copies the app dirs, compiles each `*.stator` to a sibling `*.stator.ts`, rewrites `.stator` import specifiers, and concatenates scoped CSS into `dist/static/components.css`. When the app has client components, every island entry is bundled in one Vite build (hashed assets, server-machine imports stubbed to `{ name }`) and `dist/stator-manifest.json` maps each route file to the island script URLs it reaches:
+The production build: compiles the app to a `dist/` of plain `.ts` that `stator start` serves, and bundles client islands with esbuild. It copies the app dirs, compiles each `*.stator` to a sibling `*.stator.ts`, rewrites `.stator` import specifiers, and concatenates scoped CSS into `dist/static/components.css`. When the app has client components, every island entry is bundled in one Vite build (hashed assets, server-machine imports stubbed to `{ name }`) and `dist/stator-manifest.json` maps each route file to the island script URLs it reaches:
 
 ```ts
 interface StatorManifest {
@@ -94,7 +91,7 @@ interface StatorManifest {
 
 Every machine is hashed in one esbuild pass — the machine file and every module it reaches, bundled in memory and never written — and the build **fails** if a machine's closure can't be bundled, so an import problem surfaces here rather than at a production boot. `stator build` prints the hashing time and which machines' sessions this build resets, compared against the previous `dist/stator-manifest.json` when one is there. A fresh CI checkout has none, and the build says so (`no previous manifest — cannot say which sessions this deploy resets`) rather than staying silent; to compare against what is actually running, have the pipeline fetch the last deployed manifest and pass it with `stator build --previous <path>` (a path given and not found fails the build). After a deploy, the runtime's own `hydrate` warning is the ground truth: one rate-limited line per machine that starts fresh, naming both hashes.
 
-Vite is imported lazily — a server-only app never needs it at build time.
+esbuild is a dependency of the framework, so there is nothing to install for the build; a server-only app with no islands skips the island bundle entirely.
 
 ## loadProductionHead
 

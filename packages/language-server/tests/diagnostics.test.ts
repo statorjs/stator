@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { statorDiagnostics } from '../src/diagnostics.ts'
 
 describe('stator semantic diagnostics', () => {
   it('returns no diagnostics for a valid component', () => {
     const src = `<div class="ok"><p>hello</p></div>\n`
-    expect(statorDiagnostics(src, '/app/templates/ok.stator')).toEqual([])
+    assert.deepStrictEqual(statorDiagnostics(src, '/app/templates/ok.stator'), [])
   })
 
   it('returns no diagnostics for a valid route', () => {
@@ -15,25 +16,25 @@ describe('stator semantic diagnostics', () => {
       '<Widget />',
       '',
     ].join('\n')
-    expect(statorDiagnostics(src, '/app/routes/index.stator')).toEqual([])
+    assert.deepStrictEqual(statorDiagnostics(src, '/app/routes/index.stator'), [])
   })
 
   it('flags route-only frontmatter used in a component', () => {
     const src = ['---', 'const [m] = Stator.reads([])', '---', '<div>x</div>', ''].join('\n')
     const [d] = statorDiagnostics(src, '/app/templates/widget.stator')
-    expect(d).toBeDefined()
-    expect(d!.message).toContain('Stator.reads')
-    expect(d!.source).toBe('stator')
-    expect(d!.severity).toBe(1)
+    assert.notEqual(d, undefined)
+    assert.ok(d!.message.includes('Stator.reads'))
+    assert.equal(d!.source, 'stator')
+    assert.equal(d!.severity, 1)
     // Located inside the frontmatter (line 2 of the file → 0-based line 1).
-    expect(d!.range.start.line).toBe(1)
+    assert.equal(d!.range.start.line, 1)
   })
 
   it('flags an unknown pragma with a position', () => {
     const src = ['---', '// @stator turbo', '---', '<div>x</div>', ''].join('\n')
     const [d] = statorDiagnostics(src, '/app/routes/index.stator')
-    expect(d!.message).toContain('unknown pragma')
-    expect(d!.range.start.line).toBe(1)
+    assert.ok(d!.message.includes('unknown pragma'))
+    assert.equal(d!.range.start.line, 1)
   })
 
   it('flags a <script> without a StatorElement subclass', () => {
@@ -46,14 +47,14 @@ describe('stator semantic diagnostics', () => {
       '',
     ].join('\n')
     const [d] = statorDiagnostics(src, '/app/templates/my-widget.stator')
-    expect(d!.message).toContain('StatorElement')
+    assert.ok(d!.message.includes('StatorElement'))
   })
 
   it('routes decide their kind by path', () => {
     // `Stator.reads` is legal in routes/, so the same source is clean there.
     const src = ['---', 'const [m] = Stator.reads([])', '---', '<div>x</div>', ''].join('\n')
-    expect(statorDiagnostics(src, '/app/routes/page.stator')).toEqual([])
-    expect(statorDiagnostics(src, '/app/templates/page.stator')).toHaveLength(1)
+    assert.deepStrictEqual(statorDiagnostics(src, '/app/routes/page.stator'), [])
+    assert.equal(statorDiagnostics(src, '/app/templates/page.stator').length, 1)
   })
 
   it('anchors coarse-location errors at the top of the file instead of dropping them', () => {
@@ -68,9 +69,9 @@ describe('stator semantic diagnostics', () => {
       '',
     ].join('\n')
     const [d] = statorDiagnostics(src, '/app/templates/my-widget.stator')
-    expect(d).toBeDefined()
-    expect(d!.range.start).toEqual({ line: 0, character: 0 })
-    expect(d!.severity).toBe(1)
+    assert.notEqual(d, undefined)
+    assert.deepStrictEqual(d!.range.start, { line: 0, character: 0 })
+    assert.equal(d!.severity, 1)
   })
 
   it('surfaces a compiler warning as a warning, not an error', () => {
@@ -82,9 +83,9 @@ describe('stator semantic diagnostics', () => {
       '',
     ].join('\n')
     const ds = statorDiagnostics(src, '/app/templates/speculation.stator')
-    expect(ds).toHaveLength(1)
-    expect(ds[0]!.severity).toBe(2)
-    expect(ds[0]!.message).toContain('raw()')
-    expect(ds[0]!.range.start).toEqual({ line: 3, character: 11 })
+    assert.equal(ds.length, 1)
+    assert.equal(ds[0]!.severity, 2)
+    assert.ok(ds[0]!.message.includes('raw()'))
+    assert.deepStrictEqual(ds[0]!.range.start, { line: 3, character: 11 })
   })
 })

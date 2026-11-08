@@ -1,5 +1,6 @@
 import { createActor } from '@statorjs/stator/machine'
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import type { Forecast } from '../lib/open-meteo.ts'
 import ForecastCache from '../machines/forecast-cache.ts'
 
@@ -15,22 +16,22 @@ describe('forecast-cache', () => {
   it('REFRESH for an uncached place marks it fetching', () => {
     const c = start()
     c.send({ type: 'REFRESH', places: [req('p1')] })
-    expect(sel.fetchingIds(ctx(c))).toContain('p1')
+    assert.ok((sel.fetchingIds(ctx(c))).includes('p1'))
   })
 
   it('LOADED stores the data and clears the fetching mark', () => {
     const c = start()
     c.send({ type: 'REFRESH', places: [req('p1')] })
     c.send({ type: 'LOADED', results: [{ id: 'p1', forecast, aqi: null }] })
-    expect(sel.byId(ctx(c))('p1')?.status).toBe('ready')
-    expect(sel.fetchingIds(ctx(c))).not.toContain('p1')
+    assert.equal(sel.byId(ctx(c))('p1')?.status, 'ready')
+    assert.ok(!(sel.fetchingIds(ctx(c))).includes('p1'))
   })
 
   it('a failed load records an error entry', () => {
     const c = start()
     c.send({ type: 'REFRESH', places: [req('p1')] })
     c.send({ type: 'LOADED', results: [{ id: 'p1', failed: true }] })
-    expect(sel.byId(ctx(c))('p1')?.status).toBe('error')
+    assert.equal(sel.byId(ctx(c))('p1')?.status, 'error')
   })
 
   it('the policy guard drops a REFRESH for an already-fresh place', () => {
@@ -39,6 +40,6 @@ describe('forecast-cache', () => {
     c.send({ type: 'LOADED', results: [{ id: 'p1', forecast, aqi: null }] })
     // p1 was just loaded (fresh) — a second REFRESH is dropped before it commits.
     c.send({ type: 'REFRESH', places: [req('p1')] })
-    expect(sel.fetchingIds(ctx(c))).not.toContain('p1')
+    assert.ok(!(sel.fetchingIds(ctx(c))).includes('p1'))
   })
 })

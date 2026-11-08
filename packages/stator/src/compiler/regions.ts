@@ -87,8 +87,8 @@ export function componentImportSpecifier(
  * synchronously (resolution happens mid-compile). Returns null when the
  * identifier isn't a `.stator` default import or the file can't be read.
  *
- * Shared by every compile path — the Vite plugin, `buildApp`, and the native
- * dev loader — so the check is identical in dev and prod.
+ * Shared by every compile path — `buildApp`, `build:lib` and the native dev
+ * loader — so the check is identical in dev and prod.
  */
 export function regionResolverFor(
   file: string,

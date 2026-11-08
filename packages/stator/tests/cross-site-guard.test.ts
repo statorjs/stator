@@ -117,7 +117,8 @@ describe('crossSiteGuard strict posture (SameSite=Strict)', () => {
   it('sets the session cookie to SameSite=Strict', async () => {
     const app = await bootStrict()
     const res = await app.fetch(new Request('http://localhost/'))
-    assert.ok(res.headers.get('set-cookie')?.includes('SameSite=Strict'))
+    assert.ok(res.headers.get('set-cookie'))
+    assert.ok(res.headers.get('set-cookie')!.includes('SameSite=Strict'))
   })
 
   it('blocks a same-site write not in the allowlist', async () => {

@@ -48,6 +48,7 @@
       "default": "./src/server/dev.ts"
     },
     "./register": "./src/register.js",
+    "./test-env": "./src/test-env.ts",
     "./build": {
       "types": "./src/build/index.ts",
       "default": "./src/build/index.ts"
@@ -72,16 +73,12 @@
     "./compiler": {
       "types": "./src/compiler/index.ts",
       "default": "./src/compiler/index.ts"
-    },
-    "./vite": {
-      "types": "./src/vite/index.ts",
-      "default": "./src/vite/index.ts"
     }
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --import ./tests/env/setup.ts --import @statorjs/stator/register --test --test-force-exit --test-timeout=60000 'tests/**/*.test.ts'",
-    "test:watch": "node --import ./tests/env/setup.ts --import @statorjs/stator/register --test --watch 'tests/**/*.test.ts'",
+    "test": "node --import @statorjs/stator/register --import @statorjs/stator/test-env --test --test-force-exit --test-timeout=60000 'tests/**/*.test.ts'",
+    "test:watch": "node --import @statorjs/stator/register --import @statorjs/stator/test-env --test --watch 'tests/**/*.test.ts'",
     "test:browser": "node browser-tests/tables.mjs",
     "build:client": "esbuild src/client/runtime.ts --bundle --format=iife --target=es2020 --outfile=dist/client.js",
     "build:components": "node src/cli/stator.js build:lib src/components && biome check --write src/components/",
@@ -101,19 +98,10 @@
     "typescript": "^5.6.0",
     "zod": "^3.23.0"
   },
-  "peerDependencies": {
-    "vite": "^6.0.0 || ^7.0.0"
-  },
-  "peerDependenciesMeta": {
-    "vite": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@statorjs/stator": "workspace:*",
     "@types/node": "^22.20.5",
     "happy-dom": "^21.0.4",
-    "pino-pretty": "^13.2.0",
-    "vite": "^6.4.5"
+    "pino-pretty": "^13.2.0"
   }
 }

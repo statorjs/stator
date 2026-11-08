@@ -1,5 +1,6 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { createActor } from '@statorjs/stator/machine'
-import { describe, expect, it } from 'vitest'
 import { CARD_TOKENS } from '../lib/payments.ts'
 import CartMachine from '../machines/cart.ts'
 
@@ -19,7 +20,7 @@ describe('cart line rules', () => {
   it('rejects a hostile SKU outright', () => {
     const actor = createActor(CartMachine, withStock({ [KELP42]: 5 })).start()
     actor.send({ type: 'ADD', sku: 'fake--nope--99' })
-    expect(actor.getSnapshot().context.lines).toEqual([])
+    assert.deepStrictEqual(actor.getSnapshot().context.lines, [])
   })
 
   it('enforces the stock ceiling on ADD and INCREMENT', () => {
@@ -28,14 +29,14 @@ describe('cart line rules', () => {
     actor.send({ type: 'ADD', sku: KELP42 })
     actor.send({ type: 'ADD', sku: KELP42 }) // 3rd: guard-dropped
     actor.send({ type: 'INCREMENT', sku: KELP42 }) // also dropped
-    expect(actor.getSnapshot().context.lines).toEqual([{ sku: KELP42, qty: 2 }])
+    assert.deepStrictEqual(actor.getSnapshot().context.lines, [{ sku: KELP42, qty: 2 }])
   })
 
   it('DECREMENT at qty 1 removes the line', () => {
     const actor = createActor(CartMachine, withStock({ [KELP42]: 5 })).start()
     actor.send({ type: 'ADD', sku: KELP42 })
     actor.send({ type: 'DECREMENT', sku: KELP42 })
-    expect(actor.getSnapshot().context.lines).toEqual([])
+    assert.deepStrictEqual(actor.getSnapshot().context.lines, [])
   })
 
   it('line ops reach every checkout step via the machine-level fallback', () => {
@@ -43,8 +44,8 @@ describe('cart line rules', () => {
     actor.send({ type: 'ADD', sku: KELP42 })
     actor.send({ type: 'BEGIN_CHECKOUT' })
     actor.send({ type: 'ADD', sku: KELP42 }) // in 'contact' — no state-scoped handler
-    expect(actor.getSnapshot().value).toEqual(['contact'])
-    expect(actor.getSnapshot().context.lines).toEqual([{ sku: KELP42, qty: 2 }])
+    assert.deepStrictEqual(actor.getSnapshot().value, ['contact'])
+    assert.deepStrictEqual(actor.getSnapshot().context.lines, [{ sku: KELP42, qty: 2 }])
   })
 
   it('the manifest is frozen while the charge settles', () => {
@@ -65,8 +66,8 @@ describe('cart line rules', () => {
     }).start()
     actor.send({ type: 'ADD', sku: KELP42 }) // shadowed: never-guard drops it
     actor.send({ type: 'CLEAR' })
-    expect(actor.getSnapshot().value).toEqual(['submitting'])
-    expect(actor.getSnapshot().context.lines).toEqual([{ sku: KELP42, qty: 1 }])
+    assert.deepStrictEqual(actor.getSnapshot().value, ['submitting'])
+    assert.deepStrictEqual(actor.getSnapshot().context.lines, [{ sku: KELP42, qty: 1 }])
   })
 })
 
@@ -76,7 +77,7 @@ describe('checkout flow', () => {
   it('refuses to begin with an empty manifest', () => {
     const actor = createActor(CartMachine, stocked).start()
     actor.send({ type: 'BEGIN_CHECKOUT' })
-    expect(actor.getSnapshot().value).toEqual(['open'])
+    assert.deepStrictEqual(actor.getSnapshot().value, ['open'])
   })
 
   it('guards contact on a plausible email', () => {
@@ -84,9 +85,9 @@ describe('checkout flow', () => {
     actor.send({ type: 'ADD', sku: KELP42 })
     actor.send({ type: 'BEGIN_CHECKOUT' })
     actor.send({ type: 'SET_CONTACT', name: 'W', email: 'not-an-email' })
-    expect(actor.getSnapshot().value).toEqual(['contact'])
+    assert.deepStrictEqual(actor.getSnapshot().value, ['contact'])
     actor.send({ type: 'SET_CONTACT', name: 'W', email: 'w@example.harbor' })
-    expect(actor.getSnapshot().value).toEqual(['shipping'])
+    assert.deepStrictEqual(actor.getSnapshot().value, ['shipping'])
   })
 
   it('a declined charge lands back in review with the reason', async () => {
@@ -100,13 +101,13 @@ describe('checkout flow', () => {
     actor.send({ type: 'SET_CONTACT', name: 'W', email: 'w@example.harbor' })
     actor.send({ type: 'SET_SHIPPING', address: '3 Quay Lane', port: 'Gullhaven' })
     actor.send({ type: 'SUBMIT', token: CARD_TOKENS.declined })
-    expect(actor.getSnapshot().value).toEqual(['submitting']) // instant commit
-    expect(invocations).toHaveLength(1) // the charge was scheduled...
+    assert.deepStrictEqual(actor.getSnapshot().value, ['submitting']) // instant commit
+    assert.equal(invocations.length, 1) // the charge was scheduled...
 
     const completion = await invocations[0]!.run() // ...run it when WE choose
     actor.send(completion as never)
-    expect(actor.getSnapshot().value).toEqual(['review'])
-    expect(actor.getSnapshot().context.error).toContain('Kraken')
+    assert.deepStrictEqual(actor.getSnapshot().value, ['review'])
+    assert.ok(actor.getSnapshot().context.error.includes('Kraken'))
   })
 
   it('an approved charge confirms, records the order, clears the manifest', async () => {
@@ -132,10 +133,11 @@ describe('checkout flow', () => {
     actor.send(completion as never)
 
     const ctx = actor.getSnapshot().context
-    expect(actor.getSnapshot().value).toEqual(['confirmed'])
-    expect(ctx.lines).toEqual([])
-    expect(ctx.lastOrder?.amountCents).toBe(15600) // 2 × $78, server-computed
-    expect(ctx.lastOrder?.summary).toContain('The Longshore')
+    assert.deepStrictEqual(actor.getSnapshot().value, ['confirmed'])
+    assert.deepStrictEqual(ctx.lines, [])
+    assert.equal(ctx.lastOrder?.amountCents, 15600) // 2 × $78, server-computed
+    assert.ok(ctx.lastOrder)
+    assert.ok(ctx.lastOrder.summary.includes('The Longshore'))
   })
 
   it('SUBMIT re-checks stock: a shortage stays in review with a named error', () => {
@@ -155,8 +157,8 @@ describe('checkout flow', () => {
       },
     }).start()
     actor.send({ type: 'SUBMIT', token: CARD_TOKENS.ok })
-    expect(actor.getSnapshot().value).toEqual(['review'])
-    expect(actor.getSnapshot().context.error).toContain('The Longshore')
+    assert.deepStrictEqual(actor.getSnapshot().value, ['review'])
+    assert.ok(actor.getSnapshot().context.error.includes('The Longshore'))
   })
 
   it('ADD after confirmation starts the next manifest', () => {
@@ -176,8 +178,8 @@ describe('checkout flow', () => {
       },
     }).start()
     actor.send({ type: 'ADD', sku: KELP42 })
-    expect(actor.getSnapshot().value).toEqual(['open'])
-    expect(actor.getSnapshot().context.lines).toEqual([{ sku: KELP42, qty: 1 }])
-    expect(actor.getSnapshot().context.lastOrder).toBeNull()
+    assert.deepStrictEqual(actor.getSnapshot().value, ['open'])
+    assert.deepStrictEqual(actor.getSnapshot().context.lines, [{ sku: KELP42, qty: 1 }])
+    assert.equal(actor.getSnapshot().context.lastOrder, null)
   })
 })

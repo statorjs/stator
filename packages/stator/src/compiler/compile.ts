@@ -38,8 +38,8 @@ export interface CompileResult {
   serverCode: string
   /** Per-component scope hash (the `data-s-<hash>` marker uses it). */
   scopeHash: string
-  /** Scoped CSS, ready for the Vite CSS pipeline. Empty when there's no
-   *  `<style>`. */
+  /** Scoped CSS, emitted as is by the dev server and the build. Empty when
+   *  there's no `<style>`. */
   css: string
   /** Raw client `<script>` regions, as authored. */
   scripts: string[]
@@ -74,11 +74,11 @@ export interface CompileOptions {
   id?: string
   /** Whether this file is a route page or a reusable component. Gates the
    *  frontmatter capability matrix (request/response, reads, props, pragmas).
-   *  Defaults to 'component'. The Vite plugin / build sets it from the directory. */
+   *  Defaults to 'component'. The dev server and the build set it from the directory. */
   kind?: 'route' | 'component'
   /** Resolve a component identifier (used in this file) to the named regions it
-   *  declares, for cross-file `child="x"` validation. The Vite plugin / build
-   *  supplies this (reads sibling `.stator` files). Omitted → validation skipped. */
+   *  declares, for cross-file `child="x"` validation. The dev server and the build
+   *  supply this (reads sibling `.stator` files). Omitted → validation skipped. */
   resolveRegions?: (componentName: string) => Set<string> | null
 }
 

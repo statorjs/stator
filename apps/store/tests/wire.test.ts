@@ -1,14 +1,8 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { after, before, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { createDevApp, type DevApp } from '@statorjs/stator/dev'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-
-// Wire tests boot the dev app IN-PROCESS, which needs the transitional Vite dev
-// server: the native default (the Vite exit) loads app modules through Node
-// loader hooks that vitest's module runner bypasses. Migrates to the
-// CLI-subprocess harness when the Vite implementation retires (see the
-// framework's dev-native.test.ts for the pattern).
-process.env.STATOR_VITE_DEV = '1'
 
 /**
  * The thin wire layer: a few requests proving the binding between machines
@@ -19,22 +13,25 @@ process.env.STATOR_VITE_DEV = '1'
 const here = dirname(fileURLToPath(import.meta.url))
 let app: DevApp
 
-beforeAll(async () => {
-  app = await createDevApp({
-    root: resolve(here, '..'),
-    machinesDir: resolve(here, '../machines'),
-    routesDir: resolve(here, '../routes'),
-    staticDir: resolve(here, '../static'),
-  })
-}, 30_000)
+before(
+  async () => {
+    app = await createDevApp({
+      root: resolve(here, '..'),
+      machinesDir: resolve(here, '../machines'),
+      routesDir: resolve(here, '../routes'),
+      staticDir: resolve(here, '../static'),
+    })
+  },
+  { timeout: 30_000 },
+)
 
-afterAll(async () => {
+after(async () => {
   await app.close()
 })
 
 async function session(path: string): Promise<string> {
   const res = await app.fetch(new Request(`http://test${path}`))
-  expect(res.status).toBe(200)
+  assert.equal(res.status, 200)
   return res.headers.get('set-cookie')!.split(';')[0]!
 }
 
@@ -56,8 +53,8 @@ describe('the wire contract', () => {
   it('renders the catalog with cards and plates', async () => {
     const res = await app.fetch(new Request('http://test/c/all'))
     const html = await res.text()
-    expect(html).toContain('href="/p/') // a product card links to its PDP
-    expect(html).toContain('--plate-upper:')
+    assert.ok(html.includes('href="/p/')) // a product card links to its PDP
+    assert.ok(html.includes('--plate-upper:'))
   })
 
   it('ADD patches the cart page: keyed insert + header count + committed', async () => {
@@ -67,8 +64,11 @@ describe('the wire contract', () => {
       sku: 'ketch--squid-ink--43',
     })
     const body = (await res.json()) as { committed: boolean; patches: Array<{ op: string }> }
-    expect(body.committed).toBe(true)
-    expect(body.patches.some((p) => p.op === 'insert')).toBe(true)
+    assert.equal(body.committed, true)
+    assert.equal(
+      body.patches.some((p) => p.op === 'insert'),
+      true,
+    )
   })
 
   it('a forged admin restock is gated: HTTP 200, committed false, zero patches', async () => {
@@ -78,9 +78,9 @@ describe('the wire contract', () => {
       sku: 'the-longshore--kelp--42',
     })
     const body = (await res.json()) as { committed: boolean; patches: unknown[] }
-    expect(res.status).toBe(200)
-    expect(body.committed).toBe(false)
-    expect(body.patches).toEqual([])
+    assert.equal(res.status, 200)
+    assert.equal(body.committed, false)
+    assert.deepStrictEqual(body.patches, [])
   })
 
   it('a forged CHARGE_APPROVED is hard-rejected: 403 (server-only), no fake settlement', async () => {
@@ -95,8 +95,8 @@ describe('the wire contract', () => {
       summary: 'free stuff',
       items: [],
     })
-    expect(res.status).toBe(403)
-    expect(((await res.json()) as { error: string }).error).toMatch(/server-only/)
+    assert.equal(res.status, 403)
+    assert.match(((await res.json()) as { error: string }).error, /server-only/)
   })
 
   it('checkout form values travel as forms, guards decide the state', async () => {
@@ -113,14 +113,14 @@ describe('the wire contract', () => {
     )
     // The refused dispatch names the bounced step in the redirect…
     const directives = (await submit.json()) as { directives: Array<{ to: string }> }
-    expect(directives.directives[0]?.to).toBe('/checkout?refused=contact')
+    assert.equal(directives.directives[0]?.to, '/checkout?refused=contact')
     // …the guard kept the flow on step 1, and the page says why.
     const page = await (
       await app.fetch(
         new Request('http://test/checkout?refused=contact', { headers: { Cookie: cookie } }),
       )
     ).text()
-    expect(page).toContain("Who's it for?")
-    expect(page).toContain("That didn't clear")
+    assert.ok(page.includes("Who's it for?"))
+    assert.ok(page.includes("That didn't clear"))
   })
 })

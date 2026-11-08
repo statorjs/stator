@@ -56,13 +56,15 @@ describe('layer 1 — lazy establishment', () => {
   it('a session-machine page establishes (cookie set)', async () => {
     const res = await get(app, '/plain')
     assert.equal(res.status, 200)
-    assert.ok(res.headers.get('set-cookie')?.includes('stator_sid='))
+    assert.ok(res.headers.get('set-cookie'))
+    assert.ok(res.headers.get('set-cookie')!.includes('stator_sid='))
   })
 
   it('a session-machine data route establishes', async () => {
     const res = await get(app, '/my-pings')
     assert.equal(res.status, 200)
-    assert.ok(res.headers.get('set-cookie')?.includes('stator_sid='))
+    assert.ok(res.headers.get('set-cookie'))
+    assert.ok(res.headers.get('set-cookie')!.includes('stator_sid='))
   })
 
   it('a first-contact dispatch establishes; a presented sid resumes without a new cookie', async () => {
@@ -80,7 +82,8 @@ describe('layer 1 — lazy establishment', () => {
       )
     const anonymous = await post()
     assert.equal(anonymous.status, 200)
-    assert.ok(anonymous.headers.get('set-cookie')?.includes('stator_sid='))
+    assert.ok(anonymous.headers.get('set-cookie'))
+    assert.ok(anonymous.headers.get('set-cookie')!.includes('stator_sid='))
 
     const resumed = await post(`stator_sid=${crypto.randomUUID()}`)
     assert.equal(resumed.status, 200)
@@ -94,7 +97,8 @@ describe('layer 1 — lazy establishment', () => {
         signal: abort.signal,
       }),
     )
-    assert.ok(res.headers.get('set-cookie')?.includes('stator_sid='))
+    assert.ok(res.headers.get('set-cookie'))
+    assert.ok(res.headers.get('set-cookie')!.includes('stator_sid='))
     abort.abort()
   })
 })
@@ -110,11 +114,13 @@ describe('layer 3 — derived Cache-Control', () => {
 
   it('a provably-anonymous data route is cache-marked, 304s included', async () => {
     const res = await get(app, '/feed.xml')
-    assert.ok(res.headers.get('cache-control')?.includes('public, max-age=0, s-maxage=60'))
+    assert.ok(res.headers.get('cache-control'))
+    assert.ok(res.headers.get('cache-control')!.includes('public, max-age=0, s-maxage=60'))
     const etag = res.headers.get('etag')!
     const revalidated = await get(app, '/feed.xml', { 'if-none-match': etag })
     assert.equal(revalidated.status, 304)
-    assert.ok(revalidated.headers.get('cache-control')?.includes('public, max-age=0, s-maxage=60'))
+    assert.ok(revalidated.headers.get('cache-control'))
+    assert.ok(revalidated.headers.get('cache-control')!.includes('public, max-age=0, s-maxage=60'))
   })
 
   it('a session-reading page is never cache-marked', async () => {
@@ -130,7 +136,8 @@ describe('layer 3 — derived Cache-Control', () => {
   it('a returning visitor with a cookie still gets the cacheable response uncookied', async () => {
     const res = await get(app, '/board', { Cookie: `stator_sid=${crypto.randomUUID()}` })
     assert.equal(res.headers.get('set-cookie'), null)
-    assert.ok(res.headers.get('cache-control')?.includes('public'))
+    assert.ok(res.headers.get('cache-control'))
+    assert.ok(res.headers.get('cache-control')!.includes('public'))
   })
 
   it('caching: false disables emission entirely', async () => {
@@ -148,12 +155,14 @@ describe('the revision ledger', () => {
     assert.deepStrictEqual(await first.json(), { runs: 1 })
     const etag = first.headers.get('etag')!
     assert.match(etag, /^"r-/)
-    assert.ok(first.headers.get('cache-control')?.includes('public'))
+    assert.ok(first.headers.get('cache-control'))
+    assert.ok(first.headers.get('cache-control')!.includes('public'))
 
     const probe = await get(app, '/revisioned.json', { 'if-none-match': etag })
     assert.equal(probe.status, 304)
     assert.equal(probe.headers.get('etag'), etag)
-    assert.ok(probe.headers.get('cache-control')?.includes('public'))
+    assert.ok(probe.headers.get('cache-control'))
+    assert.ok(probe.headers.get('cache-control')!.includes('public'))
     // The whole point: the handler never ran.
     assert.equal(state.handlerRuns, 1)
 
@@ -200,12 +209,14 @@ describe('layer 3 — the proof is precise', () => {
     const anonymous = await get(app, '/whoami')
     assert.ok((await anonymous.text()).includes('anonymous'))
     assert.equal(anonymous.headers.get('set-cookie'), null)
-    assert.ok(anonymous.headers.get('cache-control')?.includes('public'))
+    assert.ok(anonymous.headers.get('cache-control'))
+    assert.ok(anonymous.headers.get('cache-control')!.includes('public'))
 
     const cookied = await get(app, '/whoami', { Cookie: `stator_sid=${crypto.randomUUID()}` })
     assert.ok((await cookied.text()).includes('anonymous'))
     assert.equal(cookied.headers.get('set-cookie'), null)
-    assert.ok(cookied.headers.get('cache-control')?.includes('public'))
+    assert.ok(cookied.headers.get('cache-control'))
+    assert.ok(cookied.headers.get('cache-control')!.includes('public'))
   })
 
   it('a claims peek that finds claims withdraws the proof', async () => {

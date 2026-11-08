@@ -116,7 +116,8 @@ const { title } = Stator.props<{ title: string }>()
       const { frontmatter, template, scripts } = splitSource(source)
       const { propsT } = statorPropsType(frontmatter, template, scripts)
       const dts = generateDts(source, { kind: 'component' })
-      assert.ok(dts?.includes(`(props: ${propsT})`))
+      assert.ok(dts)
+      assert.ok(dts.includes(`(props: ${propsT})`))
     })
 
   it('SERVER-component virtual code types its export with the same props type', () => {
@@ -128,7 +129,8 @@ const { title } = Stator.props<{ title: string }>()
 
   it('an attrs-less island accepts arbitrary shell props', () => {
     const source = CASES[1]![1]
-    assert.ok(generateDts(source, { kind: 'component' })?.includes('{ [prop: string]: unknown }'))
+    assert.ok(generateDts(source, { kind: 'component' }))
+    assert.ok(generateDts(source, { kind: 'component' })!.includes('{ [prop: string]: unknown }'))
   })
 
   it("an island's fence is typed in the client virtual code, deduped against script imports", () => {
