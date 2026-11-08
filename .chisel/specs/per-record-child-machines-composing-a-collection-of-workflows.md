@@ -36,6 +36,12 @@ Separately, a machine-authoring-DX pass (riffed 2026-08-01) asked "what higher-l
 
 The "decision deferred to a second collection example" condition is met, three times over, in `@indiepub/stator` running tonysull.co in production. `OutboxMachine` (one webmention or silo copy per post × target), `MentionsMachine` (one verification per inbound mention) and the backfeed all have the same shape: a `Record<key, workflow>` in context, completions in machine-level `on:` so nothing strands, an entry effect that rebuilds the window from SQLite and re-drives interrupted work. The outbox says the limit in its own doc comment: *interactive retries stay owner-triggered — per-entry backoff wants per-record `after`, which flat machines don't have*. A failed send to a flaky endpoint today waits for the owner to press retry; with a per-send machine it is a `failed` state with `after: [{ delay: (ctx) => backoff(ctx.attempts), send: 'RETRY' }]`, and the admin's outbox list renders one row component per send reading that send's own state. That is the validation target for this spec.
 
+### Evidence 6 — the fleet app: families of families, and settlement per group (2026-11-08)
+
+Tony's other production app watches a fleet of robots and raises alerts to an operations team. Each robot is a machine whose context comes from the database; each rule (written in markdown) is evaluated by its own machine per robot. On a robot state change (debounced 5 s) the robot machine updates, then every rule machine for that robot recomputes its alert from the robot's new state and its own previous evaluation; some rules wait 30 s before a condition raises. Each rule machine logs raise and clear to Elastic (async), and **only after every rule machine for that robot has settled** does the app write the robot's full alert list to Elastic and the database. The app built its own synchronisation layer to know when that moment had come.
+
+What it adds to the requirements: two families, one addressing the other by key (`Robot[robotId]` and `RuleEvaluation[robotId/ruleId]`); one event multicast to every instance in a group (all rules of a robot); settlement grouped by that robot, so one reaction per robot rather than per change; a delayed raise that triggers its own settled reaction later; and summary writes that must not land out of order when updates overlap.
+
 ## Approach (proposed 2026-11-08)
 
 **Families, not regions.** A family is one machine definition whose instances are addressed by a key. Every instance is a full machine with its own chart, context, effects, `after` timers and snapshot; the definition is written once. Parallel regions inside one actor keep the per-record workflow in a single context and fix Evidence 1 and 2 at best; only separate instances fix Evidence 3 (a row component reads its own machine) and Evidence 5 (per-record `after`). The parallel-regions RFC's other shape is set aside.
@@ -68,7 +74,7 @@ export default defineMachine({
 })
 ```
 
-- `family.key(event)` names the instance an event is for. Events reach a family the same ways they reach any machine (`subscribes`, `dispatchToApp`, route `dispatch`); the key routes them. An effect's completion returns to the instance that started it, because the effect registry records the instance address.
+- `family.key(event)` names the instance an event is for, or `family.keys(event)` names several: one robot update addressed to the rule family reaches every rule instance of that robot (`keys: (ev) => rulesFor(ev.robotId).map((r) => `${ev.robotId}/${r}`)`), the fleet app's fan-out. Events reach a family the same ways they reach any machine (`subscribes`, `dispatchToApp`, route `dispatch`); the key routes them. An effect's completion returns to the instance that started it, because the effect registry records the instance address.
 - `family.creates` lists the events that may materialise a new instance; `seed(event)` gives it its first context. Any other event addressed to an unknown key is dropped and logged, the way an event for an expired session is: a typo'd key never spawns a zombie.
 - A `final: true` state passivates the instance: its timers and effects are gone, its snapshot is deleted, and it leaves the family's key set. What the record means afterwards lives in the app's own storage (the outbox row says `sent`), which is the "machines are working state" position the hydration policy already takes.
 - Templates read a family through the same declaration as any machine. `Stator.reads([OutboxSend])` gives a family proxy: `sends.keys` and `sends.of(key)` (an instance proxy). `each(read(sends, (f) => f.keys), (key) => <SendRow send={sends.of(key)} />)` renders one component per instance, and inside it `read(send, (s) => s.status)` binds to that instance's address, so a change patches one row and the component needs no find-by-id. Family-wide reads (`read(sends, (f) => f.count((s) => s.status === 'failed'))`) recompute when membership or any instance changes; O(n) per change, measured before it is optimised.
@@ -79,7 +85,7 @@ App families start empty at boot like any app machine. The IndiePub machines reb
 
 ### Session families and the rest
 
-All three IndiePub machines, and `stockroom`, are app machines; app families come first. Session families (a per-session collection, e.g. a multi-step form per draft) reuse the same address in the session scope and are a second stage. Out of scope: nested families, a family addressing another family's instances by key, parent-owned spawning (`spawn(ctx, Child, key)`), and the reusable generic-machine library (`AsyncUpdate`, `Load`), which families make possible but which waits for its own evidence.
+All three IndiePub machines, and `stockroom`, are app machines; app families come first. Session families (a per-session collection, e.g. a multi-step form per draft) reuse the same address in the session scope and are a second stage. A family subscribing to another family is in scope (Evidence 6): the subscription maps the source's emit to an event, and the target family's own `key` or `keys` routes it, so `RuleEvaluation` subscribes to `Robot`'s `UPDATED` and `Robot` to `RuleEvaluation`'s settled changes, both by `robotId`. Out of scope: nested definitions (a family declared inside a machine), parent-owned spawning (`spawn(ctx, Child, key)`), and the reusable generic-machine library (`AsyncUpdate`, `Load`), which families make possible but which waits for its own evidence.
 
 ## Prior art and naming (round two, 2026-11-08)
 
@@ -116,7 +122,8 @@ What is not covered is async. An effect's completion re-enters as a new dispatch
 4. **Live events during the boot rebuild.** `family.restore` re-activates unfinished rows while requests may already be queueing new work. Events for the family wait until restore has finished, then run in arrival order; otherwise a live `QUEUE` and a restore activation for one key race on rule 1 with the wrong winner.
 5. **Effects in bulk.** Restore after an outage can activate 500 sends at once, each starting a fetch. A family declares `concurrency` (default unbounded, the outbox would set a handful); effects beyond the limit wait in a queue in activation order. This is a resource bound, not a correctness one, and it belongs in the definition because only the author knows the downstream.
 6. **Aggregates mid-cascade.** A family-wide read (failed count) evaluated after each instance's transition would flicker through intermediate values. It is evaluated at turn end with the rest of fan-out, so it sees each turn's final state once (the glitch-free rule signal libraries enforce with batching).
-7. **Persistence order.** For a `persist: true` family, instance snapshots are written at turn end in a batch; a crash mid-batch leaves some instances at the previous turn, which the hash and reconcile policy already tolerates because instances are working state.
+7. **Overlapping changes on one instance write out of order.** Two robot updates 5 s apart each settle and each start a summary write; the first write can finish after the second and leave the older alert list stored. Two rules together prevent it: the settled reaction computes the summary from current state when it runs, never from a snapshot taken at the change, and an instance can declare `effects: 'serial'` (its effects run one at a time, in order) or `effects: 'latest'` (a new effect aborts the previous one through its signal). The outbox wants `serial`; a summary write wants `latest`.
+8. **Persistence order.** For a `persist: true` family, instance snapshots are written at turn end in a batch; a crash mid-batch leaves some instances at the previous turn, which the hash and reconcile policy already tolerates because instances are working state.
 
 Out of scope and stated so: ordering across instances (only per instance), more than one process (families are per process, like app machines today; the Redis backplane remains deferred), and a cross-instance transaction (two instances changing atomically together, beyond what one turn already gives).
 
@@ -147,6 +154,22 @@ subscribes: [{ from: PriceRow, settled: true, dispatch: 'REPRICED' }]
 // with the touched keys in its payload.
 ```
 
+Grouped, for the fleet app: one reaction per robot, delivered to that robot's instance.
+
+```ts
+// machines/robot.ts (a family keyed by robotId)
+subscribes: [{
+  from: RuleEvaluation,
+  settled: true,
+  groupBy: (ruleKey) => ruleKey.split('/')[0], // robotId
+  dispatch: (robotId, keys) => ({ type: 'RULES_SETTLED', robotId, keys }),
+}],
+// Robot's family key reads ev.robotId, so RULES_SETTLED lands on Robot[robotId].
+// Its effect writes the alert list, computed from the rules' current state.
+```
+
+A robot update settles once all its rule instances have transitioned and their Elastic logs have returned, and `Robot[robotId]` gets one `RULES_SETTLED`. A rule's 30 s delayed raise is a timer, so a new change: it touches one rule instance, settles, and produces one more `RULES_SETTLED` for that robot, which rewrites the list with the raised alert. That is the app's behaviour, with no synchronisation layer of its own.
+
 The outside surface makes tests deterministic (no polling for "has everything caught up"); the inside one keeps the reaction in a chart, which is where policy belongs.
 
 Two things to state plainly. First, settlement is per change: a second change touching the same instances settles on its own, so "this change is settled" is not "the family is idle". A family-level idle signal (no in-flight work at all) is a separate, simpler notion and may be what some cases want; it is listed as an open question. Second, a change can fail to settle if an effect never returns; effects already take an abort signal, and `settled` takes a timeout that rejects with the instances still busy, so a stuck send is named rather than waited on forever.
@@ -173,8 +196,9 @@ Target: a 3.x minor, or a late 3.0 beta if stage 2 lands before the release; not
 - **Materialisation.** Implicit on a `creates` event (this draft) versus an explicit `CREATE`-style event the app dispatches; the draft keeps it declarative and refuses unknown keys otherwise.
 - **Passivation timing.** Drop on reaching a `final` state immediately (this draft), or keep finished instances for a window so the UI can show "sent" before the row disappears. The outbox wants the latter in the admin; a `retain` duration on the family is the likely answer.
 - **Aggregate reads at scale.** Recomputing a family-wide read on every instance change is O(n); fine for hundreds, to be measured before thousands.
-- **Settled versus idle.** Whether per-change settlement covers the cases, or a family-level idle signal is also needed, and which one Tony's other app actually wanted.
-- **Do completions belong to the change?** This draft says an effect's completion and everything it cascades into are part of the change that started the effect, and an `after` timer is not. A case where a timer should hold a change open would argue otherwise.
+- ~~**Settled versus idle.**~~ Answered by the fleet app: settlement per change, grouped by a key (the robot), not family-wide idle.
+- ~~**Do timers belong to the change?**~~ Answered by the fleet app: no. A delayed raise holding the robot update open would delay every summary by 30 s; as its own change it produces the summary the app wants when it fires.
+- **Scale.** The fleet app is robots × rules instances, each possibly with a timer; the size of the largest fleet sets the bar for aggregate reads, timer count and memory, and should be measured in the spike.
 - **Keys in `subscribes`.** Whether a subscription into a family must name its key function explicitly or always uses the family's own `key`.
 
 ## Implementation Notes
