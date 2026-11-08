@@ -1,7 +1,11 @@
 /**
  * Stator semantic diagnostics: run the REAL compiler over the `.stator`
- * source and surface its `CompileError`s as editor squiggles — so the editor
- * and the Vite build can never disagree about what's valid. (The TS and CSS
+ * source and surface its `CompileError`s as editor squiggles. This is the
+ * compiler BUNDLED with the extension, which may be newer or older than the
+ * project's: its rules must stay tolerant of every supported release (a macro
+ * renamed in one release is accepted in either spelling here), and the
+ * project's own `stator check`/`dev`/`build` is where a removed API fails.
+ * Which names are current is the project's types' job (`@statorjs/stator/editor`). (The TS and CSS
  * services cover their regions; this covers Stator's own rules: directive
  * misuse, client-component name matching, frontmatter capabilities, spread,
  * malformed templates.)

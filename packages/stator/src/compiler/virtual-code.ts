@@ -13,7 +13,7 @@
  * disagree about `.stator` syntax — the drift trap in embedded-language tooling.
  *
  * v1 scope: correct region mappings + a useful TSX shell. The ambient typing
- * (`Stator`, JSX intrinsics — see `STATOR_AMBIENT`) is intentionally permissive
+ * (`Stator`, JSX intrinsics — see `ambientFor`) is intentionally permissive
  * on JSX and refined against real in-editor feedback; the mappings are the
  * load-bearing part.
  */
@@ -83,9 +83,10 @@ function injectImports(globals: readonly string[], modulePath: string, userCode:
 // and what authors type props with). The engine flavor is selectors-only (the
 // read-only view actions get via `helpers.reads`) and would make every
 // `Stator.reads` binding unassignable to component props.
-const AMBIENT_TYPE_IMPORTS =
+const BUNDLED_TYPE_IMPORTS =
   "import type { AnyMachineDef as __SMachineDef } from '@statorjs/stator/machine';\n" +
-  "import type { InstanceOf as __SInstanceOf } from '@statorjs/stator/template';\n" +
+  "import type { InstanceOf as __SInstanceOf } from '@statorjs/stator/template';\n"
+const INTRINSICS_IMPORT =
   "import type { StatorIntrinsicElements as __SIntrinsics } from '@statorjs/stator/template';\n"
 
 /**
@@ -99,30 +100,61 @@ const AMBIENT_TYPE_IMPORTS =
  * without a duplicate-index-signature clash. Real per-element JSX typing — the
  * Astro `astro-jsx.d.ts` approach — is a Phase 2 refinement.
  */
-const STATOR_AMBIENT = `declare const Stator: {
-  props<P>(): P;
-  reads<const T extends readonly __SMachineDef[]>(defs: T): { -readonly [K in keyof T]: __SInstanceOf<T[K]> };
-  forwarded(name: \`on:\${string}\`): (() => unknown) | undefined;
-  request: any;
-  response: { status: number; headers: Headers; cookies: any };
-};
-declare global {
+const JSX_GLOBAL = `declare global {
   namespace JSX {
     interface IntrinsicElements extends __SIntrinsics {}
   }
 }
 `
 
+/**
+ * Where the `Stator` macros' types come from (see `src/editor.ts`).
+ *
+ * - `project`: from the project's installed `@statorjs/stator/editor`, so the
+ *   editor shows the API of the release the project actually runs. The
+ *   language server picks this whenever the installed package exports it.
+ * - `bundled`: the inline shape below, for installs that predate the editor
+ *   contract. It is FROZEN as the surface of those releases. Never edit it for
+ *   a new or renamed macro: a change here reaches only old projects, where it
+ *   would be wrong. New API goes in `StatorMacros`.
+ */
+export type AmbientSource = 'project' | 'bundled'
+
+const BUNDLED_STATOR = `declare const Stator: {
+  props<P>(): P;
+  reads<const T extends readonly __SMachineDef[]>(defs: T): { -readonly [K in keyof T]: __SInstanceOf<T[K]> };
+  forwarded(name: \`on:\${string}\`): (() => unknown) | undefined;
+  request: any;
+  response: { status: number; headers: Headers; cookies: any };
+};
+`
+
+const PROJECT_STATOR =
+  "import type { StatorMacros as __SMacros } from '@statorjs/stator/editor';\n" +
+  'declare const Stator: __SMacros;\n'
+
+function ambientFor(source: AmbientSource): string {
+  return source === 'project'
+    ? INTRINSICS_IMPORT + PROJECT_STATOR + JSX_GLOBAL
+    : BUNDLED_TYPE_IMPORTS + INTRINSICS_IMPORT + BUNDLED_STATOR + JSX_GLOBAL
+}
+
+export interface VirtualCodeOptions {
+  /** Where the `Stator` macros are typed from. Defaults to `bundled`. */
+  ambient?: AmbientSource
+}
+
 const DOCTYPE_RE = /^\s*<!doctype[^>]*>/i
 
-export function toVirtualCode(source: string): VirtualCodeResult {
+export function toVirtualCode(source: string, opts: VirtualCodeOptions = {}): VirtualCodeResult {
   const regions = scanRegions(source)
+  const ambient = ambientFor(opts.ambient ?? 'bundled')
   const isClient =
     regions.scripts.length > 0 &&
     analyzeScriptClasses(regions.scripts.map((s) => s.content).join('\n')).length > 0
 
   return {
-    tsx: isClient ? buildClientTsx(regions) : buildServerTsx(regions),
+    tsx: isClient ? buildClientTsx(regions, ambient) : buildServerTsx(regions, ambient),
     styles: regions.styles.map(buildCssFile),
   }
 }
@@ -136,15 +168,12 @@ export function toVirtualCode(source: string): VirtualCodeResult {
  *  as one here is what makes top-level `await` / `return` the TS errors they
  *  should be. Emitting the body at module scope (the previous shape) silently
  *  made them legal in-editor while diverging from runtime semantics. */
-function buildServerTsx(regions: ScannedRegions): VirtualFile {
+function buildServerTsx(regions: ScannedRegions, ambient: string): VirtualFile {
   const mappings: VirtualMapping[] = []
   const fm = regions.frontmatter?.content ?? ''
   const fmOffset = regions.frontmatter?.contentOffset ?? 0
   const userCode = fm + regions.template.content
-  let code =
-    injectImports(TEMPLATE_GLOBALS, '@statorjs/stator/template', userCode) +
-    AMBIENT_TYPE_IMPORTS +
-    STATOR_AMBIENT
+  let code = injectImports(TEMPLATE_GLOBALS, '@statorjs/stator/template', userCode) + ambient
 
   const { hoisted, body } = splitFrontmatter(fm, fmOffset)
   for (const seg of hoisted) code = emitSegment(mappings, code, seg)
@@ -350,14 +379,13 @@ function splitFrontmatter(
 /** Client component: the `<script>` is the module. Emit it as TS so the class,
  *  `use()`/`machine()`, and imports get full intelligence. (Template-member
  *  resolution — `bind:text={theme.label}` → the class field — is a later phase.) */
-function buildClientTsx(regions: ScannedRegions): VirtualFile {
+function buildClientTsx(regions: ScannedRegions, ambient: string): VirtualFile {
   const mappings: VirtualMapping[] = []
   const userScript = regions.scripts.map((s) => s.content).join('\n')
   let code =
     injectImports(TEMPLATE_GLOBALS, '@statorjs/stator/template', userScript) +
     injectImports(CLIENT_GLOBALS, '@statorjs/stator/client', userScript) +
-    AMBIENT_TYPE_IMPORTS +
-    STATOR_AMBIENT
+    ambient
 
   // The island's SERVER FENCE (2.1): typed here so the editor checks it, but
   // wrapped so its bindings don't leak into the <script>'s scope (at runtime

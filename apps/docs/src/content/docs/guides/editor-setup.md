@@ -17,6 +17,8 @@ Search for **"Stator"** in your editor's extensions view, or install directly:
 
 The extension is self-contained (bundled language server and TypeScript). When your workspace has its own `typescript` installed, templates type-check against that version instead of the bundled one.
 
+The same goes for Stator itself. What the editor accepts for the `Stator.*` macros comes from the `@statorjs/stator` installed in your project, not from the extension, so a project on any release sees that release's API and the extension can update without moving it. The extension's bundled compiler only reads a file's structure, and it accepts the syntax of every supported release. When an API is renamed or removed, `stator check` (which runs your project's own Stator) is what reports it. Projects on releases older than 3.0 get the macro types those releases had.
+
 ## Project setup the tooling expects
 
 Two things make types flow end to end (a `create-stator` project has both):
