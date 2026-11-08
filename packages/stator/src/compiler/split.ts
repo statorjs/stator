@@ -43,6 +43,9 @@ export interface ParsedStator {
   /** Character offset in the original source of each captured `<script>` region's
    *  opening tag, parallel to `scripts` — used to locate diagnostics. */
   scriptOffsets: number[]
+  /** Character offset in the original source where each `scripts` entry (its
+   *  trimmed content) begins, parallel to `scripts` — for source maps. */
+  scriptContentOffsets: number[]
   /** Character offset in the original source where the (trimmed) template body
    *  begins — used to map template diagnostics back to original positions.
    *  Assumes `<style>`/`<script>` regions follow the template body (the
@@ -87,15 +90,20 @@ export function splitStator(source: string): ParsedStator {
 
   const scripts: string[] = []
   const scriptOffsets: number[] = []
+  const scriptContentOffsets: number[] = []
   const styles: string[] = []
   let template = ''
   let last = 0
   for (const block of scanTemplate(rest).blocks) {
     if (!isRegion(block)) continue
-    const content = rest.slice(block.contentStart, block.contentEnd).trim()
+    const raw = rest.slice(block.contentStart, block.contentEnd)
+    const content = raw.trim()
     if (block.tag === 'script') {
       scripts.push(content)
       scriptOffsets.push(frontmatterLen + block.start)
+      scriptContentOffsets.push(
+        frontmatterLen + block.contentStart + (raw.length - raw.trimStart().length),
+      )
     } else {
       styles.push(content)
     }
@@ -111,6 +119,7 @@ export function splitStator(source: string): ParsedStator {
     styles,
     scripts,
     scriptOffsets,
+    scriptContentOffsets,
     templateOffset,
   }
 }

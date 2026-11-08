@@ -2,6 +2,7 @@ import ts from 'typescript'
 import { elementMarkerSelector } from '../wire/island-markers.ts'
 import type { ClientDirective, ClientElement } from './client-script.ts'
 import { CLIENT_AUTHOR_GLOBALS, CLIENT_LOWERING_TARGETS, importLine } from './emit-names.ts'
+import { mark } from './source-map.ts'
 
 /**
  * Phase 3b stage 5 — emit the client entry module for a client component: the
@@ -26,10 +27,15 @@ export interface EmitClientInput {
   directives: ClientDirective[]
   /** All class member names (fields + methods) for `this.` rewriting. */
   members: Set<string>
+  /** Where `script` starts in the `.stator` source. Given when the compile is
+   *  source-mapped: the script and each wiring line are marked to their source
+   *  positions (see `source-map.ts`). */
+  scriptAt?: number
 }
 
 export function emitClientModule(input: EmitClientInput): string {
-  const { script, element, directives, members } = input
+  const { script, element, directives, members, scriptAt } = input
+  const at = (d: ClientDirective): string => (d.at !== undefined ? mark(d.at) : '')
   const impl = `__${element.className}Impl`
 
   // Group directives by node marker (one querySelector per marked element).
@@ -49,7 +55,9 @@ export function emitClientModule(input: EmitClientInput): string {
       for (const d of group) {
         const thunk = `() => (${rewriteMembers(d.expr, members)})`
         const deps = `[${d.deps.map((dep) => `this.${dep}`).join(', ')}]`
-        lines.push(`    this.track(bindSlot(this, ${JSON.stringify(marker)}, ${deps}, ${thunk}))`)
+        lines.push(
+          `    ${at(d)}this.track(bindSlot(this, ${JSON.stringify(marker)}, ${deps}, ${thunk}))`,
+        )
       }
       continue
     }
@@ -57,16 +65,16 @@ export function emitClientModule(input: EmitClientInput): string {
     // element inside a `.map()` repeats per row.
     const node = `n${i++}`
     lines.push(
-      `    for (const ${node} of this.querySelectorAll(${JSON.stringify(elementMarkerSelector(marker))})) {`,
+      `    ${group[0] ? at(group[0]) : ''}for (const ${node} of this.querySelectorAll(${JSON.stringify(elementMarkerSelector(marker))})) {`,
     )
-    for (const d of group) lines.push(`      ${wireDirective(node, d, members)}`)
+    for (const d of group) lines.push(`      ${at(d)}${wireDirective(node, d, members)}`)
     lines.push('    }')
   }
 
   return [
     PRIMITIVES,
     '',
-    stripClientPrimitiveImports(script).trim(),
+    emitScript(script, scriptAt),
     '',
     `class ${impl} extends ${element.className} {`,
     '  setup() {',
@@ -116,11 +124,39 @@ function emitWriter(node: string, target: string): string {
 /** Remove any author import from `@statorjs/stator/client` — those primitives are
  *  auto-injected (the `PRIMITIVES` line), so an author's habit-import would be a
  *  duplicate binding. Server machine imports (for `dispatch`) are untouched. */
+/** Drop the author's own `@statorjs/stator/client` imports (the module imports
+ *  those primitives itself). Line-preserving: the import's newlines stay, so
+ *  every later line of the script keeps its line number. */
 function stripClientPrimitiveImports(script: string): string {
   return script.replace(
-    /^\s*import\s+\{[^}]*\}\s+from\s+['"]@statorjs\/stator\/client['"]\s*;?\s*$/gm,
-    '',
+    /^[ \t]*import\s+\{[^}]*\}\s+from\s+['"]@statorjs\/stator\/client['"][ \t]*;?[ \t]*$/gm,
+    (m) => m.replace(/[^\n]/g, ''),
   )
+}
+
+/** The author's script as it goes into the client module. With `scriptAt`,
+ *  each line's first token is marked to its position in the source: the strip
+ *  keeps line numbers, and a line it did not touch keeps its columns. */
+function emitScript(script: string, scriptAt?: number): string {
+  const stripped = stripClientPrimitiveImports(script)
+  const body = stripped.trim()
+  if (scriptAt === undefined) return body
+  const lineStarts = [0]
+  for (let i = script.indexOf('\n'); i !== -1; i = script.indexOf('\n', i + 1))
+    lineStarts.push(i + 1)
+  const lead = stripped.length - stripped.trimStart().length
+  const leadLines = stripped.slice(0, lead).split('\n').length - 1
+  const firstCol = lead - (stripped.lastIndexOf('\n', lead - 1) + 1)
+  return body
+    .split('\n')
+    .map((line, k) => {
+      const start = lineStarts[leadLines + k]
+      const indent = line.length - line.trimStart().length
+      if (start === undefined || indent === line.length) return line
+      const col = (k === 0 ? firstCol : 0) + indent
+      return line.slice(0, indent) + mark(scriptAt + start + col) + line.slice(indent)
+    })
+    .join('\n')
 }
 
 /** Prefix class-member identifiers in an expression with `this.` (skipping the

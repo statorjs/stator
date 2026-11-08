@@ -60,7 +60,9 @@ export const bundleIslandsEsbuild: IslandBundler = async (opts: BundleIslandsOpt
       imports.push(`import ${id} from ${JSON.stringify(spec)}`)
       return `new URL(${id}, import.meta.url)`
     })
-    return imports.length === 0 ? code : `${imports.join('\n')}\n${out}`
+    // On the first line, not lines of their own: an input source map (a
+    // compiled island's, or a published entry's) keeps every line it maps.
+    return imports.length === 0 ? code : `${imports.join('; ')}; ${out}`
   }
 
   const statorPlugin = {
@@ -73,6 +75,9 @@ export const bundleIslandsEsbuild: IslandBundler = async (opts: BundleIslandsOpt
           id: args.path,
           kind,
           resolveRegions: regionResolverFor(args.path, source),
+          // A mapped bundle (dev) chains the island's own map through esbuild,
+          // so browser devtools show the .stator script and its wiring.
+          ...(opts.sourcemap ? { sourceMap: { source: args.path } } : {}),
         })
         return {
           contents: result.isClient ? rewriteUrlAssets(result.clientCode) : 'export {}',
@@ -136,7 +141,9 @@ export const bundleIslandsEsbuild: IslandBundler = async (opts: BundleIslandsOpt
     format: 'esm',
     write: false,
     metafile: true,
-    minify: true,
+    // Dev bundles (the mapped ones) keep their identifiers, so the debugger's
+    // scope shows `clouds`, not a minified `z`; production stays minified.
+    minify: !opts.sourcemap,
     publicPath,
     sourcemap: opts.sourcemap ? 'inline' : false,
     entryNames: '[name]-[hash]',

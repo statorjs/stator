@@ -23,6 +23,7 @@ import {
   markVerbatim,
   type SourceMapV3,
   splice,
+  stripMarks,
 } from './source-map.ts'
 import { splitStator } from './split.ts'
 import { scopeCss } from './styles.ts'
@@ -62,6 +63,9 @@ export interface CompileResult {
   /** The map from `serverCode` back to the `.stator` source, when
    *  `sourceMap` was asked for (also inlined at the end of `serverCode`). */
   map?: SourceMapV3
+  /** The map from `clientCode` back to the source, for an island compiled
+   *  with `sourceMap` (also inlined at the end of `clientCode`). */
+  clientMap?: SourceMapV3
 }
 
 const PRIMITIVES_IMPORT = importLine(
@@ -96,7 +100,9 @@ export interface CompileOptions {
    *  map is inlined as a trailing `sourceMappingURL` comment (esbuild chains
    *  it through its own transform) and returned as `map`. `source` is the
    *  map's `sources` entry — whatever path its consumer resolves the
-   *  `.stator` file by. Islands are not mapped yet. */
+   *  `.stator` file by. An island maps both halves: its shell (server fence
+   *  and template) in `serverCode`, its script and directive wiring in
+   *  `clientCode`. */
   sourceMap?: { source: string }
 }
 
@@ -108,6 +114,7 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
     styles,
     scripts,
     scriptOffsets,
+    scriptContentOffsets,
     templateOffset,
   } = splitStator(source)
   const marks = opts.sourceMap != null && canMark(source)
@@ -127,8 +134,15 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
       // The island's SERVER FENCE (2.1): runs per shell render, on the
       // server only, with its bindings in template scope. The <script>
       // never sees it, in either direction.
-      const fm = processFrontmatter(frontmatter, 'island', source, frontmatterOffset, opts.id)
-      return compileClient(template, script, {
+      const fm = processFrontmatter(
+        frontmatter,
+        'island',
+        source,
+        frontmatterOffset,
+        opts.id,
+        marks,
+      )
+      const island = compileClient(template, script, {
         hash,
         scopeAttr,
         styles,
@@ -136,7 +150,19 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
         fm,
         source,
         templateOffset,
+        marks,
+        scriptAt: marks && scripts.length === 1 ? scriptContentOffsets[0] : undefined,
       })
+      if (!opts.sourceMap) return island
+      const server = finalizeSourceMap(island.serverCode, source, opts.sourceMap.source)
+      const client = finalizeSourceMap(island.clientCode, source, opts.sourceMap.source)
+      return {
+        ...island,
+        serverCode: `${server.code}${inlineSourceMapComment(server.map)}\n`,
+        map: server.map,
+        clientCode: `${client.code}${inlineSourceMapComment(client.map)}\n`,
+        clientMap: client.map,
+      }
     }
     throw new CompileError(
       `stator: this <script> exports no StatorElement subclass. An inline <script> in a ` +
@@ -207,6 +233,10 @@ function compileClient(
     source?: string
     /** Offset of the template body in `source`. */
     templateOffset?: number
+    /** Drop source-map marks in both halves (see `source-map.ts`). */
+    marks?: boolean
+    /** Where the script starts in `source`, when it is mapped. */
+    scriptAt?: number
   },
 ): CompileResult {
   const classes = analyzeScriptClasses(script)
@@ -260,6 +290,11 @@ function compileClient(
     file: ctx.file,
     meta,
     client: { useFields: new Set(cls.useFields.keys()), directives },
+    // The root's children, located in the source: located diagnostics, and
+    // marks on the shell's expressions when mapping.
+    source: ctx.source,
+    templateOffset: root.innerOffset,
+    marks: ctx.marks,
   })
 
   const css = ctx.styles.length
@@ -289,6 +324,7 @@ function compileClient(
     element: { tag: root.tag, className: cls.name },
     directives,
     members: cls.members,
+    scriptAt: ctx.scriptAt,
   })
 
   return {
@@ -343,7 +379,13 @@ function staticRootAttrs(
 function extractClientRoot(
   template: string,
   ctx: { file?: string; source?: string; templateOffset?: number },
-): { tag: string; inner: string; rootAttrs: Record<string, string | boolean> } {
+): {
+  tag: string
+  inner: string
+  /** Where `inner` starts in the source, when the source is known. */
+  innerOffset?: number
+  rootAttrs: Record<string, string | boolean>
+} {
   const { file } = ctx
   const prefix = 'const __t = (<>'
   const wrapped = `${prefix}${template}</>);`
@@ -380,7 +422,16 @@ function extractClientRoot(
   const tag = el.openingElement.tagName.getText(sf)
   requireCustomRoot(tag, file)
   const inner = wrapped.slice(el.openingElement.getEnd(), el.closingElement.getStart())
-  return { tag, inner, rootAttrs: staticRootAttrs(tag, el.openingElement.attributes, sf, at) }
+  const innerOffset =
+    ctx.templateOffset != null
+      ? ctx.templateOffset + (el.openingElement.getEnd() - prefix.length)
+      : undefined
+  return {
+    tag,
+    inner,
+    innerOffset,
+    rootAttrs: staticRootAttrs(tag, el.openingElement.attributes, sf, at),
+  }
 }
 
 function requireCustomRoot(tag: string, file?: string): void {
@@ -571,7 +622,7 @@ function fenceBindingNames(fm: FrontmatterParts): Set<string> {
   const names = new Set<string>()
   const sf = ts.createSourceFile(
     'fence.ts',
-    `${fm.hoisted}\n${fm.body}`,
+    stripMarks(`${fm.hoisted}\n${fm.body}`),
     ts.ScriptTarget.Latest,
     true,
     ts.ScriptKind.TS,

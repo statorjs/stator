@@ -3,7 +3,7 @@ import { isVoidElement } from '../template/void-elements.ts'
 import { elementMarker, ISLAND_MARKER_ATTR, slotMarker } from '../wire/island-markers.ts'
 import { type ClientDirective, inferDeps } from './client-script.ts'
 import { CompileError, type DiagnosticLocation, locAt } from './diagnostics.ts'
-import { mark, splice } from './source-map.ts'
+import { mark, splice, stripMarks } from './source-map.ts'
 
 export { CompileError } from './diagnostics.ts'
 
@@ -266,10 +266,11 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     }
     return (opts.templateOffset ?? 0) + doctypeLen + p + delta
   }
+  // Client mode (an island's shell) is marked too: the shell is a server
+  // module. Directive expressions also feed the CLIENT entry, so they are
+  // stripped of marks there and carry their source position as `at` instead.
   const toSource =
-    opts.marks && opts.source != null && opts.templateOffset != null && !opts.client
-      ? sourceOffset
-      : undefined
+    opts.marks && opts.source != null && opts.templateOffset != null ? sourceOffset : undefined
   const markAt = (node: ts.Node): string => (toSource ? mark(toSource(node.getStart(sf))) : '')
 
   let fragment: ts.JsxFragment | undefined
@@ -531,6 +532,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
           kind: 'slot',
           expr,
           deps: inferDeps(expr, opts.client.useFields),
+          ...(toSource ? { at: toSource(node.getStart(sf)) } : {}),
         })
         return `<!--${marker}-->`
       }
@@ -691,7 +693,14 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
         if (!expr) {
           throw new CompileError(`stator: on:${name} requires a handler ({...})`, loc(attr))
         }
-        pending.push({ marker: '', kind: 'on', event: name, expr, deps: [] })
+        pending.push({
+          marker: '',
+          kind: 'on',
+          event: name,
+          expr: stripMarks(expr),
+          deps: [],
+          ...(toSource ? { at: toSource(attr.getStart(sf)) } : {}),
+        })
         consumed.add(attr)
         continue
       }
@@ -716,6 +725,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
           target,
           expr,
           deps: inferDeps(expr, client.useFields),
+          ...(toSource ? { at: toSource(attr.getStart(sf)) } : {}),
         })
         consumed.add(attr)
       }
