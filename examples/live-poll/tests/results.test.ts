@@ -47,7 +47,7 @@ describe('the /p/:id.json results route', () => {
 
     const res = await app.fetch(new Request(`http://test/p/${id}.json`))
     assert.equal(res.status, 200)
-    assert.ok((res.headers.get('content-type')).includes('application/json'))
+    assert.ok((res.headers.get('content-type'))?.includes('application/json'))
     assert.ok(res.headers.get('etag'))
     const poll = (await res.json()) as {
       question: string

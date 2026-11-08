@@ -9,11 +9,11 @@ export interface DiscoveryResult {
 }
 
 /** How a discovered file is turned into a module. Defaults to native dynamic
- *  import; the dev server injects Vite's `ssrLoadModule` so `.stator` imports
- *  (and TS) are compiled on the way in. */
+ *  import; under `stator dev` the module loader hooks compile `.stator` and
+ *  TypeScript on the way in. */
 export type ModuleLoader = (file: string) => Promise<Record<string, unknown>>
 
-const nativeLoader: ModuleLoader = (file) => import(/* @vite-ignore */ pathToFileURL(file).href)
+const nativeLoader: ModuleLoader = (file) => import(pathToFileURL(file).href)
 
 export interface DiscoverMachinesOptions {
   /**

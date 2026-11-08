@@ -30,7 +30,7 @@ describe('classify (microformats-lite)', () => {
     assert.equal(classify(repost, TARGET).kind, 'repost')
     const r = classify(reply, TARGET)
     assert.equal(r.kind, 'reply')
-    assert.ok(r.excerpt.includes('I agree'))
+    assert.ok(r.excerpt?.includes('I agree'))
   })
   it('falls back to a plain mention with a title author', () => {
     const html = `<title>Someone's Site</title><a href="${TARGET}">link</a>`
@@ -91,6 +91,7 @@ describe('sendMention', () => {
       return new Response('', { status: 202 })
     }) as typeof fetch
     assert.equal(await sendMention('https://t.dev/wm', 'https://me.dev/p', 'https://t.dev/post', f), true)
-    assert.ok(seen.includes('source=https%3A%2F%2Fme.dev%2Fp'))
+    // `seen` is assigned inside the fake fetch, which TypeScript cannot follow.
+    assert.ok((seen as string | null)?.includes('source=https%3A%2F%2Fme.dev%2Fp'))
   })
 })

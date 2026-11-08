@@ -1,10 +1,9 @@
 /**
  * The `.stator` compiler. A pure, bundler-agnostic source-to-source transform:
  * a `.stator` file in, the `.ts` modules the existing runtime already consumes
- * out. No Vite imports here — the Vite plugin (`@statorjs/stator/vite`) is a thin
- * adapter over this surface.
+ * out. The dev server, the build and `build:lib` all compile through this surface.
  *
- * See spec: stator-compiler-and-vite-plugin-implementation-plan.
+ * Origin: spec stator-compiler-and-vite-plugin-implementation-plan.
  */
 
 export type { EmitClientInput } from './client-emit.ts'

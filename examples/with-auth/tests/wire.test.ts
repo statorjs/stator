@@ -315,7 +315,7 @@ describe('the JSON board — /api/notices', () => {
     // from the body, not flagged in it — the page's server-side filtering
     // rule, holding on the API plane.
     const visitorRes = await app.fetch(new Request('http://test/api/notices'))
-    assert.ok((visitorRes.headers.get('content-type')).includes('application/json'))
+    assert.ok((visitorRes.headers.get('content-type'))?.includes('application/json'))
     assert.ok(visitorRes.headers.get('etag'))
     const asVisitor = (await visitorRes.json()) as {
       viewer: string

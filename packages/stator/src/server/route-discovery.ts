@@ -12,7 +12,7 @@ import {
   type RouteDefinition,
 } from './routing.ts'
 
-const nativeLoader: ModuleLoader = (file) => import(/* @vite-ignore */ pathToFileURL(file).href)
+const nativeLoader: ModuleLoader = (file) => import(pathToFileURL(file).href)
 
 /** HTTP methods a route file may export. GET goes through `defineRoute`
  *  (page rendering) or `defineApiRoute({ method: 'GET' })` (data route);

@@ -1,6 +1,6 @@
 ---
 title: Production builds & deployment
-description: "Compile once, serve with no Vite: stator build, the island manifest, and a Fly.io recipe."
+description: "Compile once and serve: stator build, the island manifest, and a Fly.io recipe."
 sidebar:
   order: 14
 ---

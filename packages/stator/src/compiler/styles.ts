@@ -13,8 +13,8 @@ import selectorParser from 'postcss-selector-parser'
  *   - `@keyframes` names are renamed per-hash (and `animation`/`animation-name`
  *     references rewritten) so animations don't leak or collide.
  *
- * Pure function — the Vite plugin calls it, then Vite's own CSS pipeline handles
- * url()/nesting/minify on the result.
+ * Pure function. The result is served and built as is: `url()` and nesting pass
+ * through to the browser, and nothing minifies it.
  */
 export interface ScopeCssOptions {
   /**

@@ -3,9 +3,9 @@ import { pathToFileURL } from 'node:url'
 import type { MiddlewareHandler } from 'hono'
 import type { ModuleLoader } from './discovery.ts'
 
-// A global-registry symbol so the brand survives the dev dual-instance: the app's
-// `middleware.ts` is loaded through Vite while the framework may check it from the
-// native module instance — `Symbol.for` resolves to the same symbol in both.
+// A global-registry symbol so the brand survives two module instances of the
+// framework (an app's copy and a linked checkout's): `Symbol.for` resolves to the
+// same symbol in both.
 const MIDDLEWARE_BRAND = Symbol.for('stator.middleware.definition')
 
 /**
@@ -52,14 +52,13 @@ export function dangerouslyDefineMiddleware(
   return { [MIDDLEWARE_BRAND]: true, handlers, withDefaults: false }
 }
 
-const nativeLoader: ModuleLoader = (file) => import(/* @vite-ignore */ pathToFileURL(file).href)
+const nativeLoader: ModuleLoader = (file) => import(pathToFileURL(file).href)
 
 /**
  * Load an app's `middleware.ts` (if present) and validate its default export.
  * Returns `undefined` when there is no file — the framework then applies its
  * security defaults with no user handlers (safe-by-default). `loader` is injected
- * so dev can go through Vite; prod/native uses `import`. The single toolchain
- * touch-point, kept swappable for the post-Vite pipeline.
+ * so a test can substitute one; the default is a native `import`.
  */
 export async function discoverMiddleware(
   file: string,

@@ -108,7 +108,7 @@ describe('the desk over the wire', () => {
   it('refuses a duplicate email — committed: false, roster unchanged', async () => {
     const r = await register(sid, { name: 'Also Ada', email: 'ADA@lovelace.dev', seats: 1 })
     assert.equal(r.committed, false)
-    assert.ok(((await page(sid)).match(/Ada/g)?.length) > 0)
+    assert.match(await page(sid), /Ada/)
   })
 
   it('refuses a shape-invalid registration the browser rules would also catch', async () => {

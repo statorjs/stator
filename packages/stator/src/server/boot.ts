@@ -4,9 +4,9 @@ import type { AnyMachineDef, EventOf } from '../engine/index.ts'
 import type { StatorConfigData } from './context.ts'
 import type { ModuleLoader } from './discovery.ts'
 
-// A global-registry symbol so the brand survives the dev dual-instance: the app's
-// `boot.ts` is loaded through Vite while the framework checks it from the native
-// module instance — `Symbol.for` resolves to the same symbol in both.
+// A global-registry symbol so the brand survives two module instances of the
+// framework (an app's copy and a linked checkout's): `Symbol.for` resolves to the
+// same symbol in both.
 const BOOT_BRAND = Symbol.for('stator.boot.definition')
 
 /**
@@ -80,13 +80,12 @@ export function defineBoot(run: BootFn): BootDefinition {
   return { [BOOT_BRAND]: true, run }
 }
 
-const nativeLoader: ModuleLoader = (file) => import(/* @vite-ignore */ pathToFileURL(file).href)
+const nativeLoader: ModuleLoader = (file) => import(pathToFileURL(file).href)
 
 /**
  * Load an app's `boot.ts` (if present) and validate its default export. Returns
- * `undefined` when there's no file. `loader` is injected so dev goes through
- * Vite; prod/native uses `import` — the same single toolchain touch-point as
- * `discoverMiddleware`.
+ * `undefined` when there's no file. `loader` is injected so a test can
+ * substitute one; the default is a native `import`, as in `discoverMiddleware`.
  */
 export async function discoverBoot(
   file: string,

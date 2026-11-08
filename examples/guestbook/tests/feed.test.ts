@@ -64,7 +64,7 @@ describe('the /feed.xml route', () => {
 
     const res = await app.fetch(new Request('http://test/feed.xml'))
     assert.equal(res.status, 200)
-    assert.ok((res.headers.get('content-type')).includes('application/xml'))
+    assert.ok((res.headers.get('content-type'))?.includes('application/xml'))
     assert.ok(res.headers.get('etag'))
     const xml = await res.text()
     assert.ok(xml.includes('Åse &amp; Co signed the book'))

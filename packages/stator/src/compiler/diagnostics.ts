@@ -3,9 +3,9 @@ import type ts from 'typescript'
 /**
  * Compiler diagnostics: a located `CompileError` plus helpers to turn a
  * character offset in the original `.stator` source into a line/column + code
- * frame. Every compiler stage throws `CompileError`; the Vite plugin maps its
- * `loc` to Vite's error shape so the dev overlay and terminal show
- * file:line:column with a snippet.
+ * frame. Every compiler stage throws `CompileError`; the dev server and the
+ * build print its `loc` so the dev overlay and terminal show file:line:column
+ * with a snippet.
  */
 
 export interface DiagnosticLocation {
