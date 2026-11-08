@@ -1,5 +1,6 @@
 import { createActor } from '@statorjs/stator/machine'
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import type { Place } from '../lib/open-meteo.ts'
 import SearchMachine from '../machines/search.ts'
 
@@ -17,31 +18,31 @@ describe('search', () => {
   it('SEARCH records the query and marks searching', () => {
     const s = start()
     s.send({ type: 'SEARCH', query: 'lon' })
-    expect(sel.query(ctx(s))).toBe('lon')
-    expect(sel.searching(ctx(s))).toBe(true)
+    assert.equal(sel.query(ctx(s)), 'lon')
+    assert.equal(sel.searching(ctx(s)), true)
   })
 
   it('RESULTS for the current query populate and clear searching', () => {
     const s = start()
     s.send({ type: 'SEARCH', query: 'lon' })
     s.send({ type: 'RESULTS', query: 'lon', results: [london] })
-    expect(sel.hasResults(ctx(s))).toBe(true)
-    expect(sel.searching(ctx(s))).toBe(false)
+    assert.equal(sel.hasResults(ctx(s)), true)
+    assert.equal(sel.searching(ctx(s)), false)
   })
 
   it('a stale RESULTS (the query moved on) is ignored', () => {
     const s = start()
     s.send({ type: 'SEARCH', query: 'tok' })
     s.send({ type: 'RESULTS', query: 'lon', results: [london] }) // for an old query
-    expect(sel.hasResults(ctx(s))).toBe(false)
+    assert.equal(sel.hasResults(ctx(s)), false)
   })
 
   it('empty distinguishes typed-no-match from not-typed', () => {
     const s = start()
-    expect(sel.empty(ctx(s))).toBe(false) // nothing typed yet
+    assert.equal(sel.empty(ctx(s)), false) // nothing typed yet
     s.send({ type: 'SEARCH', query: 'zzz' })
     s.send({ type: 'RESULTS', query: 'zzz', results: [] })
-    expect(sel.empty(ctx(s))).toBe(true)
+    assert.equal(sel.empty(ctx(s)), true)
   })
 
   it('CLEAR resets query and results', () => {
@@ -49,7 +50,7 @@ describe('search', () => {
     s.send({ type: 'SEARCH', query: 'lon' })
     s.send({ type: 'RESULTS', query: 'lon', results: [london] })
     s.send({ type: 'CLEAR' })
-    expect(sel.query(ctx(s))).toBe('')
-    expect(sel.hasResults(ctx(s))).toBe(false)
+    assert.equal(sel.query(ctx(s)), '')
+    assert.equal(sel.hasResults(ctx(s)), false)
   })
 })

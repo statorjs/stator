@@ -2,8 +2,8 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createActor } from '@statorjs/stator/machine'
-import { beforeAll, describe, expect, it } from 'vitest'
-
+import assert from 'node:assert/strict'
+import { before, describe, it } from 'node:test'
 process.env.INDIE_BLOG_DB = join(mkdtempSync(join(tmpdir(), 'indie-machines-')), 'test.db')
 
 /** Machines tested the flat way: events in, state out. Verification and
@@ -27,7 +27,7 @@ describe('MentionsMachine', () => {
   it('tracks a verification workflow through to a pending mention', () => {
     const actor = createActor(MentionsMachine).start()
     actor.send(receive('m1', 1))
-    expect(Object.keys(actor.getSnapshot().context.verifying)).toEqual(['m1'])
+    assert.deepStrictEqual(Object.keys(actor.getSnapshot().context.verifying), ['m1'])
     actor.send({
       type: 'VERIFIED',
       id: 'm1',
@@ -37,15 +37,15 @@ describe('MentionsMachine', () => {
       excerpt: 'good post',
     })
     const ctx = actor.getSnapshot().context
-    expect(ctx.verifying).toEqual({})
-    expect(ctx.mentions[0]).toMatchObject({ id: 'm1', kind: 'reply', status: 'pending' })
+    assert.deepStrictEqual(ctx.verifying, {})
+    assert.partialDeepStrictEqual(ctx.mentions[0], { id: 'm1', kind: 'reply', status: 'pending' })
   })
 
   it('dedupes a re-sent source+target pair', () => {
     const actor = createActor(MentionsMachine).start()
     actor.send(receive('m1', 1))
     actor.send({ ...receive('m2', 1) }) // same source+target, new id
-    expect(Object.keys(actor.getSnapshot().context.verifying)).toEqual(['m1'])
+    assert.deepStrictEqual(Object.keys(actor.getSnapshot().context.verifying), ['m1'])
   })
 
   it('moderation flips status, failed verifications vanish', () => {
@@ -63,8 +63,8 @@ describe('MentionsMachine', () => {
     })
     actor.send({ type: 'APPROVE', id: 'm1' })
     const ctx = actor.getSnapshot().context
-    expect(ctx.mentions[0]!.status).toBe('approved')
-    expect(ctx.mentions).toHaveLength(1)
+    assert.equal(ctx.mentions[0]!.status, 'approved')
+    assert.equal(ctx.mentions.length, 1)
   })
 })
 
@@ -78,22 +78,22 @@ describe('OutboxMachine', () => {
       target: 'http://127.0.0.1:1/elsewhere',
     })
     const key = 'hello → http://127.0.0.1:1/elsewhere'
-    expect(actor.getSnapshot().context.entries[key]).toMatchObject({
+    assert.partialDeepStrictEqual(actor.getSnapshot().context.entries[key], {
       status: 'sending',
       attempts: 1,
     })
     actor.send({ type: 'SEND_FAILED', key })
-    expect(actor.getSnapshot().context.entries[key]!.status).toBe('failed')
+    assert.equal(actor.getSnapshot().context.entries[key]!.status, 'failed')
     // RETRY only fires on failed entries.
     actor.send({ type: 'RETRY', key })
-    expect(actor.getSnapshot().context.entries[key]).toMatchObject({
+    assert.partialDeepStrictEqual(actor.getSnapshot().context.entries[key], {
       status: 'sending',
       attempts: 2,
     })
     actor.send({ type: 'SENT', key })
-    expect(actor.getSnapshot().context.entries[key]!.status).toBe('sent')
+    assert.equal(actor.getSnapshot().context.entries[key]!.status, 'sent')
     actor.send({ type: 'RETRY', key }) // guard drop: not failed
-    expect(actor.getSnapshot().context.entries[key]!.attempts).toBe(2)
+    assert.equal(actor.getSnapshot().context.entries[key]!.attempts, 2)
   })
 })
 
@@ -101,12 +101,12 @@ describe('OwnerMachine', () => {
   it('LOGIN guards on the password, privileged events guard on authed', () => {
     const actor = createActor(OwnerMachine).start()
     actor.send({ type: 'APPROVE_MENTION', id: 'x' }) // unauthenticated: guard drop
-    expect(actor.getSnapshot().context.authed).toBe(false)
+    assert.equal(actor.getSnapshot().context.authed, false)
     actor.send({ type: 'LOGIN', password: 'wrong' })
-    expect(actor.getSnapshot().context.authed).toBe(false)
+    assert.equal(actor.getSnapshot().context.authed, false)
     actor.send({ type: 'LOGIN', password: 'owls-at-dusk' })
-    expect(actor.getSnapshot().context.authed).toBe(true)
+    assert.equal(actor.getSnapshot().context.authed, true)
     actor.send({ type: 'LOGOUT' })
-    expect(actor.getSnapshot().context.authed).toBe(false)
+    assert.equal(actor.getSnapshot().context.authed, false)
   })
 })

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import {
   cleanRegistration,
   emailError,
@@ -12,38 +13,38 @@ import {
 
 describe('nameError', () => {
   it('wants two characters, trims first', () => {
-    expect(nameError(' A ')).toBeTruthy()
-    expect(nameError('Al')).toBeNull()
+    assert.ok(nameError(' A '))
+    assert.equal(nameError('Al'), null)
   })
   it('caps at 60', () => {
-    expect(nameError('x'.repeat(61))).toBeTruthy()
-    expect(nameError('x'.repeat(60))).toBeNull()
+    assert.ok(nameError('x'.repeat(61)))
+    assert.equal(nameError('x'.repeat(60)), null)
   })
 })
 
 describe('emailError', () => {
   it('wants something@something.tld', () => {
-    expect(emailError('nope')).toBeTruthy()
-    expect(emailError('a@b')).toBeTruthy()
-    expect(emailError('ada@lovelace.dev')).toBeNull()
+    assert.ok(emailError('nope'))
+    assert.ok(emailError('a@b'))
+    assert.equal(emailError('ada@lovelace.dev'), null)
   })
 })
 
 describe('seatsError', () => {
   it('wants an integer between 1 and the party max', () => {
-    expect(seatsError(0)).toBeTruthy()
-    expect(seatsError(2.5)).toBeTruthy()
-    expect(seatsError(Number.NaN)).toBeTruthy()
-    expect(seatsError(MAX_SEATS_PER_PARTY + 1)).toBeTruthy()
-    expect(seatsError(1)).toBeNull()
-    expect(seatsError(MAX_SEATS_PER_PARTY)).toBeNull()
+    assert.ok(seatsError(0))
+    assert.ok(seatsError(2.5))
+    assert.ok(seatsError(Number.NaN))
+    assert.ok(seatsError(MAX_SEATS_PER_PARTY + 1))
+    assert.equal(seatsError(1), null)
+    assert.equal(seatsError(MAX_SEATS_PER_PARTY), null)
   })
 })
 
 describe('ticketError', () => {
   it('only knows the three ticket types', () => {
-    expect(ticketError('vip')).toBeNull()
-    expect(ticketError('backstage')).toBeTruthy()
+    assert.equal(ticketError('vip'), null)
+    assert.ok(ticketError('backstage'))
   })
 })
 
@@ -55,22 +56,20 @@ describe('cleanRegistration', () => {
       seats: 2,
       ticket: 'general',
     })
-    expect(clean).toEqual({
+    assert.deepStrictEqual(clean, {
       name: 'Ada Lovelace',
       email: 'ada@lovelace.dev',
       seats: 2,
       ticket: 'general',
       updates: false,
     })
-    expect(
-      cleanRegistration({ name: 'Ada', email: 'a@b.c', seats: 1, ticket: 'vip', updates: true })!
-        .updates,
-    ).toBe(true)
+    assert.equal(cleanRegistration({ name: 'Ada', email: 'a@b.c', seats: 1, ticket: 'vip', updates: true })!
+        .updates, true)
   })
   it('refuses when any shape rule fails', () => {
-    expect(cleanRegistration({ name: 'A', email: 'a@b.c', seats: 1, ticket: 'vip' })).toBeNull()
-    expect(cleanRegistration({ name: 'Ada', email: 'nope', seats: 1, ticket: 'vip' })).toBeNull()
-    expect(cleanRegistration({ name: 'Ada', email: 'a@b.c', seats: 9, ticket: 'vip' })).toBeNull()
-    expect(cleanRegistration({ name: 'Ada', email: 'a@b.c', seats: 1, ticket: 'nope' })).toBeNull()
+    assert.equal(cleanRegistration({ name: 'A', email: 'a@b.c', seats: 1, ticket: 'vip' }), null)
+    assert.equal(cleanRegistration({ name: 'Ada', email: 'nope', seats: 1, ticket: 'vip' }), null)
+    assert.equal(cleanRegistration({ name: 'Ada', email: 'a@b.c', seats: 9, ticket: 'vip' }), null)
+    assert.equal(cleanRegistration({ name: 'Ada', email: 'a@b.c', seats: 1, ticket: 'nope' }), null)
   })
 })

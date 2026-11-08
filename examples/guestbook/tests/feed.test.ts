@@ -1,14 +1,8 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { after, before, describe, it } from 'node:test'
 import { escapeXml, renderFeed } from '../lib/feed.ts'
-
-// Wire tests boot the dev app IN-PROCESS, which needs the transitional Vite dev
-// server: the native default (the Vite exit) loads app modules through Node
-// loader hooks that vitest's module runner bypasses. Migrates to the
-// CLI-subprocess harness when the Vite implementation retires (see the
-// framework's dev-native.test.ts for the pattern).
-process.env.STATOR_VITE_DEV = '1'
 
 
 /**
@@ -19,7 +13,7 @@ process.env.STATOR_VITE_DEV = '1'
 
 describe('feed rendering', () => {
   it('escapes visitor text so a signature cannot inject markup', () => {
-    expect(escapeXml(`<script>&"'`)).toBe('&lt;script&gt;&amp;&quot;&apos;')
+    assert.equal(escapeXml(`<script>&"'`), '&lt;script&gt;&amp;&quot;&apos;')
   })
 
   it('renders entries newest-first with RFC-822 dates and stable guids', () => {
@@ -30,11 +24,11 @@ describe('feed rendering', () => {
       ],
       'http://test',
     )
-    expect(xml).toContain('<pubDate>Fri, 02 Jan 1970 00:00:00 GMT</pubDate>')
-    expect(xml).toContain('<guid isPermaLink="false">e2</guid>')
-    expect(xml).toContain('Marisol &lt;3 signed the book')
-    expect(xml).toContain('Guestbooks &amp; trains.')
-    expect(xml.indexOf('e2')).toBeLessThan(xml.indexOf('e1'))
+    assert.ok(xml.includes('<pubDate>Fri, 02 Jan 1970 00:00:00 GMT</pubDate>'))
+    assert.ok(xml.includes('<guid isPermaLink="false">e2</guid>'))
+    assert.ok(xml.includes('Marisol &lt;3 signed the book'))
+    assert.ok(xml.includes('Guestbooks &amp; trains.'))
+    assert.ok((xml.indexOf('e2')) < (xml.indexOf('e1')))
   })
 })
 
@@ -42,16 +36,16 @@ describe('the /feed.xml route', () => {
   const here = dirname(fileURLToPath(import.meta.url))
   let app: import('@statorjs/stator/dev').DevApp
 
-  beforeAll(async () => {
+  before(async () => {
     const { createDevApp } = await import('@statorjs/stator/dev')
     app = await createDevApp({
       root: resolve(here, '..'),
       machinesDir: resolve(here, '../machines'),
       routesDir: resolve(here, '../routes'),
     })
-  }, 30_000)
+  }, { timeout: 30_000 })
 
-  afterAll(async () => {
+  after(async () => {
     await app.close()
   })
 
@@ -69,12 +63,12 @@ describe('the /feed.xml route', () => {
     )
 
     const res = await app.fetch(new Request('http://test/feed.xml'))
-    expect(res.status).toBe(200)
-    expect(res.headers.get('content-type')).toContain('application/xml')
-    expect(res.headers.get('etag')).toBeTruthy()
+    assert.equal(res.status, 200)
+    assert.ok((res.headers.get('content-type')).includes('application/xml'))
+    assert.ok(res.headers.get('etag'))
     const xml = await res.text()
-    expect(xml).toContain('Åse &amp; Co signed the book')
-    expect(xml).toContain('Hello &lt;world&gt;')
-    expect(xml).not.toContain('<world>')
+    assert.ok(xml.includes('Åse &amp; Co signed the book'))
+    assert.ok(xml.includes('Hello &lt;world&gt;'))
+    assert.ok(!xml.includes('<world>'))
   })
 })

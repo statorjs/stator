@@ -1,5 +1,6 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { createActor } from '@statorjs/stator/machine'
-import { describe, expect, it } from 'vitest'
 import { LOW_WATER, REFILL_LEVEL } from '../lib/stock.ts'
 import InventoryMachine from '../machines/inventory.ts'
 
@@ -26,34 +27,34 @@ describe('inventory', () => {
         { sku: 'b', qty: 3 },
       ],
     })
-    expect(actor.getSnapshot().context.stock).toEqual({ a: 3, b: 0 })
+    assert.deepStrictEqual(actor.getSnapshot().context.stock, { a: 3, b: 0 })
   })
 
   it('an order that leaves stock at/below low water schedules a restock', () => {
     const { actor, invocations } = boot({ a: LOW_WATER + 1, b: 20 })
     actor.send({ type: 'ORDER_PLACED', items: [{ sku: 'a', qty: 1 }] })
-    expect(invocations).toHaveLength(1)
+    assert.equal(invocations.length, 1)
     // A comfortable order schedules nothing... (the effect runs regardless;
     // its RETURN decides) — assert via the arrival path instead:
     actor.send({ type: 'RESTOCK_ARRIVED', skus: ['a'] })
-    expect(actor.getSnapshot().context.stock.a).toBe(REFILL_LEVEL)
+    assert.equal(actor.getSnapshot().context.stock.a, REFILL_LEVEL)
   })
 
   it('refills SET the level — racing restocks converge instead of compounding', () => {
     const { actor } = boot({ a: 2 })
     actor.send({ type: 'RESTOCK_ARRIVED', skus: ['a'] })
     actor.send({ type: 'RESTOCK_ARRIVED', skus: ['a'] })
-    expect(actor.getSnapshot().context.stock.a).toBe(REFILL_LEVEL)
+    assert.equal(actor.getSnapshot().context.stock.a, REFILL_LEVEL)
   })
 
   it('an in-flight restock order is idempotent (second ORDERED guard-dropped)', () => {
     const { actor, invocations } = boot({ a: 1 })
     actor.send({ type: 'RESTOCK_ORDERED', sku: 'a' })
     actor.send({ type: 'RESTOCK_ORDERED', sku: 'a' })
-    expect(invocations).toHaveLength(1)
-    expect(actor.getSnapshot().context.pending).toEqual(['a'])
+    assert.equal(invocations.length, 1)
+    assert.deepStrictEqual(actor.getSnapshot().context.pending, ['a'])
     // Arrival clears the pending flag so the NEXT order may fire.
     actor.send({ type: 'RESTOCK_ARRIVED', skus: ['a'] })
-    expect(actor.getSnapshot().context.pending).toEqual([])
+    assert.deepStrictEqual(actor.getSnapshot().context.pending, [])
   })
 })

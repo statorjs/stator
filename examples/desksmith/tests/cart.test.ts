@@ -1,5 +1,6 @@
 import { createActor } from '@statorjs/stator/machine'
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import CartMachine from '../machines/cart.ts'
 import ProductsMachine from '../machines/products.ts'
 
@@ -22,9 +23,9 @@ describe('cart — adding items', () => {
     const cart = newCart()
     cart.send({ type: 'ADD_ITEM', productId: 'p1' })
     const ctx = ctxOf(cart)
-    expect(sel.items(ctx)).toEqual([{ productId: 'p1', quantity: 1, unitPrice: 12 }])
-    expect(sel.contains(ctx)('p1')).toBe(true)
-    expect(sel.isEmpty(ctx)).toBe(false)
+    assert.deepStrictEqual(sel.items(ctx), [{ productId: 'p1', quantity: 1, unitPrice: 12 }])
+    assert.equal(sel.contains(ctx)('p1'), true)
+    assert.equal(sel.isEmpty(ctx), false)
   })
 
   it('re-adding the same product bumps quantity, not a second line', () => {
@@ -32,8 +33,8 @@ describe('cart — adding items', () => {
     cart.send({ type: 'ADD_ITEM', productId: 'p1' })
     cart.send({ type: 'ADD_ITEM', productId: 'p1' })
     const ctx = ctxOf(cart)
-    expect(sel.items(ctx)).toHaveLength(1)
-    expect(sel.itemCount(ctx)).toBe(2)
+    assert.equal((sel.items(ctx)).length, 1)
+    assert.equal(sel.itemCount(ctx), 2)
   })
 
   it('itemCount and total aggregate across distinct lines', () => {
@@ -42,8 +43,8 @@ describe('cart — adding items', () => {
     cart.send({ type: 'ADD_ITEM', productId: 'p2' }) // $28
     cart.send({ type: 'ADD_ITEM', productId: 'p2' }) // +$28
     const ctx = ctxOf(cart)
-    expect(sel.itemCount(ctx)).toBe(3)
-    expect(sel.total(ctx)).toBe(12 + 28 * 2)
+    assert.equal(sel.itemCount(ctx), 3)
+    assert.equal(sel.total(ctx), 12 + 28 * 2)
   })
 })
 
@@ -52,14 +53,14 @@ describe('cart — quantity steppers', () => {
     const cart = newCart()
     cart.send({ type: 'ADD_ITEM', productId: 'p1' })
     cart.send({ type: 'INCREMENT', productId: 'p1' })
-    expect(sel.itemCount(ctxOf(cart))).toBe(2)
+    assert.equal(sel.itemCount(ctxOf(cart)), 2)
   })
 
   it('DECREMENT of the last unit removes the whole line', () => {
     const cart = newCart()
     cart.send({ type: 'ADD_ITEM', productId: 'p1' })
     cart.send({ type: 'DECREMENT', productId: 'p1' })
-    expect(sel.isEmpty(ctxOf(cart))).toBe(true)
+    assert.equal(sel.isEmpty(ctxOf(cart)), true)
   })
 
   it('DECREMENT above one only lowers the quantity', () => {
@@ -68,8 +69,8 @@ describe('cart — quantity steppers', () => {
     cart.send({ type: 'ADD_ITEM', productId: 'p1' }) // qty 2
     cart.send({ type: 'DECREMENT', productId: 'p1' })
     const ctx = ctxOf(cart)
-    expect(sel.itemCount(ctx)).toBe(1)
-    expect(sel.isEmpty(ctx)).toBe(false)
+    assert.equal(sel.itemCount(ctx), 1)
+    assert.equal(sel.isEmpty(ctx), false)
   })
 })
 
@@ -80,8 +81,8 @@ describe('cart — remove and clear', () => {
     cart.send({ type: 'ADD_ITEM', productId: 'p2' })
     cart.send({ type: 'REMOVE_ITEM', productId: 'p1' })
     const ctx = ctxOf(cart)
-    expect(sel.contains(ctx)('p1')).toBe(false)
-    expect(sel.contains(ctx)('p2')).toBe(true)
+    assert.equal(sel.contains(ctx)('p1'), false)
+    assert.equal(sel.contains(ctx)('p2'), true)
   })
 
   it('CLEAR empties the cart', () => {
@@ -89,6 +90,6 @@ describe('cart — remove and clear', () => {
     cart.send({ type: 'ADD_ITEM', productId: 'p1' })
     cart.send({ type: 'ADD_ITEM', productId: 'p2' })
     cart.send({ type: 'CLEAR' })
-    expect(sel.isEmpty(ctxOf(cart))).toBe(true)
+    assert.equal(sel.isEmpty(ctxOf(cart)), true)
   })
 })

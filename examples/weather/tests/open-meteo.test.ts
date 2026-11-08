@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import {
   aqiCategory,
   aqiInfo,
@@ -18,53 +19,53 @@ import {
 
 describe('open-meteo — WMO condition mapping', () => {
   it('labels known codes and falls back to Unknown', () => {
-    expect(conditionLabel(0)).toBe('Clear')
-    expect(conditionLabel(95)).toBe('Thunderstorm')
-    expect(conditionLabel(1234)).toBe('Unknown')
+    assert.equal(conditionLabel(0), 'Clear')
+    assert.equal(conditionLabel(95), 'Thunderstorm')
+    assert.equal(conditionLabel(1234), 'Unknown')
   })
 
   it('kinds partition the WMO code ranges', () => {
-    expect(conditionKind(0)).toBe('clear')
-    expect(conditionKind(2)).toBe('partly')
-    expect(conditionKind(3)).toBe('cloudy')
-    expect(conditionKind(45)).toBe('fog')
-    expect(conditionKind(53)).toBe('drizzle')
-    expect(conditionKind(63)).toBe('rain')
-    expect(conditionKind(73)).toBe('snow')
-    expect(conditionKind(81)).toBe('showers')
-    expect(conditionKind(85)).toBe('snow') // snow showers, not rain showers
-    expect(conditionKind(95)).toBe('thunder')
+    assert.equal(conditionKind(0), 'clear')
+    assert.equal(conditionKind(2), 'partly')
+    assert.equal(conditionKind(3), 'cloudy')
+    assert.equal(conditionKind(45), 'fog')
+    assert.equal(conditionKind(53), 'drizzle')
+    assert.equal(conditionKind(63), 'rain')
+    assert.equal(conditionKind(73), 'snow')
+    assert.equal(conditionKind(81), 'showers')
+    assert.equal(conditionKind(85), 'snow') // snow showers, not rain showers
+    assert.equal(conditionKind(95), 'thunder')
   })
 
   it('sceneKind keys off condition AND day/night', () => {
-    expect(sceneKind(0, true)).toBe('clear-day')
-    expect(sceneKind(0, false)).toBe('clear-night')
-    expect(sceneKind(63, true)).toBe('rain-day')
-    expect(sceneKind(51, false)).toBe('rain-night') // drizzle -> rain scene
-    expect(sceneKind(95, true)).toBe('thunder-day')
+    assert.equal(sceneKind(0, true), 'clear-day')
+    assert.equal(sceneKind(0, false), 'clear-night')
+    assert.equal(sceneKind(63, true), 'rain-day')
+    assert.equal(sceneKind(51, false), 'rain-night') // drizzle -> rain scene
+    assert.equal(sceneKind(95, true), 'thunder-day')
   })
 })
 
 describe('open-meteo — AQI / UV bands', () => {
   it('aqiCategory bands on the European thresholds', () => {
-    expect(aqiCategory(20)).toBe('Good')
-    expect(aqiCategory(21)).toBe('Fair')
-    expect(aqiCategory(200)).toBe('Extreme')
+    assert.equal(aqiCategory(20), 'Good')
+    assert.equal(aqiCategory(21), 'Fair')
+    assert.equal(aqiCategory(200), 'Extreme')
   })
 
   it('aqiInfo carries a label, colour and advice per band', () => {
-    expect(aqiInfo(15).label).toBe('Good')
-    expect(aqiInfo(90).label).toBe('Very poor')
-    expect(aqiInfo(150).label).toBe('Extreme')
-    expect(aqiInfo(15).color).toMatch(/^#/)
+    assert.equal(aqiInfo(15).label, 'Good')
+    assert.equal(aqiInfo(90).label, 'Very poor')
+    assert.equal(aqiInfo(150).label, 'Extreme')
+    assert.match(aqiInfo(15).color, /^#/)
   })
 
   it('uvRating + uvAdvice band together', () => {
-    expect(uvRating(1)).toBe('Low')
-    expect(uvRating(6)).toBe('High')
-    expect(uvRating(12)).toBe('Extreme')
-    expect(uvAdvice(1)).toMatch(/No protection/)
-    expect(uvAdvice(12)).toMatch(/shade/i)
+    assert.equal(uvRating(1), 'Low')
+    assert.equal(uvRating(6), 'High')
+    assert.equal(uvRating(12), 'Extreme')
+    assert.match(uvAdvice(1), /No protection/)
+    assert.match(uvAdvice(12), /shade/i)
   })
 })
 
@@ -73,61 +74,61 @@ describe('open-meteo — moon phase', () => {
 
   it('reads ~new at the reference new moon and ~full a half-cycle later', () => {
     const atNew = moonPhase(KNOWN_NEW)
-    expect(atNew.illum).toBeLessThan(0.02)
-    expect(atNew.name).toBe('New moon')
+    assert.ok(atNew.illum < 0.02)
+    assert.equal(atNew.name, 'New moon')
 
     const full = moonPhase(KNOWN_NEW + 14.77 * 86_400_000)
-    expect(full.illum).toBeGreaterThan(0.98)
-    expect(full.name).toBe('Full moon')
+    assert.ok(full.illum > 0.98)
+    assert.equal(full.name, 'Full moon')
   })
 
   it('waxes through the first half of the cycle', () => {
-    expect(moonPhase(KNOWN_NEW + 5 * 86_400_000).waxing).toBe(true)
-    expect(moonPhase(KNOWN_NEW + 20 * 86_400_000).waxing).toBe(false)
+    assert.equal(moonPhase(KNOWN_NEW + 5 * 86_400_000).waxing, true)
+    assert.equal(moonPhase(KNOWN_NEW + 20 * 86_400_000).waxing, false)
   })
 
   it('moonPath returns an SVG arc path', () => {
-    expect(moonPath(0.5, true)).toMatch(/^M 0 -26 A/)
+    assert.match(moonPath(0.5, true), /^M 0 -26 A/)
   })
 })
 
 describe('open-meteo — sun arc geometry', () => {
   it('is polar when the times are missing or degenerate', () => {
-    expect(sunArc('', '', '').polar).toBe(true)
+    assert.equal(sunArc('', '', '').polar, true)
     // sunset before sunrise -> degenerate
-    expect(sunArc('2026-07-17T20:00', '2026-07-17T05:00', '2026-07-17T12:00').polar).toBe(true)
+    assert.equal(sunArc('2026-07-17T20:00', '2026-07-17T05:00', '2026-07-17T12:00').polar, true)
   })
 
   it('places the sun mid-arc at solar noon', () => {
     const arc = sunArc('2026-07-17T06:00', '2026-07-17T18:00', '2026-07-17T12:00')
-    expect(arc.polar).toBe(false)
-    expect(arc.sx).toBeCloseTo(64, 0)
-    expect(arc.progressPath).toMatch(/^M /)
+    assert.equal(arc.polar, false)
+    assert.ok(Math.abs(arc.sx - 64) < 10 ** -0 / 2)
+    assert.match(arc.progressPath, /^M /)
   })
 })
 
 describe('open-meteo — small helpers', () => {
   it('hhmm extracts HH:MM from a local ISO', () => {
-    expect(hhmm('2026-07-17T05:12')).toBe('05:12')
-    expect(hhmm('bad')).toBe('—')
+    assert.equal(hhmm('2026-07-17T05:12'), '05:12')
+    assert.equal(hhmm('bad'), '—')
   })
 
   it('cardinal maps degrees to a 16-point compass and wraps', () => {
-    expect(cardinal(0)).toBe('N')
-    expect(cardinal(90)).toBe('E')
-    expect(cardinal(180)).toBe('S')
-    expect(cardinal(270)).toBe('W')
-    expect(cardinal(360)).toBe('N')
+    assert.equal(cardinal(0), 'N')
+    assert.equal(cardinal(90), 'E')
+    assert.equal(cardinal(180), 'S')
+    assert.equal(cardinal(270), 'W')
+    assert.equal(cardinal(360), 'N')
   })
 
   it('placeId is a stable, rounded coordinate key', () => {
-    expect(placeId({ lat: 51.5074, lon: -0.1278 })).toBe('51.507_-0.128')
+    assert.equal(placeId({ lat: 51.5074, lon: -0.1278 }), '51.507_-0.128')
     // sub-mm differences collapse to the same key
-    expect(placeId({ lat: 51.50741, lon: -0.12779 })).toBe(placeId({ lat: 51.5074, lon: -0.1278 }))
+    assert.equal(placeId({ lat: 51.50741, lon: -0.12779 }), placeId({ lat: 51.5074, lon: -0.1278 }))
   })
 
   it('weatherIconSvg returns an inline svg glyph', () => {
-    expect(weatherIconSvg(0, true)).toContain('<svg')
-    expect(weatherIconSvg(0, true)).toContain('wx-ico')
+    assert.ok((weatherIconSvg(0, true)).includes('<svg'))
+    assert.ok((weatherIconSvg(0, true)).includes('wx-ico'))
   })
 })

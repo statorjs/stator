@@ -2,14 +2,8 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-
-// Wire tests boot the dev app IN-PROCESS, which needs the transitional Vite dev
-// server: the native default (the Vite exit) loads app modules through Node
-// loader hooks that vitest's module runner bypasses. Migrates to the
-// CLI-subprocess harness when the Vite implementation retires (see the
-// framework's dev-native.test.ts for the pattern).
-process.env.STATOR_VITE_DEV = '1'
+import assert from 'node:assert/strict'
+import { after, before, describe, it } from 'node:test'
 
 
 /**
@@ -22,7 +16,7 @@ process.env.WITH_AUTH_DB = join(mkdtempSync(join(tmpdir(), 'quay-wire-')), 'test
 const here = dirname(fileURLToPath(import.meta.url))
 let app: import('@statorjs/stator/dev').DevApp
 
-beforeAll(async () => {
+before(async () => {
   const { createDevApp } = await import('@statorjs/stator/dev')
   const { seedHarbormaster } = await import('../lib/seed.ts')
   seedHarbormaster()
@@ -32,9 +26,9 @@ beforeAll(async () => {
     routesDir: resolve(here, '../routes'),
     staticDir: resolve(here, '../static'),
   })
-}, 30_000)
+}, { timeout: 30_000 })
 
-afterAll(async () => {
+after(async () => {
   await app.close()
 })
 
@@ -81,26 +75,26 @@ describe('the auth arc', () => {
       password: 'password-123',
     })
     const authed = sidOf(reg)!
-    expect(authed).not.toBe(anon) // fixation defense: fresh id on login
+    assert.notEqual(authed, anon) // fixation defense: fresh id on login
 
     const html = await (
       await app.fetch(new Request('http://test/', { headers: { Cookie: `stator_sid=${authed}` } }))
     ).text()
-    expect(html).toContain('Wendell')
-    expect(html).toContain('sign out')
+    assert.ok(html.includes('Wendell'))
+    assert.ok(html.includes('sign out'))
 
     // the OLD anonymous id gained nothing:
     const oldHtml = await (
       await app.fetch(new Request('http://test/', { headers: { Cookie: `stator_sid=${anon}` } }))
     ).text()
-    expect(oldHtml).toContain('Sign in to post')
+    assert.ok(oldHtml.includes('Sign in to post'))
   })
 
   it('wrong password bounces without rotation', async () => {
     const anon = sidOf(await app.fetch(new Request('http://test/')))!
     const res = await postForm('/auth/login', anon, { email: 'w@quay.test', password: 'nope' })
-    expect(sidOf(res)).toBeNull() // no new cookie — failures don't rotate
-    expect(await res.text()).toContain('bad-credentials')
+    assert.equal(sidOf(res), null) // no new cookie — failures don't rotate
+    assert.ok((await res.text()).includes('bad-credentials'))
   })
 
   it('posting stamps identity from context; forged events grant nothing', async () => {
@@ -113,8 +107,8 @@ describe('the auth arc', () => {
     const html = await (
       await app.fetch(new Request('http://test/', { headers: { Cookie: `stator_sid=${authed}` } }))
     ).text()
-    expect(html).toContain('Mooring fees')
-    expect(html).toContain('— Wendell')
+    assert.ok(html.includes('Mooring fees'))
+    assert.ok(html.includes('— Wendell'))
 
     // devtools forgery attempts, all uncommitted:
     const fresh = sidOf(await app.fetch(new Request('http://test/')))!
@@ -125,7 +119,7 @@ describe('the auth arc', () => {
     ]) {
       const res = await postEvent(fresh, 'AuthMachine', event)
       const out = (await res.json()) as { committed: boolean }
-      expect(out.committed).toBe(false)
+      assert.equal(out.committed, false)
     }
   })
 
@@ -135,13 +129,13 @@ describe('the auth arc', () => {
       await postForm('/auth/login', anon, { email: 'w@quay.test', password: 'password-123' }),
     )!
     const after = sidOf(await postForm('/auth/logout', authed, {}))!
-    expect(after).not.toBe(authed)
+    assert.notEqual(after, authed)
 
     for (const sid of [after, authed]) {
       const html = await (
         await app.fetch(new Request('http://test/', { headers: { Cookie: `stator_sid=${sid}` } }))
       ).text()
-      expect(html).toContain('Sign in to post')
+      assert.ok(html.includes('Sign in to post'))
     }
   })
 })
@@ -162,10 +156,10 @@ describe('coarse admission at the edge (claims projection)', () => {
 
   it('anonymous is redirected from /profile to /login, with a returnTo stashed', async () => {
     const res = await app.fetch(new Request('http://test/profile'))
-    expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toBe('/login')
+    assert.equal(res.status, 302)
+    assert.equal(res.headers.get('location'), '/login')
     // returnTo remembers where they were headed.
-    expect(cookiePairs(res).some((p) => p.startsWith('returnTo='))).toBe(true)
+    assert.equal(cookiePairs(res).some((p) => p.startsWith('returnTo=')), true)
   })
 
   it('after signing in, the stashed returnTo brings you back to /profile', async () => {
@@ -188,15 +182,15 @@ describe('coarse admission at the edge (claims projection)', () => {
       password: 'password-123',
     })
     const body = (await login.json()) as { directives: Array<{ type: string; to: string }> }
-    expect(body.directives[0]).toMatchObject({ type: 'navigate', to: '/profile' })
+    assert.partialDeepStrictEqual(body.directives[0], { type: 'navigate', to: '/profile' })
 
     // And the rotated session is now admitted to /profile (200, not a redirect).
     const authed = sidOf(login)!
     const page = await app.fetch(
       new Request('http://test/profile', { headers: { Cookie: `stator_sid=${authed}` } }),
     )
-    expect(page.status).toBe(200)
-    expect(await page.text()).toContain('Display name')
+    assert.equal(page.status, 200)
+    assert.ok((await page.text()).includes('Display name'))
   })
 
   it('a forged returnTo is ignored — no open redirect', async () => {
@@ -208,7 +202,7 @@ describe('coarse admission at the edge (claims projection)', () => {
       { email: 'gate@quay.test', password: 'password-123' },
     )
     const body = (await login.json()) as { directives: Array<{ type: string; to: string }> }
-    expect(body.directives[0]).toMatchObject({ type: 'navigate', to: '/' })
+    assert.partialDeepStrictEqual(body.directives[0], { type: 'navigate', to: '/' })
   })
 })
 
@@ -237,9 +231,9 @@ describe('members-only visibility', () => {
     const memberHtml = await (
       await app.fetch(new Request('http://test/', { headers: { Cookie: `stator_sid=${member}` } }))
     ).text()
-    expect(memberHtml).toContain('Public tide chart')
-    expect(memberHtml).toContain('Secret members regatta')
-    expect(memberHtml).toContain('Berth 9')
+    assert.ok(memberHtml.includes('Public tide chart'))
+    assert.ok(memberHtml.includes('Secret members regatta'))
+    assert.ok(memberHtml.includes('Berth 9'))
 
     // …a visitor's HTML contains no trace of the private one — not hidden,
     // absent. Server-side filtering means it never crossed the wire.
@@ -247,9 +241,9 @@ describe('members-only visibility', () => {
     const visitorHtml = await (
       await app.fetch(new Request('http://test/', { headers: { Cookie: `stator_sid=${visitor}` } }))
     ).text()
-    expect(visitorHtml).toContain('Public tide chart')
-    expect(visitorHtml).not.toContain('Secret members regatta')
-    expect(visitorHtml).not.toContain('Berth 9')
+    assert.ok(visitorHtml.includes('Public tide chart'))
+    assert.ok(!visitorHtml.includes('Secret members regatta'))
+    assert.ok(!visitorHtml.includes('Berth 9'))
   })
 })
 
@@ -268,7 +262,7 @@ describe('@set cannot forge identity or escalate privilege', () => {
     const before = (await (
       await postEvent(member, 'AuthMachine', { type: 'MODERATE', noticeId: 'n1', action: 'remove' })
     ).json()) as { committed: boolean }
-    expect(before.committed).toBe(false)
+    assert.equal(before.committed, false)
 
     // The built-in @set is refused at the wire boundary…
     const set = await postEvent(member, 'AuthMachine', {
@@ -276,13 +270,13 @@ describe('@set cannot forge identity or escalate privilege', () => {
       key: 'role',
       value: 'harbormaster',
     })
-    expect(set.status).toBe(400)
+    assert.equal(set.status, 400)
 
     // …so MODERATE is still guard-dropped: no self-promotion happened.
     const after = (await (
       await postEvent(member, 'AuthMachine', { type: 'MODERATE', noticeId: 'n1', action: 'remove' })
     ).json()) as { committed: boolean }
-    expect(after.committed).toBe(false)
+    assert.equal(after.committed, false)
   })
 })
 
@@ -311,26 +305,26 @@ describe('the JSON board — /api/notices', () => {
         new Request('http://test/api/notices', { headers: { Cookie: `stator_sid=${member}` } }),
       )
     ).json()) as { viewer: string; notices: Array<{ title: string; author: string }> }
-    expect(asMember.viewer).toBe('member')
+    assert.equal(asMember.viewer, 'member')
     const memberTitles = asMember.notices.map((n) => n.title)
-    expect(memberTitles).toContain('API public notice')
-    expect(memberTitles).toContain('API members notice')
-    expect(asMember.notices.find((n) => n.title === 'API public notice')!.author).toBe('Apia')
+    assert.ok(memberTitles.includes('API public notice'))
+    assert.ok(memberTitles.includes('API members notice'))
+    assert.equal(asMember.notices.find((n) => n.title === 'API public notice')!.author, 'Apia')
 
     // A fresh visitor at the SAME URL: the members-only notice is absent
     // from the body, not flagged in it — the page's server-side filtering
     // rule, holding on the API plane.
     const visitorRes = await app.fetch(new Request('http://test/api/notices'))
-    expect(visitorRes.headers.get('content-type')).toContain('application/json')
-    expect(visitorRes.headers.get('etag')).toBeTruthy()
+    assert.ok((visitorRes.headers.get('content-type')).includes('application/json'))
+    assert.ok(visitorRes.headers.get('etag'))
     const asVisitor = (await visitorRes.json()) as {
       viewer: string
       notices: Array<{ title: string }>
     }
-    expect(asVisitor.viewer).toBe('visitor')
+    assert.equal(asVisitor.viewer, 'visitor')
     const visitorTitles = asVisitor.notices.map((n) => n.title)
-    expect(visitorTitles).toContain('API public notice')
-    expect(visitorTitles).not.toContain('API members notice')
-    expect(JSON.stringify(asVisitor)).not.toContain('Slip 3')
+    assert.ok(visitorTitles.includes('API public notice'))
+    assert.ok(!visitorTitles.includes('API members notice'))
+    assert.ok(!(JSON.stringify(asVisitor)).includes('Slip 3'))
   })
 })

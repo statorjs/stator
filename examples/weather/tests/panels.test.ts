@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import type { PlaceData } from '../machines/forecast-cache.ts'
 import PanelsMachine from '../machines/panels.ts'
 
@@ -43,47 +44,47 @@ const panel = (opts: { units?: Units; clock?: Clock; data?: PlaceData | null } =
 describe('panels — panel view-model', () => {
   it('formats metric by default', () => {
     const vm = panel()
-    expect(vm.status).toBe('ready')
-    expect(vm.temp).toBe('20°')
-    expect(vm.cond).toBe('Clear')
-    expect(vm.scene).toBe('clear-day')
-    expect(vm.wind).toBe('18')
-    expect(vm.windUnit).toBe('km/h')
-    expect(vm.cardinal).toBe('E') // 90°
+    assert.equal(vm.status, 'ready')
+    assert.equal(vm.temp, '20°')
+    assert.equal(vm.cond, 'Clear')
+    assert.equal(vm.scene, 'clear-day')
+    assert.equal(vm.wind, '18')
+    assert.equal(vm.windUnit, 'km/h')
+    assert.equal(vm.cardinal, 'E') // 90°
   })
 
   it('converts to imperial when units=imperial', () => {
     const vm = panel({ units: 'imperial' })
-    expect(vm.temp).toBe('68°') // 20°C -> 68°F
-    expect(vm.windUnit).toBe('mph')
+    assert.equal(vm.temp, '68°') // 20°C -> 68°F
+    assert.equal(vm.windUnit, 'mph')
   })
 
   it('reformats the sun times to a 12h clock', () => {
     const vm = panel({ clock: '12h' })
-    expect(vm.sunrise).toBe('5:00 am')
-    expect(vm.sunset).toBe('9:00 pm')
+    assert.equal(vm.sunrise, '5:00 am')
+    assert.equal(vm.sunset, '9:00 pm')
   })
 
   it('yields a loading VM when the place has no data yet', () => {
     const vm = panel({ data: null })
-    expect(vm.status).toBe('loading')
-    expect(vm.temp).toBe('—')
+    assert.equal(vm.status, 'loading')
+    assert.equal(vm.temp, '—')
   })
 })
 
 describe('panels — forecast rows', () => {
   it('hourlyForId labels the first hour Now and shows a meaningful pop', () => {
     const rows = PanelsMachine.selectors.hourlyForId({}, readsFor())('p1')
-    expect(rows[0]?.time).toBe('Now')
-    expect(rows[0]?.temp).toBe('20°')
-    expect(rows[1]?.precip).toBe('40%')
+    assert.equal(rows[0]?.time, 'Now')
+    assert.equal(rows[0]?.temp, '20°')
+    assert.equal(rows[1]?.precip, '40%')
   })
 
   it('dailyForId labels the first day Today', () => {
     const rows = PanelsMachine.selectors.dailyForId({}, readsFor())('p1')
-    expect(rows[0]?.day).toBe('Today')
-    expect(rows[0]?.hi).toBe('24°')
-    expect(rows[0]?.lo).toBe('14°')
+    assert.equal(rows[0]?.day, 'Today')
+    assert.equal(rows[0]?.hi, '24°')
+    assert.equal(rows[0]?.lo, '14°')
   })
 })
 
@@ -95,10 +96,10 @@ describe('panels — cross-machine flags', () => {
         ForecastCache: { byId: () => null, fetchingIds: ['p1'] },
       },
     } as never
-    expect(PanelsMachine.selectors.refreshing({}, reads)).toBe(true)
+    assert.equal(PanelsMachine.selectors.refreshing({}, reads), true)
   })
 
   it('updatedAtMs reflects the active place load time', () => {
-    expect(PanelsMachine.selectors.updatedAtMs({}, readsFor())).toBe(1_000)
+    assert.equal(PanelsMachine.selectors.updatedAtMs({}, readsFor()), 1_000)
   })
 })
