@@ -145,7 +145,10 @@ describe('artifact deps: no manifest at all', () => {
   })
 })
 
-describe('stator start: the artifact must be complete', () => {
+// Each case spawns the CLI, which registers the loader and loads the
+// framework: ~4 s on a quiet machine, which is too close to the 5 s default
+// to survive a loaded one (the pre-push gate runs every suite at once).
+describe('stator start: the artifact must be complete', { timeout: 30_000 }, () => {
   const startFails = async (root: string): Promise<string> => {
     const child = spawn(process.execPath, [bin, 'start', '--root', root, '--port', '53599'], {
       stdio: ['ignore', 'pipe', 'pipe'],
