@@ -81,12 +81,85 @@ App families start empty at boot like any app machine. The IndiePub machines reb
 
 All three IndiePub machines, and `stockroom`, are app machines; app families come first. Session families (a per-session collection, e.g. a multi-step form per draft) reuse the same address in the session scope and are a second stage. Out of scope: nested families, a family addressing another family's instances by key, parent-owned spawning (`spawn(ctx, Child, key)`), and the reusable generic-machine library (`AsyncUpdate`, `Load`), which families make possible but which waits for its own evidence.
 
+## Prior art and naming (round two, 2026-11-08)
+
+The shape, one definition and many keyed instances that each own their state and timers, is old. How others build and name it:
+
+| System | Term | Key and creation | Lifecycle | What it teaches |
+|---|---|---|---|---|
+| XState v5 | spawned **actors**, `spawnChild`, `systemId` | the parent spawns into its context and holds the ref | `stopChild`; persisted inside the parent's snapshot | Parent ownership couples the collection to one machine's snapshot; nothing routes by key, the parent forwards. The coupling this spec avoids. |
+| Akka Cluster Sharding | **entities**, entity id | a message extractor reads the id from each message; the entity starts on its first message | **passivation** when idle, optional "remember entities" | `family.key(event)` is Akka's extractor. Passivation is the established word. |
+| Microsoft Orleans | virtual actors, **grains** | addressed by identity, **activated** implicitly on first call | deactivated when idle, reactivated transparently | Implicit activation is safe because a grain's state is its storage, not its memory. |
+| Cloudflare Durable Objects | object per id (`idFromName`) | created on first request to the id | per-object storage and **alarms**, hibernation | The closest analogue: one alarm per object is per-instance `after`. |
+| Erlang/OTP | `DynamicSupervisor` + `Registry` | started explicitly, named `{:via, Registry, key}` | supervised restart | Creation is explicit; lookups by key are a separate concern. |
+| Recoil / Jotai | **`atomFamily`** | `family(param)` memoises one atom per parameter | never collected unless removed (`setShouldRemove`) | "Family" reads naturally to UI developers, and its known failure is unbounded growth: removal has to be designed in. |
+| MobX-State-Tree | `types.map(Model)` | a keyed map of model instances with identifiers | the map owns them | A collection of live models, not of workflows. |
+| SCXML / statecharts | `<invoke>`, parallel regions | children invoked from a state | live while the state is active | Regions are the alternative this spec set aside. |
+
+**Naming.** Three families of words exist: *actor* (XState, Akka, Orleans) names the concurrency model and would suggest message passing Stator does not have; *entity* (Akka, Redux's entity adapter) is overloaded with data rows; *family* (Recoil, Jotai) names exactly "one definition, many keyed members" and is the word UI developers already know. Proposal: the option is `family`, a member is an **instance** (the word the engine already uses, `appInstance`, `createInstanceProxy`), and its lifecycle is **activation** and **passivation**, borrowed from Orleans and Akka. Jotai's lesson is taken with the word: removal is part of the design, not an afterthought.
+
+**Creation.** Akka, Orleans and Durable Objects activate implicitly on the first message to a key; Erlang and XState create explicitly. Implicit activation is safe when an instance's durable meaning lives in storage, which is Stator's position, so the draft keeps it but narrows it: only events listed in `creates` may activate an instance, so a mistyped key cannot.
+
+## Concurrency, races and settlement
+
+### What already holds
+
+JavaScript runs one transition at a time, and Stator already makes one input a **turn**: a dispatch sends the event inside a dispatch context, every `subscribes` cascade it triggers runs synchronously inside that same send and is collected in one `touched` set, and only after the cascade does the host persist and fan out, once (`server/app-dispatch.ts`, `withDispatchContext`). So a page never renders a half-cascaded state, and two inputs never interleave inside a transition. Families keep both properties: routing to instances happens inside the turn, and fan-out stays once per turn.
+
+What is not covered is async. An effect's completion re-enters as a new dispatch with no link to the input that started it, and an `after` timer fires as one more. With one machine that rarely matters; with a family, one change routinely starts N effects across N instances, and there is no way to say "this change, and everything it set off, has finished".
+
+### Races a family adds, and the rule for each
+
+1. **Two activations for one key in one turn** (the same post queued twice). The first `creates` event activates; the second is delivered to the now-live instance as an ordinary event, and its chart decides what a second `QUEUE` means. Activation is idempotent by key, never a duplicate instance.
+2. **A completion for a passivated instance.** The send finished after the instance reached `final`. Dropped and logged, never re-activates it, the same rule as an event for an expired session.
+3. **A completion for an earlier incarnation.** A key passivates and is activated again, and the old incarnation's slow effect completes into the new one. Every instance gets a generation number at activation, effects record it, and a completion whose generation is stale is dropped. Without this, a stale failure could mark a fresh send failed.
+4. **Live events during the boot rebuild.** `family.restore` re-activates unfinished rows while requests may already be queueing new work. Events for the family wait until restore has finished, then run in arrival order; otherwise a live `QUEUE` and a restore activation for one key race on rule 1 with the wrong winner.
+5. **Effects in bulk.** Restore after an outage can activate 500 sends at once, each starting a fetch. A family declares `concurrency` (default unbounded, the outbox would set a handful); effects beyond the limit wait in a queue in activation order. This is a resource bound, not a correctness one, and it belongs in the definition because only the author knows the downstream.
+6. **Aggregates mid-cascade.** A family-wide read (failed count) evaluated after each instance's transition would flicker through intermediate values. It is evaluated at turn end with the rest of fan-out, so it sees each turn's final state once (the glitch-free rule signal libraries enforce with batching).
+7. **Persistence order.** For a `persist: true` family, instance snapshots are written at turn end in a batch; a crash mid-batch leaves some instances at the previous turn, which the hash and reconcile policy already tolerates because instances are working state.
+
+Out of scope and stated so: ordering across instances (only per instance), more than one process (families are per process, like app machines today; the Redis backplane remains deferred), and a cross-instance transaction (two instances changing atomically together, beyond what one turn already gives).
+
+### Settlement
+
+The case from Tony's other app: one change flows downstream into several related machines, each may do async work, and only when all of it has finished should one thing happen once, as small as a single log line. That app built its own synchronisation layer for it. The prior art names the idea **settled**: TanStack Query's `onSettled`, `Promise.allSettled`, Ember's test `settled()` (run loop, timers and requests all drained), Testing Library's `waitFor`. None of the state-machine libraries above provide it for a cascade; XState offers `waitFor(actor, predicate)` on one actor, and actor systems leave it to the application.
+
+**Proposal: settlement is a property of a change, tracked by the engine.**
+
+- Every input opens a **turn** with an id: a route dispatch, `/__events`, `dispatchToApp`, a webhook, a boot dispatch.
+- An effect started during a turn records the turn as its cause. Its completion opens a child turn of that cause. Emits and `subscribes` deliveries stay inside the turn that produced them, as now.
+- A change is the tree of a turn and its child turns. It is **settled** when its last turn has finished and no effect it started, directly or transitively, is still in flight.
+- `after` timers are new causes, not part of the change that armed them. Otherwise a retry backoff would hold a change open for minutes, and a machine that re-arms forever would never settle.
+
+Two surfaces, one for code outside the charts and one inside them:
+
+```ts
+// Outside: tests, boot code, a script. Resolves once the change is settled.
+const { committed, settled } = await dispatchToApp(Catalog, { type: 'REPRICE', by: 0.1 })
+const summary = await settled // { instances: ['PriceRow[a]', 'PriceRow[b]', …], ms, failed: [] }
+console.log(`repriced ${summary.instances.length} rows in ${summary.ms} ms`)
+```
+
+```ts
+// Inside: a machine reacts once to the whole change, in its chart.
+subscribes: [{ from: PriceRow, settled: true, dispatch: 'REPRICED' }]
+// REPRICED arrives once per settled change that touched any PriceRow,
+// with the touched keys in its payload.
+```
+
+The outside surface makes tests deterministic (no polling for "has everything caught up"); the inside one keeps the reaction in a chart, which is where policy belongs.
+
+Two things to state plainly. First, settlement is per change: a second change touching the same instances settles on its own, so "this change is settled" is not "the family is idle". A family-level idle signal (no in-flight work at all) is a separate, simpler notion and may be what some cases want; it is listed as an open question. Second, a change can fail to settle if an effect never returns; effects already take an abort signal, and `settled` takes a timeout that rejects with the instances still busy, so a stuck send is named rather than waited on forever.
+
+Settlement is not family-specific. Plain machines cascading through `subscribes` into effects have the same gap, and the turn and cause tracking lives in the dispatch path every machine shares. It is specified here because families are where the gap becomes routine, and it can ship before families as its own feature.
+
 ## Success Criteria
 
 A machine definition can declare a keyed family such that: (a) an instance's effect completion and `after` timer route to that instance and cannot strand; (b) each record's workflow is a real chart, visible in `describeMachine` and the inspector as one machine with its instances; (c) a per-row component reads its own instance, so a list decomposes into `<Row>` components without find-by-id and a change patches one row; (d) `OutboxMachine` in `@indiepub/stator` becomes an `OutboxSend` family with automatic per-send backoff, and tonysull.co's admin outbox renders one row component per send. Non-breaking: a machine without `family` is unchanged.
 
 ## Plan
 
+0. **Settlement, on its own.** Turn ids, cause tracking through effects, `settled` on dispatch results, and `subscribes: [{ settled: true }]`, for plain machines first. It is useful without families, exercises the same dispatch path, and gives the family work a deterministic way to test cascades.
 1. **Spike: instance addresses in the registries.** Widen timers, effects, the store's app instances, render bindings and fan-out from `name` to `name[key]` behind an internal API; drive it with a fixture family (app lifecycle, unpersisted, an `after` per instance, effect completions) and the existing suite unchanged. Exit: the fixture's per-instance timers and completions route correctly, `recompute` patches one instance's slot, and the 900 framework tests pass untouched.
 2. **The public surface.** `family: { key, creates }`, `seed(event)`, `final` passivation, `family.restore`, the family proxy in reads (`keys`, `of`, aggregate reads), `describeMachine` and the inspector showing a family. Docs: a "collections of workflows" guide replacing the machine-level-`on:` workaround as the recommended shape.
 3. **Validation in IndiePub.** `OutboxSend` replaces `OutboxMachine` (per-send backoff via `after`), then `MentionVerification` replaces the verifying map; tonysull.co's outbox list becomes per-send rows. `examples/stockroom` moves to a row family as the framework's own proof.
@@ -96,10 +169,12 @@ Target: a 3.x minor, or a late 3.0 beta if stage 2 lands before the release; not
 
 ## Open Questions
 
-- **Name.** `family` (this draft), `keyed`, or `collection`.
+- **Name.** `family` with instances, activation and passivation (this draft, see Prior art), or `keyed` / `collection`.
 - **Materialisation.** Implicit on a `creates` event (this draft) versus an explicit `CREATE`-style event the app dispatches; the draft keeps it declarative and refuses unknown keys otherwise.
 - **Passivation timing.** Drop on reaching a `final` state immediately (this draft), or keep finished instances for a window so the UI can show "sent" before the row disappears. The outbox wants the latter in the admin; a `retain` duration on the family is the likely answer.
 - **Aggregate reads at scale.** Recomputing a family-wide read on every instance change is O(n); fine for hundreds, to be measured before thousands.
+- **Settled versus idle.** Whether per-change settlement covers the cases, or a family-level idle signal is also needed, and which one Tony's other app actually wanted.
+- **Do completions belong to the change?** This draft says an effect's completion and everything it cascades into are part of the change that started the effect, and an `after` timer is not. A case where a timer should hold a change open would argue otherwise.
 - **Keys in `subscribes`.** Whether a subscription into a family must name its key function explicitly or always uses the family's own `key`.
 
 ## Implementation Notes
