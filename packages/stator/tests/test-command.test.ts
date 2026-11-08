@@ -43,6 +43,8 @@ describe('stator test', () => {
       encoding: 'utf8',
       env: { ...env, NODE_PATH: join(import.meta.dirname, '..', 'node_modules') },
     })
-    assert.match(res.stdout, /ℹ pass 2/, res.stdout + res.stderr)
+    // Exit 0 means both files passed: the marked one saw a DOM, the other did not.
+    // (Asserted on status, not output, so any reporter works, the gate's dot one included.)
+    assert.equal(res.status, 0, res.stdout + res.stderr)
   })
 })

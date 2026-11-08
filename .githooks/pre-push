@@ -1,7 +1,9 @@
 #!/bin/sh
 # Full gate before anything reaches origin/CI. Bypass: git push --no-verify
 echo "stator: pre-push gate — typecheck + tests"
-pnpm typecheck && pnpm test
+# Dots instead of a line per test: a failure still prints its full assertion
+# and stack, but a green run is a few lines rather than thousands.
+pnpm typecheck && NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--test-reporter=dot" pnpm test
 status=$?
 if [ $status -ne 0 ]; then
   echo ""
