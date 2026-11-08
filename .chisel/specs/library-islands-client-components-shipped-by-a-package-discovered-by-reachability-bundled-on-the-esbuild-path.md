@@ -113,6 +113,12 @@ The probe the route-injection spec asked for, against `main` after the scope-id 
 
 Verdict: build the plumbing as specified. Nothing in the probe contradicts the approach; the only surprise was the `@` in the asset name.
 
+## Decisions for the build (2026-11-08, Tony)
+
+- **One hop only.** The walk crosses a bare specifier once, from an app file into the package, and follows relative imports inside that package; a package importing another package's island is not reached. The error for a second hop names both packages so the author knows to re-export from the first.
+- **Collisions are found at build.** `stator build` fails when two reached client entries register one custom element tag, naming both source paths. Dev does not pre-scan; it must not be silent either: when a component reached later in a dev session (a route visited for the first time, a lazily imported page) registers a tag another reached entry already holds, the dev server logs a clear error naming both paths and the page that reached the second one, and keeps serving the first. The same collision then fails the next build, which is where it is meant to be caught.
+- **Sequencing:** this lands on the 3.0 line after the Vite deletion, on the esbuild path only.
+
 ## Implementation Notes
 
 - **First, standalone — landed 2026-11-04 (PR #200):** `build/compile-library.ts` passes a package-qualified id into `compile()` so scope hashes differ across packages; tested with two fixture packages sharing a relative path.
