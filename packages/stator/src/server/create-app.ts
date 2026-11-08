@@ -7,7 +7,6 @@ import { dispatchToApp } from './app-dispatch.ts'
 import type { AppStore } from './app-store.ts'
 import { installGracefulShutdown, printStartupNotice } from './banner.ts'
 import { type BootTeardown, discoverBoot, runBoot } from './boot.ts'
-import { type DeprecatedFlatConfig, resolveAppConfig } from './config-compat.ts'
 import { discoverMachines } from './discovery.ts'
 import { wireAppEffects } from './effects.ts'
 import { loadDotenv } from './env.ts'
@@ -16,12 +15,13 @@ import { type ImageTransformer, resolveImagesConfig } from './images.ts'
 import { logger, setLogLevel } from './logger.ts'
 import { MachineStore } from './machine-store.ts'
 import { discoverMiddleware } from './middleware.ts'
+import { resolveAppConfig } from './resolve-config.ts'
 import { discoverRoutes } from './route-discovery.ts'
 import { setSessionSameSite } from './session.ts'
 import { InMemoryStore, type Store } from './store.ts'
 import { persistencePosture } from './store-intent.ts'
 
-export interface CreateAppConfig extends DeprecatedFlatConfig {
+export interface CreateAppConfig {
   /** The app root: where `.env.local` / `.env` are read from, and the base
    *  for the relative paths below. Defaults to the process working
    *  directory, which is what a `server.ts` started from the app directory

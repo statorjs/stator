@@ -9,7 +9,7 @@ sidebar:
 
 ## createApp
 
-Most apps don't call this directly — the [`stator` CLI](/introduction/installation/#the-cli) (`stator dev`/`build`/`start`) is the entry point, and configuration lives in [`stator.config.ts`](/reference/config/). `createApp` underlies `stator start` and is exported for hand-wiring a custom production entry. Its config mirrors `stator.config.ts`; the deprecated flat keys (`store`, `appStore`, `sessionTtlSeconds`, `ssePingMs`, `inspector`) still work but are superseded by the nested shape.
+Most apps don't call this directly — the [`stator` CLI](/introduction/installation/#the-cli) (`stator dev`/`build`/`start`) is the entry point, and configuration lives in [`stator.config.ts`](/reference/config/). `createApp` underlies `stator start` and is exported for hand-wiring a custom production entry. Its config mirrors `stator.config.ts`. The flat keys of 2.x (`store`, `appStore`, `sessionTtlSeconds`, `ssePingMs`, `inspector`) were removed in 3.0; passing one throws with its nested home.
 
 ```ts
 function createApp(config: CreateAppConfig): Promise<StatorApp>
@@ -216,7 +216,7 @@ How many live pages currently hold an SSE channel to this process. A dashboard m
 
 ## Runtime subpath
 
-`@statorjs/stator/server/runtime` carries the plumbing the framework itself runs on — exported because compiled `.stator` output, the dev server and the build import it across the package boundary, not because your app should need it. It is the **Toolchain** tier of the [stability policy](/reference/overview/#stability-policy): these may change in a minor, and the import path says so. Through 2.x the same symbols are still re-exported from `/server` so existing imports keep resolving; that re-export is deprecated and is removed in the next major.
+`@statorjs/stator/server/runtime` carries the plumbing the framework itself runs on — exported because compiled `.stator` output, the dev server and the build import it across the package boundary, not because your app should need it. It is the **Toolchain** tier of the [stability policy](/reference/overview/#stability-policy): these may change in a minor, and the import path says so. Since 3.0 they are reachable only here; `/server` carries the Stable surface alone.
 
 - `MachineStore` — the machine registry + actor manager behind `StatorApp.store`.
 - `findPollLoops` (+ `PollLoopFinding`) — the dev-plane lint that detects self-rescheduling poll loops on session machines; the dev server runs it at boot and logs findings.

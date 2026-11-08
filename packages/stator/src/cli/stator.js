@@ -5,11 +5,10 @@
 // without a `tsx` dependency. As Node's native TS support stabilizes this loader
 // becomes removable; the bin stays.
 //
-// The CLI's one hard runtime requirement is `module.register` — present on
-// Node 18.19+ or 20.6+. The framework RUNTIME has no such floor, so we do NOT
-// declare a package-wide `engines` — this opt-in tool self-detects instead,
-// keeping the CLI a purely additive feature with no change to the package's
-// node-compat contract.
+// The package declares `engines: { node: ">=24" }` (3.0): Node's own test
+// runner, assertion APIs and TypeScript stripping are what `stator test` and
+// the native dev loop stand on. The check below stays as a clear message for
+// a Node too old to have `module.register` at all.
 import nodeModule from 'node:module'
 
 const register = nodeModule?.register

@@ -5,6 +5,7 @@ import { build } from 'esbuild'
 import { type Context, Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
+import { type AnyMachineDef, describeMachine } from '../engine/index.ts'
 import { applyRenderedEffects, runApiRoute } from './api-route.ts'
 import { crossSiteGuard } from './csrf.ts'
 import { scheduleSessionEffects } from './effects.ts'
@@ -31,6 +32,18 @@ import {
 import { withSessionLock } from './session-lock.ts'
 import { SessionRuntime } from './session-runtime.ts'
 import { enqueue, fanOut, registerConnection, unregisterConnection } from './sse.ts'
+
+/** Every event type a machine's chart handles anywhere (any state's `on`, or
+ *  machine-level `on`), computed once per definition. */
+const handledByDef = new WeakMap<AnyMachineDef, ReadonlySet<string>>()
+function handledEvents(def: AnyMachineDef): ReadonlySet<string> {
+  let set = handledByDef.get(def)
+  if (!set) {
+    set = new Set(describeMachine(def).events)
+    handledByDef.set(def, set)
+  }
+  return set
+}
 
 const httpLog = scopedLogger('http')
 
@@ -623,6 +636,18 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     // not per-user authorization — guards still own that.
     if (originDef.serverOnly.includes(body.event.type)) {
       return c.json({ error: `event type "${body.event.type}" is server-only` }, 403)
+    }
+
+    // An event no part of the chart handles, in any state or at machine level,
+    // can never commit: it is a typo or a stale client, so it is refused with a
+    // 400 that names it. An event the chart handles in some OTHER state is
+    // different: the same click can be valid now and stale a moment later, so
+    // it still reaches the machine and reports `committed: false`.
+    if (!handledEvents(originDef).has(body.event.type)) {
+      return c.json(
+        { error: `machine "${body.machine}" handles no event "${body.event.type}"` },
+        400,
+      )
     }
 
     return withSessionLock(sessionId, async () => {
