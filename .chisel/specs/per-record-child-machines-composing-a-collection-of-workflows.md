@@ -91,7 +91,7 @@ Two lifecycles, kept apart: whether an instance **exists**, and whether it is **
 - **Activation**: the instance is loaded into memory, with an actor and routing for its key: at creation, or by **rehydrating** a snapshot that passes the code-hash check (entry effects re-invoked and timers re-armed with elapsed credit, under the work-lifetime contract).
 - **Passivation**: the instance leaves memory and its snapshot stays; the next event for its key activates it again. Only possible when the instance is **idle** (no effect in flight, no `after` timer armed), since nothing can wake a passivated instance for a timer until durable timers exist.
 
-**Residence is a per-family choice.** `residence: 'resident'` (the default, matching app machines today) activates an instance at creation and keeps it until completion; app machines are long-lived actors now, and the outbox and the fleet at around 2,000 instances fit comfortably. `residence: 'stored'` activates an instance for each turn that addresses it and passivates it after, which is exactly how session machines already work (a transient runtime rehydrates per request, persists what changed, disposes); it suits large families of mostly idle instances, needs a store, and cannot hold an `after` timer across turns. Session machines map onto the same words: created on first use, activated and passivated every request, completed by TTL expiry or an explicit wipe.
+**Residence, later.** In the first surface every family is resident: an instance is activated at creation and kept until completion, as app machines are kept today. A future per-family option could choose `residence: 'stored'` instead (see *Surface budget*); app machines are long-lived actors now, and the outbox and the fleet at around 2,000 instances fit comfortably. `residence: 'stored'` activates an instance for each turn that addresses it and passivates it after, which is exactly how session machines already work (a transient runtime rehydrates per request, persists what changed, disposes); it suits large families of mostly idle instances, needs a store, and cannot hold an `after` timer across turns. Session machines map onto the same words: created on first use, activated and passivated every request, completed by TTL expiry or an explicit wipe.
 
 Process shutdown is none of these: resident instances stop, snapshots survive under the hash policy, and the next boot rehydrates or restores.
 
@@ -192,6 +192,26 @@ Two things to state plainly. First, settlement is per change: a second change to
 
 Settlement is not family-specific. Plain machines cascading through `subscribes` into effects have the same gap, and the turn and cause tracking lives in the dispatch path every machine shares. It is specified here because families are where the gap becomes routine, and it can ship before families as its own feature.
 
+## Surface budget (2026-11-08, Tony: keep it learnable)
+
+The rest of this spec explores widely; this section decides what ships. The test is whether a developer new to Stator can learn it in one sentence and model with it the same day: **a family is a machine with a key.** Everything else waits for evidence, the rule that removed `bind:` and has kept primitives honest since.
+
+**Core** (stage 2):
+- `family: { key, creates }`: which instance an event is for, and which events may create one. `seed(event)` gives a new instance its first context.
+- A `final` state completes an instance.
+- `family.restore` re-creates unfinished instances from the app's storage at boot.
+- Reads: a family proxy with `keys` and `of(key)`, so a row component reads its own instance.
+- User docs teach two lifecycle words, **creation** and **completion**. Turns, causes and generation numbers are engine internals and never appear in the guide.
+
+**Settlement** (stage 0, before families, useful to plain machines): the `settled` promise on dispatch results, and `subscribes: [{ settled: true, groupBy }]`. `groupBy` is in because the fleet app's per-robot write is the motivating case.
+
+**Extensions, each held until a real case needs it:**
+- **Multicast** (`keys(event)` returning several keys): the fleet needs it to reach every rule of a robot, so it is the first extension, built right after the core; it stays out of the core so the first lesson is one key.
+- **`retain`**: until the outbox admin actually wants to linger on "sent", completion is immediate.
+- **`concurrency`** and **`effects: 'serial' | 'latest'`**: start as chart patterns. Out-of-order summary writes are prevented by a sequence number in context that the write's completion checks, which is a guard, not a primitive; IndiePub sites never restore hundreds of sends at once.
+- **Residence** (`resident` or `stored`) and **passivation**: paging rarely used app instances out of memory is a real future need for large apps, and the lifecycle vocabulary below is chosen so it slots in without renaming anything. It is not part of the first surface, every family is resident, and the guide does not mention activation or passivation until it ships.
+- **Group membership** (`members(event)`): deferred, see Open Questions.
+
 ## Success Criteria
 
 A machine definition can declare a keyed family such that: (a) an instance's effect completion and `after` timer route to that instance and cannot strand; (b) each record's workflow is a real chart, visible in `describeMachine` and the inspector as one machine with its instances; (c) a per-row component reads its own instance, so a list decomposes into `<Row>` components without find-by-id and a change patches one row; (d) `OutboxMachine` in `@indiepub/stator` becomes an `OutboxSend` family with automatic per-send backoff, and tonysull.co's admin outbox renders one row component per send. Non-breaking: a machine without `family` is unchanged.
@@ -200,7 +220,8 @@ A machine definition can declare a keyed family such that: (a) an instance's eff
 
 0. **Settlement, on its own.** Turn ids, cause tracking through effects, `settled` on dispatch results, and `subscribes: [{ settled: true }]`, for plain machines first. It is useful without families, exercises the same dispatch path, and gives the family work a deterministic way to test cascades.
 1. **Spike: instance addresses in the registries.** Widen timers, effects, the store's app instances, render bindings and fan-out from `name` to `name[key]` behind an internal API; drive it with a fixture family (app lifecycle, unpersisted, an `after` per instance, effect completions) and the existing suite unchanged. Exit: the fixture's per-instance timers and completions route correctly, `recompute` patches one instance's slot, and the 900 framework tests pass untouched.
-2. **The public surface.** `family: { key, creates }`, `seed(event)`, completion on `final` with `retain`, `family.restore`, the family proxy in reads (`keys`, `of`, aggregate reads), `describeMachine` and the inspector showing a family. Docs: a "collections of workflows" guide replacing the machine-level-`on:` workaround as the recommended shape.
+2. **The public surface, core only** (see *Surface budget*). `family: { key, creates }`, `seed(event)`, completion on `final`, `family.restore`, the family proxy in reads (`keys`, `of`, aggregate reads), `describeMachine` and the inspector showing a family. Docs: a "collections of workflows" guide replacing the machine-level-`on:` workaround as the recommended shape.
+2b. **Multicast**, the first extension, for the fleet app.
 3. **Validation in IndiePub.** `OutboxSend` replaces `OutboxMachine` (per-send backoff via `after`), then `MentionVerification` replaces the verifying map; tonysull.co's outbox list becomes per-send rows. `examples/stockroom` moves to a row family as the framework's own proof.
 4. **Persistence and session families**, if the evidence asks.
 
@@ -210,7 +231,7 @@ Target: a 3.x minor, or a late 3.0 beta if stage 2 lands before the release; not
 
 - ~~**Name.**~~ Decided (Tony): `family` and *instance*; existence is *creation* and *completion*, residence is *activation* and *passivation*, defined under *Lifecycle terms*.
 - ~~**Group membership.**~~ Deferred until a case needs it. In the fleet app a rule removed from the markdown set is a code change and a redeploy, and a resident unpersisted family is rebuilt from storage at boot, so the removed rule's instances are never created again. Only a group whose members change at runtime, or a persisted family, would need a multicast that declares full membership (`members(event)`, completing unlisted instances) or an explicit removal event.
-- ~~**Residence default.**~~ Decided: `resident`, matching app machines today and both production cases (the fleet's robot and rule machines are app machines, always in memory).
+- ~~**Residence default.**~~ Decided: every family is resident in the first surface, matching app machines today and both production cases (the fleet's robot and rule machines are app machines, always in memory); `stored` and passivation are a later extension (Tony: a sensible way for large apps to page out rarely used app instances, not needed now).
 - **Materialisation.** Implicit on a `creates` event (this draft) versus an explicit `CREATE`-style event the app dispatches; the draft keeps it declarative and refuses unknown keys otherwise.
 - **Completion timing.** Complete on reaching a `final` state immediately, or after a `retain` window so the UI can show "sent" before the row disappears. The outbox wants a window in the admin; `retain` defaults to zero.
 - **Aggregate reads at scale.** Recomputing a family-wide read on every instance change is O(n); fine for hundreds, to be measured before thousands.
