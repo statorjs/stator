@@ -21,11 +21,10 @@ describe('/server and /server/runtime', () => {
     }
   })
 
-  // Flips to "shares no value export" in the next major, when the
-  // deprecated re-export on /server is removed.
-  it('every runtime export is still reachable from /server in 2.x', () => {
+  // 3.0 removed the deprecated re-export: the two tiers share no value export.
+  it('/server shares no value export with /server/runtime', () => {
     assert.deepStrictEqual(
-      Object.keys(runtime).filter((k) => !(k in server)),
+      Object.keys(runtime).filter((k) => k in server),
       [],
     )
   })

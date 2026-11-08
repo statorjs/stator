@@ -3,9 +3,7 @@
  * createApp, defineMachine, the route definers, the stores, logger,
  * dispatchToApp, middleware and security, images. The TOOLCHAIN plumbing the
  * compiled output, dev server and build run on lives on `/server/runtime`,
- * where the import path itself carries the tier. It is still re-exported
- * here (the last block) so a 2.x import keeps resolving; that re-export is
- * deprecated and goes away in the next major.
+ * where the import path itself carries the tier.
  */
 export type {
   ElementTarget,
@@ -64,9 +62,6 @@ export type {
   RouteResponseContext,
 } from './routing.ts'
 export { defineApiRoute, defineRoute } from './routing.ts'
-/** @deprecated Import from `@statorjs/stator/server/runtime`. This re-export
- *  of the Toolchain tier is removed in the next major. */
-export * from './runtime.ts'
 export type { SecurityHeadersOptions } from './security-headers.ts'
 export { securityHeaders } from './security-headers.ts'
 export { activeConnectionCount } from './sse.ts'
