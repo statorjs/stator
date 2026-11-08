@@ -67,7 +67,7 @@ node_modules
 
 ## Consuming a library
 
-Nothing to configure. `stator dev` resolves each bare specifier's sibling CSS into `/static/components.css` as the module graph reaches it; `stator build` folds it into the per-route stylesheet of every route that reaches the component — including through an inactive `match`/`when`/`each` arm, since a live update can activate the arm with no fresh request. See [Scoped styles](/guides/scoped-styles/).
+Nothing to configure. `stator dev` and `stator build` fold each bare specifier's sibling CSS into the stylesheet of every route that reaches the component — including through an inactive `match`/`when`/`each` arm, since a live update can activate the arm with no fresh request. See [Scoped styles](/guides/scoped-styles/).
 
 ## Limits
 

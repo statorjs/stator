@@ -18,11 +18,11 @@ The build:
 
 1. copies what your code actually reaches into `dist/` (see [what gets copied](#what-gets-copied)),
 2. compiles each `.stator` to a sibling `.ts` and rewrites imports,
-3. concatenates scoped CSS into `dist/static/components.css`,
+3. writes each route's scoped CSS to its own stylesheet under `dist/static/css/`, holding only the components that route's imports reach,
 4. bundles every [client island](/guides/client-components/) through one bundler pass into hashed assets under `dist/static/assets/`, stubbing any server-machine imports down to `{ name }` so server code never reaches a browser bundle,
 5. walks each route's import graph and writes `dist/stator-manifest.json` — which islands each route needs, plus the per-build id.
 
-`stator start` loads that manifest to link `components.css` and inject each route's island scripts, and stamps the build id into live pages so the deploy-aware [reload handshake](/guides/realtime-sse/) can reload a page left on an older build. It runs your `stator.config.ts` exactly as dev does — same store, same session policy — reading it **from the artifact**, which is what makes `dist/` the whole deployment.
+`stator start` loads that manifest to link each route's stylesheet and inject its island scripts, and stamps the build id into live pages so the deploy-aware [reload handshake](/guides/realtime-sse/) can reload a page left on an older build. It runs your `stator.config.ts` exactly as dev does — same store, same session policy — reading it **from the artifact**, which is what makes `dist/` the whole deployment.
 
 ## The artifact is the deployment
 

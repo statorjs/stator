@@ -58,7 +58,7 @@ describe('build: compileLibrary', () => {
     assert.ok(css.includes('.card'))
     assert.ok(css.includes('.icon'))
     assert.ok(!css.includes('.orphan'))
-    assert.ok(css.includes('/* src/card.stator.ts */'))
+    assert.ok(css.includes('/* src/card.stator */'))
 
     const again = await compileLibrary({ root: root!, dir: src })
     assert.equal(again.cssBytes, result.cssBytes)

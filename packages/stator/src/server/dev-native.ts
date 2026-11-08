@@ -16,7 +16,7 @@ import {
   routeIslandMap,
   walkFiles,
 } from '../build/islands.ts'
-import { bareSpecifiersOf, externalCss } from '../build/route-css.ts'
+import { routeCssMap, routeCssPath } from '../build/route-css.ts'
 import { sourceId } from '../build/source-id.ts'
 import { CompileError, compile, formatCompileError, regionResolverFor } from '../compiler/index.ts'
 import type { AnyMachineDef, EventOf } from '../engine/index.ts'
@@ -162,9 +162,6 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   const versions = new Map<string, number>()
   const forward = new Map<string, Set<string>>()
   const importers = new Map<string, Set<string>>()
-  // Bare specifiers each app file imports directly, feeding the CSS
-  // aggregate below via each package's own sibling `.css` (`externalCss`).
-  const externalSpecs = new Map<string, Set<string>>()
   let seq = 0
   const acks = new Map<number, () => void>()
   port1.on('message', (m: { type?: string; id?: number }) => {
@@ -275,15 +272,12 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   }
   const updateEdges = async (files: string[]): Promise<void> => {
     for (const f of files) {
-      const [local, external] = await Promise.all([localImports(f, root), bareSpecifiersOf(f)])
-      setEdges(f, new Set(local.filter(isAppFile)))
-      externalSpecs.set(f, new Set(external))
+      setEdges(f, new Set((await localImports(f, root)).filter(isAppFile)))
     }
   }
   const buildGraph = async (): Promise<void> => {
     forward.clear()
     importers.clear()
-    externalSpecs.clear()
     await updateEdges(await walkFiles(root, (f) => APP_EXT.test(f), skipDir))
   }
   /** The changed files plus everything that (transitively) imports them. */
@@ -318,18 +312,27 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       }
     }
   }
-  let css = ''
+  // Per-route scoped CSS, exactly as `stator build` writes it: the same walk
+  // over each route's import graph (`routeCssMap`), the same URL, only the CSS
+  // of components that route can reach. The CSS itself comes from the
+  // in-memory compile rather than sibling files on disk.
+  let routeSheets = new Map<string, string>() // abs route file → stylesheet URL
+  let sheetBodies = new Map<string, string>() // stylesheet URL → CSS
   const regenCss = async (): Promise<void> => {
-    let next = ''
-    for (const [file, info] of infos)
-      if (info.css) next += `/* ${sourceId(root, file).id} */\n${info.css}\n`
-    const packages = new Set<string>()
-    for (const specs of externalSpecs.values()) for (const spec of specs) packages.add(spec)
-    for (const spec of [...packages].sort()) {
-      const text = await externalCss(spec, root)
-      if (text) next += `/* ${spec} */\n${text}\n`
+    const byRoute = await routeCssMap({
+      routesDir,
+      baseDir: root,
+      cssFor: (file) => infos.get(file)?.css || undefined,
+    })
+    const sheets = new Map<string, string>()
+    const bodies = new Map<string, string>()
+    for (const [file, text] of byRoute) {
+      const href = `/static/${routeCssPath(relative(root, file))}`
+      sheets.set(resolve(file), href)
+      bodies.set(href, text)
     }
-    css = next
+    routeSheets = sheets
+    sheetBodies = bodies
   }
 
   // ── Islands: bundled through the seam, held in memory ──────────────────────
@@ -358,7 +361,8 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   // inspector and the reload client layered on top.
   const headExtras = (routeFile: string): string => {
     const head: string[] = []
-    if (css) head.push('<link rel="stylesheet" href="/static/components.css">')
+    const sheet = routeSheets.get(resolve(routeFile))
+    if (sheet) head.push(`<link rel="stylesheet" href="${sheet}">`)
     for (const rel of routeIslands.get(resolve(routeFile)) ?? []) {
       const url = islands.islandUrls[rel]
       if (url) head.push(`<script type="module" src="${url}"></script>`)
@@ -383,8 +387,9 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   const serveDev = (request: Request): Response | undefined => {
     const { pathname } = new URL(request.url)
     if (pathname === '/__stator_dev') return devReloadResponse()
-    if (pathname === '/static/components.css' && css)
-      return new Response(css, { headers: noCache('text/css; charset=utf-8') })
+    const sheet = sheetBodies.get(pathname)
+    if (sheet !== undefined)
+      return new Response(sheet, { headers: noCache('text/css; charset=utf-8') })
     const body = assetBodies.get(pathname)
     if (body !== undefined)
       return new Response(typeof body === 'string' ? body : new Uint8Array(body), {

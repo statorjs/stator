@@ -7,7 +7,7 @@ import { type ArtifactDeps, writeArtifactDeps } from './artifact.ts'
 import { compileComponentFile } from './compile-component.ts'
 import { type CopySet, resolveCopySet } from './copy-set.ts'
 import { bundleIslands, routeIslandMap, walkFiles } from './islands.ts'
-import { routeCssMap } from './route-css.ts'
+import { routeCssMap, routeCssPath } from './route-css.ts'
 
 /**
  * Production build: compile a `.stator` app to a `dist/` of plain `.ts` that the
@@ -208,13 +208,11 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   const routeCss = await routeCssMap({ routesDir: join(outDir, 'routes'), baseDir: outDir })
   const routeCssHrefs: Record<string, string> = {}
   for (const [routeFile, text] of routeCss) {
-    const rel = relative(outDir, routeFile)
-      .replace(/\\/g, '/')
-      .replace(/\.(ts|js)$/, '.css')
-    const dest = join(outDir, 'static', 'css', rel)
+    const cssPath = routeCssPath(relative(outDir, routeFile))
+    const dest = join(outDir, 'static', cssPath)
     await mkdir(dirname(dest), { recursive: true })
     await writeFile(dest, text)
-    routeCssHrefs[relative(outDir, routeFile).replace(/\\/g, '/')] = `/static/css/${rel}`
+    routeCssHrefs[relative(outDir, routeFile).replace(/\\/g, '/')] = `/static/${cssPath}`
   }
 
   // Machine code hashes for the snapshot hydration policy: one esbuild pass
