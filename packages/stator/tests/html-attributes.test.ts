@@ -1,8 +1,9 @@
+import assert from 'node:assert/strict'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
+import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
-import { afterAll, describe, expect, it } from 'vitest'
 import { toVirtualCode } from '../src/compiler/virtual-code.ts'
 
 /**
@@ -19,7 +20,7 @@ import { toVirtualCode } from '../src/compiler/virtual-code.ts'
 const here = dirname(fileURLToPath(import.meta.url))
 const dir = resolve(here, '.tmp-html-attrs')
 
-afterAll(() => {
+after(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
@@ -127,38 +128,38 @@ describe('HTMLAttributes<Tag> — the <Button> component pattern', () => {
   const diags = diagnosticsFor(emitAll())
 
   it('the Button component itself typechecks', () => {
-    expect(diags.get('button')).toEqual([])
+    assert.deepStrictEqual(diags.get('button'), [])
   })
 
   it('accepts native attrs + a directive + its own prop', () => {
-    expect(diags.get('use-good')).toEqual([])
+    assert.deepStrictEqual(diags.get('use-good'), [])
   })
 
   it('rejects a typo attribute that is neither native nor a directive', () => {
     const bad = diags.get('use-bad-attr')!
-    expect(bad.length).toBeGreaterThan(0)
-    expect(bad.join('\n')).toMatch(/typ/)
+    assert.ok(bad.length > 0)
+    assert.match(bad.join('\n'), /typ/)
   })
 
   it("rejects a value outside the component's own union", () => {
     const bad = diags.get('use-bad-variant')!
-    expect(bad.length).toBeGreaterThan(0)
-    expect(bad.join('\n')).toMatch(/nope|not assignable/)
+    assert.ok(bad.length > 0)
+    assert.match(bad.join('\n'), /nope|not assignable/)
   })
 
   it('rejects a native attr with the wrong value type', () => {
     const bad = diags.get('use-bad-native')!
-    expect(bad.length).toBeGreaterThan(0)
-    expect(bad.join('\n')).toMatch(/lol|not assignable/)
+    assert.ok(bad.length > 0)
+    assert.match(bad.join('\n'), /lol|not assignable/)
   })
 
   it('accepts the form* submission overrides on button and input', () => {
-    expect(diags.get('use-form-attrs')).toEqual([])
+    assert.deepStrictEqual(diags.get('use-form-attrs'), [])
   })
 
   it('rejects a formmethod outside the HTML union', () => {
     const bad = diags.get('use-bad-form-method')!
-    expect(bad.length).toBeGreaterThan(0)
-    expect(bad.join('\n')).toMatch(/put|not assignable/)
+    assert.ok(bad.length > 0)
+    assert.match(bad.join('\n'), /put|not assignable/)
   })
 })

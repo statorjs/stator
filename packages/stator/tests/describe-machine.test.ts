@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { defineMachine } from '../src/engine/define-machine.ts'
 import { describeMachine } from '../src/engine/describe.ts'
 
@@ -76,55 +77,55 @@ describe('describeMachine', () => {
   const d = describeMachine(Machine)
 
   it('carries the def-level facts', () => {
-    expect(d.name).toBe('DescribedMachine')
-    expect(d.lifecycle).toBe('session')
-    expect(d.persist).toBe(false)
-    expect(d.initial).toBe('idle')
-    expect(d.serverOnly).toEqual(['DONE'])
-    expect(d.emits.sort()).toEqual(['started', 'stopped'])
-    expect(d.selectors).toEqual(['runs'])
-    expect(d.reads).toEqual(['SourceMachine'])
-    expect(d.context).toEqual({ startedAt: 0, runs: 0 })
+    assert.equal(d.name, 'DescribedMachine')
+    assert.equal(d.lifecycle, 'session')
+    assert.equal(d.persist, false)
+    assert.equal(d.initial, 'idle')
+    assert.deepStrictEqual(d.serverOnly, ['DONE'])
+    assert.deepStrictEqual(d.emits.sort(), ['started', 'stopped'])
+    assert.deepStrictEqual(d.selectors, ['runs'])
+    assert.deepStrictEqual(d.reads, ['SourceMachine'])
+    assert.deepStrictEqual(d.context, { startedAt: 0, runs: 0 })
   })
 
   it('normalizes subscribes to names (string and object dispatch forms)', () => {
-    expect(d.subscribes).toEqual([
+    assert.deepStrictEqual(d.subscribes, [
       { from: 'SourceMachine', event: 'pinged', dispatch: 'POKED' },
       { from: 'SourceMachine', event: 'pinged', dispatch: 'POKED' },
     ])
   })
 
   it('describes ordered guarded candidates', () => {
-    expect(d.states.idle!.on.START).toEqual([
+    assert.deepStrictEqual(d.states.idle!.on.START, [
       { to: 'running', guarded: true, action: true, emits: ['started'], effect: true },
       { to: 'spent', guarded: false, action: false, emits: [], effect: false },
     ])
   })
 
   it('normalizes a bare action function to an unguarded self-transition', () => {
-    expect(d.states.running!.on.POKED).toEqual([
+    assert.deepStrictEqual(d.states.running!.on.POKED, [
       { guarded: false, action: true, emits: [], effect: false },
     ])
   })
 
   it('reports entry and after (numeric and dynamic delays)', () => {
-    expect(d.states.idle!.entry).toBe(false)
-    expect(d.states.running!.entry).toBe(true)
-    expect(d.states.running!.after).toEqual([
+    assert.equal(d.states.idle!.entry, false)
+    assert.equal(d.states.running!.entry, true)
+    assert.deepStrictEqual(d.states.running!.after, [
       { delay: 50, send: 'EXPIRE' },
       { delay: 'dynamic', send: 'STOP' },
     ])
   })
 
   it('carries machine-level fallbacks and the handled-event union', () => {
-    expect(d.on.STOP).toEqual([
+    assert.deepStrictEqual(d.on.STOP, [
       { to: 'idle', guarded: false, action: false, emits: [], effect: false },
     ])
-    expect(d.events).toEqual(['DONE', 'POKED', 'START', 'STOP'])
+    assert.deepStrictEqual(d.events, ['DONE', 'POKED', 'START', 'STOP'])
   })
 
   it('is JSON-serializable (closures stay behind)', () => {
-    expect(() => JSON.stringify(d)).not.toThrow()
-    expect(JSON.parse(JSON.stringify(d))).toEqual(d)
+    assert.doesNotThrow(() => JSON.stringify(d))
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(d)), d)
   })
 })

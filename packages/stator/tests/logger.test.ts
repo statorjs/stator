@@ -1,7 +1,8 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { afterEach, beforeEach, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import pino from 'pino'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, logger, scopedLogger, setLogLevel } from '../src/server/index.ts'
 import { loadPinoPretty } from '../src/server/logger.ts'
 
@@ -25,15 +26,15 @@ describe('log level', () => {
   it('setLogLevel reaches the root AND a scoped child created before the call', () => {
     const child = scopedLogger('before')
     setLogLevel('warn')
-    expect(logger.level).toBe('warn')
+    assert.equal(logger.level, 'warn')
     // The real bug: pino children keep their creation-time level, so a bare
     // `logger.level = 'warn'` would leave this scoped child at info.
-    expect(child.level).toBe('warn')
+    assert.equal(child.level, 'warn')
   })
 
   it('setLogLevel reaches a scoped child created after the call', () => {
     setLogLevel('error')
-    expect(scopedLogger('after').level).toBe('error')
+    assert.equal(scopedLogger('after').level, 'error')
   })
 
   it('createApp defaults to warn — the production entry is quiet by default', async () => {
@@ -41,7 +42,7 @@ describe('log level', () => {
       machinesDir: resolve(fixtures, 'machines'),
       routesDir: resolve(fixtures, 'routes'),
     })
-    expect(logger.level).toBe('warn')
+    assert.equal(logger.level, 'warn')
   })
 
   it('createApp applies config logging.level', async () => {
@@ -50,7 +51,7 @@ describe('log level', () => {
       routesDir: resolve(fixtures, 'routes'),
       logging: { level: 'error' },
     })
-    expect(logger.level).toBe('error')
+    assert.equal(logger.level, 'error')
   })
 
   it('LOG_LEVEL env wins over config', async () => {
@@ -60,18 +61,18 @@ describe('log level', () => {
       routesDir: resolve(fixtures, 'routes'),
       logging: { level: 'error' },
     })
-    expect(logger.level).toBe('debug')
+    assert.equal(logger.level, 'debug')
   })
 })
 
 describe('pino-pretty', () => {
   it('is loaded in-process from the framework, not resolved by pino as a transport', () => {
-    expect(loadPinoPretty()).toBeTypeOf('function')
+    assert.equal(typeof loadPinoPretty(), 'function')
   })
 
   it("is the dev logger's destination stream (no transport worker)", () => {
     const stream = (logger as unknown as Record<symbol, unknown>)[pino.symbols.streamSym]
-    expect((stream as object).constructor.name).not.toBe('ThreadStream')
-    expect(typeof (stream as { write?: unknown }).write).toBe('function')
+    assert.notEqual((stream as object).constructor.name, 'ThreadStream')
+    assert.equal(typeof (stream as { write?: unknown }).write, 'function')
   })
 })

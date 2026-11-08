@@ -1,5 +1,6 @@
-// @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest'
+// @env happy-dom
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { compile } from '../src/compiler/compile.ts'
 import { CompileError } from '../src/compiler/diagnostics.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
@@ -38,10 +39,10 @@ describe('client component root static attributes (FINDINGS #4)', () => {
 </script>`
     const state = createRenderState('s', 'GET /')
     const out = runInRender(state, () => render(ISLAND, 'my-widget.stator')({}))
-    expect(out.html).toContain(' hidden')
-    expect(out.html).toContain('class="base-cls"')
-    expect(out.html).toContain('data-kind="x"')
-    expect(out.html).toContain('<span>hi</span>') // inner preserved
+    assert.ok(out.html.includes(' hidden'))
+    assert.ok(out.html.includes('class="base-cls"'))
+    assert.ok(out.html.includes('data-kind="x"'))
+    assert.ok(out.html.includes('<span>hi</span>')) // inner preserved
   })
 
   it('concatenates class from the root with a usage-site class prop', () => {
@@ -56,8 +57,8 @@ describe('client component root static attributes (FINDINGS #4)', () => {
     const out = runInRender(state, () => render(ISLAND, 'my-tile.stator')({ class: 'active' }))
     // One class attribute containing both (base first, usage appended).
     const classes = out.html.match(/class="([^"]*)"/)?.[1] ?? ''
-    expect(classes.split(/\s+/).sort()).toEqual(['active', 'tile'])
-    expect(out.html.match(/class=/g)?.length).toBe(1) // exactly one class attr
+    assert.deepStrictEqual(classes.split(/\s+/).sort(), ['active', 'tile'])
+    assert.equal(out.html.match(/class=/g)?.length, 1) // exactly one class attr
   })
 })
 
@@ -77,12 +78,12 @@ const mode = 'full'
       compile(ISLAND, { id: 'markdown-editor.stator', kind: 'component' })
       throw new Error('expected throw')
     } catch (e) {
-      expect(e).toBeInstanceOf(CompileError)
+      assert.ok(e instanceof CompileError)
       const err = e as CompileError
-      expect(err.message).toContain('<markdown-editor data-mode={mode}>')
-      expect(err.message).toContain("attributes on an island's root must be static")
-      expect(err.loc?.line).toBe(4)
-      expect(err.loc?.column).toBe(18)
+      assert.ok(err.message.includes('<markdown-editor data-mode={mode}>'))
+      assert.ok(err.message.includes("attributes on an island's root must be static"))
+      assert.equal(err.loc?.line, 4)
+      assert.equal(err.loc?.column, 18)
     }
   })
 
@@ -92,7 +93,8 @@ const mode = 'full'
 <script>
   export class MyBox extends StatorElement {}
 </script>`
-    expect(() => compile(ISLAND, { id: 'my-box.stator', kind: 'component' })).toThrow(
+    assert.throws(
+      () => compile(ISLAND, { id: 'my-box.stator', kind: 'component' }),
       /must be static/,
     )
   })

@@ -1,8 +1,9 @@
+import assert from 'node:assert/strict'
 import { type ChildProcess, spawn } from 'node:child_process'
 import { createServer, type Server } from 'node:http'
 import { dirname, resolve } from 'node:path'
+import { afterEach, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { afterEach, describe, expect, it } from 'vitest'
 import { drainAndClose, shutdownTimeoutMs } from '../src/server/shutdown.ts'
 
 /**
@@ -31,7 +32,7 @@ afterEach(() => {
 })
 
 describe('shutdown: SIGTERM with a live connection open', () => {
-  it('closes the stream and exits 0 instead of hanging', async () => {
+  it('closes the stream and exits 0 instead of hanging', { timeout: 30_000 }, async () => {
     const port = 55000 + (process.pid % 2000)
     child = spawn(process.execPath, [bin, 'dev', '--port', String(port)], {
       cwd: root,
@@ -46,7 +47,7 @@ describe('shutdown: SIGTERM with a live connection open', () => {
       if (m) bound = Number(m[1])
     })
     for (let i = 0; i < 100 && !bound; i++) await sleep(100)
-    expect(bound, 'dev server bound a port').toBeGreaterThan(0)
+    assert.ok(bound > 0, 'dev server bound a port')
 
     // A real event-stream, held open exactly as a live page holds one.
     const abort = new AbortController()
@@ -57,7 +58,7 @@ describe('shutdown: SIGTERM with a live connection open', () => {
         headers: { accept: 'text/event-stream' },
       },
     )
-    expect(stream.status).toBe(200)
+    assert.equal(stream.status, 200)
     const reader = stream.body!.getReader()
     void (async () => {
       try {
@@ -76,13 +77,13 @@ describe('shutdown: SIGTERM with a live connection open', () => {
     const outcome = await Promise.race([exit, sleep(8000).then(() => 'hung' as const)])
     abort.abort()
 
-    expect(outcome, 'SIGTERM must not wait on the live connection').not.toBe('hung')
+    assert.notEqual(outcome, 'hung', 'SIGTERM must not wait on the live connection')
     const { code, ms } = outcome as { code: number | null; ms: number }
     // Exit 0: a signal is a normal stop, not a failure. Well under the 5s
     // in-flight deadline, because hanging up the stream is immediate.
-    expect(code).toBe(0)
-    expect(ms).toBeLessThan(3000)
-  }, 30_000)
+    assert.equal(code, 0)
+    assert.ok(ms < 3000)
+  })
 })
 
 describe('shutdown: drainAndClose', () => {
@@ -101,9 +102,9 @@ describe('shutdown: drainAndClose', () => {
     const result = await drainAndClose(server, { timeoutMs: 300 })
     const elapsed = Date.now() - started
 
-    expect(result.forced).toBe(true)
-    expect(result.connections).toBe(0)
-    expect(elapsed).toBeLessThan(2000)
+    assert.equal(result.forced, true)
+    assert.equal(result.connections, 0)
+    assert.ok(elapsed < 2000)
     abort.abort()
     await hanging
   })
@@ -116,7 +117,7 @@ describe('shutdown: drainAndClose', () => {
     await (await fetch(`http://localhost:${port}/`)).text()
 
     const result = await drainAndClose(server, { timeoutMs: 5000 })
-    expect(result).toEqual({ connections: 0, forced: false })
+    assert.deepStrictEqual(result, { connections: 0, forced: false })
   })
 
   it('runs teardown before closing, and survives one that throws', async () => {
@@ -132,8 +133,8 @@ describe('shutdown: drainAndClose', () => {
         throw new Error('teardown blew up')
       },
     })
-    expect(ran).toBe(true)
-    expect(result.forced).toBe(false)
+    assert.equal(ran, true)
+    assert.equal(result.forced, false)
   })
 })
 
@@ -146,14 +147,14 @@ describe('shutdown: STATOR_SHUTDOWN_TIMEOUT_MS', () => {
 
   it('defaults to 5s, reads the env var, and ignores nonsense', () => {
     delete process.env.STATOR_SHUTDOWN_TIMEOUT_MS
-    expect(shutdownTimeoutMs()).toBe(5000)
+    assert.equal(shutdownTimeoutMs(), 5000)
     process.env.STATOR_SHUTDOWN_TIMEOUT_MS = '30000'
-    expect(shutdownTimeoutMs()).toBe(30_000)
+    assert.equal(shutdownTimeoutMs(), 30_000)
     process.env.STATOR_SHUTDOWN_TIMEOUT_MS = '0'
-    expect(shutdownTimeoutMs()).toBe(0)
+    assert.equal(shutdownTimeoutMs(), 0)
     process.env.STATOR_SHUTDOWN_TIMEOUT_MS = 'soon'
-    expect(shutdownTimeoutMs()).toBe(5000)
+    assert.equal(shutdownTimeoutMs(), 5000)
     process.env.STATOR_SHUTDOWN_TIMEOUT_MS = '-1'
-    expect(shutdownTimeoutMs()).toBe(5000)
+    assert.equal(shutdownTimeoutMs(), 5000)
   })
 })

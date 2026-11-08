@@ -1,8 +1,9 @@
+import assert from 'node:assert/strict'
 import { realpathSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, it } from 'node:test'
 import { engineHash, hashMachines } from '../src/server/machine-hash.ts'
 
 /**
@@ -41,23 +42,23 @@ describe('engine hash', () => {
   it('is a deterministic sha256 computed once per process', async () => {
     const a = await engineHash()
     const b = await engineHash()
-    expect(a.hash).toMatch(/^[0-9a-f]{64}$/)
-    expect(b).toBe(a)
+    assert.match(a.hash, /^[0-9a-f]{64}$/)
+    assert.equal(b, a)
   })
 
   it('bundles exactly the engine and the actor host', async () => {
-    expect((await engineHash()).inputs).toEqual(BUNDLED)
+    assert.deepStrictEqual((await engineHash()).inputs, BUNDLED)
   })
 
   it('cuts exactly the plumbing the closure reaches', async () => {
-    expect((await engineHash()).cut).toEqual(CUT)
+    assert.deepStrictEqual((await engineHash()).cut, CUT)
   })
 
   it('never bundles the compiler, CLI, build, dev servers, renderer or the HTTP layer', async () => {
     const { inputs } = await engineHash()
     const forbidden =
       /^(compiler|cli|build|dev|template|wire|client)\/|^server\/(http|render|routing|dev-|create-app|images|sse)/
-    for (const r of inputs) expect(r).not.toMatch(forbidden)
+    for (const r of inputs) assert.doesNotMatch(r, forbidden)
   })
 
   it('is an input to every machine hash', async () => {
@@ -74,8 +75,8 @@ export default defineMachine({ name: 'Plain', context: { n: 0 }, initial: 'idle'
       const res = (await hashMachines([join(dir, 'plain.ts')], { machinesDir: dir })).get(
         join(dir, 'plain.ts'),
       )!
-      expect(res.hash).toMatch(/^[0-9a-f]{64}$/)
-      expect(res.packages).toEqual([])
+      assert.match(res.hash, /^[0-9a-f]{64}$/)
+      assert.deepStrictEqual(res.packages, [])
     } finally {
       await rm(root, { recursive: true, force: true })
     }

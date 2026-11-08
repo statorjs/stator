@@ -1,8 +1,10 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it, vi } from 'vitest'
 import { createApp } from '../src/server/create-app.ts'
 import { defineMachine } from '../src/server/define-machine.ts'
+import { waitFor } from './helpers/mocks.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixtures = resolve(here, 'fixtures/server-only')
@@ -42,7 +44,7 @@ describe('defineMachine — serverOnly normalization', () => {
       initial: 's',
       states: { s: {} },
     })
-    expect(m.serverOnly).toEqual([])
+    assert.deepStrictEqual(m.serverOnly, [])
   })
 
   it('passes the declared list through', () => {
@@ -55,7 +57,7 @@ describe('defineMachine — serverOnly normalization', () => {
       initial: 's',
       states: { s: {} },
     })
-    expect(m.serverOnly).toEqual(['DONE'])
+    assert.deepStrictEqual(m.serverOnly, ['DONE'])
   })
 })
 
@@ -64,14 +66,14 @@ describe('serverOnly wire gate at /__events', () => {
     const app = await boot()
     const r1 = await get(app)
     const cookie = r1.headers.get('set-cookie')!.split(';')[0]!
-    expect(statusOf(await r1.text())).toBe('idle')
+    assert.equal(statusOf(await r1.text()), 'idle')
 
     const forged = await post(app, cookie, { type: 'CHARGE_APPROVED', receiptId: 'rcpt_forged' })
-    expect(forged.status).toBe(403)
-    expect((await forged.json()).error).toMatch(/server-only/)
+    assert.equal(forged.status, 403)
+    assert.match((await forged.json()).error, /server-only/)
 
     // The forgery changed nothing — still idle, no receipt.
-    expect(statusOf(await (await get(app, cookie)).text())).toBe('idle')
+    assert.equal(statusOf(await (await get(app, cookie)).text()), 'idle')
   })
 
   it('allows the client intent event, and the server-only completion still settles via the effect', async () => {
@@ -81,13 +83,13 @@ describe('serverOnly wire gate at /__events', () => {
 
     // CHARGE is a legitimate client event — not server-only — so it passes.
     const charge = await post(app, cookie, { type: 'CHARGE' })
-    expect(charge.status).not.toBe(403)
+    assert.notEqual(charge.status, 403)
 
     // The charge effect returns CHARGE_APPROVED on the INTERNAL dispatch path
     // (never /__events), so the gate can't block it: the machine reaches `paid`.
-    await vi.waitFor(
+    await waitFor(
       async () => {
-        expect(statusOf(await (await get(app, cookie)).text())).toBe('paid')
+        assert.equal(statusOf(await (await get(app, cookie)).text()), 'paid')
       },
       { timeout: 2000, interval: 10 },
     )
@@ -97,6 +99,6 @@ describe('serverOnly wire gate at /__events', () => {
     const app = await boot()
     const cookie = (await get(app)).headers.get('set-cookie')!.split(';')[0]!
     // CHARGE isn't in serverOnly; unknown-but-not-server-only events also aren't gated here.
-    expect((await post(app, cookie, { type: 'CHARGE' })).status).not.toBe(403)
+    assert.notEqual((await post(app, cookie, { type: 'CHARGE' })).status, 403)
   })
 })

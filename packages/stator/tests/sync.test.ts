@@ -1,13 +1,14 @@
+import assert from 'node:assert/strict'
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
+import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { afterAll, describe, expect, it } from 'vitest'
 import { syncTypes } from '../src/build/sync.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = resolve(here, '.tmp-sync-app')
 
-afterAll(() => rm(root, { recursive: true, force: true }))
+after(() => rm(root, { recursive: true, force: true }))
 
 async function exists(p: string): Promise<boolean> {
   try {
@@ -32,15 +33,15 @@ describe('build: syncTypes', () => {
     )
 
     const result = await syncTypes(root)
-    expect(result.written).toBe(1) // route skipped
+    assert.equal(result.written, 1) // route skipped
 
     // Mirrored under .stator/types, NOT next to source.
-    expect(await exists(join(root, '.stator/types/templates/card.stator.d.ts'))).toBe(true)
-    expect(await exists(join(root, 'templates/card.stator.d.ts'))).toBe(false)
+    assert.equal(await exists(join(root, '.stator/types/templates/card.stator.d.ts')), true)
+    assert.equal(await exists(join(root, 'templates/card.stator.d.ts')), false)
     // Routes get no .d.ts.
-    expect(await exists(join(root, '.stator/types/routes/index.stator.d.ts'))).toBe(false)
+    assert.equal(await exists(join(root, '.stator/types/routes/index.stator.d.ts')), false)
 
     const dts = await readFile(join(root, '.stator/types/templates/card.stator.d.ts'), 'utf8')
-    expect(dts).toContain('(props: { title: string }) => HtmlFragment')
+    assert.ok(dts.includes('(props: { title: string }) => HtmlFragment'))
   })
 })

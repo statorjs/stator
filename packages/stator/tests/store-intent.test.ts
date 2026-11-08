@@ -1,4 +1,5 @@
-import { afterAll, describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { after, describe, it } from 'node:test'
 import { InMemoryAppStore } from '../src/server/app-store.ts'
 import { CachedStore } from '../src/server/cached-store.ts'
 import type { RedisAppStore, RedisStore } from '../src/server/redis-store.ts'
@@ -28,50 +29,50 @@ const machines = (spec: Array<[lifecycle: string, persist?: boolean]>) =>
 describe('sessionStore: choosing from the environment', () => {
   it('falls back to in-memory when the URL is absent, and remembers that it did', () => {
     const store = sessionStore({ redisUrl: undefined })
-    expect(store).toBeInstanceOf(InMemoryStore)
-    expect(storeIntent(store)?.wanted).toBe('durable')
-    expect(storeIntent(store)?.from).toBe('REDIS_URL')
+    assert.ok(store instanceof InMemoryStore)
+    assert.equal(storeIntent(store)?.wanted, 'durable')
+    assert.equal(storeIntent(store)?.from, 'REDIS_URL')
   })
 
   it('treats an empty or whitespace-only URL as absent', () => {
     // What a CI system that defines every variable as "" produces.
     for (const redisUrl of ['', '   ', '\n']) {
-      expect(sessionStore({ redisUrl })).toBeInstanceOf(InMemoryStore)
+      assert.ok(sessionStore({ redisUrl }) instanceof InMemoryStore)
     }
   })
 
   it('records no intent when in-memory was chosen deliberately', () => {
     // Called with nothing: a real choice, and never reported.
-    expect(storeIntent(sessionStore())).toBeUndefined()
-    expect(storeIntent(new InMemoryStore())).toBeUndefined()
+    assert.equal(storeIntent(sessionStore()), undefined)
+    assert.equal(storeIntent(new InMemoryStore()), undefined)
   })
 
   it('names the variable it was given, for the message', () => {
     const store = sessionStore({ redisUrl: undefined, envName: 'SESSION_REDIS_URL' })
-    expect(storeIntent(store)?.from).toBe('SESSION_REDIS_URL')
+    assert.equal(storeIntent(store)?.from, 'SESSION_REDIS_URL')
   })
 
   it('distinguishes an empty value from an absent key', () => {
     // `redisUrl: process.env.REDIS_URL` with the variable unset means the app
     // wanted durability and did not get it. `sessionStore()` means it chose
     // in-memory. Both produce an InMemoryStore; only the first is reported.
-    expect(storeIntent(sessionStore({ redisUrl: process.env.NOPE_UNSET }))).toBeDefined()
-    expect(storeIntent(sessionStore({}))).toBeUndefined()
-    expect(storeIntent(appStore({ redisUrl: undefined }))).toBeDefined()
-    expect(storeIntent(appStore())).toBeUndefined()
+    assert.notEqual(storeIntent(sessionStore({ redisUrl: process.env.NOPE_UNSET })), undefined)
+    assert.equal(storeIntent(sessionStore({})), undefined)
+    assert.notEqual(storeIntent(appStore({ redisUrl: undefined })), undefined)
+    assert.equal(storeIntent(appStore()), undefined)
   })
 
   it('classifies the framework in-memory adapters as ephemeral, and nothing else', () => {
-    expect(isEphemeral(new InMemoryStore())).toBe(true)
-    expect(isEphemeral(new InMemoryAppStore())).toBe(true)
+    assert.equal(isEphemeral(new InMemoryStore()), true)
+    assert.equal(isEphemeral(new InMemoryAppStore()), true)
     // A store the app supplied is assumed durable — the framework cannot ask.
-    expect(isEphemeral({ load: () => {}, save: () => {} })).toBe(false)
+    assert.equal(isEphemeral({ load: () => {}, save: () => {} }), false)
   })
 })
 
-describe.skipIf(!REDIS_URL)('sessionStore: with a URL set', () => {
+describe('sessionStore: with a URL set', { skip: !REDIS_URL }, () => {
   const built: Array<{ close?: () => Promise<void> }> = []
-  afterAll(async () => {
+  after(async () => {
     // CachedStore has no connection of its own; only the Redis adapters do.
     for (const store of built) await store.close?.()
   })
@@ -79,21 +80,21 @@ describe.skipIf(!REDIS_URL)('sessionStore: with a URL set', () => {
   it('builds a Redis store, uncached by default', () => {
     const store = sessionStore({ redisUrl: REDIS_URL }) as RedisStore
     built.push(store)
-    expect(store.constructor.name).toBe('RedisStore')
-    expect(isEphemeral(store)).toBe(false)
-    expect(storeIntent(store)).toBeUndefined() // nothing fell back
+    assert.equal(store.constructor.name, 'RedisStore')
+    assert.equal(isEphemeral(store), false)
+    assert.equal(storeIntent(store), undefined) // nothing fell back
   })
 
   it('wraps in a write-through cache when asked', () => {
     const store = sessionStore({ redisUrl: REDIS_URL, cache: true })
-    expect(store).toBeInstanceOf(CachedStore)
+    assert.ok(store instanceof CachedStore)
     built.push(store as unknown as { close?: () => Promise<void> })
   })
 
   it('does the same for the app store', () => {
     const store = appStore({ redisUrl: REDIS_URL }) as RedisAppStore
     built.push(store)
-    expect(store.constructor.name).toBe('RedisAppStore')
+    assert.equal(store.constructor.name, 'RedisAppStore')
   })
 })
 
@@ -101,23 +102,25 @@ describe('persistence posture: what startup reports', () => {
   const durable = { load: () => {}, save: () => {} }
 
   it('always states the posture, in every environment', () => {
-    expect(
+    assert.equal(
       persistencePosture({
         session: new InMemoryStore(),
         app: new InMemoryAppStore(),
         machines: machines([['session']]),
         production: false,
       }).label,
-    ).toBe('sessions in-memory')
+      'sessions in-memory',
+    )
 
-    expect(
+    assert.match(
       persistencePosture({
         session: durable,
         app: new InMemoryAppStore(),
         machines: machines([['session']]),
         production: true,
       }).label,
-    ).toMatch(/^sessions /)
+      /^sessions /,
+    )
   })
 
   it('says nothing outside production, however state is stored', () => {
@@ -128,7 +131,7 @@ describe('persistence posture: what startup reports', () => {
       machines: machines([['session'], ['session']]),
       production: false,
     })
-    expect(warnings).toEqual([])
+    assert.deepStrictEqual(warnings, [])
   })
 
   it('names the empty variable when the app configured a durable store', () => {
@@ -138,8 +141,8 @@ describe('persistence posture: what startup reports', () => {
       machines: machines([['session']]),
       production: true,
     })
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('REDIS_URL is empty')
+    assert.equal(warnings.length, 1)
+    assert.ok(warnings[0]?.includes('REDIS_URL is empty'))
   })
 
   it('falls back to a general warning when nothing was configured', () => {
@@ -149,9 +152,9 @@ describe('persistence posture: what startup reports', () => {
       machines: machines([['session'], ['session']]),
       production: true,
     })
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('no durable session store')
-    expect(warnings[0]).toContain('2 session machines')
+    assert.equal(warnings.length, 1)
+    assert.ok(warnings[0]?.includes('no durable session store'))
+    assert.ok(warnings[0]?.includes('2 session machines'))
   })
 
   it('stays quiet when there is no session state to lose', () => {
@@ -162,7 +165,7 @@ describe('persistence posture: what startup reports', () => {
       machines: machines([['app'], ['app']]),
       production: true,
     })
-    expect(warnings).toEqual([])
+    assert.deepStrictEqual(warnings, [])
   })
 
   it('reports persisted app machines on ephemeral app storage', () => {
@@ -172,9 +175,9 @@ describe('persistence posture: what startup reports', () => {
       machines: machines([['app', true], ['app', true], ['app']]),
       production: true,
     })
-    expect(posture.label).toContain('app in-memory')
-    expect(posture.warnings).toHaveLength(1)
-    expect(posture.warnings[0]).toContain('2 persisted app machines')
+    assert.ok(posture.label.includes('app in-memory'))
+    assert.equal(posture.warnings.length, 1)
+    assert.ok(posture.warnings[0]?.includes('2 persisted app machines'))
   })
 
   it('is silent when everything is durable', () => {
@@ -184,6 +187,6 @@ describe('persistence posture: what startup reports', () => {
       machines: machines([['session'], ['app', true]]),
       production: true,
     })
-    expect(posture.warnings).toEqual([])
+    assert.deepStrictEqual(posture.warnings, [])
   })
 })

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { compile } from '../src/compiler/compile.ts'
 import { CompileError } from '../src/compiler/diagnostics.ts'
 import { componentImportSpecifier, declaredRegions } from '../src/compiler/regions.ts'
@@ -6,18 +7,18 @@ import { componentImportSpecifier, declaredRegions } from '../src/compiler/regio
 describe('compiler: declaredRegions / import resolution', () => {
   it('extracts named regions from a component', () => {
     const src = '<div><children name="banner"/><children/><children name="footer"/></div>'
-    expect([...declaredRegions(src)].sort()).toEqual(['banner', 'footer'])
+    assert.deepStrictEqual([...declaredRegions(src)].sort(), ['banner', 'footer'])
   })
 
   it('returns empty when a component declares no named regions', () => {
-    expect([...declaredRegions('<main><children/></main>')]).toEqual([])
+    assert.deepStrictEqual([...declaredRegions('<main><children/></main>')], [])
   })
 
   it('resolves a component default-import specifier from frontmatter', () => {
     const fm = `import Layout from './layout.stator'\nimport type Cart from '../machines/cart.ts'`
-    expect(componentImportSpecifier(fm, 'Layout')).toBe('./layout.stator')
-    expect(componentImportSpecifier(fm, 'Cart')).toBe(null) // not a .stator
-    expect(componentImportSpecifier(fm, 'Nope')).toBe(null)
+    assert.equal(componentImportSpecifier(fm, 'Layout'), './layout.stator')
+    assert.equal(componentImportSpecifier(fm, 'Cart'), null) // not a .stator
+    assert.equal(componentImportSpecifier(fm, 'Nope'), null)
   })
 })
 
@@ -29,7 +30,7 @@ import Layout from './layout.stator'
 
   it('passes when the region is declared', () => {
     const regions = new Set(['banner'])
-    expect(() => compile(src, { id: 'page.stator', resolveRegions: () => regions })).not.toThrow()
+    assert.doesNotThrow(() => compile(src, { id: 'page.stator', resolveRegions: () => regions }))
   })
 
   it('errors with a located message when the region is undeclared', () => {
@@ -38,16 +39,16 @@ import Layout from './layout.stator'
       compile(src, { id: 'page.stator', resolveRegions: () => regions })
       throw new Error('expected throw')
     } catch (e) {
-      expect(e).toBeInstanceOf(CompileError)
+      assert.ok(e instanceof CompileError)
       const err = e as CompileError
-      expect(err.message).toContain('no child region "banner"')
-      expect(err.message).toContain('"footer"') // lists what IS declared
-      expect(err.loc?.line).toBe(4) // the <Layout> line in the original
+      assert.ok(err.message.includes('no child region "banner"'))
+      assert.ok(err.message.includes('"footer"')) // lists what IS declared
+      assert.equal(err.loc?.line, 4) // the <Layout> line in the original
     }
   })
 
   it('skips validation when no resolver is supplied', () => {
-    expect(() => compile(src, { id: 'page.stator' })).not.toThrow()
+    assert.doesNotThrow(() => compile(src, { id: 'page.stator' }))
   })
 })
 
@@ -58,7 +59,7 @@ describe('compiler: child="x" placement', () => {
     compile(fm + template, { id: 'page.stator', kind: 'route', resolveRegions: () => regions })
 
   it('a direct element child of a component still works', () => {
-    expect(() => compileWith(`<Layout><div child="top">hi</div></Layout>`)).not.toThrow()
+    assert.doesNotThrow(() => compileWith(`<Layout><div child="top">hi</div></Layout>`))
   })
 
   it('inside a {…} expression is a located error', () => {
@@ -66,22 +67,23 @@ describe('compiler: child="x" placement', () => {
       compileWith(`<Layout>{true ? <div child="top">hi</div> : null}</Layout>`)
       throw new Error('expected throw')
     } catch (e) {
-      expect(e).toBeInstanceOf(CompileError)
+      assert.ok(e instanceof CompileError)
       const err = e as CompileError
-      expect(err.message).toContain('child="top" has no effect here')
-      expect(err.message).toContain('<div child="top">{cond ? … : null}</div>')
-      expect(err.loc?.line).toBe(5)
+      assert.ok(err.message.includes('child="top" has no effect here'))
+      assert.ok(err.message.includes('<div child="top">{cond ? … : null}</div>'))
+      assert.equal(err.loc?.line, 5)
     }
   })
 
   it('nested deeper than a direct child is a located error', () => {
-    expect(() =>
-      compileWith(`<Layout><section><div child="top">hi</div></section></Layout>`),
-    ).toThrow(CompileError)
+    assert.throws(
+      () => compileWith(`<Layout><section><div child="top">hi</div></section></Layout>`),
+      CompileError,
+    )
   })
 
   it('at the template root is a located error', () => {
-    expect(() => compileWith(`<div child="top">hi</div>`)).toThrow(/has no effect here/)
+    assert.throws(() => compileWith(`<div child="top">hi</div>`), /has no effect here/)
   })
 
   it('on a component tag is a located error naming the wrap', () => {
@@ -89,11 +91,11 @@ describe('compiler: child="x" placement', () => {
       compileWith(`<Layout><Banner child="top" /></Layout>`)
       throw new Error('expected throw')
     } catch (e) {
-      expect(e).toBeInstanceOf(CompileError)
+      assert.ok(e instanceof CompileError)
       const err = e as CompileError
-      expect(err.message).toContain('child="top" on <Banner/> has no effect')
-      expect(err.message).toContain('<div child="top"><Banner/></div>')
-      expect(err.loc?.line).toBe(5)
+      assert.ok(err.message.includes('child="top" on <Banner/> has no effect'))
+      assert.ok(err.message.includes('<div child="top"><Banner/></div>'))
+      assert.equal(err.loc?.line, 5)
     }
   })
 })

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { generateDts } from '../src/compiler/dts.ts'
 
 describe('compiler: generateDts (typegen)', () => {
@@ -10,13 +11,15 @@ const { cart } = Stator.props<{ cart: InstanceOf<typeof CartMachine> }>()
 ---
 <div>{read(cart, c => c.itemCount)}</div>`
     const dts = generateDts(src)!
-    expect(dts).toContain("import type { HtmlFragment } from '@statorjs/stator/template'")
+    assert.ok(dts.includes("import type { HtmlFragment } from '@statorjs/stator/template'"))
     // frontmatter type imports re-stated so the props type resolves
-    expect(dts).toContain("import type CartMachine from '../machines/cart.ts'")
-    expect(dts).toContain(
-      'declare const _default: (props: { cart: InstanceOf<typeof CartMachine> }) => HtmlFragment',
+    assert.ok(dts.includes("import type CartMachine from '../machines/cart.ts'"))
+    assert.ok(
+      dts.includes(
+        'declare const _default: (props: { cart: InstanceOf<typeof CartMachine> }) => HtmlFragment',
+      ),
     )
-    expect(dts).toContain('export default _default')
+    assert.ok(dts.includes('export default _default'))
   })
 
   it('intersects a children bag when the body uses <children>', () => {
@@ -24,23 +27,25 @@ const { cart } = Stator.props<{ cart: InstanceOf<typeof CartMachine> }>()
 const { title } = Stator.props<{ title: string }>()
 ---
 <section><h1>{title}</h1><children/></section>`
-    expect(generateDts(src)!).toContain(
-      'declare const _default: (props: { title: string } & { children?: any }) => HtmlFragment',
+    assert.ok(
+      generateDts(src)!.includes(
+        'declare const _default: (props: { title: string } & { children?: any }) => HtmlFragment',
+      ),
     )
   })
 
   it('handles a children-only component (no declared props)', () => {
     const dts = generateDts('<main><children/></main>')!
-    expect(dts).toContain('(props: { children?: any }) => HtmlFragment')
+    assert.ok(dts.includes('(props: { children?: any }) => HtmlFragment'))
   })
 
   it('emits an empty props signature for a static component', () => {
     const dts = generateDts('<p>static</p>')!
-    expect(dts).toContain('(props: Record<string, never>) => HtmlFragment')
+    assert.ok(dts.includes('(props: Record<string, never>) => HtmlFragment'))
   })
 
   it('returns null for a route page', () => {
-    expect(generateDts('<div/>', { kind: 'route' })).toBe(null)
+    assert.equal(generateDts('<div/>', { kind: 'route' }), null)
   })
 
   it('an island with NO static attrs still accepts shell props (hydrate contract)', () => {
@@ -51,7 +56,7 @@ const { title } = Stator.props<{ title: string }>()
   export class RegForm extends StatorElement {}
 </script>`
     const dts = generateDts(src)!
-    expect(dts).toContain('(props: { [prop: string]: unknown }) => HtmlFragment')
-    expect(dts).not.toContain('Record<string, never>')
+    assert.ok(dts.includes('(props: { [prop: string]: unknown }) => HtmlFragment'))
+    assert.ok(!dts.includes('Record<string, never>'))
   })
 })

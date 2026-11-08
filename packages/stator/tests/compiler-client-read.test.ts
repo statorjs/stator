@@ -1,5 +1,6 @@
-// @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest'
+// @env happy-dom
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import * as clientApi from '../src/client/index.ts'
 import { compile } from '../src/compiler/compile.ts'
 import { CompileError } from '../src/compiler/diagnostics.ts'
@@ -56,20 +57,22 @@ describe('client read() lowering: compile output', () => {
   it('text position → comment slot in the shell + bindSlot in the client module', () => {
     const { serverCode, clientCode } = compile(ISLAND, { id: 'count-badge.stator' })
     const shell = renderShell(serverCode)
-    expect(shell).toContain('Items: <!--s0--> total')
+    assert.ok(shell.includes('Items: <!--s0--> total'))
     // The dangling identifier never reaches the shell.
-    expect(serverCode).not.toContain('(q) => q.count)(qty)')
-    expect(clientCode).toContain(
-      'this.track(bindSlot(this, "s0", [this.qty], () => (((q) => q.count)(this.qty))))',
+    assert.ok(!serverCode.includes('(q) => q.count)(qty)'))
+    assert.ok(
+      clientCode.includes(
+        'this.track(bindSlot(this, "s0", [this.qty], () => (((q) => q.count)(this.qty))))',
+      ),
     )
   })
 
   it('attribute position → element marker + bind directive, stripped from the shell', () => {
     const { serverCode, clientCode } = compile(ISLAND, { id: 'count-badge.stator' })
     const shell = renderShell(serverCode)
-    expect(shell).toMatch(/<button data-b="b0">\+<\/button>/)
-    expect(shell).not.toContain('disabled')
-    expect(clientCode).toContain('bind([this.qty], () => (((q) => q.atMax)(this.qty))')
+    assert.match(shell, /<button data-b="b0">\+<\/button>/)
+    assert.ok(!shell.includes('disabled'))
+    assert.ok(clientCode.includes('bind([this.qty], () => (((q) => q.atMax)(this.qty))'))
   })
 
   it('server-machine read() via props still flows to the shell (hydrate contract)', () => {
@@ -80,7 +83,7 @@ describe('client read() lowering: compile output', () => {
   export class LiveNote extends StatorElement {}
 </script>`
     const r = compile(src, { id: 'live-note.stator', kind: 'component' })
-    expect(r.serverCode).toContain('${read(props.machine, (m) => m.count)}')
+    assert.ok(r.serverCode.includes('${read(props.machine, (m) => m.count)}'))
   })
 
   it('value=/checked= on a client machine is a compile error with guidance', () => {
@@ -93,8 +96,9 @@ describe('client read() lowering: compile output', () => {
     draft = use(Draft)
   }
 </script>`
-    expect(() => compile(src, { id: 'draft-input.stator' })).toThrow(CompileError)
-    expect(() => compile(src, { id: 'draft-input.stator' })).toThrow(
+    assert.throws(() => compile(src, { id: 'draft-input.stator' }), CompileError)
+    assert.throws(
+      () => compile(src, { id: 'draft-input.stator' }),
       /can't live-drive value=.*pre-fill.*ref:/i,
     )
   })
@@ -109,7 +113,7 @@ describe('client read() lowering: compile output', () => {
     qty = use(Qty)
   }
 </script>`
-    expect(() => compile(src, { id: 'count-badge.stator' })).toThrow(/entire expression/)
+    assert.throws(() => compile(src, { id: 'count-badge.stator' }), /entire expression/)
   })
 })
 
@@ -126,14 +130,14 @@ describe('client read() lowering: end-to-end (happy-dom)', () => {
     const btn = el.querySelector('button') as HTMLButtonElement
 
     // Initial paint at element setup — mixed content intact around the slot.
-    expect(line.textContent).toBe('Items: 1 total')
-    expect(btn.disabled).toBe(false)
+    assert.equal(line.textContent, 'Items: 1 total')
+    assert.equal(btn.disabled, false)
 
     btn.click()
-    expect(line.textContent).toBe('Items: 2 total')
+    assert.equal(line.textContent, 'Items: 2 total')
     btn.click()
-    expect(line.textContent).toBe('Items: 3 total')
-    expect(btn.disabled).toBe(true) // atMax
+    assert.equal(line.textContent, 'Items: 3 total')
+    assert.equal(btn.disabled, true) // atMax
     document.body.removeChild(holder)
   })
 
@@ -160,12 +164,12 @@ describe('client read() lowering: end-to-end (happy-dom)', () => {
     const el = holder.querySelector('pick-one') as HTMLElement
     const who = el.querySelector('.who') as HTMLElement
     const buttons = el.querySelectorAll('button')
-    expect(buttons.length).toBe(2)
+    assert.equal(buttons.length, 2)
 
     ;(buttons[1] as HTMLElement).click() // the SECOND occurrence — dead before the fix
-    expect(who.textContent).toBe('b')
+    assert.equal(who.textContent, 'b')
     ;(buttons[0] as HTMLElement).click()
-    expect(who.textContent).toBe('a')
+    assert.equal(who.textContent, 'a')
     document.body.removeChild(holder)
   })
 })

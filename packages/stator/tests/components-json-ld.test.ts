@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { JsonLd, ldToString } from '../src/components/json-ld.ts'
 import { raw } from '../src/template/html.ts'
 import { isHtmlFragment } from '../src/template/types.ts'
@@ -6,16 +7,16 @@ import { isHtmlFragment } from '../src/template/types.ts'
 describe('raw()', () => {
   it('wraps a trusted string as a verbatim HtmlFragment', () => {
     const f = raw('<b>hi & bye</b>')
-    expect(isHtmlFragment(f)).toBe(true)
+    assert.equal(isHtmlFragment(f), true)
     // No escaping — the string is emitted as-is.
-    expect(f.html).toBe('<b>hi & bye</b>')
+    assert.equal(f.html, '<b>hi & bye</b>')
   })
 })
 
 describe('ldToString', () => {
   it('adds @context to a single entity', () => {
     const s = ldToString({ '@type': 'Product', name: 'Pocket Notebook' })
-    expect(JSON.parse(s)).toEqual({
+    assert.deepStrictEqual(JSON.parse(s), {
       '@context': 'https://schema.org',
       '@type': 'Product',
       name: 'Pocket Notebook',
@@ -28,8 +29,8 @@ describe('ldToString', () => {
       { '@type': 'Product', name: 'B' },
     ])
     const parsed = JSON.parse(s)
-    expect(parsed['@context']).toBe('https://schema.org')
-    expect(parsed['@graph']).toHaveLength(2)
+    assert.equal(parsed['@context'], 'https://schema.org')
+    assert.equal(parsed['@graph'].length, 2)
   })
 
   it('escapes HTML sequences so no </script> can break out', () => {
@@ -37,44 +38,44 @@ describe('ldToString', () => {
       '@type': 'Thing',
       name: 'a</script><script>alert(1)',
     })
-    expect(s).not.toContain('</script>')
-    expect(s).toContain('\\u003c/script\\u003e')
+    assert.ok(!s.includes('</script>'))
+    assert.ok(s.includes('\\u003c/script\\u003e'))
   })
 
   it('uses JSON escapes, not HTML entities, so consumers read the original text', () => {
     const description = "A 20' mobile office with plug & play hookups <indoors>"
     const s = ldToString({ '@type': 'Product', description })
-    expect(s).not.toMatch(/&(amp|lt|gt|quot|apos);/)
-    expect(JSON.parse(s).description).toBe(description)
+    assert.doesNotMatch(s, /&(amp|lt|gt|quot|apos);/)
+    assert.equal(JSON.parse(s).description, description)
   })
 
   it('escapes U+2028/U+2029 line separators', () => {
     const s = ldToString({ '@type': 'Thing', name: 'a\u2028b\u2029c' })
-    expect(s).not.toMatch(/[\u2028\u2029]/)
-    expect(JSON.parse(s).name).toBe('a\u2028b\u2029c')
+    assert.doesNotMatch(s, /[\u2028\u2029]/)
+    assert.equal(JSON.parse(s).name, 'a\u2028b\u2029c')
   })
 
   it('omits null values', () => {
     const s = ldToString({ '@type': 'Thing', name: null as unknown as string })
-    expect(JSON.parse(s)).toEqual({
+    assert.deepStrictEqual(JSON.parse(s), {
       '@context': 'https://schema.org',
       '@type': 'Thing',
     })
   })
 
   it('honors the space argument', () => {
-    expect(ldToString({ '@type': 'Thing' }, 2)).toContain('\n')
+    assert.ok(ldToString({ '@type': 'Thing' }, 2).includes('\n'))
   })
 })
 
 describe('JsonLd', () => {
   it('emits a script[type=application/ld+json] as a raw fragment', () => {
     const f = JsonLd({ json: { '@type': 'Product', name: 'Pocket Notebook' } })
-    expect(isHtmlFragment(f)).toBe(true)
-    expect(f.html).toMatch(/^<script type="application\/ld\+json">/)
-    expect(f.html).toMatch(/<\/script>$/)
-    expect(f.html).toContain('"@context":"https://schema.org"')
-    expect(f.html).toContain('"name":"Pocket Notebook"')
+    assert.equal(isHtmlFragment(f), true)
+    assert.match(f.html, /^<script type="application\/ld\+json">/)
+    assert.match(f.html, /<\/script>$/)
+    assert.ok(f.html.includes('"@context":"https://schema.org"'))
+    assert.ok(f.html.includes('"name":"Pocket Notebook"'))
   })
 
   it('keeps a hostile payload from breaking out of the script element', () => {
@@ -82,6 +83,6 @@ describe('JsonLd', () => {
       json: { '@type': 'Thing', name: '</script><img src=x onerror=alert(1)>' },
     })
     // Exactly one closing tag — the real one — survives.
-    expect(f.html.match(/<\/script>/g)).toHaveLength(1)
+    assert.equal(f.html.match(/<\/script>/g)?.length, 1)
   })
 })

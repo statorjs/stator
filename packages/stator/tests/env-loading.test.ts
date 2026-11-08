@@ -1,7 +1,8 @@
+import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, it } from 'node:test'
 import { createApp } from '../src/server/create-app.ts'
 import { loadDotenv } from '../src/server/env.ts'
 
@@ -31,8 +32,8 @@ describe('loadDotenv', () => {
     writeFileSync(join(dir, '.env'), 'ENV_ONE=alpha\nENV_TWO=beta\n')
     loadDotenv(dir)
     touched.push('ENV_ONE', 'ENV_TWO')
-    expect(process.env.ENV_ONE).toBe('alpha')
-    expect(process.env.ENV_TWO).toBe('beta')
+    assert.equal(process.env.ENV_ONE, 'alpha')
+    assert.equal(process.env.ENV_TWO, 'beta')
   })
 
   it('.env.local wins over .env; .env fills the gaps', () => {
@@ -40,9 +41,9 @@ describe('loadDotenv', () => {
     writeFileSync(join(dir, '.env.local'), 'SHARED=from_local\nONLY_LOCAL=l\n')
     loadDotenv(dir)
     touched.push('SHARED', 'ONLY_ENV', 'ONLY_LOCAL')
-    expect(process.env.SHARED).toBe('from_local') // local overrides
-    expect(process.env.ONLY_ENV).toBe('e') // .env still fills what local omits
-    expect(process.env.ONLY_LOCAL).toBe('l')
+    assert.equal(process.env.SHARED, 'from_local') // local overrides
+    assert.equal(process.env.ONLY_ENV, 'e') // .env still fills what local omits
+    assert.equal(process.env.ONLY_LOCAL, 'l')
   })
 
   it('real shell env wins over both files', () => {
@@ -50,18 +51,18 @@ describe('loadDotenv', () => {
     writeFileSync(join(dir, '.env'), 'SHARED=from_env\n')
     writeFileSync(join(dir, '.env.local'), 'SHARED=from_local\n')
     loadDotenv(dir)
-    expect(process.env.SHARED).toBe('from_shell')
+    assert.equal(process.env.SHARED, 'from_shell')
   })
 
   it('is a no-op when no files exist (no throw)', () => {
-    expect(() => loadDotenv(dir)).not.toThrow()
+    assert.doesNotThrow(() => loadDotenv(dir))
   })
 
   it('loads .env.local even when .env is absent', () => {
     writeFileSync(join(dir, '.env.local'), 'LOCAL_ONLY=x\n')
     loadDotenv(dir)
     touched.push('LOCAL_ONLY')
-    expect(process.env.LOCAL_ONLY).toBe('x')
+    assert.equal(process.env.LOCAL_ONLY, 'x')
   })
 })
 
@@ -74,8 +75,8 @@ describe('createApp root', () => {
     // The test process's cwd is the package, not `dir` — the old behaviour
     // would have looked for .env there and found nothing.
     const app = await createApp({ root: dir, machinesDir: 'machines', routesDir: 'routes' })
-    expect(process.env.FROM_APP_ROOT).toBe('yes')
+    assert.equal(process.env.FROM_APP_ROOT, 'yes')
     const res = await app.fetch(new Request('http://localhost/nothing-here'))
-    expect(res.status).toBe(404)
+    assert.equal(res.status, 404)
   })
 })

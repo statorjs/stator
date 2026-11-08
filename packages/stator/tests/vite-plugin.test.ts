@@ -1,7 +1,8 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { createServer, type ViteDevServer } from 'vite'
-import { afterAll, describe, expect, it } from 'vitest'
 import { stator } from '../src/vite/plugin.ts'
 
 /**
@@ -16,7 +17,7 @@ const root = resolve(here, 'fixtures/components')
 const file = resolve(root, 'hello.stator')
 
 let server: ViteDevServer | undefined
-afterAll(async () => {
+after(async () => {
   await server?.close()
 })
 
@@ -32,18 +33,18 @@ describe('vite plugin: .stator', () => {
 
     // Server module: lowered html`` + an import of the style virtual.
     const serverMod = await server.transformRequest(file)
-    expect(serverMod).toBeTruthy()
-    expect(serverMod!.code).toContain('html`')
-    expect(serverMod!.code).toContain('section class="greeting"')
-    expect(serverMod!.code).toContain('stator&type=style')
+    assert.ok(serverMod)
+    assert.ok(serverMod!.code.includes('html`'))
+    assert.ok(serverMod!.code.includes('section class="greeting"'))
+    assert.ok(serverMod!.code.includes('stator&type=style'))
 
     // Style virtual: scoped CSS, transformed through Vite's CSS pipeline.
     const styleId = `${file}?stator&type=style&lang.css`
     const styleMod = await server.transformRequest(styleId)
-    expect(styleMod).toBeTruthy()
+    assert.ok(styleMod)
     // The selectors carry a data-s-<hash> attribute (scoped).
-    expect(styleMod!.code).toMatch(/data-s-[0-9a-f]{8}/)
-    expect(styleMod!.code).toContain('greeting')
+    assert.match(styleMod!.code, /data-s-[0-9a-f]{8}/)
+    assert.ok(styleMod!.code.includes('greeting'))
   })
 
   it('serves a client component module at ?type=client (3b 6c)', async () => {
@@ -56,9 +57,9 @@ describe('vite plugin: .stator', () => {
     })
     const clientFile = resolve(root, 'toggle-box.stator')
     const mod = await server.transformRequest(`${clientFile}?stator&type=client`)
-    expect(mod).toBeTruthy()
+    assert.ok(mod)
     // The generated client entry: the StatorElement subclass + registration call.
-    expect(mod!.code).toContain('class __ToggleBoxImpl')
-    expect(mod!.code).toMatch(/defineElement\(__ToggleBoxImpl,\s*"toggle-box"\)/)
+    assert.ok(mod!.code.includes('class __ToggleBoxImpl'))
+    assert.match(mod!.code, /defineElement\(__ToggleBoxImpl,\s*"toggle-box"\)/)
   })
 })

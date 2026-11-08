@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { compile } from '../src/compiler/compile.ts'
 import {
   createEventDescriptor,
@@ -24,7 +25,7 @@ const onClick = Stator.forwarded('on:click')
 ---
 <button on:click={onClick}>go</button>`
     const { serverCode } = compile(src)
-    expect(serverCode).toContain("const onClick = props.$directives?.['on:click']")
+    assert.ok(serverCode.includes("const onClick = props.$directives?.['on:click']"))
   })
 
   it('Stator.forwarded() is an error in a route (no parent to forward from)', () => {
@@ -33,7 +34,7 @@ const onClick = Stator.forwarded('on:click')
 const [x] = Stator.reads([])
 ---
 <button on:click={onClick}>go</button>`
-    expect(() => compile(src, { kind: 'route' })).toThrow(/only available in a component/)
+    assert.throws(() => compile(src, { kind: 'route' }), /only available in a component/)
   })
 })
 
@@ -49,8 +50,8 @@ describe('directive forwarding — runtime', () => {
       const onClick = props.$directives?.['on:click']
       return html`<div class="wrap"><button ${on('click', onClick)}>Back</button></div>`
     })
-    expect(out.html).toContain('data-event-click')
-    expect(out.html).toContain('BACK')
+    assert.ok(out.html.includes('data-event-click'))
+    assert.ok(out.html.includes('BACK'))
   })
 
   it('an absent forwarded handler renders no binding and does not throw', () => {
@@ -60,7 +61,7 @@ describe('directive forwarding — runtime', () => {
       const onClick = props.$directives?.['on:click']
       return html`<button ${on('click', onClick)}>go</button>`
     })
-    expect(out.html).not.toContain('data-event')
-    expect(out.html).toContain('<button')
+    assert.ok(!out.html.includes('data-event'))
+    assert.ok(out.html.includes('<button'))
   })
 })

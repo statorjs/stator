@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { CachedStore } from '../src/server/cached-store.ts'
 import type { Store } from '../src/server/store.ts'
 
@@ -51,11 +52,11 @@ describe('CachedStore', () => {
     spy.resetCounters()
 
     const cache = new CachedStore(spy)
-    expect(await cache.get('s1', 'M')).toEqual({ x: 1 })
-    expect(await cache.get('s1', 'M')).toEqual({ x: 1 })
-    expect(await cache.get('s1', 'M')).toEqual({ x: 1 })
+    assert.deepStrictEqual(await cache.get('s1', 'M'), { x: 1 })
+    assert.deepStrictEqual(await cache.get('s1', 'M'), { x: 1 })
+    assert.deepStrictEqual(await cache.get('s1', 'M'), { x: 1 })
 
-    expect(spy.getCalls).toBe(1)
+    assert.equal(spy.getCalls, 1)
   })
 
   it('writes through to backing and primes the cache for subsequent reads', async () => {
@@ -65,13 +66,13 @@ describe('CachedStore', () => {
     await cache.set('s1', 'M', { x: 1 })
 
     // Backing got the write.
-    expect(spy.setCalls).toBe(1)
-    expect(spy.data.get('s1')?.get('M')).toEqual({ x: 1 })
+    assert.equal(spy.setCalls, 1)
+    assert.deepStrictEqual(spy.data.get('s1')?.get('M'), { x: 1 })
 
     // Subsequent read is a cache hit — backing not consulted.
     spy.resetCounters()
-    expect(await cache.get('s1', 'M')).toEqual({ x: 1 })
-    expect(spy.getCalls).toBe(0)
+    assert.deepStrictEqual(await cache.get('s1', 'M'), { x: 1 })
+    assert.equal(spy.getCalls, 0)
   })
 
   it('deleteSession invalidates cache + forwards to backing', async () => {
@@ -83,18 +84,18 @@ describe('CachedStore', () => {
 
     await cache.deleteSession('s1')
 
-    expect(spy.deleteCalls).toBe(1)
-    expect(spy.data.has('s1')).toBe(false)
+    assert.equal(spy.deleteCalls, 1)
+    assert.equal(spy.data.has('s1'), false)
 
     // s1's cache entries are gone — reads fall through to (empty) backing.
     spy.resetCounters()
-    expect(await cache.get('s1', 'M')).toBeNull()
-    expect(spy.getCalls).toBe(1)
+    assert.equal(await cache.get('s1', 'M'), null)
+    assert.equal(spy.getCalls, 1)
 
     // s2 still cached — read is a memory hit.
     spy.resetCounters()
-    expect(await cache.get('s2', 'M')).toEqual({ z: 3 })
-    expect(spy.getCalls).toBe(0)
+    assert.deepStrictEqual(await cache.get('s2', 'M'), { z: 3 })
+    assert.equal(spy.getCalls, 0)
   })
 
   it('evicts the oldest entry when maxEntries is exceeded', async () => {
@@ -109,11 +110,11 @@ describe('CachedStore', () => {
     // back into the cache and disturb the LRU state we're verifying.
     spy.resetCounters()
     await cache.get('s1', 'B')
-    expect(spy.getCalls).toBe(0) // hit — B still resident
+    assert.equal(spy.getCalls, 0) // hit — B still resident
 
     spy.resetCounters()
     await cache.get('s1', 'A')
-    expect(spy.getCalls).toBe(1) // miss — A was evicted
+    assert.equal(spy.getCalls, 1) // miss — A was evicted
   })
 
   it('LRU: a read bumps an entry to most-recent, sparing it from eviction', async () => {
@@ -128,11 +129,11 @@ describe('CachedStore', () => {
     // Read the survivor (A) first.
     spy.resetCounters()
     await cache.get('s1', 'A')
-    expect(spy.getCalls).toBe(0) // A survived because of the bump
+    assert.equal(spy.getCalls, 0) // A survived because of the bump
 
     spy.resetCounters()
     await cache.get('s1', 'B')
-    expect(spy.getCalls).toBe(1) // B was evicted
+    assert.equal(spy.getCalls, 1) // B was evicted
   })
 
   it('expires entries after the memory TTL', async () => {
@@ -143,13 +144,13 @@ describe('CachedStore', () => {
 
     spy.resetCounters()
     await cache.get('s1', 'M')
-    expect(spy.getCalls).toBe(0) // immediate read is a hit
+    assert.equal(spy.getCalls, 0) // immediate read is a hit
 
     await new Promise((r) => setTimeout(r, 80))
 
     spy.resetCounters()
     await cache.get('s1', 'M')
-    expect(spy.getCalls).toBe(1) // post-TTL read is a miss
+    assert.equal(spy.getCalls, 1) // post-TTL read is a miss
   })
 
   it('caps memory TTL at the per-set backing TTL when smaller', async () => {
@@ -163,7 +164,7 @@ describe('CachedStore', () => {
 
     spy.resetCounters()
     await cache.get('s1', 'M')
-    expect(spy.getCalls).toBe(1) // memory entry expired even though memoryTtl is huge
+    assert.equal(spy.getCalls, 1) // memory entry expired even though memoryTtl is huge
   })
 
   it('tracks size accurately and stays at the cap', async () => {
@@ -173,10 +174,10 @@ describe('CachedStore', () => {
     await cache.set('s', 'A', 1)
     await cache.set('s', 'B', 2)
     await cache.set('s', 'C', 3)
-    expect(cache.size).toBe(3)
+    assert.equal(cache.size, 3)
 
     await cache.set('s', 'D', 4)
     await cache.set('s', 'E', 5)
-    expect(cache.size).toBe(3)
+    assert.equal(cache.size, 3)
   })
 })

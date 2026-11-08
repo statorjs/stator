@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { createActor } from '../src/engine/actor.ts'
 import type { EffectInvocation, EffectSession } from '../src/engine/types.ts'
 import { defineMachine } from '../src/server/define-machine.ts'
@@ -73,35 +74,40 @@ describe('engine: actor.seed with a state', () => {
     })
     actor.seed({ userId: 'u1' }, 'authenticated')
     actor.start()
-    expect(actor.getSnapshot().value).toEqual(['authenticated'])
-    expect(actor.getSnapshot().context.userId).toBe('u1')
-    expect(entered).toEqual(['authenticated'])
-    expect(invocations.map((i) => i.stateKey)).toEqual(['authenticated'])
+    assert.deepStrictEqual(actor.getSnapshot().value, ['authenticated'])
+    assert.equal(actor.getSnapshot().context.userId, 'u1')
+    assert.deepStrictEqual(entered, ['authenticated'])
+    assert.deepStrictEqual(
+      invocations.map((i) => i.stateKey),
+      ['authenticated'],
+    )
   })
 
   it('throws on a state the machine does not have, and is a no-op after start', () => {
     const def = Auth()
     const actor = createActor(def)
-    expect(() => actor.seed({}, 'nope')).toThrow(/seeded into state "nope"/)
+    assert.throws(() => actor.seed({}, 'nope'), /seeded into state "nope"/)
     actor.start()
     actor.seed({ userId: 'late' }, 'authenticated')
-    expect(actor.getSnapshot().value).toEqual(['anonymous'])
-    expect(actor.getSnapshot().context.userId).toBe('')
+    assert.deepStrictEqual(actor.getSnapshot().value, ['anonymous'])
+    assert.equal(actor.getSnapshot().context.userId, '')
   })
 })
 
 describe('defineMachine: seed is session-only', () => {
   it('rejects seed on an app machine', () => {
-    expect(() =>
-      defineMachine({
-        name: 'Tally',
-        lifecycle: 'app',
-        context: { n: 0 },
-        initial: 'idle',
-        seed: () => ({ context: { n: 1 } }),
-        states: { idle: {} },
-      }),
-    ).toThrow(/declares seed but is app-lifecycle/)
+    assert.throws(
+      () =>
+        defineMachine({
+          name: 'Tally',
+          lifecycle: 'app',
+          context: { n: 0 },
+          initial: 'idle',
+          seed: () => ({ context: { n: 1 } }),
+          states: { idle: {} },
+        }),
+      /declares seed but is app-lifecycle/,
+    )
   })
 })
 
@@ -119,14 +125,14 @@ describe('server: seed on a fresh start', () => {
     const persistence = new InMemoryStore()
     await persistence.set('s1', CLAIMS_KEY, { userId: 'u1', role: 'member' })
     const snap = await load(Auth(), persistence)
-    expect(snap.value).toEqual(['authenticated'])
-    expect(snap.context).toMatchObject({ userId: 'u1', role: 'member' })
+    assert.deepStrictEqual(snap.value, ['authenticated'])
+    assert.partialDeepStrictEqual(snap.context, { userId: 'u1', role: 'member' })
   })
 
   it('a new session without claims starts at initial', async () => {
     const snap = await load(Auth(), new InMemoryStore())
-    expect(snap.value).toEqual(['anonymous'])
-    expect(snap.context.userId).toBe('')
+    assert.deepStrictEqual(snap.value, ['anonymous'])
+    assert.equal(snap.context.userId, '')
   })
 
   it('a usable snapshot wins — seed is not consulted', async () => {
@@ -141,7 +147,7 @@ describe('server: seed on a fresh start', () => {
       stampSnapshot(def, { value: ['anonymous'], context: { userId: '', role: '', entered: [] } }),
     )
     const snap = await load(def, persistence)
-    expect(snap.value).toEqual(['anonymous'])
+    assert.deepStrictEqual(snap.value, ['anonymous'])
   })
 
   it('a snapshot reset (code changed) starts from the seed, not from initial', async () => {
@@ -154,8 +160,8 @@ describe('server: seed on a fresh start', () => {
       stampSnapshot(v1, { value: ['anonymous'], context: { userId: '', role: '', entered: [] } }),
     )
     const snap = await load(Auth('auth-v2'), persistence)
-    expect(snap.value).toEqual(['authenticated'])
-    expect(snap.context).toMatchObject({ userId: 'u1', role: 'owner' })
+    assert.deepStrictEqual(snap.value, ['authenticated'])
+    assert.partialDeepStrictEqual(snap.context, { userId: 'u1', role: 'owner' })
   })
 
   it('seed sees the session id and the persisted claims', async () => {
@@ -179,8 +185,8 @@ describe('server: seed on a fresh start', () => {
     const runtime = new SessionRuntime('s1', store)
     await runtime.loadGraph([def])
     runtime.dispose()
-    expect(seen?.id).toBe('s1')
-    expect(seen?.claims<Me>()).toEqual({ userId: 'u9', role: 'member' })
+    assert.equal(seen?.id, 's1')
+    assert.deepStrictEqual(seen?.claims<Me>(), { userId: 'u9', role: 'member' })
   })
 
   it('rehydrate applies the seed too when nothing usable is stored', async () => {
@@ -191,7 +197,9 @@ describe('server: seed on a fresh start', () => {
     const runtime = new SessionRuntime('s1', store)
     await runtime.loadGraph([def])
     await runtime.rehydrate('AuthMachine')
-    expect(runtime.handleFor('AuthMachine')!.actor.getSnapshot().value).toEqual(['authenticated'])
+    assert.deepStrictEqual(runtime.handleFor('AuthMachine')!.actor.getSnapshot().value, [
+      'authenticated',
+    ])
     runtime.dispose()
   })
 })

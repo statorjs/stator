@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { scanRegions, splitStator } from '../src/compiler/split.ts'
 
 describe('compiler: splitStator', () => {
@@ -20,21 +21,21 @@ import type CartMachine from '../machines/cart.ts'
 </script>
 `
     const r = splitStator(src)
-    expect(r.frontmatter).toContain('import { read }')
-    expect(r.frontmatter).toContain('import type CartMachine')
-    expect(r.template).toBe('<div class="cart">Total: {read(cart, c => c.total)}</div>')
-    expect(r.styles).toEqual(['.cart { color: red; }'])
-    expect(r.scripts).toHaveLength(1)
-    expect(r.scripts[0]).toContain("console.log('client')")
+    assert.ok(r.frontmatter.includes('import { read }'))
+    assert.ok(r.frontmatter.includes('import type CartMachine'))
+    assert.equal(r.template, '<div class="cart">Total: {read(cart, c => c.total)}</div>')
+    assert.deepStrictEqual(r.styles, ['.cart { color: red; }'])
+    assert.equal(r.scripts.length, 1)
+    assert.ok(r.scripts[0]?.includes("console.log('client')"))
   })
 
   it('handles a template with no frontmatter', () => {
     const src = `<p>Hello</p>`
     const r = splitStator(src)
-    expect(r.frontmatter).toBe('')
-    expect(r.template).toBe('<p>Hello</p>')
-    expect(r.styles).toEqual([])
-    expect(r.scripts).toEqual([])
+    assert.equal(r.frontmatter, '')
+    assert.equal(r.template, '<p>Hello</p>')
+    assert.deepStrictEqual(r.styles, [])
+    assert.deepStrictEqual(r.scripts, [])
   })
 
   it('collects multiple style regions in source order', () => {
@@ -42,7 +43,7 @@ import type CartMachine from '../machines/cart.ts'
 <style>.a { color: red }</style>
 <style>.b { color: blue }</style>`
     const r = splitStator(src)
-    expect(r.styles).toEqual(['.a { color: red }', '.b { color: blue }'])
+    assert.deepStrictEqual(r.styles, ['.a { color: red }', '.b { color: blue }'])
   })
 
   it('leaves literal <script src> markup in the template (only bare <script> is a region)', () => {
@@ -53,9 +54,9 @@ import type CartMachine from '../machines/cart.ts'
 </body>`
     const r = splitStator(src)
     // Attribute-bearing scripts are document markup, not client-code regions.
-    expect(r.scripts).toEqual([])
-    expect(r.template).toContain('<script src="/static/client.js"></script>')
-    expect(r.template).toContain('<script src="/static/inspector.js" defer></script>')
+    assert.deepStrictEqual(r.scripts, [])
+    assert.ok(r.template.includes('<script src="/static/client.js"></script>'))
+    assert.ok(r.template.includes('<script src="/static/inspector.js" defer></script>'))
   })
 
   it('distinguishes an inline client <script> from a literal <script src> in the same file', () => {
@@ -65,10 +66,10 @@ import type CartMachine from '../machines/cart.ts'
   export default class extends StatorElement {}
 </script>`
     const r = splitStator(src)
-    expect(r.scripts).toHaveLength(1)
-    expect(r.scripts[0]).toContain('StatorElement')
-    expect(r.template).toContain('<script src="/x.js"></script>')
-    expect(r.template).not.toContain('StatorElement')
+    assert.equal(r.scripts.length, 1)
+    assert.ok(r.scripts[0]?.includes('StatorElement'))
+    assert.ok(r.template.includes('<script src="/x.js"></script>'))
+    assert.ok(!r.template.includes('StatorElement'))
   })
 
   it('captures an inline <script> even when it carries incidental attributes', () => {
@@ -79,9 +80,9 @@ import type CartMachine from '../machines/cart.ts'
   export class Widget extends StatorElement {}
 </script>`
     const r = splitStator(src)
-    expect(r.scripts).toHaveLength(1)
-    expect(r.scripts[0]).toContain('class Widget')
-    expect(r.template).toBe('<div>page</div>')
+    assert.equal(r.scripts.length, 1)
+    assert.ok(r.scripts[0]?.includes('class Widget'))
+    assert.equal(r.template, '<div>page</div>')
   })
 
   it('leaves a <script is:inline> in the template as literal markup', () => {
@@ -90,23 +91,23 @@ import type CartMachine from '../machines/cart.ts'
 </head>`
     const r = splitStator(src)
     // Verbatim inline script — not a client-code region.
-    expect(r.scripts).toEqual([])
-    expect(r.template).toContain('<script is:inline>if (a) { go() }</script>')
+    assert.deepStrictEqual(r.scripts, [])
+    assert.ok(r.template.includes('<script is:inline>if (a) { go() }</script>'))
   })
 
   it('records the source offset of each captured script', () => {
     const src = `<div>x</div>
 <script>export class A extends StatorElement {}</script>`
     const r = splitStator(src)
-    expect(r.scriptOffsets).toHaveLength(1)
-    expect(src.slice(r.scriptOffsets[0])).toMatch(/^<script>/)
+    assert.equal(r.scriptOffsets.length, 1)
+    assert.match(src.slice(r.scriptOffsets[0]), /^<script>/)
   })
 
   it('handles CRLF line endings in the frontmatter fence', () => {
     const src = '---\r\nconst x = 1\r\n---\r\n<p>{x}</p>'
     const r = splitStator(src)
-    expect(r.frontmatter).toBe('const x = 1')
-    expect(r.template).toBe('<p>{x}</p>')
+    assert.equal(r.frontmatter, 'const x = 1')
+    assert.equal(r.template, '<p>{x}</p>')
   })
 
   describe('only top-level <script> / <style> are regions', () => {
@@ -125,9 +126,9 @@ import type CartMachine from '../machines/cart.ts'
     for (const [name, template] of cases) {
       it(`leaves ${name} in the template`, () => {
         const r = splitStator(`---\nconst json = '{}'\n---\n${template}`)
-        expect(r.scripts).toEqual([])
-        expect(r.styles).toEqual([])
-        expect(r.template).toBe(template)
+        assert.deepStrictEqual(r.scripts, [])
+        assert.deepStrictEqual(r.styles, [])
+        assert.equal(r.template, template)
       })
     }
 
@@ -136,17 +137,17 @@ import type CartMachine from '../machines/cart.ts'
 <script>export class A extends StatorElement {}</script>
 <style>p { color: red }</style>`
       const r = splitStator(src)
-      expect(r.scripts).toEqual(['export class A extends StatorElement {}'])
-      expect(r.styles).toEqual(['p { color: red }'])
-      expect(r.template).toBe("<p>{n > 1 ? `<style>` : '<script>'}</p>")
+      assert.deepStrictEqual(r.scripts, ['export class A extends StatorElement {}'])
+      assert.deepStrictEqual(r.styles, ['p { color: red }'])
+      assert.equal(r.template, "<p>{n > 1 ? `<style>` : '<script>'}</p>")
     })
 
     it("reads JSX text inside an expression as text, so an apostrophe isn't a string", () => {
       const src = `<ul>{items.map(i => <li>Don't {i}</li>)}</ul>
 <script>export class A extends StatorElement {}</script>`
       const r = splitStator(src)
-      expect(r.scripts).toHaveLength(1)
-      expect(r.template).toBe("<ul>{items.map(i => <li>Don't {i}</li>)}</ul>")
+      assert.equal(r.scripts.length, 1)
+      assert.equal(r.template, "<ul>{items.map(i => <li>Don't {i}</li>)}</ul>")
     })
 
     it('treats an is:inline body as raw text, braces and all', () => {
@@ -154,16 +155,16 @@ import type CartMachine from '../machines/cart.ts'
 <p>{x}</p>
 <script>export class A extends StatorElement {}</script>`
       const r = splitStator(src)
-      expect(r.scripts).toEqual(['export class A extends StatorElement {}'])
-      expect(r.template).toContain("<script is:inline>if (a) { go('}') }</script>")
+      assert.deepStrictEqual(r.scripts, ['export class A extends StatorElement {}'])
+      assert.ok(r.template.includes("<script is:inline>if (a) { go('}') }</script>"))
     })
 
     it('reads an attribute expression containing > without ending the tag', () => {
       const src = `<p title={a > b ? '<style>' : ''}>x</p>
 <style>p { color: red }</style>`
       const r = splitStator(src)
-      expect(r.styles).toEqual(['p { color: red }'])
-      expect(r.template).toBe(`<p title={a > b ? '<style>' : ''}>x</p>`)
+      assert.deepStrictEqual(r.styles, ['p { color: red }'])
+      assert.equal(r.template, `<p title={a > b ? '<style>' : ''}>x</p>`)
     })
 
     it('scanRegions agrees, and ignores tag text in the frontmatter', () => {
@@ -173,10 +174,13 @@ const css = '<style>p {}</style>'
 <p>{'<script>x</script>'}</p>
 <style>p { color: red }</style>`
       const r = scanRegions(src)
-      expect(r.scripts).toEqual([])
-      expect(r.styles.map((s) => s.content)).toEqual(['p { color: red }'])
-      expect(src.slice(r.styles[0]!.contentOffset)).toMatch(/^p \{ color: red \}/)
-      expect(r.template.content.trim()).toBe(`<p>{'<script>x</script>'}</p>`)
+      assert.deepStrictEqual(r.scripts, [])
+      assert.deepStrictEqual(
+        r.styles.map((s) => s.content),
+        ['p { color: red }'],
+      )
+      assert.match(src.slice(r.styles[0]!.contentOffset), /^p \{ color: red \}/)
+      assert.equal(r.template.content.trim(), `<p>{'<script>x</script>'}</p>`)
     })
   })
 })

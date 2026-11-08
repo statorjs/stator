@@ -1,6 +1,7 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
 import { createApp } from '../src/server/create-app.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -25,13 +26,13 @@ describe('signed cookies', () => {
       new Request('http://localhost/', { headers: { 'x-seal': 'v1-state' } }),
     )
     const sealed = cookieOf(r1, 'sealed')
-    expect(sealed).toBeTruthy()
+    assert.ok(sealed)
     // A signed cookie carries a signature after the value — it's not the raw value.
-    expect(sealed).not.toBe('sealed=v1-state')
+    assert.notEqual(sealed, 'sealed=v1-state')
 
     const cookie = sealed!.split(';')[0]!
     const r2 = await app.fetch(new Request('http://localhost/', { headers: { Cookie: cookie } }))
-    expect(r2.headers.get('x-sealed')).toBe('v1-state')
+    assert.equal(r2.headers.get('x-sealed'), 'v1-state')
   })
 
   it('a tampered signed cookie reads as undefined (not trusted)', async () => {
@@ -43,7 +44,7 @@ describe('signed cookies', () => {
     // Flip the last char of the (value.signature) payload → signature no longer matches.
     const tampered = raw.slice(0, -1) + (raw.endsWith('A') ? 'B' : 'A')
     const r2 = await app.fetch(new Request('http://localhost/', { headers: { Cookie: tampered } }))
-    expect(r2.headers.get('x-sealed')).toBeNull()
+    assert.equal(r2.headers.get('x-sealed'), null)
   })
 
   it('a cookie signed with a different secret does not verify (rotation-safe)', async () => {
@@ -55,14 +56,14 @@ describe('signed cookies', () => {
     const r2 = await rotated.fetch(
       new Request('http://localhost/', { headers: { Cookie: cookie } }),
     )
-    expect(r2.headers.get('x-sealed')).toBeNull()
+    assert.equal(r2.headers.get('x-sealed'), null)
   })
 
   it('throws a clear error when no secret is configured', async () => {
     const app = await boot(undefined) // no secret, no STATOR_SECRET
     const res = await app.fetch(new Request('http://localhost/', { headers: { 'x-seal': 'nope' } }))
     // The middleware's setSigned throws → the request fails (not a silent pass).
-    expect(res.status).toBeGreaterThanOrEqual(500)
+    assert.ok(res.status >= 500)
   })
 
   it('reads the secret from STATOR_SECRET when config.secret is unset', async () => {
@@ -74,7 +75,7 @@ describe('signed cookies', () => {
       )
       const cookie = cookieOf(r1, 'sealed')!.split(';')[0]!
       const r2 = await app.fetch(new Request('http://localhost/', { headers: { Cookie: cookie } }))
-      expect(r2.headers.get('x-sealed')).toBe('env-signed')
+      assert.equal(r2.headers.get('x-sealed'), 'env-signed')
     } finally {
       delete process.env.STATOR_SECRET
     }

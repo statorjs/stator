@@ -1,5 +1,6 @@
-// @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest'
+// @env happy-dom
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import * as clientApi from '../src/client/index.ts'
 import { compile } from '../src/compiler/compile.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
@@ -44,8 +45,8 @@ describe('compiler: client component end-to-end (3b stage 6a)', () => {
     const fragment = runInRender(state, () => render({ unitPrice: 98 }))
     const shell = fragment.html
 
-    expect(shell).toContain('<quantity-stepper unit-price="98">')
-    expect(shell).toContain('<!--s0-->') // the read() slot marker
+    assert.ok(shell.includes('<quantity-stepper unit-price="98">'))
+    assert.ok(shell.includes('<!--s0-->')) // the read() slot marker
 
     // 2. Register the client element (the generated module, minus its import).
     const body = clientCode.replace(/^import .*$/gm, '').replace(/^\s*export /gm, '')
@@ -61,14 +62,14 @@ describe('compiler: client component end-to-end (3b stage 6a)', () => {
     const out = el.querySelector('span')!
 
     // Seed flowed server→client: lineTotal = unitPrice(98) * count(1) = 98.
-    expect(out.textContent).toBe('98')
+    assert.equal(out.textContent, '98')
 
     // Reactive: inc → 196, dec → 98.
     const buttons = el.querySelectorAll('button')
     ;(buttons[1] as HTMLElement).click() // +  (inc)
-    expect(out.textContent).toBe('196')
+    assert.equal(out.textContent, '196')
     ;(buttons[0] as HTMLElement).click() // -  (dec)
-    expect(out.textContent).toBe('98')
+    assert.equal(out.textContent, '98')
   })
 })
 
@@ -84,8 +85,10 @@ describe('server-rendered sections in island templates (the hydrate pattern)', (
   export class OptList extends StatorElement {}
 </script>`
     const r = compile(src, { id: 'opt-list.stator', kind: 'component' })
-    expect(r.serverCode).toContain(
-      'props.items.map((i) => html`<button class="opt" data-id="${i}"></button>`)',
+    assert.ok(
+      r.serverCode.includes(
+        'props.items.map((i) => html`<button class="opt" data-id="${i}"></button>`)',
+      ),
     )
   })
 
@@ -97,7 +100,7 @@ describe('server-rendered sections in island templates (the hydrate pattern)', (
   export class LiveNote extends StatorElement {}
 </script>`
     const r = compile(src, { id: 'live-note.stator', kind: 'component' })
-    expect(r.serverCode).toContain('${read(props.machine, (m) => m.count)}')
+    assert.ok(r.serverCode.includes('${read(props.machine, (m) => m.count)}'))
   })
 })
 
@@ -110,9 +113,7 @@ describe('fragment arrays splice in html``', () => {
       const items = ['a', 'b']
       return html`<div class="opts">${items.map((i) => html`<button data-id="${i}">x</button>`)}</div>`
     })
-    expect(out.html).toMatch(
-      /<button[^>]*data-id="a">x<\/button><button[^>]*data-id="b">x<\/button>/,
-    )
-    expect(out.html).not.toContain('object Object')
+    assert.match(out.html, /<button[^>]*data-id="a">x<\/button><button[^>]*data-id="b">x<\/button>/)
+    assert.ok(!out.html.includes('object Object'))
   })
 })

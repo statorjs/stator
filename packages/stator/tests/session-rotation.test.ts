@@ -1,5 +1,6 @@
+import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, it } from 'node:test'
 import { createApp, type StatorApp } from '../src/server/create-app.ts'
 import { InMemoryStore } from '../src/server/store.ts'
 
@@ -57,13 +58,13 @@ describe('session rotation', () => {
     // poke+rotate twice, following the cookie each time: A → B → C
     const sidB = sidOf(await post(app, '/rotate', sidA))!
     const sidC = sidOf(await post(app, '/rotate', sidB))!
-    expect(new Set([sidA, sidB, sidC]).size).toBe(3)
+    assert.equal(new Set([sidA, sidB, sidC]).size, 3)
 
     // both pokes accumulated into the final session…
-    expect(await (await page(app, sidC)).text()).toMatch(/Pokes: <span[^>]*>2</)
+    assert.match(await (await page(app, sidC)).text(), /Pokes: <span[^>]*>2</)
     // …and the abandoned ids hold nothing.
-    expect(await (await page(app, sidA)).text()).toMatch(/Pokes: <span[^>]*>0</)
-    expect(await (await page(app, sidB)).text()).toMatch(/Pokes: <span[^>]*>0</)
+    assert.match(await (await page(app, sidA)).text(), /Pokes: <span[^>]*>0</)
+    assert.match(await (await page(app, sidB)).text(), /Pokes: <span[^>]*>0</)
   })
 
   it('rotate with clear:true deletes the old session outright', async () => {
@@ -72,18 +73,18 @@ describe('session rotation', () => {
     const sidB = sidOf(await post(app, '/rotate', sidA))! // pokes: 1 under B
 
     const sidC = sidOf(await post(app, '/rotate-clear', sidB))!
-    expect(sidC).not.toBe(sidB)
+    assert.notEqual(sidC, sidB)
 
     // the logout wiped it: nobody has the poke anymore.
-    expect(await (await page(app, sidC)).text()).toMatch(/Pokes: <span[^>]*>0</)
-    expect(await (await page(app, sidB)).text()).toMatch(/Pokes: <span[^>]*>0</)
+    assert.match(await (await page(app, sidC)).text(), /Pokes: <span[^>]*>0</)
+    assert.match(await (await page(app, sidB)).text(), /Pokes: <span[^>]*>0</)
   })
 
   it('InMemoryStore.renameSession moves entries and expiry', async () => {
     const store = new InMemoryStore()
     await store.set('a', 'M', { n: 1 }, { ttlSeconds: 60 })
     await store.renameSession('a', 'b')
-    expect(await store.get('b', 'M')).toEqual({ n: 1 })
-    expect(await store.get('a', 'M')).toBeNull()
+    assert.deepStrictEqual(await store.get('b', 'M'), { n: 1 })
+    assert.equal(await store.get('a', 'M'), null)
   })
 })

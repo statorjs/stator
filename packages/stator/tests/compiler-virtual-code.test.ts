@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { scanRegions } from '../src/compiler/split.ts'
 import { toVirtualCode, type VirtualFile } from '../src/compiler/virtual-code.ts'
 
@@ -12,7 +13,7 @@ function assertMappingsFaithful(source: string, file: VirtualFile): void {
   for (const m of file.mappings) {
     const generated = file.code.slice(m.generatedOffset, m.generatedOffset + m.length)
     const original = source.slice(m.sourceOffset, m.sourceOffset + m.length)
-    expect(generated).toBe(original)
+    assert.equal(generated, original)
   }
 }
 
@@ -27,24 +28,27 @@ const [cart] = Stator.reads([Cart])
 <style>.x { color: red }</style>`
     const r = scanRegions(src)
     // Each region's content sits exactly at its reported offset.
-    expect(
+    assert.equal(
       src.slice(
         r.frontmatter!.contentOffset,
         r.frontmatter!.contentOffset + r.frontmatter!.content.length,
       ),
-    ).toBe(r.frontmatter!.content)
-    expect(r.frontmatter!.content).toContain('Stator.reads')
-    expect(
+      r.frontmatter!.content,
+    )
+    assert.ok(r.frontmatter!.content.includes('Stator.reads'))
+    assert.equal(
       src.slice(r.template.contentOffset, r.template.contentOffset + r.template.content.length),
-    ).toBe(r.template.content)
-    expect(r.template.content).toContain('read(cart')
-    expect(r.styles).toHaveLength(1)
-    expect(
+      r.template.content,
+    )
+    assert.ok(r.template.content.includes('read(cart'))
+    assert.equal(r.styles.length, 1)
+    assert.equal(
       src.slice(
         r.styles[0]!.contentOffset,
         r.styles[0]!.contentOffset + r.styles[0]!.content.length,
       ),
-    ).toBe('.x { color: red }')
+      '.x { color: red }',
+    )
   })
 
   it('excludes is:inline / src scripts (matches splitStator classification)', () => {
@@ -52,8 +56,8 @@ const [cart] = Stator.reads([Cart])
 <script is:inline>if (a) { b() }</script>
 <script>export class Foo extends StatorElement {}</script>`
     const r = scanRegions(src)
-    expect(r.scripts).toHaveLength(1)
-    expect(r.scripts[0]!.content).toContain('class Foo')
+    assert.equal(r.scripts.length, 1)
+    assert.ok(r.scripts[0]!.content.includes('class Foo'))
   })
 })
 
@@ -71,16 +75,16 @@ const [cart] = Stator.reads([CartMachine])
   it('emits a TSX shell with frontmatter + template, faithfully mapped', () => {
     const { tsx, styles } = toVirtualCode(src)
     // Frontmatter and template both present in the shell.
-    expect(tsx.code).toContain('Stator.reads([CartMachine])')
-    expect(tsx.code).toContain('read(cart, c => c.total)')
+    assert.ok(tsx.code.includes('Stator.reads([CartMachine])'))
+    assert.ok(tsx.code.includes('read(cart, c => c.total)'))
     // Template globals imported so `read` resolves.
-    expect(tsx.code).toContain("from '@statorjs/stator/template'")
+    assert.ok(tsx.code.includes("from '@statorjs/stator/template'"))
     // Every mapping is a faithful source↔generated run.
     assertMappingsFaithful(src, tsx)
     // The CSS block became its own faithfully-mapped virtual file.
-    expect(styles).toHaveLength(1)
-    expect(styles[0]!.lang).toBe('css')
-    expect(styles[0]!.code).toBe('.cart { color: var(--text) }')
+    assert.equal(styles.length, 1)
+    assert.equal(styles[0]!.lang, 'css')
+    assert.equal(styles[0]!.code, '.cart { color: var(--text) }')
     assertMappingsFaithful(src, styles[0]!)
   })
 
@@ -91,7 +95,9 @@ const { cart } = Stator.props<{ cart: { itemCount: number } }>()
 <p>{cart.itemCount}</p>
 `
     const { tsx } = toVirtualCode(component)
-    expect(tsx.code).toContain('export default function (_props: { cart: { itemCount: number } })')
+    assert.ok(
+      tsx.code.includes('export default function (_props: { cart: { itemCount: number } })'),
+    )
   })
 
   it('named props types work — the reference resolves in the same virtual module', () => {
@@ -103,8 +109,8 @@ const { title } = Stator.props<CardProps>()
 `
     const { tsx } = toVirtualCode(component)
     // The interface is in the emitted frontmatter, so the annotation resolves.
-    expect(tsx.code).toContain('interface CardProps { title: string }')
-    expect(tsx.code).toContain('export default function (_props: CardProps)')
+    assert.ok(tsx.code.includes('interface CardProps { title: string }'))
+    assert.ok(tsx.code.includes('export default function (_props: CardProps)'))
   })
 
   it('a component with <children> gets a children bag; prop-less components accept none', () => {
@@ -113,12 +119,16 @@ const { cart } = Stator.props<{ cart: number }>()
 ---
 <main><children /></main>
 `
-    expect(toVirtualCode(layout).tsx.code).toContain(
-      'export default function (_props: { cart: number } & { children?: any })',
+    assert.ok(
+      toVirtualCode(layout).tsx.code.includes(
+        'export default function (_props: { cart: number } & { children?: any })',
+      ),
     )
     const plain = `<footer>bye</footer>\n`
-    expect(toVirtualCode(plain).tsx.code).toContain(
-      'export default function (_props: Record<string, never>)',
+    assert.ok(
+      toVirtualCode(plain).tsx.code.includes(
+        'export default function (_props: Record<string, never>)',
+      ),
     )
   })
 
@@ -129,17 +139,17 @@ const { cart } = Stator.props<{ cart: number }>()
     const m = tsx.mappings.find(
       (m) => genIdx >= m.generatedOffset && genIdx < m.generatedOffset + m.length,
     )!
-    expect(m).toBeTruthy()
+    assert.ok(m)
     const srcIdx = m.sourceOffset + (genIdx - m.generatedOffset)
-    expect(src.slice(srcIdx, srcIdx + 4)).toBe('cart')
+    assert.equal(src.slice(srcIdx, srcIdx + 4), 'cart')
   })
 
   it('drops a leading <!doctype> from the shell but still maps the rest', () => {
     const doc = `<!doctype html>
 <html><body>{read(cart, c => c.n)}</body></html>`
     const { tsx } = toVirtualCode(doc)
-    expect(tsx.code).not.toContain('<!doctype')
-    expect(tsx.code).toContain('read(cart, c => c.n)')
+    assert.ok(!tsx.code.includes('<!doctype'))
+    assert.ok(tsx.code.includes('read(cart, c => c.n)'))
     assertMappingsFaithful(doc, tsx)
   })
 })
@@ -161,10 +171,10 @@ describe('toVirtualCode — client component', () => {
 
   it('emits the script as the module, faithfully mapped, with client imports', () => {
     const { tsx, styles } = toVirtualCode(src)
-    expect(tsx.code).toContain('export class ThemeToggle extends StatorElement')
-    expect(tsx.code).toContain("from '@statorjs/stator/client'")
+    assert.ok(tsx.code.includes('export class ThemeToggle extends StatorElement'))
+    assert.ok(tsx.code.includes("from '@statorjs/stator/client'"))
     assertMappingsFaithful(src, tsx)
-    expect(styles).toHaveLength(1)
+    assert.equal(styles.length, 1)
     assertMappingsFaithful(src, styles[0]!)
   })
 })
@@ -178,9 +188,10 @@ import { raw } from '@statorjs/stator/template'
 `
     const { tsx } = toVirtualCode(src)
     const rawImports = tsx.code.match(/\braw\b(?=[^(]*\} from)/g) ?? []
-    expect(
-      tsx.code.match(/import \{[^}]*\braw\b[^}]*\} from '@statorjs\/stator\/template'/g),
-    ).toHaveLength(1)
+    assert.equal(
+      tsx.code.match(/import \{[^}]*\braw\b[^}]*\} from '@statorjs\/stator\/template'/g)?.length,
+      1,
+    )
     void rawImports
   })
 
@@ -195,7 +206,7 @@ import { read } from '@statorjs/stator/template'
       .split('\n')
       .filter((l) => l.includes("from '@statorjs/stator/template'"))
     const readBindings = importLines.filter((l) => /\bread\b/.test(l))
-    expect(readBindings).toHaveLength(1) // the user's own line only
+    assert.equal(readBindings.length, 1) // the user's own line only
   })
 
   it('client scripts: user client-module imports suppress injected duplicates', () => {
@@ -213,8 +224,11 @@ import { read } from '@statorjs/stator/template'
       .split('\n')
       .filter((l) => l.includes("from '@statorjs/stator/client'"))
     const dispatchBindings = clientImportLines.filter((l) => /\bdispatch\b/.test(l))
-    expect(dispatchBindings).toHaveLength(1)
+    assert.equal(dispatchBindings.length, 1)
     // the other globals are still injected:
-    expect(clientImportLines.some((l) => /\bStatorElement\b/.test(l))).toBe(true)
+    assert.equal(
+      clientImportLines.some((l) => /\bStatorElement\b/.test(l)),
+      true,
+    )
   })
 })

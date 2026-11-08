@@ -1,5 +1,6 @@
-// @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest'
+// @env happy-dom
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import * as clientApi from '../src/client/index.ts'
 import { compile } from '../src/compiler/compile.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
@@ -48,19 +49,19 @@ function renderShell(serverCode: string, extraApi: Record<string, unknown> = {})
 describe('island fences: emission', () => {
   it('hoists fence imports and runs the body inside the shell render', () => {
     const { serverCode, clientCode, isClient } = compile(FENCED, { id: 'fence-probe.stator' })
-    expect(isClient).toBe(true)
-    expect(serverCode).toContain("import { fenceGreeting } from './fence-lib.ts'")
-    expect(serverCode).toContain('const stock = 7')
+    assert.equal(isClient, true)
+    assert.ok(serverCode.includes("import { fenceGreeting } from './fence-lib.ts'"))
+    assert.ok(serverCode.includes('const stock = 7'))
     // The <script> module never sees the fence.
-    expect(clientCode).not.toContain('fenceGreeting')
-    expect(clientCode).not.toContain('stock')
+    assert.ok(!clientCode.includes('fenceGreeting'))
+    assert.ok(!clientCode.includes('stock'))
   })
 
   it('the shell renders fence bindings; hydration still wires the button', () => {
     const { serverCode, clientCode } = compile(FENCED, { id: 'fence-probe.stator' })
     const shell = renderShell(serverCode, { fenceGreeting: 'hello' })
-    expect(shell).toContain('<p>hello!</p>')
-    expect(shell).toContain('7 left')
+    assert.ok(shell.includes('<p>hello!</p>'))
+    assert.ok(shell.includes('7 left'))
 
     const body = clientCode.replace(/^import .*$/gm, '').replace(/^\s*export /gm, '')
     const names = Object.keys(clientApi)
@@ -71,7 +72,7 @@ describe('island fences: emission', () => {
     document.body.appendChild(holder)
     const el = holder.querySelector('fence-probe') as HTMLElement & { bought: boolean }
     ;(el.querySelector('button') as HTMLElement).click()
-    expect(el.bought).toBe(true)
+    assert.equal(el.bought, true)
     document.body.removeChild(holder)
   })
 })
@@ -83,8 +84,8 @@ describe('island fences: region ordering', () => {
       '<style>\n  p { color: rebeccapurple; }\n</style>\n\n<script>',
     )
     const { serverCode, css } = compile(styled, { id: 'fence-probe.stator' })
-    expect(css).toContain('rebeccapurple')
-    expect(serverCode).toContain('const stock = 7')
+    assert.ok(css.includes('rebeccapurple'))
+    assert.ok(serverCode.includes('const stock = 7'))
   })
 })
 
@@ -98,20 +99,23 @@ ${fence}
 </script>`
 
   it('rejects Stator.props in an island fence', () => {
-    expect(() =>
-      compile(island('const p = Stator.props<{ a: string }>()'), { id: 'c.stator' }),
-    ).toThrow(/static attrs/)
+    assert.throws(
+      () => compile(island('const p = Stator.props<{ a: string }>()'), { id: 'c.stator' }),
+      /static attrs/,
+    )
   })
 
   it('rejects Stator.reads in an island fence', () => {
-    expect(() => compile(island('const [m] = Stator.reads([X])'), { id: 'c.stator' })).toThrow(
+    assert.throws(
+      () => compile(island('const [m] = Stator.reads([X])'), { id: 'c.stator' }),
       /only available in a route/,
     )
   })
 
   it('rejects Stator.request and pragmas in an island fence', () => {
-    expect(() => compile(island('const u = Stator.request'), { id: 'c.stator' })).toThrow(/route/)
-    expect(() => compile(island('// @stator live\nconst x = 1'), { id: 'c.stator' })).toThrow(
+    assert.throws(() => compile(island('const u = Stator.request'), { id: 'c.stator' }), /route/)
+    assert.throws(
+      () => compile(island('// @stator live\nconst x = 1'), { id: 'c.stator' }),
       /only valid in a route/,
     )
   })
@@ -131,7 +135,8 @@ const theme = 'from the fence'
     theme = use(T)
   }
 </script>`
-    expect(() => compile(src, { id: 'clash-probe.stator' })).toThrow(
+    assert.throws(
+      () => compile(src, { id: 'clash-probe.stator' }),
       /both a fence binding and a use\(\) field/,
     )
   })

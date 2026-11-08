@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { compile } from '../src/compiler/compile.ts'
 
 /**
@@ -14,25 +15,28 @@ const comp = (src: string) => () => compile(src, { id: 'c.stator', kind: 'compon
 
 describe('static class/style + :list collision (FINDINGS #1)', () => {
   it('errors when an element has both a static class and class:list', () => {
-    expect(comp('<button class="place-tab" class:list={{ active: on }}>x</button>')).toThrow(
+    assert.throws(
+      comp('<button class="place-tab" class:list={{ active: on }}>x</button>'),
       /both a static `class`[\s\S]*class:list/,
     )
   })
 
   it('errors when class:list comes BEFORE the static class too (order-independent)', () => {
-    expect(comp('<button class:list={{ active: on }} class="place-tab">x</button>')).toThrow(
+    assert.throws(
+      comp('<button class:list={{ active: on }} class="place-tab">x</button>'),
       /class:list/,
     )
   })
 
   it('errors for static style + style:list', () => {
-    expect(comp('<div style="color:red" style:list={{ display: d }}>x</div>')).toThrow(
+    assert.throws(
+      comp('<div style="color:red" style:list={{ display: d }}>x</div>'),
       /both a static `style`[\s\S]*style:list/,
     )
   })
 
   it('allows a static class alone, or class:list alone', () => {
-    expect(comp('<button class="place-tab">x</button>')).not.toThrow()
-    expect(comp("<button class:list={['place-tab', { active: false }]}>x</button>")).not.toThrow()
+    assert.doesNotThrow(comp('<button class="place-tab">x</button>'))
+    assert.doesNotThrow(comp("<button class:list={['place-tab', { active: false }]}>x</button>"))
   })
 })

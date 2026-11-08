@@ -1,8 +1,9 @@
+import assert from 'node:assert/strict'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
+import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
-import { afterAll, describe, expect, it } from 'vitest'
 import { toVirtualCode } from '../src/compiler/virtual-code.ts'
 
 /**
@@ -16,7 +17,7 @@ import { toVirtualCode } from '../src/compiler/virtual-code.ts'
 const here = dirname(fileURLToPath(import.meta.url))
 const dir = resolve(here, '.tmp-intrinsics')
 
-afterAll(() => rmSync(dir, { recursive: true, force: true }))
+after(() => rmSync(dir, { recursive: true, force: true }))
 
 const GOOD_BUTTON = `---
 ---
@@ -83,20 +84,20 @@ describe('per-element JSX.IntrinsicElements', () => {
   const diags = diagnosticsFor(emitAll())
 
   it('a plain <button> accepts native attrs + directives + data-* + aria', () => {
-    expect(diags.get('good-button')).toEqual([])
+    assert.deepStrictEqual(diags.get('good-button'), [])
   })
 
   it('a typo on a plain <button> is now a real error', () => {
     const bad = diags.get('bad-button')!
-    expect(bad.length).toBeGreaterThan(0)
-    expect(bad.join('\n')).toMatch(/typ/)
+    assert.ok(bad.length > 0)
+    assert.match(bad.join('\n'), /typ/)
   })
 
   it('class:list / style:list directives are accepted', () => {
-    expect(diags.get('div-directives')).toEqual([])
+    assert.deepStrictEqual(diags.get('div-directives'), [])
   })
 
   it('a custom-element island stays permissive (island attributes pass)', () => {
-    expect(diags.get('island')).toEqual([])
+    assert.deepStrictEqual(diags.get('island'), [])
   })
 })

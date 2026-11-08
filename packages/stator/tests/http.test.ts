@@ -1,6 +1,7 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
 import { createApp } from '../src/server/create-app.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -14,14 +15,14 @@ describe('HTTP layer', () => {
     })
 
     const getResponse = await app.fetch(new Request('http://localhost/'))
-    expect(getResponse.status).toBe(200)
+    assert.equal(getResponse.status, 200)
     const html = await getResponse.text()
-    expect(html).toContain('Counter')
-    expect(html).toContain('<span data-slot="s0">count is 0</span>')
-    expect(html).toContain('data-event-click=')
+    assert.ok(html.includes('Counter'))
+    assert.ok(html.includes('<span data-slot="s0">count is 0</span>'))
+    assert.ok(html.includes('data-event-click='))
 
     const setCookie = getResponse.headers.get('set-cookie')
-    expect(setCookie).toBeTruthy()
+    assert.ok(setCookie)
     const sessionCookie = setCookie!.split(';')[0]!
 
     const postResponse = await app.fetch(
@@ -38,7 +39,7 @@ describe('HTTP layer', () => {
         }),
       }),
     )
-    expect(postResponse.status).toBe(200)
+    assert.equal(postResponse.status, 200)
     const json = (await postResponse.json()) as {
       patches: Array<{
         target: { kind: string; id: string }
@@ -47,7 +48,7 @@ describe('HTTP layer', () => {
         name?: string
       }>
     }
-    expect(json.patches).toEqual([
+    assert.deepStrictEqual(json.patches, [
       { target: { kind: 'slot', id: 's0' }, op: 'text', value: 'count is 1' },
     ])
   })
@@ -70,12 +71,12 @@ describe('HTTP layer', () => {
         body: JSON.stringify({}),
       }),
     )
-    expect(post.status).toBe(200)
+    assert.equal(post.status, 200)
 
     // The dispatch persisted the touched machine: a fresh GET shows count 1.
     const after = await app.fetch(new Request('http://localhost/', { headers: { Cookie: cookie } }))
     const html = await after.text()
-    expect(html).toContain('<span data-slot="s0">count is 1</span>')
+    assert.ok(html.includes('<span data-slot="s0">count is 1</span>'))
   })
 
   it('auto-injects the client runtime once, before </body>', async () => {
@@ -87,8 +88,8 @@ describe('HTTP layer', () => {
     const res = await app.fetch(new Request('http://localhost/plain'))
     const html = await res.text()
     const tags = html.match(/<script src="\/static\/client\.js">/g) ?? []
-    expect(tags).toHaveLength(1)
-    expect(html).toContain('<script src="/static/client.js"></script></body>')
+    assert.equal(tags.length, 1)
+    assert.ok(html.includes('<script src="/static/client.js"></script></body>'))
   })
 
   it('does not double-inject when the document already references the runtime', async () => {
@@ -100,7 +101,7 @@ describe('HTTP layer', () => {
     const res = await app.fetch(new Request('http://localhost/'))
     const html = await res.text()
     const tags = html.match(/\/static\/client\.js/g) ?? []
-    expect(tags).toHaveLength(1)
+    assert.equal(tags.length, 1)
   })
 
   it('does not inject or serve the dev inspector in production', async () => {
@@ -109,9 +110,9 @@ describe('HTTP layer', () => {
       routesDir: resolve(fixtures, 'routes'),
     })
     const html = await (await app.fetch(new Request('http://localhost/plain'))).text()
-    expect(html).not.toContain('/@stator/inspector.js')
+    assert.ok(!html.includes('/@stator/inspector.js'))
     const asset = await app.fetch(new Request('http://localhost/@stator/inspector.js'))
-    expect(asset.status).toBe(404)
+    assert.equal(asset.status, 404)
   })
 
   it('rejects unknown machines with 404', async () => {
@@ -134,7 +135,7 @@ describe('HTTP layer', () => {
         body: JSON.stringify({ machine: 'NopeMachine', event: { type: 'X' } }),
       }),
     )
-    expect(post.status).toBe(404)
+    assert.equal(post.status, 404)
   })
 
   it('rejects POST without route header', async () => {
@@ -152,6 +153,6 @@ describe('HTTP layer', () => {
         }),
       }),
     )
-    expect(post.status).toBe(400)
+    assert.equal(post.status, 400)
   })
 })

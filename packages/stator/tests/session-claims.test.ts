@@ -1,6 +1,7 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
 import { createApp } from '../src/server/create-app.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -26,13 +27,13 @@ describe('session claims', () => {
     )
     const cookie = cookieOf(r1)
     const r2 = await app.fetch(new Request('http://localhost/', { headers: { Cookie: cookie } }))
-    expect(JSON.parse(r2.headers.get('x-claims') ?? 'null')).toEqual({ userId: 'u1' })
+    assert.deepStrictEqual(JSON.parse(r2.headers.get('x-claims') ?? 'null'), { userId: 'u1' })
   })
 
   it('a fresh session has no claims', async () => {
     const app = await boot()
     const r = await app.fetch(new Request('http://localhost/'))
-    expect(r.headers.get('x-claims')).toBeNull()
+    assert.equal(r.headers.get('x-claims'), null)
   })
 
   it('clearClaims removes them for subsequent requests', async () => {
@@ -47,7 +48,7 @@ describe('session claims', () => {
       new Request('http://localhost/', { headers: { Cookie: cookie, 'x-clear-claims': '1' } }),
     )
     const r3 = await app.fetch(new Request('http://localhost/', { headers: { Cookie: cookie } }))
-    expect(r3.headers.get('x-claims')).toBeNull()
+    assert.equal(r3.headers.get('x-claims'), null)
   })
 
   const sidOf = (res: Response) => res.headers.get('set-cookie')?.match(/stator_sid=([^;]+)/)?.[1]
@@ -71,12 +72,12 @@ describe('session claims', () => {
       }),
     )
     const rotatedSid = sidOf(r1)
-    expect(rotatedSid).not.toBe(sidA)
-    expect(rotatedSid).toBeTruthy()
+    assert.notEqual(rotatedSid, sidA)
+    assert.ok(rotatedSid)
     const r2 = await app.fetch(
       new Request('http://localhost/', { headers: { Cookie: `stator_sid=${rotatedSid}` } }),
     )
-    expect(JSON.parse(r2.headers.get('x-claims') ?? 'null')).toEqual({ userId: 'u1' })
+    assert.deepStrictEqual(JSON.parse(r2.headers.get('x-claims') ?? 'null'), { userId: 'u1' })
   })
 
   it('middleware clearSession destroys the session immediately — claims are gone', async () => {
@@ -94,11 +95,11 @@ describe('session claims', () => {
       }),
     )
     const freshSid = sidOf(r2)
-    expect(freshSid).toBeTruthy()
-    expect(`stator_sid=${freshSid}`).not.toBe(cookie)
+    assert.ok(freshSid)
+    assert.notEqual(`stator_sid=${freshSid}`, cookie)
     // The fresh id carries no claims, and the old id was deleted.
-    expect(r2.headers.get('x-claims')).toBeNull()
+    assert.equal(r2.headers.get('x-claims'), null)
     const r3 = await app.fetch(new Request('http://localhost/', { headers: { Cookie: cookie } }))
-    expect(r3.headers.get('x-claims')).toBeNull()
+    assert.equal(r3.headers.get('x-claims'), null)
   })
 })

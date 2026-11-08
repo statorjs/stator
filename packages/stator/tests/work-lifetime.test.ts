@@ -1,5 +1,6 @@
-// @vitest-environment happy-dom
-import { describe, expect, it, vi } from 'vitest'
+// @env happy-dom
+import assert from 'node:assert/strict'
+import { describe, it, mock } from 'node:test'
 import { createActor } from '../src/engine/actor.ts'
 import type { EffectInvocation } from '../src/engine/types.ts'
 import { defineMachine } from '../src/server/define-machine.ts'
@@ -7,6 +8,7 @@ import { reenterSessionEvent, scheduleSessionEffects } from '../src/server/effec
 import { MachineStore } from '../src/server/machine-store.ts'
 import { SessionRuntime } from '../src/server/session-runtime.ts'
 import { InMemoryStore } from '../src/server/store.ts'
+import { useFakeTimers, waitFor } from './helpers/mocks.ts'
 
 /**
  * The work-lifetime contract: state-anchored ongoing work (entry effects,
@@ -62,21 +64,21 @@ describe('snapshot work-lifetime fields (engine)', () => {
     const actor = createActor(makeLoader(), { onEffect: (i) => queued.push(i) }).start()
 
     const snap = actor.getPersistedSnapshot()
-    expect(typeof snap.enteredAt).toBe('number')
-    expect(snap.pendingEntry?.effectId).toBe(queued[0]!.effectId)
+    assert.equal(typeof snap.enteredAt, 'number')
+    assert.equal(snap.pendingEntry?.effectId, queued[0]!.effectId)
 
     // Settling with the wrong id is a no-op; the right id clears the marker.
-    expect(actor.settleEntry('nope')).toBe(false)
-    expect(actor.settleEntry(queued[0]!.effectId)).toBe(true)
-    expect(actor.getPersistedSnapshot().pendingEntry).toBeUndefined()
+    assert.equal(actor.settleEntry('nope'), false)
+    assert.equal(actor.settleEntry(queued[0]!.effectId), true)
+    assert.equal(actor.getPersistedSnapshot().pendingEntry, undefined)
 
     // A transition stamps a fresh enteredAt and drops any stale marker.
     const before = actor.getPersistedSnapshot().enteredAt!
     actor.send({ type: 'SKIP' })
     const after = actor.getPersistedSnapshot()
-    expect(after.value).toEqual(['ready'])
-    expect(after.enteredAt).toBeGreaterThanOrEqual(before)
-    expect(after.pendingEntry).toBeUndefined()
+    assert.deepStrictEqual(after.value, ['ready'])
+    assert.ok((after.enteredAt ?? 0) >= before)
+    assert.equal(after.pendingEntry, undefined)
   })
 })
 
@@ -93,26 +95,26 @@ describe('effect wedge: unsettled entry re-invokes on hydration', () => {
     const dead: EffectInvocation[] = []
     const crashed = createActor(M, { onEffect: (i) => dead.push(i) }).start()
     await store.persistence.set(sid, 'M', crashed.getPersistedSnapshot(), { ttlSeconds: 60 })
-    expect(fires).toBe(0) // scheduled, never run
+    assert.equal(fires, 0) // scheduled, never run
 
     // Fresh process hydrates: the pending marker (no in-flight invocation)
     // re-invokes the entry effect with the same id.
     const runtime = new SessionRuntime(sid, store)
     await runtime.loadGraph([M])
     const refired = runtime.drainPendingEffects()
-    expect(refired).toHaveLength(1)
-    expect(refired[0]!.effectId).toBe(dead[0]!.effectId)
+    assert.equal(refired.length, 1)
+    assert.equal(refired[0]!.effectId, dead[0]!.effectId)
 
     // Running it delivers the completion through the normal path: recovered.
     await refired[0]!.run().then((completion) => {
-      expect(fires).toBe(1)
-      expect(completion).toEqual({ type: 'LOADED', v: 'fresh' })
+      assert.equal(fires, 1)
+      assert.deepStrictEqual(completion, { type: 'LOADED', v: 'fresh' })
       return reenterSessionEvent(store, sid, 'M', completion!, {
         settles: refired[0]!.effectId,
       })
     })
     const healed = (await store.persistence.get(sid, 'M')) as { value: string[] }
-    expect(healed.value).toEqual(['ready'])
+    assert.deepStrictEqual(healed.value, ['ready'])
     runtime.dispose()
   })
 
@@ -130,7 +132,7 @@ describe('effect wedge: unsettled entry re-invokes on hydration', () => {
 
     const runtime = new SessionRuntime(sid, store)
     await runtime.loadGraph([M])
-    expect(runtime.drainPendingEffects()).toHaveLength(0) // no marker, no refire
+    assert.equal(runtime.drainPendingEffects().length, 0) // no marker, no refire
     runtime.dispose()
   })
 })
@@ -169,10 +171,10 @@ describe('timer wedge: `after` re-arms on hydration with elapsed credit', () => 
     await runtime.loadGraph([M])
     runtime.dispose()
 
-    await vi.waitFor(
+    await waitFor(
       async () => {
         const snap = (await store.persistence.get(sid, 'T')) as { value: string[] }
-        expect(snap.value).toEqual(['done'])
+        assert.deepStrictEqual(snap.value, ['done'])
       },
       { timeout: 2000, interval: 20 },
     )
@@ -192,19 +194,19 @@ describe('exit-abort: leaving a state aborts its entry effect', () => {
     await runtime.loadGraph([M]) // fresh: fires entry, queues invocation
     scheduleSessionEffects(runtime, store, sid) // starts it → registers in-flight
     await runtime.persistTouched(new Set(['M']))
-    await vi.waitFor(() => expect(lastSignal).toBeDefined())
-    expect(lastSignal!.aborted).toBe(false)
+    await waitFor(() => assert.notEqual(lastSignal, undefined))
+    assert.equal(lastSignal!.aborted, false)
 
     // A user event moves the machine out of `loading` → exit hook aborts.
     runtime.processEvent('M', { type: 'SKIP' })
-    expect(lastSignal!.aborted).toBe(true)
+    assert.equal(lastSignal!.aborted, true)
     runtime.dispose()
   })
 })
 
 describe('re-entry guards', () => {
   it('machine-driven re-entries do not refresh the session TTL', async () => {
-    vi.useFakeTimers()
+    useFakeTimers()
     try {
       const M = makeLoader()
       const store = new MachineStore([M], new InMemoryStore(), { sessionTtlSeconds: 10 })
@@ -219,21 +221,23 @@ describe('re-entry guards', () => {
       runtime.dispose()
 
       // t=8s: a machine-driven completion commits — must NOT extend expiry.
-      vi.advanceTimersByTime(8_000)
+      mock.timers.tick(8_000)
       const late = { type: 'LOADED', v: 'late' }
       await reenterSessionEvent(store, sid, 'M', late)
-      expect(await store.persistence.get(sid, 'M')).not.toBeNull()
+      assert.notEqual(await store.persistence.get(sid, 'M'), null)
 
       // t=12s: past the ORIGINAL expiry — the session is gone. (A refreshing
       // persist would have kept it until t=18s.)
-      vi.advanceTimersByTime(4_000)
-      expect(await store.persistence.get(sid, 'M')).toBeNull()
+      mock.timers.tick(4_000)
+      assert.equal(await store.persistence.get(sid, 'M'), null)
     } finally {
-      vi.useRealTimers()
+      mock.timers.reset()
     }
   })
 
   it('an out-of-band event for an expired session is dropped, not resurrected', async () => {
+    // Let anything the previous test scheduled run out before counting.
+    await new Promise((r) => setImmediate(r))
     fires = 0
     const M = makeLoader()
     const store = new MachineStore([M], new InMemoryStore())
@@ -242,7 +246,7 @@ describe('re-entry guards', () => {
     const zombie = { type: 'LOADED', v: 'zombie' }
     await reenterSessionEvent(store, 'ghost', 'M', zombie)
 
-    expect(await store.persistence.get('ghost', 'M')).toBeNull()
-    expect(fires).toBe(0) // no fresh machine was born, no entry effect fired
+    assert.equal(await store.persistence.get('ghost', 'M'), null)
+    assert.equal(fires, 0) // no fresh machine was born, no entry effect fired
   })
 })

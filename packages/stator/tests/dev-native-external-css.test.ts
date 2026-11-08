@@ -1,8 +1,9 @@
+import assert from 'node:assert/strict'
 import { type ChildProcess, spawn } from 'node:child_process'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import { after, before, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 /**
  * Dev-native's `/static/components.css` includes a `node_modules` component
@@ -23,53 +24,56 @@ let child: ChildProcess | undefined
 let base = ''
 const output: string[] = []
 
-beforeAll(async () => {
-  await rm(root, { recursive: true, force: true })
-  await mkdir(resolve(root, 'routes'), { recursive: true })
-  await mkdir(resolve(root, 'machines'), { recursive: true })
-  await writeFile(
-    resolve(root, 'routes/index.ts'),
-    "import { defineRoute } from '@statorjs/stator/server'\n" +
-      "import { html } from '@statorjs/stator/template'\n" +
-      "import { Image } from '@statorjs/stator/components'\n\n" +
-      'export const GET = defineRoute({\n' +
-      '  reads: [],\n' +
-      '  render: () =>\n' +
-      "    html`<html><head><title>ext-css</title></head><body>${Image({ src: '/x.jpg', width: 10, height: 10, alt: 'x' })}</body></html>`,\n" +
-      '})\n',
-  )
+before(
+  async () => {
+    await rm(root, { recursive: true, force: true })
+    await mkdir(resolve(root, 'routes'), { recursive: true })
+    await mkdir(resolve(root, 'machines'), { recursive: true })
+    await writeFile(
+      resolve(root, 'routes/index.ts'),
+      "import { defineRoute } from '@statorjs/stator/server'\n" +
+        "import { html } from '@statorjs/stator/template'\n" +
+        "import { Image } from '@statorjs/stator/components'\n\n" +
+        'export const GET = defineRoute({\n' +
+        '  reads: [],\n' +
+        '  render: () =>\n' +
+        "    html`<html><head><title>ext-css</title></head><body>${Image({ src: '/x.jpg', width: 10, height: 10, alt: 'x' })}</body></html>`,\n" +
+        '})\n',
+    )
 
-  const port = 53000 + (process.pid % 3000)
-  child = spawn(process.execPath, [bin, 'dev', '--port', String(port)], {
-    cwd: root,
-    env: { ...process.env, LOG_LEVEL: 'info', NO_COLOR: '1' },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-  let bound = 0
-  child.stdout!.on('data', (b) => {
-    const s = String(b)
-    output.push(s)
-    const m = /localhost:(\d+)/.exec(s)
-    if (m) bound = Number(m[1])
-  })
-  child.stderr!.on('data', (b) => output.push(String(b)))
+    const port = 53000 + (process.pid % 3000)
+    child = spawn(process.execPath, [bin, 'dev', '--port', String(port)], {
+      cwd: root,
+      env: { ...process.env, LOG_LEVEL: 'info', NO_COLOR: '1' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let bound = 0
+    child.stdout!.on('data', (b) => {
+      const s = String(b)
+      output.push(s)
+      const m = /localhost:(\d+)/.exec(s)
+      if (m) bound = Number(m[1])
+    })
+    child.stderr!.on('data', (b) => output.push(String(b)))
 
-  const deadline = Date.now() + 30_000
-  while (!bound && Date.now() < deadline) await sleep(50)
-  if (!bound) throw new Error(`native dev server printed no banner:\n${output.join('')}`)
-  base = `http://localhost:${bound}`
-  while (Date.now() < deadline) {
-    try {
-      if ((await fetch(`${base}/`)).status === 200) return
-    } catch {
-      // not listening yet
+    const deadline = Date.now() + 30_000
+    while (!bound && Date.now() < deadline) await sleep(50)
+    if (!bound) throw new Error(`native dev server printed no banner:\n${output.join('')}`)
+    base = `http://localhost:${bound}`
+    while (Date.now() < deadline) {
+      try {
+        if ((await fetch(`${base}/`)).status === 200) return
+      } catch {
+        // not listening yet
+      }
+      await sleep(50)
     }
-    await sleep(50)
-  }
-  throw new Error(`native dev server did not answer:\n${output.join('')}`)
-}, 40_000)
+    throw new Error(`native dev server did not answer:\n${output.join('')}`)
+  },
+  { timeout: 40_000 },
+)
 
-afterAll(async () => {
+after(async () => {
   child?.kill()
   await rm(root, { recursive: true, force: true })
 })
@@ -77,9 +81,9 @@ afterAll(async () => {
 describe('native dev server: node_modules component CSS', () => {
   it('serves a node_modules component library CSS via components.css, resolved through its exports map', async () => {
     const res = await fetch(`${base}/static/components.css`)
-    expect(res.status).toBe(200)
+    assert.equal(res.status, 200)
     const css = await res.text()
-    expect(css).toContain('/* @statorjs/stator/components */')
-    expect(css).toContain('max-width: 100%')
+    assert.ok(css.includes('/* @statorjs/stator/components */'))
+    assert.ok(css.includes('max-width: 100%'))
   })
 })

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { analyzeScriptClasses } from '../src/compiler/client-script.ts'
 
 describe('compiler: script class analysis (3b stage 3)', () => {
@@ -14,11 +15,11 @@ describe('compiler: script class analysis (3b stage 3)', () => {
       }
     `
     const classes = analyzeScriptClasses(script)
-    expect(classes).toHaveLength(1)
+    assert.equal(classes.length, 1)
     const c = classes[0]!
-    expect(c.name).toBe('QuantityStepper')
-    expect([...c.useFields]).toEqual([['qty', 'Qty']])
-    expect([...c.methods].sort()).toEqual(['dec', 'inc'])
+    assert.equal(c.name, 'QuantityStepper')
+    assert.deepStrictEqual([...c.useFields], [['qty', 'Qty']])
+    assert.deepStrictEqual([...c.methods].sort(), ['dec', 'inc'])
   })
 
   it('captures multiple use() fields and seeded use()', () => {
@@ -30,7 +31,7 @@ describe('compiler: script class analysis (3b stage 3)', () => {
       }
     `
     const c = analyzeScriptClasses(script)[0]!
-    expect([...c.useFields].sort()).toEqual([
+    assert.deepStrictEqual([...c.useFields].sort(), [
       ['a', 'MachineA'],
       ['b', 'MachineB'],
     ])
@@ -42,11 +43,14 @@ describe('compiler: script class analysis (3b stage 3)', () => {
       export class QuantityStepper extends StatorElement { q = use(Qty) }
     `
     const classes = analyzeScriptClasses(script)
-    expect(classes.map((c) => c.name).sort()).toEqual(['QuantityStepper', 'WishlistHeart'])
-    expect([...classes.find((c) => c.name === 'WishlistHeart')!.useFields]).toEqual([['h', 'Wish']])
+    assert.deepStrictEqual(classes.map((c) => c.name).sort(), ['QuantityStepper', 'WishlistHeart'])
+    assert.deepStrictEqual(
+      [...classes.find((c) => c.name === 'WishlistHeart')!.useFields],
+      [['h', 'Wish']],
+    )
   })
 
   it('ignores non-exported classes', () => {
-    expect(analyzeScriptClasses('class Internal { x = use(M) }')).toEqual([])
+    assert.deepStrictEqual(analyzeScriptClasses('class Internal { x = use(M) }'), [])
   })
 })

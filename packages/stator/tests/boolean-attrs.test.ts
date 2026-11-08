@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { recompute } from '../src/server/recompute.ts'
@@ -63,8 +64,8 @@ describe('boolean attribute bindings', () => {
       () =>
         html`<button disabled="${read(proxy, (g) => (g as unknown as { closed: boolean }).closed)}" aria-label="${read(proxy, (g) => (g as unknown as { label: string | null }).label)}">go</button>`,
     )
-    expect(out.html).toContain('disabled=""')
-    expect(out.html).not.toContain('aria-label')
+    assert.ok(out.html.includes('disabled=""'))
+    assert.ok(!out.html.includes('aria-label'))
   })
 
   it('renders a string value as before', async () => {
@@ -74,7 +75,7 @@ describe('boolean attribute bindings', () => {
       () =>
         html`<p title="${read(proxy, (g) => ((g as unknown as { closed: boolean }).closed ? 'shut' : 'ajar'))}">x</p>`,
     )
-    expect(out.html).toContain('title="shut"')
+    assert.ok(out.html.includes('title="shut"'))
   })
 
   it('patches toggle presence: true→false emits value null, applier removes', async () => {
@@ -86,18 +87,18 @@ describe('boolean attribute bindings', () => {
     )
     runtime.processEvent('GateMachine', { type: 'SET', open: true })
     const patches = recompute(state, 'GateMachine', runtime)
-    expect(patches).toHaveLength(1)
-    expect(patches[0]).toMatchObject({ op: 'attr', name: 'disabled', value: null })
+    assert.equal(patches.length, 1)
+    assert.partialDeepStrictEqual(patches[0], { op: 'attr', name: 'disabled', value: null })
 
     // Round-trip through the real applier against a real-ish DOM shim.
     const el = fakeElement({ disabled: '' })
     applyToFake(el, patches)
-    expect(el.attrs.has('disabled')).toBe(false)
+    assert.equal(el.attrs.has('disabled'), false)
 
     // And back on: false→true emits ''.
     runtime.processEvent('GateMachine', { type: 'SET', open: false })
     const again = recompute(state, 'GateMachine', runtime)
-    expect(again[0]).toMatchObject({ op: 'attr', name: 'disabled', value: '' })
+    assert.partialDeepStrictEqual(again[0], { op: 'attr', name: 'disabled', value: '' })
   })
 })
 

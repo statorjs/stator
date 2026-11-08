@@ -1,7 +1,8 @@
+import assert from 'node:assert/strict'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, it } from 'node:test'
 import { syncTypes } from '../src/build/sync.ts'
 import { generateDts } from '../src/compiler/dts.ts'
 
@@ -24,11 +25,11 @@ const ISLAND = `<updated-at hidden></updated-at>
 describe('island d.ts props from static attrs', () => {
   it('each attr accepts its kind or a ReadResult of it', () => {
     const dts = generateDts(ISLAND)
-    expect(dts).toContain('at?: number | __SReadResult<number>')
-    expect(dts).toContain('clock?: string | __SReadResult<string>')
-    expect(dts).toContain('live?: boolean | __SReadResult<boolean>')
-    expect(dts).toContain(
-      "import type { ReadResult as __SReadResult } from '@statorjs/stator/template'",
+    assert.ok(dts?.includes('at?: number | __SReadResult<number>'))
+    assert.ok(dts?.includes('clock?: string | __SReadResult<string>'))
+    assert.ok(dts?.includes('live?: boolean | __SReadResult<boolean>'))
+    assert.ok(
+      dts?.includes("import type { ReadResult as __SReadResult } from '@statorjs/stator/template'"),
     )
   })
 
@@ -38,7 +39,7 @@ const { name } = Stator.props<{ name: string }>()
 ---
 <p>{name}</p>
 `
-    expect(generateDts(src)).toContain('(props: { name: string })')
+    assert.ok(generateDts(src)?.includes('(props: { name: string })'))
   })
 })
 
@@ -50,12 +51,12 @@ describe('check-file emission', () => {
       '<div><meta charset="utf-8"><input name="q"><br></div>\n',
     )
     const { checks } = await syncTypes(root)
-    expect(checks).toBe(1)
+    assert.equal(checks, 1)
     const emitted = await readFile(join(root, '.stator/check/layout.stator.check.tsx'), 'utf8')
-    expect(emitted).toContain('<meta charset="utf-8" />')
-    expect(emitted).toContain('<input name="q" />')
-    expect(emitted).toContain('<br />')
-    expect(emitted).not.toMatch(/<br>/)
+    assert.ok(emitted.includes('<meta charset="utf-8" />'))
+    assert.ok(emitted.includes('<input name="q" />'))
+    assert.ok(emitted.includes('<br />'))
+    assert.doesNotMatch(emitted, /<br>/)
   })
 
   it('blanks is:inline script bodies (raw JS cannot parse as TSX)', async () => {
@@ -66,8 +67,8 @@ describe('check-file emission', () => {
     )
     await syncTypes(root)
     const emitted = await readFile(join(root, '.stator/check/page.stator.check.tsx'), 'utf8')
-    expect(emitted).toContain('<script />')
-    expect(emitted).not.toContain('for (var i')
+    assert.ok(emitted.includes('<script />'))
+    assert.ok(!emitted.includes('for (var i'))
   })
 
   it('strips HTML comments (not valid JSX)', async () => {
@@ -78,8 +79,8 @@ describe('check-file emission', () => {
     )
     await syncTypes(root)
     const emitted = await readFile(join(root, '.stator/check/page.stator.check.tsx'), 'utf8')
-    expect(emitted).not.toContain('<!--')
-    expect(emitted).toContain('<span>ok</span>')
+    assert.ok(!emitted.includes('<!--'))
+    assert.ok(emitted.includes('<span>ok</span>'))
   })
 
   it('never rewrites inside attribute expressions (arrows, nested braces, strings)', async () => {
@@ -90,9 +91,9 @@ describe('check-file emission', () => {
     )
     await syncTypes(root)
     const emitted = await readFile(join(root, '.stator/check/row.stator.check.tsx'), 'utf8')
-    expect(emitted).toContain('checked={read(t, (x) => x.done)}')
-    expect(emitted).toContain("on:click={() => t.send({ type: 'GO' })}")
-    expect(emitted).toContain('title="a > b" />')
+    assert.ok(emitted.includes('checked={read(t, (x) => x.done)}'))
+    assert.ok(emitted.includes("on:click={() => t.send({ type: 'GO' })}"))
+    assert.ok(emitted.includes('title="a > b" />'))
   })
 })
 
@@ -103,12 +104,12 @@ describe('virtual-code mappings survive HTML-to-TSX edits', () => {
       '<div><!-- dropped --><meta charset="utf-8"><span>{read(m, (x) => x.y)}</span></div>\n'
     const vc = toVirtualCode(src)
     const genIdx = vc.tsx.code.indexOf('read(m,')
-    expect(genIdx).toBeGreaterThan(-1)
+    assert.ok(genIdx > -1)
     const run = vc.tsx.mappings.find(
       (mm) => genIdx >= mm.generatedOffset && genIdx < mm.generatedOffset + mm.length,
     )
-    expect(run).toBeDefined()
+    assert.notEqual(run, undefined)
     const srcIdx = run!.sourceOffset + (genIdx - run!.generatedOffset)
-    expect(src.slice(srcIdx, srcIdx + 7)).toBe('read(m,')
+    assert.equal(src.slice(srcIdx, srcIdx + 7), 'read(m,')
   })
 })

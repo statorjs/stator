@@ -1,6 +1,7 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
 import { discoverBoot, runBoot } from '../src/server/boot.ts'
 import { createApp } from '../src/server/create-app.ts'
 
@@ -9,17 +10,17 @@ const bootDir = resolve(here, 'fixtures/boot')
 
 describe('discoverBoot', () => {
   it('returns undefined when there is no boot file', async () => {
-    expect(await discoverBoot(resolve(bootDir, 'nope.ts'))).toBeUndefined()
+    assert.equal(await discoverBoot(resolve(bootDir, 'nope.ts')), undefined)
   })
 
   it('rejects a default export that is not defineBoot(...)', async () => {
-    await expect(discoverBoot(resolve(bootDir, 'not-boot.ts'))).rejects.toThrow(/defineBoot/)
+    await assert.rejects(discoverBoot(resolve(bootDir, 'not-boot.ts')), /defineBoot/)
   })
 
   it('returns the definition for a valid boot.ts', async () => {
     const def = await discoverBoot(resolve(bootDir, 'boot-bump.ts'))
-    expect(def).toBeTruthy()
-    expect(typeof def?.run).toBe('function')
+    assert.ok(def)
+    assert.equal(typeof def?.run, 'function')
   })
 })
 
@@ -29,7 +30,7 @@ describe('runBoot', () => {
       dispatchToApp: async () => ({ committed: false }),
       config: { trustedOrigins: [], sameSite: 'Lax' },
     })
-    expect(teardown).toBeUndefined()
+    assert.equal(teardown, undefined)
   })
 
   it('passes a working BootContext and returns the teardown', async () => {
@@ -42,8 +43,8 @@ describe('runBoot', () => {
       },
       config: { trustedOrigins: [], sameSite: 'Lax' },
     })
-    expect(seen).toEqual(['BootCounter:BUMP', 'BootCounter:BUMP', 'BootCounter:BUMP'])
-    expect(typeof teardown).toBe('function')
+    assert.deepStrictEqual(seen, ['BootCounter:BUMP', 'BootCounter:BUMP', 'BootCounter:BUMP'])
+    assert.equal(typeof teardown, 'function')
     await teardown?.() // callable without throwing
   })
 
@@ -53,7 +54,7 @@ describe('runBoot', () => {
       dispatchToApp: async () => ({ committed: false }),
       config: { trustedOrigins: [], sameSite: 'Lax' },
     })
-    expect(teardown).toBeUndefined()
+    assert.equal(teardown, undefined)
   })
 })
 
@@ -65,7 +66,7 @@ describe('boot end-to-end through a real app', () => {
     })
     // Before boot, the counter is 0.
     const before = await (await app.fetch(new Request('http://localhost/count'))).text()
-    expect(before).toMatch(/Count: <span>0</)
+    assert.match(before, /Count: <span>0</)
 
     // Run boot with the REAL app's dispatchToApp (what listen() wires).
     const def = await discoverBoot(resolve(bootDir, 'boot-bump.ts'))
@@ -75,6 +76,6 @@ describe('boot end-to-end through a real app', () => {
     })
 
     const after = await (await app.fetch(new Request('http://localhost/count'))).text()
-    expect(after).toMatch(/Count: <span>3</) // boot's three BUMPs landed
+    assert.match(after, /Count: <span>3</) // boot's three BUMPs landed
   })
 })

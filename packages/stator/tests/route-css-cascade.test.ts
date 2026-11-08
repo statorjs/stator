@@ -1,7 +1,8 @@
+import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, it } from 'node:test'
 import { routeCssMap } from '../src/build/route-css.ts'
 
 /**
@@ -36,8 +37,8 @@ describe('route-css: transitive local cascade', () => {
 
     const map = await routeCssMap({ routesDir: join(root, 'routes'), baseDir: root })
     const css = map.get(join(root, 'routes/x.ts'))
-    expect(css).toContain('.a { color: red; }')
-    expect(css).toContain('.b { color: green; }')
-    expect(css).toContain('.c { color: blue; }')
+    assert.ok(css?.includes('.a { color: red; }'))
+    assert.ok(css?.includes('.b { color: green; }'))
+    assert.ok(css?.includes('.c { color: blue; }'))
   })
 })

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { recompute } from '../src/server/recompute.ts'
@@ -61,11 +62,11 @@ describe('element spread ({...} → spreadAttrs)', () => {
           href: 'javascript:alert(1)',
         })}>x</a>`,
     )
-    expect(out.html).toContain('target="_blank"')
-    expect(out.html).toContain('data-id="7"')
-    expect(out.html).toContain('draggable=""') // true → present-and-empty
-    expect(out.html).not.toContain('hidden') // false → absent
-    expect(out.html).not.toContain('javascript:') // url-bearing name scheme-guarded
+    assert.ok(out.html.includes('target="_blank"'))
+    assert.ok(out.html.includes('data-id="7"'))
+    assert.ok(out.html.includes('draggable=""')) // true → present-and-empty
+    assert.ok(!out.html.includes('hidden')) // false → absent
+    assert.ok(!out.html.includes('javascript:')) // url-bearing name scheme-guarded
   })
 
   it('a machine read in a spread bag is a live attr binding and patches on events', async () => {
@@ -77,12 +78,12 @@ describe('element spread ({...} → spreadAttrs)', () => {
           disabled: read(proxy, (t) => (t as unknown as { busy: boolean }).busy),
         })}>go</button>`,
     )
-    expect(out.html).toContain('disabled=""') // busy=true initially → present
+    assert.ok(out.html.includes('disabled=""')) // busy=true initially → present
 
     runtime.processEvent('ToggleMachine', { type: 'FLIP', on: false }) // busy → false
     const patches = recompute(state, 'ToggleMachine', runtime)
-    expect(patches).toHaveLength(1)
-    expect(patches[0]).toMatchObject({ op: 'attr', name: 'disabled', value: null }) // removed
+    assert.equal(patches.length, 1)
+    assert.partialDeepStrictEqual(patches[0], { op: 'attr', name: 'disabled', value: null }) // removed
   })
 
   it('rejects an item read forwarded through a spread, naming the direct-bind fix', () => {
@@ -90,15 +91,22 @@ describe('element spread ({...} → spreadAttrs)', () => {
     // The shape isItemReadResult recognizes — what the compiler lowers a
     // read(item, …) to. Forwarding it through a spread is the deferred case.
     const itemRead = { __isItemRead: true, selector: () => 'x', value: 'x' }
-    expect(() =>
-      runInRender(state, () => html`<button ${spreadAttrs({ disabled: itemRead })}>go</button>`),
-    ).toThrow(/read\(item, …\) can't be forwarded through/)
+    assert.throws(
+      () =>
+        runInRender(state, () => html`<button ${spreadAttrs({ disabled: itemRead })}>go</button>`),
+      /read\(item, …\) can't be forwarded through/,
+    )
   })
 
   it('rejects a directive invocation as a spread value', () => {
     const state = createRenderState('spread-directive', 'GET /x')
-    expect(() =>
-      runInRender(state, () => html`<button ${spreadAttrs({ class: classList('a') })}>go</button>`),
-    ).toThrow(/a directive .* can't be a/)
+    assert.throws(
+      () =>
+        runInRender(
+          state,
+          () => html`<button ${spreadAttrs({ class: classList('a') })}>go</button>`,
+        ),
+      /a directive .* can't be a/,
+    )
   })
 })

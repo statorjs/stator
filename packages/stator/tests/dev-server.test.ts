@@ -1,7 +1,8 @@
+import assert from 'node:assert/strict'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { afterAll, describe, expect, it } from 'vitest'
 import { createDevApp, type DevApp, withDeprecatedVite } from '../src/server/dev.ts'
 import Tally from './fixtures/dev-app/machines/tally.ts'
 
@@ -20,7 +21,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const root = resolve(here, 'fixtures/dev-app')
 
 let app: DevApp | undefined
-afterAll(async () => {
+after(async () => {
   await app?.close()
 })
 
@@ -33,19 +34,19 @@ describe('dev server: .stator end to end', () => {
     })
 
     const res = await app.fetch(new Request('http://localhost/'))
-    expect(res.status).toBe(200)
+    assert.equal(res.status, 200)
     const html = await res.text()
 
     // Template rendered through the runtime.
-    expect(html).toContain('count is 0')
+    assert.ok(html.includes('count is 0'))
     // Scope attribute injected on elements (style block present → scoping on).
     const m = html.match(/data-s-([0-9a-f]{8})/)
-    expect(m).toBeTruthy()
+    assert.ok(m)
     const hash = m![1]
     // Scoped CSS injected into <head>.
-    expect(html).toContain('<style data-stator-dev>')
-    expect(html).toContain(`.label[data-s-${hash}]`)
-    expect(html).toContain('rebeccapurple')
+    assert.ok(html.includes('<style data-stator-dev>'))
+    assert.ok(html.includes(`.label[data-s-${hash}]`))
+    assert.ok(html.includes('rebeccapurple'))
 
     // Event round-trip produces a patch for the bound slot.
     const cookie = res.headers.get('set-cookie')!.split(';')[0]!
@@ -63,11 +64,14 @@ describe('dev server: .stator end to end', () => {
         }),
       }),
     )
-    expect(post.status).toBe(200)
+    assert.equal(post.status, 200)
     const json = (await post.json()) as {
       patches: Array<{ op: string; value?: string }>
     }
-    expect(json.patches.some((p) => p.value === 'count is 1')).toBe(true)
+    assert.equal(
+      json.patches.some((p) => p.value === 'count is 1'),
+      true,
+    )
   })
 
   it('passes a raw Response from an api route through verbatim', async () => {
@@ -80,8 +84,8 @@ describe('dev server: .stator end to end', () => {
     // checked by the Vite-SSR-loaded framework — the exact pairing where an
     // identity-only instanceof check has been reported to miss.
     const res = await app.fetch(new Request('http://localhost/raw-response', { method: 'POST' }))
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true, marker: 'raw-passthrough' })
+    assert.equal(res.status, 200)
+    assert.deepStrictEqual(await res.json(), { ok: true, marker: 'raw-passthrough' })
   })
 
   it('renders a client component shell and injects its module script (3b 6c)', async () => {
@@ -94,11 +98,12 @@ describe('dev server: .stator end to end', () => {
 
     // Server-rendered shell of the client component (custom element + markers,
     // directives stripped).
-    expect(html).toContain('<tick-counter')
-    expect(html).toContain('data-b="b0"')
-    expect(html).not.toContain('on:click')
+    assert.ok(html.includes('<tick-counter'))
+    assert.ok(html.includes('data-b="b0"'))
+    assert.ok(!html.includes('on:click'))
     // Its client module script is injected (served by Vite at the ?type=client URL).
-    expect(html).toMatch(
+    assert.match(
+      html,
       /<script type="module" src="\/templates\/tick-counter\.stator\?stator&type=client">/,
     )
   })
@@ -113,12 +118,12 @@ describe('dev server: .stator end to end', () => {
     // Browser-plane transform: the machine collapses to its identity stub.
     // (`vite` is non-null here — the escape hatch returns the real server.)
     const browser = await app.vite!.transformRequest('/machines/counter.ts')
-    expect(browser?.code).toContain('CounterMachine')
-    expect(browser?.code).not.toContain('INCREMENT')
+    assert.ok(browser?.code?.includes('CounterMachine'))
+    assert.ok(!browser?.code?.includes('INCREMENT'))
 
     // SSR-plane transform: the real module, untouched.
     const ssr = await app.vite!.transformRequest('/machines/counter.ts', { ssr: true })
-    expect(ssr?.code).toContain('INCREMENT')
+    assert.ok(ssr?.code?.includes('INCREMENT'))
   })
 
   it('injects the Vite HMR client so the browser can receive reload signals', async () => {
@@ -128,7 +133,7 @@ describe('dev server: .stator end to end', () => {
       routesDir: resolve(root, 'routes'),
     })
     const html = await (await app.fetch(new Request('http://localhost/'))).text()
-    expect(html).toContain('<script type="module" src="/@vite/client"></script>')
+    assert.ok(html.includes('<script type="module" src="/@vite/client"></script>'))
   })
 
   it('auto-injects and serves the dev inspector', async () => {
@@ -138,12 +143,12 @@ describe('dev server: .stator end to end', () => {
       routesDir: resolve(root, 'routes'),
     })
     const html = await (await app.fetch(new Request('http://localhost/'))).text()
-    expect(html).toContain('<script src="/@stator/inspector.js" defer></script>')
+    assert.ok(html.includes('<script src="/@stator/inspector.js" defer></script>'))
 
     const asset = await app.fetch(new Request('http://localhost/@stator/inspector.js'))
-    expect(asset.status).toBe(200)
-    expect(asset.headers.get('Content-Type')).toContain('javascript')
-    expect(await asset.text()).toContain('stator-inspector')
+    assert.equal(asset.status, 200)
+    assert.ok(asset.headers.get('Content-Type')?.includes('javascript'))
+    assert.ok((await asset.text()).includes('stator-inspector'))
   })
 
   it('serves machine-state inspection at /@stator/inspect (hatch parity)', async () => {
@@ -153,9 +158,9 @@ describe('dev server: .stator end to end', () => {
       routesDir: resolve(root, 'routes'),
     })
     const res = await app.fetch(new Request('http://localhost/@stator/inspect'))
-    expect(res.status).toBe(200)
+    assert.equal(res.status, 200)
     const payload = (await res.json()) as { machines: Array<{ name: string }> }
-    expect(payload.machines.map((m) => m.name)).toContain('CounterMachine')
+    assert.ok(payload.machines.map((m) => m.name).includes('CounterMachine'))
   })
 
   it('can disable the inspector via config', async () => {
@@ -167,9 +172,9 @@ describe('dev server: .stator end to end', () => {
     })
     try {
       const html = await (await noInspector.fetch(new Request('http://localhost/'))).text()
-      expect(html).not.toContain('/@stator/inspector.js')
+      assert.ok(!html.includes('/@stator/inspector.js'))
       const asset = await noInspector.fetch(new Request('http://localhost/@stator/inspector.js'))
-      expect(asset.status).toBe(404)
+      assert.equal(asset.status, 404)
     } finally {
       await noInspector.close()
     }
@@ -189,9 +194,15 @@ describe('dev server: .stator end to end', () => {
     })
     try {
       const dirs = Object.keys(watched.vite!.watcher.getWatched())
-      expect(dirs.some((d) => d.includes('.pnpm-store'))).toBe(false)
+      assert.equal(
+        dirs.some((d) => d.includes('.pnpm-store')),
+        false,
+      )
       // App source is still watched.
-      expect(dirs.some((d) => d.endsWith('/routes'))).toBe(true)
+      assert.equal(
+        dirs.some((d) => d.endsWith('/routes')),
+        true,
+      )
     } finally {
       await watched.close()
       await rm(resolve(root, '.pnpm-store'), { recursive: true, force: true })
@@ -207,7 +218,7 @@ describe('dev server: .stator end to end', () => {
 
     // Render the live page for a session cookie, then open its stream.
     const page = await app.fetch(new Request('http://localhost/tally'))
-    expect(page.status).toBe(200)
+    assert.equal(page.status, 200)
     // Lazy sessions: the app-machine page sets no cookie; mint a sid.
     const cookie = `stator_sid=${crypto.randomUUID()}`
 
@@ -218,7 +229,7 @@ describe('dev server: .stator end to end', () => {
         signal: abort.signal,
       }),
     )
-    expect(res.status).toBe(200)
+    assert.equal(res.status, 200)
     const reader = res.body!.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
@@ -248,13 +259,13 @@ describe('dev server: .stator end to end', () => {
       // dev app loaded its own copy through Vite — dispatchToApp resolves by
       // name, so the identities never need to match.
       const result = await app.dispatchToApp(Tally, { type: 'BUMP', by: 4 })
-      expect(result.committed).toBe(true)
+      assert.equal(result.committed, true)
 
       // The push must arrive on THIS stream: the dispatch ran in the
       // Vite-loaded runtime whose SSE registry holds the connection. A
       // natively-imported dispatchToApp would commit but reach nobody.
       const buf = await readUntil((t) => /"value":"4"/.test(t))
-      expect(buf).toContain('"value":"4"')
+      assert.ok(buf.includes('"value":"4"'))
     } finally {
       abort.abort()
       reader.cancel().catch(() => {})
@@ -270,14 +281,14 @@ describe('dev server: .stator end to end', () => {
     })
 
     const before = await app.fetch(new Request('http://localhost/api-tally'))
-    expect(before.status).toBe(200)
-    expect(before.headers.get('content-type')).toContain('application/json')
+    assert.equal(before.status, 200)
+    assert.ok(before.headers.get('content-type')?.includes('application/json'))
     const { total: t0 } = (await before.json()) as { total: number }
 
     await app.dispatchToApp(Tally, { type: 'BUMP', by: 2 })
 
     const after = await app.fetch(new Request('http://localhost/api-tally'))
-    expect(((await after.json()) as { total: number }).total).toBe(t0 + 2)
+    assert.equal(((await after.json()) as { total: number }).total, t0 + 2)
   })
 
   it('a param segment with an extension suffix routes beside its bare-param page', async () => {
@@ -288,19 +299,19 @@ describe('dev server: .stator end to end', () => {
     })
 
     const data = await app.fetch(new Request('http://localhost/pp/abc.json'))
-    expect(data.status).toBe(200)
-    expect(data.headers.get('content-type')).toContain('application/json')
-    expect(await data.json()).toEqual({ id: 'abc' })
+    assert.equal(data.status, 200)
+    assert.ok(data.headers.get('content-type')?.includes('application/json'))
+    assert.deepStrictEqual(await data.json(), { id: 'abc' })
 
     // A dotted id still resolves: capture is lazy up to the literal suffix.
     const dotted = await app.fetch(new Request('http://localhost/pp/a.b.json'))
-    expect(await dotted.json()).toEqual({ id: 'a.b' })
+    assert.deepStrictEqual(await dotted.json(), { id: 'a.b' })
 
     // The bare-param PAGE still owns the suffix-less URL — the data route
     // outranks it only for .json requests.
     const page = await app.fetch(new Request('http://localhost/pp/abc'))
-    expect(page.headers.get('content-type')).toContain('text/html')
-    expect(await page.text()).toContain('page abc')
+    assert.ok(page.headers.get('content-type')?.includes('text/html'))
+    assert.ok((await page.text()).includes('page abc'))
   })
 
   it('live-reloads a template edit without a restart', async () => {
@@ -313,7 +324,7 @@ describe('dev server: .stator end to end', () => {
     const original = await readFile(file, 'utf8')
     try {
       const before = await (await app.fetch(new Request('http://localhost/'))).text()
-      expect(before).toMatch(/<title[^>]*>dev-app<\/title>/)
+      assert.match(before, /<title[^>]*>dev-app<\/title>/)
 
       // Edit the template on disk; the watcher should rebuild the app graph.
       await writeFile(
@@ -328,7 +339,7 @@ describe('dev server: .stator end to end', () => {
         if (/edited-live/.test(after)) break
         await new Promise((r) => setTimeout(r, 150))
       }
-      expect(after).toMatch(/<title[^>]*>edited-live<\/title>/)
+      assert.match(after, /<title[^>]*>edited-live<\/title>/)
     } finally {
       await writeFile(file, original)
     }
@@ -339,7 +350,9 @@ describe('dev server: session carry-over across store rebuilds', () => {
   // Own fixture, deliberately: this suite's dev app AND the dev-native
   // subprocess suite both watch fixtures/dev-app, so a persistence assertion
   // there would race the other suite's machine edits.
-  it("a machine-closure edit that doesn't change code keeps sessions", async () => {
+  it("a machine-closure edit that doesn't change code keeps sessions", {
+    timeout: 30_000,
+  }, async () => {
     const coRoot = resolve(here, 'fixtures/dev-carryover')
     const coApp = await createDevApp({
       root: coRoot,
@@ -365,7 +378,7 @@ describe('dev server: session carry-over across store rebuilds', () => {
       const at1 = await (
         await coApp.fetch(new Request('http://localhost/', { headers: { Cookie: cookie } }))
       ).text()
-      expect(at1).toContain('count is 1')
+      assert.ok(at1.includes('count is 1'))
 
       // Append a comment to a file in the machine's closure: the store IS
       // rebuilt, but the code hash is unchanged (the hash ignores comments), so
@@ -377,17 +390,17 @@ describe('dev server: session carry-over across store rebuilds', () => {
       for (let i = 0; i < 100 && coApp.hono === before; i++) {
         await new Promise((r) => setTimeout(r, 100))
       }
-      expect(coApp.hono).not.toBe(before)
+      assert.notEqual(coApp.hono, before)
 
       const after = await (
         await coApp.fetch(new Request('http://localhost/', { headers: { Cookie: cookie } }))
       ).text()
-      expect(after).toContain('count is 1')
+      assert.ok(after.includes('count is 1'))
     } finally {
       await writeFile(lib, original)
       await coApp.close()
     }
-  }, 30_000)
+  })
 })
 
 describe('createDevApp dispatch (the Vite exit surface)', () => {
@@ -404,10 +417,10 @@ describe('createDevApp dispatch (the Vite exit surface)', () => {
     console.warn = (...args: unknown[]) => void warnings.push(args)
     try {
       const wrapped = withDeprecatedVite(fake)
-      expect(wrapped.vite).toBeUndefined()
-      expect(wrapped.vite).toBeUndefined()
-      expect(warnings.length).toBe(1)
-      expect(String(warnings[0])).toContain('deprecated')
+      assert.equal(wrapped.vite, undefined)
+      assert.equal(wrapped.vite, undefined)
+      assert.equal(warnings.length, 1)
+      assert.ok(String(warnings[0]).includes('deprecated'))
     } finally {
       console.warn = original
     }
@@ -429,8 +442,8 @@ describe('dev server: a user vite.config is ignored (dev/prod parity)', () => {
         routesDir: resolve(cfgRoot, 'routes'),
       })
       const res = await cfgApp.fetch(new Request('http://localhost/'))
-      expect(res.status).toBe(200)
-      expect(await res.text()).toContain('ok')
+      assert.equal(res.status, 200)
+      assert.ok((await res.text()).includes('ok'))
     } finally {
       await cfgApp?.close()
     }

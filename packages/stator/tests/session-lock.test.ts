@@ -1,6 +1,7 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
 import { createApp } from '../src/server/create-app.ts'
 import { activeSessionLockCount, withSessionLock } from '../src/server/session-lock.ts'
 import { InMemoryStore, type Store } from '../src/server/store.ts'
@@ -52,7 +53,7 @@ describe('withSessionLock', () => {
       events.push('b-end')
     })
     await Promise.all([first, second])
-    expect(events).toEqual(['a-start', 'a-end', 'b-start', 'b-end'])
+    assert.deepStrictEqual(events, ['a-start', 'a-end', 'b-start', 'b-end'])
   })
 
   it('does not serialize across different sessions', async () => {
@@ -66,16 +67,16 @@ describe('withSessionLock', () => {
       events.push('b')
     })
     await Promise.all([first, second])
-    expect(events).toEqual(['a-start', 'b', 'a-end'])
+    assert.deepStrictEqual(events, ['a-start', 'b', 'a-end'])
   })
 
   it('keeps the chain alive after a rejection', async () => {
     const failing = withSessionLock('sid', async () => {
       throw new Error('boom')
     })
-    await expect(failing).rejects.toThrow('boom')
+    await assert.rejects(failing, /boom/)
     const after = await withSessionLock('sid', async () => 'ok')
-    expect(after).toBe('ok')
+    assert.equal(after, 'ok')
   })
 
   it('cleans up the lock map once a session settles', async () => {
@@ -84,7 +85,7 @@ describe('withSessionLock', () => {
     })
     // Cleanup runs on a microtask after the settled promise resolves.
     await sleep(0)
-    expect(activeSessionLockCount()).toBe(0)
+    assert.equal(activeSessionLockCount(), 0)
   })
 })
 
@@ -136,9 +137,9 @@ describe('cross-path session serialization (lost-update regression)', () => {
       incrementViaEvents(app, cookie),
       incrementViaEvents(app, cookie),
     ])
-    expect(r1.status).toBe(200)
-    expect(r2.status).toBe(200)
-    expect(await renderedCount(app, cookie)).toBe(2)
+    assert.equal(r1.status, 200)
+    assert.equal(r2.status, 200)
+    assert.equal(await renderedCount(app, cookie), 2)
   })
 
   it('a concurrent /__events POST and API-route mutation both land', async () => {
@@ -149,14 +150,14 @@ describe('cross-path session serialization (lost-update regression)', () => {
       incrementViaEvents(app, cookie),
       incrementViaApiRoute(app, cookie),
     ])
-    expect(r1.status).toBe(200)
-    expect(r2.status).toBe(200)
-    expect(await renderedCount(app, cookie)).toBe(2)
+    assert.equal(r1.status, 200)
+    assert.equal(r2.status, 200)
+    assert.equal(await renderedCount(app, cookie), 2)
   })
 
   it('concurrent API-route mutations on one session both land', async () => {
     const { app, cookie } = await slowApp()
     await Promise.all([incrementViaApiRoute(app, cookie), incrementViaApiRoute(app, cookie)])
-    expect(await renderedCount(app, cookie)).toBe(2)
+    assert.equal(await renderedCount(app, cookie), 2)
   })
 })

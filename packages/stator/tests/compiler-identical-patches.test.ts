@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { lowerTemplate } from '../src/compiler/lower.ts'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
@@ -106,7 +107,7 @@ describe('compiler: identical patches vs hand-written template', () => {
     const htmlA = runInRender(stateA, () => handWritten(a.cart)).html
     const htmlB = runInRender(stateB, () => evalLowered(lowered, { ...scope, cart: b.cart })).html
 
-    expect(htmlB).toBe(htmlA)
+    assert.equal(htmlB, htmlA)
 
     // Mutate both identically, then compare recompute patches.
     a.runtime.processEvent('CartMachine', { type: 'BUMP', id: 'p1' })
@@ -115,7 +116,7 @@ describe('compiler: identical patches vs hand-written template', () => {
     const patchesA = recompute(stateA, 'CartMachine', a.runtime)
     const patchesB = recompute(stateB, 'CartMachine', b.runtime)
 
-    expect(patchesB).toEqual(patchesA)
-    expect(patchesB.length).toBeGreaterThan(0)
+    assert.deepStrictEqual(patchesB, patchesA)
+    assert.ok(patchesB.length > 0)
   })
 })

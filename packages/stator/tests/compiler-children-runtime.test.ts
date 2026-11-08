@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { lowerTemplate } from '../src/compiler/lower.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import {
@@ -53,7 +54,8 @@ describe('compiler: children compose through the runtime', () => {
       () => callerFn(...names.map((n) => (scope as any)[n])) as HtmlFragment,
     )
 
-    expect(out.html).toBe(
+    assert.equal(
+      out.html,
       '<div class="layout"><header><span>Sale!</span></header><main><p>Body content</p></main></div>',
     )
 
@@ -72,7 +74,7 @@ describe('compiler: children compose through the runtime', () => {
       state,
       () => callerFn(...names.map((n) => (scope as any)[n])) as HtmlFragment,
     )
-    expect(out.html).toBe('<div><p>just body</p></div>')
+    assert.equal(out.html, '<div><p>just body</p></div>')
     delete (scope as any).Card
   })
 })

@@ -1,6 +1,7 @@
-// @vitest-environment happy-dom
+// @env happy-dom
 // SPIKE (finding #5 / option C): item-value bindings inside a non-keyed each.
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { recompute } from '../src/server/recompute.ts'
@@ -78,8 +79,8 @@ describe('each: item-value bindings (SPIKE option C)', () => {
   it('renders an addressable slot per item interpolation', async () => {
     const { list, state } = await buildRuntime(rows('a', 'b'))
     const out = renderList(state, list)
-    expect(out.html).toMatch(/<span data-slot="[^"]+">label-a<\/span>/)
-    expect(out.html).toMatch(/<span data-slot="[^"]+">label-b<\/span>/)
+    assert.match(out.html, /<span data-slot="[^"]+">label-a<\/span>/)
+    assert.match(out.html, /<span data-slot="[^"]+">label-b<\/span>/)
   })
 
   it('a content change patches ONLY the changed field — no wholesale re-render', async () => {
@@ -91,10 +92,13 @@ describe('each: item-value bindings (SPIKE option C)', () => {
       { id: 'b', label: 'label-b' },
     ])
 
-    expect(patches).toHaveLength(1)
-    expect(patches[0]!.op).toBe('text')
-    expect((patches[0] as { value: string }).value).toBe('CHANGED-a')
-    expect(patches.some((p) => p.op === 'html')).toBe(false)
+    assert.equal(patches.length, 1)
+    assert.equal(patches[0]!.op, 'text')
+    assert.equal((patches[0] as { value: string }).value, 'CHANGED-a')
+    assert.equal(
+      patches.some((p) => p.op === 'html'),
+      false,
+    )
   })
 
   it('emits nothing when content is unchanged despite item-identity churn', async () => {
@@ -102,15 +106,15 @@ describe('each: item-value bindings (SPIKE option C)', () => {
     renderList(state, list)
     // Fresh objects, identical values — the old reference guard would re-render.
     const patches = update(runtime, state, rows('a', 'b'))
-    expect(patches).toHaveLength(0)
+    assert.equal(patches.length, 0)
   })
 
   it('falls back to a wholesale re-render when the length changes', async () => {
     const { runtime, list, state } = await buildRuntime(rows('a', 'b'))
     renderList(state, list)
     const patches = update(runtime, state, rows('a', 'b', 'c'))
-    expect(patches).toHaveLength(1)
-    expect(patches[0]!.op).toBe('html')
+    assert.equal(patches.length, 1)
+    assert.equal(patches[0]!.op, 'html')
   })
 
   it('compares a non-scalar item field deeply — churn is quiet, a real change patches', async () => {
@@ -125,10 +129,10 @@ describe('each: item-value bindings (SPIKE option C)', () => {
         )}</ul>`,
     )
     // Same content, fresh array (machine clones the context) → no patch.
-    expect(update(runtime, state, withTags(['x', 'y']))).toHaveLength(0)
+    assert.equal(update(runtime, state, withTags(['x', 'y'])).length, 0)
     // Real content change → one text patch.
     const changed = update(runtime, state, withTags(['x', 'z']))
-    expect(changed).toHaveLength(1)
-    expect(changed[0]!.op).toBe('text')
+    assert.equal(changed.length, 1)
+    assert.equal(changed[0]!.op, 'text')
   })
 })

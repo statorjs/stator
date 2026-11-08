@@ -1,7 +1,8 @@
+import assert from 'node:assert/strict'
 import { readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
+import { after, before, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { type BuildResult, buildApp } from '../src/build/build.ts'
 import { loadProductionHead } from '../src/build/head.ts'
 import { createApp } from '../src/server/create-app.ts'
@@ -26,11 +27,14 @@ const outDir = resolve(here, 'fixtures/.tmp-build-app-dist')
 
 let result: BuildResult
 
-beforeAll(async () => {
-  result = await buildApp({ root, outDir })
-}, 60_000)
+before(
+  async () => {
+    result = await buildApp({ root, outDir })
+  },
+  { timeout: 60_000 },
+)
 
-afterAll(async () => {
+after(async () => {
   await rm(outDir, { recursive: true, force: true })
 })
 
@@ -45,40 +49,40 @@ async function exists(p: string): Promise<boolean> {
 
 describe('build: buildApp', () => {
   it('compiles .stator to sibling .ts, rewrites specifiers, and collects CSS', async () => {
-    expect(result.compiled).toBe(2)
-    expect(result.hasCss).toBe(true)
+    assert.equal(result.compiled, 2)
+    assert.equal(result.hasCss, true)
 
     // The .stator was compiled to a sibling .ts and the original removed.
-    expect(await exists(join(outDir, 'templates/widget.stator.ts'))).toBe(true)
-    expect(await exists(join(outDir, 'templates/widget.stator'))).toBe(false)
+    assert.equal(await exists(join(outDir, 'templates/widget.stator.ts')), true)
+    assert.equal(await exists(join(outDir, 'templates/widget.stator')), false)
 
     // The compiled module is a real server module.
     const mod = await readFile(join(outDir, 'templates/widget.stator.ts'), 'utf8')
-    expect(mod).toContain('export default function')
-    expect(mod).toContain('html`')
+    assert.ok(mod.includes('export default function'))
+    assert.ok(mod.includes('html`'))
 
     // The route's `.stator` import specifier was rewritten to `.stator.ts`.
     const route = await readFile(join(outDir, 'routes/index.ts'), 'utf8')
-    expect(route).toContain("'../templates/widget.stator.ts'")
-    expect(route).not.toContain("'../templates/widget.stator'")
+    assert.ok(route.includes("'../templates/widget.stator.ts'"))
+    assert.ok(!route.includes("'../templates/widget.stator'"))
 
     const sibling = await readFile(join(outDir, 'templates/widget.stator.css'), 'utf8')
-    expect(sibling).toMatch(/\.widget\[data-s-[0-9a-f]{8}\]/)
-    expect(sibling).toContain('teal')
+    assert.match(sibling, /\.widget\[data-s-[0-9a-f]{8}\]/)
+    assert.ok(sibling.includes('teal'))
 
     const routeCss = await readFile(join(outDir, 'static/css/routes/index.css'), 'utf8')
-    expect(routeCss).toContain(sibling)
+    assert.ok(routeCss.includes(sibling))
   })
 
   it('a route that reaches no styled component gets no CSS artifact at all', async () => {
-    expect(await exists(join(outDir, 'static/css/routes/stepper.css'))).toBe(false)
+    assert.equal(await exists(join(outDir, 'static/css/routes/stepper.css')), false)
   })
 
   it('bundles client components to hashed assets with a manifest', async () => {
-    expect(result.islands).toBe(1)
+    assert.equal(result.islands, 1)
 
     // The client entry was written as a sibling in the dist tree.
-    expect(await exists(join(outDir, 'templates/stepper.stator.client.ts'))).toBe(true)
+    assert.equal(await exists(join(outDir, 'templates/stepper.stator.client.ts')), true)
 
     const manifest = JSON.parse(await readFile(join(outDir, 'stator-manifest.json'), 'utf8')) as {
       buildId: string
@@ -86,19 +90,19 @@ describe('build: buildApp', () => {
       routes: Record<string, string[]>
     }
     // The manifest carries a build-id for the reload handshake.
-    expect(manifest.buildId).toMatch(/[0-9a-f-]{36}/)
+    assert.match(manifest.buildId, /[0-9a-f-]{36}/)
     const url = manifest.islands['templates/stepper.stator']
-    expect(url).toMatch(/^\/static\/assets\/templates_stepper-[\w-]+\.js$/)
+    assert.match(url ?? '', /^\/static\/assets\/templates_stepper-[\w-]+\.js$/)
 
     // Route reachability: only the stepper route reaches the island.
-    expect(manifest.routes['routes/stepper.ts']).toEqual([url])
-    expect(manifest.routes['routes/index.ts']).toBeUndefined()
+    assert.deepStrictEqual(manifest.routes['routes/stepper.ts'], [url])
+    assert.equal(manifest.routes['routes/index.ts'], undefined)
 
     // The hashed asset exists on disk under the served static dir — and ships
     // UNMAPPED (inline sourcemaps are a dev-only seam option).
     const assetPath = join(outDir, url!.replace('/static/', 'static/'))
-    expect(await exists(assetPath)).toBe(true)
-    expect(await readFile(assetPath, 'utf8')).not.toContain('sourceMappingURL')
+    assert.equal(await exists(assetPath), true)
+    assert.ok(!(await readFile(assetPath, 'utf8')).includes('sourceMappingURL'))
   })
 
   it('stubs server-machine imports in the browser bundle', async () => {
@@ -109,28 +113,28 @@ describe('build: buildApp', () => {
     const bundle = await readFile(join(outDir, url.replace('/static/', 'static/')), 'utf8')
 
     // The identity survives (dispatch posts machine.name over the wire)...
-    expect(bundle).toContain('CounterMachine')
-    expect(bundle).toContain('count-stepper')
+    assert.ok(bundle.includes('CounterMachine'))
+    assert.ok(bundle.includes('count-stepper'))
     // ...but the machine module's body never reaches the browser.
-    expect(bundle).not.toContain('server-only-machine-body')
+    assert.ok(!bundle.includes('server-only-machine-body'))
   })
 
   it('hashes every machine into the manifest (the snapshot hydration policy)', async () => {
-    expect(result.machines).toBe(1)
-    expect(result.machineHashMs).toBeGreaterThanOrEqual(0)
+    assert.equal(result.machines, 1)
+    assert.ok(result.machineHashMs >= 0)
     // First build in this outDir: nothing to diff against.
-    expect(result.resetMachines).toBeUndefined()
+    assert.equal(result.resetMachines, undefined)
     const manifest = JSON.parse(await readFile(join(outDir, 'stator-manifest.json'), 'utf8')) as {
       machines: Record<string, string>
     }
-    expect(manifest.machines['counter.ts']).toMatch(/^[0-9a-f]{64}$/)
+    assert.match(manifest.machines['counter.ts'] ?? '', /^[0-9a-f]{64}$/)
     const { machines } = await loadProductionHead(outDir)
-    expect(machines).toEqual(manifest.machines)
+    assert.deepStrictEqual(machines, manifest.machines)
   })
 
   it('refuses to boot a machine the manifest has no hash for', async () => {
     const { headExtras, buildId } = await loadProductionHead(outDir)
-    await expect(
+    await assert.rejects(
       createApp({
         machinesDir: join(outDir, 'machines'),
         routesDir: join(outDir, 'routes'),
@@ -138,7 +142,8 @@ describe('build: buildApp', () => {
         buildId,
         machineHashes: {},
       }),
-    ).rejects.toThrow(/no code hash for machine "CounterMachine" \(counter\.ts\)/)
+      /no code hash for machine "CounterMachine" \(counter\.ts\)/,
+    )
   })
 
   it('serves the built dist with island script injection (no Vite)', async () => {
@@ -154,34 +159,37 @@ describe('build: buildApp', () => {
 
     // The island route gets its module script + the shell renders.
     const stepperRes = await app.fetch(new Request('http://localhost/stepper'))
-    expect(stepperRes.status).toBe(200)
+    assert.equal(stepperRes.status, 200)
     const stepperHtml = await stepperRes.text()
-    expect(stepperHtml).toMatch(
+    assert.match(
+      stepperHtml,
       /<script type="module" src="\/static\/assets\/templates_stepper-[\w-]+\.js"><\/script>/,
     )
-    expect(stepperHtml).toContain('<count-stepper')
-    expect(stepperHtml).not.toContain('stylesheet')
+    assert.ok(stepperHtml.includes('<count-stepper'))
+    assert.ok(!stepperHtml.includes('stylesheet'))
 
     // This fixture's render has no <head> to inject into, so check
     // headExtras directly rather than the served HTML.
     const indexRes = await app.fetch(new Request('http://localhost/'))
     const indexHtml = await indexRes.text()
-    expect(indexHtml).not.toContain('type="module"')
-    expect(headExtras(join(outDir, 'routes/index.ts'))).toContain(
-      '<link rel="stylesheet" href="/static/css/routes/index.css">',
+    assert.ok(!indexHtml.includes('type="module"'))
+    assert.ok(
+      headExtras(join(outDir, 'routes/index.ts')).includes(
+        '<link rel="stylesheet" href="/static/css/routes/index.css">',
+      ),
     )
 
     // The hashed asset is served by the static handler.
     const url = stepperHtml.match(/src="(\/static\/assets\/[^"]+)"/)![1]!
     const assetRes = await app.fetch(new Request(`http://localhost${url}`))
-    expect(assetRes.status).toBe(200)
-    expect(await assetRes.text()).toContain('customElements')
+    assert.equal(assetRes.status, 200)
+    assert.ok((await assetRes.text()).includes('customElements'))
   })
 
   it('a rebuild reports which machines changed since the previous manifest', async () => {
     // Unchanged code ⇒ same hash ⇒ no resets.
     const same = await buildApp({ root, outDir })
-    expect(same.resetMachines).toEqual([])
+    assert.deepStrictEqual(same.resetMachines, [])
 
     // A behaviour change in the machine ⇒ its sessions reset on deploy.
     const file = resolve(root, 'machines/counter.ts')
@@ -191,20 +199,22 @@ describe('build: buildApp', () => {
       // machine file itself would count — entry-point exports are its public
       // surface and esbuild keeps them; only imported modules are tree-shaken.)
       await writeFile(file, `${original}\n// touched\n`)
-      expect((await buildApp({ root, outDir })).resetMachines).toEqual([])
+      assert.deepStrictEqual((await buildApp({ root, outDir })).resetMachines, [])
       await writeFile(file, original.replace('count: 0', 'count: 1'))
-      expect((await buildApp({ root, outDir })).resetMachines).toEqual(['counter.ts'])
+      assert.deepStrictEqual((await buildApp({ root, outDir })).resetMachines, ['counter.ts'])
     } finally {
       await writeFile(file, original)
       await buildApp({ root, outDir })
     }
   })
 
-  it('names the manifest it compared against, and diffs against a given one instead of dist', async () => {
+  it('names the manifest it compared against, and diffs against a given one instead of dist', {
+    timeout: 60_000,
+  }, async () => {
     // Against dist's own manifest: the default.
     const local = await buildApp({ root, outDir })
-    expect(local.resetMachines).toEqual([])
-    expect(local.previousManifest).toBe(join(outDir, 'stator-manifest.json'))
+    assert.deepStrictEqual(local.resetMachines, [])
+    assert.equal(local.previousManifest, join(outDir, 'stator-manifest.json'))
 
     // Against a manifest from elsewhere — the last DEPLOYED build's, in a
     // fresh checkout that has no dist. Its hash for counter.ts is stale.
@@ -218,15 +228,16 @@ describe('build: buildApp', () => {
     )
     try {
       const against = await buildApp({ root, outDir, previousManifest: deployed })
-      expect(against.resetMachines).toEqual(['counter.ts'])
-      expect(against.previousManifest).toBe(deployed)
+      assert.deepStrictEqual(against.resetMachines, ['counter.ts'])
+      assert.equal(against.previousManifest, deployed)
       // Given explicitly and missing: an error, never a silent "nothing to compare".
-      await expect(
+      await assert.rejects(
         buildApp({ root, outDir, previousManifest: join(root, 'nope.json') }),
-      ).rejects.toThrow(/cannot read the previous manifest .*nope\.json/)
+        /cannot read the previous manifest .*nope\.json/,
+      )
     } finally {
       await rm(deployed, { force: true })
       await buildApp({ root, outDir })
     }
-  }, 60_000)
+  })
 })

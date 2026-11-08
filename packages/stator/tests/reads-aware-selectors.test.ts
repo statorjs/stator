@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { defineMachine } from '../src/server/define-machine.ts'
 import { MachineStore } from '../src/server/machine-store.ts'
 import { recompute } from '../src/server/recompute.ts'
@@ -77,21 +78,21 @@ describe('reads-aware selectors', () => {
   it('a selector consults the read machine live (session reads app)', async () => {
     const { store, runtime, basket } = await harness()
     const b = basket as { atCeiling: (sku: string) => boolean }
-    expect(b.atCeiling('widget')).toBe(false) // 0 of 2
+    assert.equal(b.atCeiling('widget'), false) // 0 of 2
     runtime.processEvent('BasketMachine', { type: 'ADD', sku: 'widget' })
     runtime.processEvent('BasketMachine', { type: 'ADD', sku: 'widget' })
-    expect(b.atCeiling('widget')).toBe(true) // 2 of 2
+    assert.equal(b.atCeiling('widget'), true) // 2 of 2
     // Stock moves out from under the basket — the verdict follows, live.
     store.appInstance('StockMachine')!.actor.send({ type: 'SET', sku: 'widget', qty: 5 } as never)
-    expect(b.atCeiling('widget')).toBe(false) // 2 of 5
+    assert.equal(b.atCeiling('widget'), false) // 2 of 5
   })
 
   it('expandTouchedForRecompute walks the reverse-reads graph', async () => {
     const { store } = await harness()
     const { all, derived } = store.expandTouchedForRecompute(new Set(['StockMachine']))
-    expect(all.has('BasketMachine')).toBe(true)
-    expect(derived.has('BasketMachine')).toBe(true)
-    expect(derived.has('StockMachine')).toBe(false)
+    assert.equal(all.has('BasketMachine'), true)
+    assert.equal(derived.has('BasketMachine'), true)
+    assert.equal(derived.has('StockMachine'), false)
   })
 
   it('a binding on the READING machine re-diffs when the READ machine changes', async () => {
@@ -105,13 +106,13 @@ describe('reads-aware selectors', () => {
       () =>
         html`<button disabled="${read(basket, (b) => (b as unknown as { atCeiling: (s: string) => boolean }).atCeiling('widget'))}">+</button>`,
     )
-    expect(out.html).toContain('disabled=""') // 2 of 2 at render
+    assert.ok(out.html.includes('disabled=""')) // 2 of 2 at render
 
     // Touch ONLY the stock machine; expansion must re-diff the basket binding.
     store.appInstance('StockMachine')!.actor.send({ type: 'SET', sku: 'widget', qty: 9 } as never)
     const { all } = store.expandTouchedForRecompute(new Set(['StockMachine']))
     const patches = [...all].flatMap((name) => recompute(state, name, runtime))
-    expect(patches).toHaveLength(1)
-    expect(patches[0]).toMatchObject({ op: 'attr', name: 'disabled', value: null })
+    assert.equal(patches.length, 1)
+    assert.partialDeepStrictEqual(patches[0], { op: 'attr', name: 'disabled', value: null })
   })
 })

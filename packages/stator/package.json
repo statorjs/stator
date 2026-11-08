@@ -1,7 +1,7 @@
 {
   "name": "@statorjs/stator",
   "version": "2.16.0",
-  "description": "Server-canonical web framework: business logic in composable state machines, UI as a thin renderer binding machine outputs to DOM positions. Ships TypeScript source, loaded natively by its own toolchain — no build step.",
+  "description": "Server-canonical web framework: business logic in composable state machines, UI as a thin renderer binding machine outputs to DOM positions. Ships TypeScript source, loaded natively by its own toolchain \u2014 no build step.",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -80,8 +80,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "node --import ./tests/env/setup.ts --import @statorjs/stator/register --test --test-force-exit --test-timeout=60000 'tests/**/*.test.ts'",
+    "test:watch": "node --import ./tests/env/setup.ts --import @statorjs/stator/register --test --watch 'tests/**/*.test.ts'",
     "test:browser": "node browser-tests/tables.mjs",
     "build:client": "esbuild src/client/runtime.ts --bundle --format=iife --target=es2020 --outfile=dist/client.js",
     "build:components": "node src/cli/stator.js build:lib src/components && biome check --write src/components/",
@@ -114,7 +114,6 @@
     "@types/node": "^22.20.5",
     "happy-dom": "^21.0.4",
     "pino-pretty": "^13.2.0",
-    "vite": "^6.4.5",
-    "vitest": "^3.2.7"
+    "vite": "^6.4.5"
   }
 }

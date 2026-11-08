@@ -1,6 +1,7 @@
+import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
 import { createApp, type StatorApp } from '../src/server/create-app.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -54,46 +55,46 @@ describe('build-id reload handshake', () => {
   it('emits <meta name="stator-build"> on a live page when a build-id is set', async () => {
     const app = await boot('build-A')
     const html = await (await app.fetch(new Request('http://localhost/live-head'))).text()
-    expect(html).toContain('<meta name="stator-live" content="true">')
-    expect(html).toContain('<meta name="stator-build" content="build-A">')
+    assert.ok(html.includes('<meta name="stator-live" content="true">'))
+    assert.ok(html.includes('<meta name="stator-build" content="build-A">'))
   })
 
   it('omits the build meta when no build-id is configured', async () => {
     const app = await boot(undefined)
     const html = await (await app.fetch(new Request('http://localhost/live-head'))).text()
-    expect(html).toContain('stator-live')
-    expect(html).not.toContain('stator-build')
+    assert.ok(html.includes('stator-live'))
+    assert.ok(!html.includes('stator-build'))
   })
 
   it('sends a reload directive when the page build-id is stale', async () => {
     const app = await boot('build-NEW')
     const cookie = await cookieFor(app, '/live-head')
     const buffer = await sseFirstChunk(app, 'GET /live-head', cookie, 'build-OLD')
-    expect(buffer).toContain('"reload"')
-    expect(buffer).not.toContain(': open') // reload short-circuits before the sync
+    assert.ok(buffer.includes('"reload"'))
+    assert.ok(!buffer.includes(': open')) // reload short-circuits before the sync
   })
 
   it('does NOT reload when the build-id matches', async () => {
     const app = await boot('build-SAME')
     const cookie = await cookieFor(app, '/live-head')
     const buffer = await sseFirstChunk(app, 'GET /live-head', cookie, 'build-SAME')
-    expect(buffer).toContain(': open') // normal path
-    expect(buffer).not.toContain('reload')
+    assert.ok(buffer.includes(': open')) // normal path
+    assert.ok(!buffer.includes('reload'))
   })
 
   it('does NOT reload when the client sends no build-id (graceful for old pages)', async () => {
     const app = await boot('build-SAME')
     const cookie = await cookieFor(app, '/live-head')
     const buffer = await sseFirstChunk(app, 'GET /live-head', cookie, undefined)
-    expect(buffer).toContain(': open')
-    expect(buffer).not.toContain('reload')
+    assert.ok(buffer.includes(': open'))
+    assert.ok(!buffer.includes('reload'))
   })
 
   it('does NOT reload when the server has no build-id (even if a client sends one)', async () => {
     const app = await boot(undefined)
     const cookie = await cookieFor(app, '/live-head')
     const buffer = await sseFirstChunk(app, 'GET /live-head', cookie, 'whatever')
-    expect(buffer).toContain(': open')
-    expect(buffer).not.toContain('reload')
+    assert.ok(buffer.includes(': open'))
+    assert.ok(!buffer.includes('reload'))
   })
 })

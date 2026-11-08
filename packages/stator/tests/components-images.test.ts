@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import Image from '../src/components/image.stator.ts'
 import { getImage, getPicture, SOURCE_TYPES } from '../src/components/images.ts'
 import Picture from '../src/components/picture.stator.ts'
@@ -20,38 +21,38 @@ function rendered(
 describe('getImage', () => {
   it('derives srcset over the endpoint contract, filtered below intrinsic width', () => {
     const r = getImage({ src: '/media/2026/08/x.jpg', width: 1000, height: 500 })
-    expect(r.srcset).toBe('/media/2026/08/x.jpg?w=400 400w, /media/2026/08/x.jpg?w=800 800w')
-    expect(r.width).toBe(1000)
+    assert.equal(r.srcset, '/media/2026/08/x.jpg?w=400 400w, /media/2026/08/x.jpg?w=800 800w')
+    assert.equal(r.width, 1000)
   })
 
   it('format swaps the extension — the URL is the delivery contract', () => {
     const r = getImage({ src: '/media/x.jpg', width: 900, height: 600, format: 'webp' })
-    expect(r.src).toBe('/media/x.webp')
-    expect(r.srcset).toContain('/media/x.webp?w=400 400w')
+    assert.equal(r.src, '/media/x.webp')
+    assert.ok(r.srcset?.includes('/media/x.webp?w=400 400w'))
   })
 
   it('remote URLs, GIFs and SVGs pass through with no srcset', () => {
-    expect(getImage({ src: 'https://a.example/x.jpg', width: 800, height: 600 }).srcset).toBeNull()
-    expect(getImage({ src: '/media/x.gif', width: 800, height: 600 }).srcset).toBeNull()
-    expect(getImage({ src: '/media/mark.svg', width: 256, height: 256 }).srcset).toBeNull()
+    assert.equal(getImage({ src: 'https://a.example/x.jpg', width: 800, height: 600 }).srcset, null)
+    assert.equal(getImage({ src: '/media/x.gif', width: 800, height: 600 }).srcset, null)
+    assert.equal(getImage({ src: '/media/mark.svg', width: 256, height: 256 }).srcset, null)
   })
 
   it('crop emits w+h URLs and reports the CROPPED box, not the source shape', () => {
     const r = getImage({ src: '/media/x.jpg', width: 2048, height: 1536, crop: 1 })
-    expect(r.srcset).toContain('/media/x.jpg?w=400&h=400 400w')
-    expect(r.srcset).toContain('/media/x.jpg?w=1600&h=1600 1600w')
+    assert.ok(r.srcset?.includes('/media/x.jpg?w=400&h=400 400w'))
+    assert.ok(r.srcset?.includes('/media/x.jpg?w=1600&h=1600 1600w'))
     // src is the largest rung, and width/height describe THAT resource — so
     // the reserved box is square even though the original is 4:3.
-    expect(r.src).toBe('/media/x.jpg?w=1600&h=1600')
-    expect(r.width).toBe(1600)
-    expect(r.height).toBe(1600)
+    assert.equal(r.src, '/media/x.jpg?w=1600&h=1600')
+    assert.equal(r.width, 1600)
+    assert.equal(r.height, 1600)
   })
 
   it('crop with no rung below the intrinsic width degrades to the uncropped original', () => {
     const r = getImage({ src: '/media/tiny.jpg', width: 120, height: 90, crop: 1 })
-    expect(r.src).toBe('/media/tiny.jpg')
-    expect(r.srcset).toBeNull()
-    expect(r.width).toBe(120)
+    assert.equal(r.src, '/media/tiny.jpg')
+    assert.equal(r.srcset, null)
+    assert.equal(r.width, 120)
   })
 })
 
@@ -63,30 +64,34 @@ describe('getPicture', () => {
     const { sources, image } = inRender(() =>
       getPicture({ src: '/media/x.jpg', width: 1000, height: 500, alt: 'x' }),
     )
-    expect(sources.map((s) => s.format)).toEqual(['avif', 'webp'])
-    expect(sources.every((s) => s.srcset.includes('.avif') || s.srcset.includes('.webp'))).toBe(
+    assert.deepStrictEqual(
+      sources.map((s) => s.format),
+      ['avif', 'webp'],
+    )
+    assert.equal(
+      sources.every((s) => s.srcset.includes('.avif') || s.srcset.includes('.webp')),
       true,
     )
-    expect(image.src).toBe('/media/x.jpg')
-    expect(image.width).toBe(1000)
+    assert.equal(image.src, '/media/x.jpg')
+    assert.equal(image.width, 1000)
   })
 
   it('collapses to no sources when remote or too small — same cases <Picture> collapses on', () => {
     const remote = inRender(() =>
       getPicture({ src: 'https://a.example/x.jpg', width: 800, height: 600, alt: 'x' }),
     )
-    expect(remote.sources).toEqual([])
+    assert.deepStrictEqual(remote.sources, [])
     const tiny = inRender(() =>
       getPicture({ src: '/media/x.jpg', width: 100, height: 100, alt: 'x' }),
     )
-    expect(tiny.sources).toEqual([])
+    assert.deepStrictEqual(tiny.sources, [])
   })
 
   it('a custom <picture> can build its own <source> tags from SOURCE_TYPES', () => {
     const { sources } = inRender(() =>
       getPicture({ src: '/media/x.jpg', width: 1000, height: 500, alt: 'x' }),
     )
-    for (const s of sources) expect(SOURCE_TYPES[s.format]).toMatch(/^image\//)
+    for (const s of sources) assert.match(SOURCE_TYPES[s.format], /^image\//)
   })
 })
 
@@ -95,20 +100,20 @@ describe('<Image>', () => {
     const html = rendered(() =>
       Image({ src: '/media/x.jpg', width: 1000, height: 500, alt: 'A harbor' }),
     )
-    expect(html).toContain('width="1000"')
-    expect(html).toContain('height="500"')
-    expect(html).toContain('alt="A harbor"')
-    expect(html).toContain('loading="lazy"')
-    expect(html).toContain('decoding="async"')
-    expect(html).not.toContain('fetchpriority')
+    assert.ok(html.includes('width="1000"'))
+    assert.ok(html.includes('height="500"'))
+    assert.ok(html.includes('alt="A harbor"'))
+    assert.ok(html.includes('loading="lazy"'))
+    assert.ok(html.includes('decoding="async"'))
+    assert.ok(!html.includes('fetchpriority'))
   })
 
   it('priority flips to eager + fetchpriority=high', () => {
     const html = rendered(() =>
       Image({ src: '/media/x.jpg', width: 800, height: 600, alt: '', priority: true }),
     )
-    expect(html).toContain('loading="eager"')
-    expect(html).toContain('fetchpriority="high"')
+    assert.ok(html.includes('loading="eager"'))
+    assert.ok(html.includes('fetchpriority="high"'))
   })
 
   it('the native attributes are separately settable — the grid case the rollup cannot express', () => {
@@ -117,28 +122,28 @@ describe('<Image>', () => {
     const eagerOnly = rendered(() =>
       Image({ src: '/media/x.jpg', width: 800, height: 600, alt: '', loading: 'eager' }),
     )
-    expect(eagerOnly).toContain('loading="eager"')
-    expect(eagerOnly).not.toContain('fetchpriority')
+    assert.ok(eagerOnly.includes('loading="eager"'))
+    assert.ok(!eagerOnly.includes('fetchpriority'))
 
     const low = rendered(() =>
       Image({ src: '/media/x.jpg', width: 800, height: 600, alt: '', fetchpriority: 'low' }),
     )
-    expect(low).toContain('fetchpriority="low"')
-    expect(low).toContain('loading="lazy"')
+    assert.ok(low.includes('fetchpriority="low"'))
+    assert.ok(low.includes('loading="lazy"'))
   })
 
   it('decoding is overridable — it was hardcoded with no escape at all', () => {
     const html = rendered(() =>
       Image({ src: '/media/x.jpg', width: 800, height: 600, alt: '', decoding: 'sync' }),
     )
-    expect(html).toContain('decoding="sync"')
+    assert.ok(html.includes('decoding="sync"'))
   })
 
   it('escapes alt text', () => {
     const html = rendered(() =>
       Image({ src: '/media/x.jpg', width: 8, height: 6, alt: '"><script>' }),
     )
-    expect(html).not.toContain('"><script>')
+    assert.ok(!html.includes('"><script>'))
   })
 })
 
@@ -147,20 +152,20 @@ describe('<Picture>', () => {
     const html = rendered(() =>
       Picture({ src: '/media/x.jpg', width: 1000, height: 500, alt: 'x' }),
     )
-    expect(html).toContain('<picture')
-    expect(html).toContain('type="image/avif"')
-    expect(html).toContain('type="image/webp"')
-    expect(html).toContain('/media/x.avif?w=400')
-    expect(html).toMatch(/<img[^>]*src="\/media\/x\.jpg"/)
+    assert.ok(html.includes('<picture'))
+    assert.ok(html.includes('type="image/avif"'))
+    assert.ok(html.includes('type="image/webp"'))
+    assert.ok(html.includes('/media/x.avif?w=400'))
+    assert.match(html, /<img[^>]*src="\/media\/x\.jpg"/)
   })
 
   it('collapses to a plain <img> when no sources apply (remote, or too small)', () => {
     const remote = rendered(() =>
       Picture({ src: 'https://a.example/x.jpg', width: 800, height: 600, alt: 'x' }),
     )
-    expect(remote).not.toContain('<picture')
+    assert.ok(!remote.includes('<picture'))
     const tiny = rendered(() => Picture({ src: '/media/x.jpg', width: 100, height: 100, alt: 'x' }))
-    expect(tiny).not.toContain('<picture')
+    assert.ok(!tiny.includes('<picture'))
   })
 })
 
@@ -177,16 +182,16 @@ describe('<Picture> crop', () => {
       }),
     )
     // Every format row is cropped...
-    expect(html).toContain('/media/x.avif?w=400&amp;h=400 400w')
-    expect(html).toContain('/media/x.webp?w=800&amp;h=800 800w')
+    assert.ok(html.includes('/media/x.avif?w=400&amp;h=400 400w'))
+    assert.ok(html.includes('/media/x.webp?w=800&amp;h=800 800w'))
     // ...with no always-true media condition standing in for "always".
-    expect(html).not.toContain('media=')
+    assert.ok(!html.includes('media='))
     // The fallback <img> is cropped too, and its reserved box is SQUARE —
     // under art-direction-only cropping it advertised the source's 4:3.
-    expect(html).toMatch(/<img[^>]*src="\/media\/x\.jpg\?w=800&amp;h=800"/)
-    expect(html).toContain('width="800"')
-    expect(html).toContain('height="800"')
-    expect(html).not.toContain('height="1536"')
+    assert.match(html, /<img[^>]*src="\/media\/x\.jpg\?w=800&amp;h=800"/)
+    assert.ok(html.includes('width="800"'))
+    assert.ok(html.includes('height="800"'))
+    assert.ok(!html.includes('height="1536"'))
   })
 
   it('a per-source crop overrides the fixed one for its breakpoint', () => {
@@ -200,10 +205,10 @@ describe('<Picture> crop', () => {
         sources: [{ media: '(min-width: 60rem)', crop: 16 / 9 }],
       }),
     )
-    expect(html).toContain('media="(min-width: 60rem)"')
-    expect(html).toContain('/media/x.avif?w=800&amp;h=450 800w')
+    assert.ok(html.includes('media="(min-width: 60rem)"'))
+    assert.ok(html.includes('/media/x.avif?w=800&amp;h=450 800w'))
     // The no-media rows keep the component-level square crop.
-    expect(html).toContain('/media/x.avif?w=800&amp;h=800 800w')
+    assert.ok(html.includes('/media/x.avif?w=800&amp;h=800 800w'))
   })
 })
 
@@ -219,14 +224,14 @@ describe('<Picture> art direction', () => {
       }),
     )
     // Art-directed rows carry media + cropped w&h URLs (square: h === w).
-    expect(html).toContain('media="(max-width: 30rem)"')
-    expect(html).toContain('/media/x.avif?w=400&amp;h=400 400w')
-    expect(html).toContain('/media/x.webp?w=400&amp;h=400 400w')
+    assert.ok(html.includes('media="(max-width: 30rem)"'))
+    assert.ok(html.includes('/media/x.avif?w=400&amp;h=400 400w'))
+    assert.ok(html.includes('/media/x.webp?w=400&amp;h=400 400w'))
     // The stored format is art-directed too — otherwise a browser with no
     // modern-format support would fall through the media condition entirely.
-    expect(html).toContain('/media/x.jpg?w=400&amp;h=400 400w')
+    assert.ok(html.includes('/media/x.jpg?w=400&amp;h=400 400w'))
     // Plain format chain still present (no media), and AFTER the art rows.
-    expect(html.indexOf('media=')).toBeLessThan(html.indexOf('/media/x.avif?w=400 400w'))
+    assert.ok(html.indexOf('media=') < html.indexOf('/media/x.avif?w=400 400w'))
   })
 
   it('photographic aspects emit every candidate width (16:9 was impossible under the first cut)', () => {
@@ -239,25 +244,27 @@ describe('<Picture> art direction', () => {
         sources: [{ media: '(min-width: 60rem)', crop: 16 / 9 }],
       }),
     )
-    expect(html).toContain('/media/x.avif?w=400&amp;h=225 400w')
-    expect(html).toContain('/media/x.avif?w=800&amp;h=450 800w')
-    expect(html).toContain('/media/x.avif?w=1600&amp;h=900 1600w')
+    assert.ok(html.includes('/media/x.avif?w=400&amp;h=225 400w'))
+    assert.ok(html.includes('/media/x.avif?w=800&amp;h=450 800w'))
+    assert.ok(html.includes('/media/x.avif?w=1600&amp;h=900 1600w'))
   })
 
   it('a crop missing from the configured allowlist throws — never a silent drop', () => {
-    expect(() =>
-      rendered(
-        () =>
-          Picture({
-            src: '/media/x.jpg',
-            width: 2000,
-            height: 1000,
-            alt: 'x',
-            sources: [{ media: '(min-width: 60rem)', crop: 2.35 }],
-          }),
-        { widths: [400, 800], aspectRatios: [1, 16 / 9] },
-      ),
-    ).toThrow(/crop 2.35/)
+    assert.throws(
+      () =>
+        rendered(
+          () =>
+            Picture({
+              src: '/media/x.jpg',
+              width: 2000,
+              height: 1000,
+              alt: 'x',
+              sources: [{ media: '(min-width: 60rem)', crop: 2.35 }],
+            }),
+          { widths: [400, 800], aspectRatios: [1, 16 / 9] },
+        ),
+      /crop 2.35/,
+    )
   })
 
   it('srcset widths follow the CONFIGURED allowlist from the render state — no drift', () => {
@@ -265,8 +272,8 @@ describe('<Picture> art direction', () => {
       () => Image({ src: '/media/x.jpg', width: 1000, height: 500, alt: 'x' }),
       { widths: [320, 640, 960], aspectRatios: [1] },
     )
-    expect(html).toContain('/media/x.jpg?w=320 320w')
-    expect(html).toContain('/media/x.jpg?w=640 640w')
-    expect(html).not.toContain('w=400')
+    assert.ok(html.includes('/media/x.jpg?w=320 320w'))
+    assert.ok(html.includes('/media/x.jpg?w=640 640w'))
+    assert.ok(!html.includes('w=400'))
   })
 })
