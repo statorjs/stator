@@ -21,7 +21,13 @@
     "@statorjs/stator": "2.16.0"
   },
   "changesets": [
+    "events-unknown-400",
+    "flat-config-keys-removed",
+    "node-24-floor",
     "node-test-runner",
-    "vite-removed"
+    "stator-source-maps",
+    "toolchain-reexport-removed",
+    "vite-removed",
+    "vscode-diagnostic-positions"
   ]
 }
