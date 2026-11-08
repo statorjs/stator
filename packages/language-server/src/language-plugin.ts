@@ -8,15 +8,23 @@
  * Volar adapter (mapping-shape translation + which embedded code is the TS
  * script). Keeping the split means the language server and the runtime compiler
  * never disagree about the file.
+ *
+ * What the editor shows about Stator's API follows the PROJECT's installed
+ * release, not this bundle: the `Stator` macros are typed from the project's
+ * `@statorjs/stator/editor` whenever it exports one (see `ambientFor`), the
+ * way machine and template types already resolve from the project. The
+ * bundled compiler supplies only the file's structure (regions, lowering to
+ * virtual TSX), which must stay tolerant of every supported release.
  */
 
-import { toVirtualCode, type VirtualMapping } from '@statorjs/stator/compiler'
+import { type AmbientSource, toVirtualCode, type VirtualMapping } from '@statorjs/stator/compiler'
 import type { CodeMapping, LanguagePlugin, VirtualCode } from '@volar/language-core'
 import { forEachEmbeddedCode } from '@volar/language-core'
 // Activates the `typescript` field on LanguagePlugin (module augmentation).
 import type {} from '@volar/typescript'
 import type { IScriptSnapshot } from 'typescript'
 import type { URI } from 'vscode-uri'
+import { findProjectStator } from './project-stator.ts'
 
 const TSX_SCRIPT_KIND = 4 // ts.ScriptKind.TSX
 const DEFERRED_SCRIPT_KIND = 7 // ts.ScriptKind.Deferred
@@ -36,12 +44,12 @@ export const statorLanguagePlugin: LanguagePlugin<URI, StatorVirtualCode> = {
     if (uri.path.endsWith('.stator')) return 'stator'
     return undefined
   },
-  createVirtualCode(_uri, languageId, snapshot) {
+  createVirtualCode(uri, languageId, snapshot) {
     if (languageId !== 'stator') return undefined
-    return new StatorVirtualCode(snapshot)
+    return new StatorVirtualCode(snapshot, ambientFor(uri))
   },
-  updateVirtualCode(_uri, code, snapshot) {
-    code.update(snapshot)
+  updateVirtualCode(uri, code, snapshot) {
+    code.update(snapshot, ambientFor(uri))
     return code
   },
   typescript: {
@@ -63,6 +71,13 @@ export const statorLanguagePlugin: LanguagePlugin<URI, StatorVirtualCode> = {
   },
 }
 
+/** Type the `Stator` macros from the project's install when it speaks the
+ *  editor contract, else from the bundled shape of the releases before it. */
+export function ambientFor(uri: URI): AmbientSource {
+  if (uri.scheme !== 'file') return 'bundled'
+  return findProjectStator(uri.fsPath)?.editorContract ? 'project' : 'bundled'
+}
+
 export class StatorVirtualCode implements VirtualCode {
   id = 'root'
   languageId = 'stator'
@@ -74,12 +89,12 @@ export class StatorVirtualCode implements VirtualCode {
   mappings: CodeMapping[] = []
   embeddedCodes: VirtualCode[] = []
 
-  constructor(snapshot: IScriptSnapshot) {
+  constructor(snapshot: IScriptSnapshot, ambient: AmbientSource = 'bundled') {
     this.snapshot = snapshot
-    this.update(snapshot)
+    this.update(snapshot, ambient)
   }
 
-  update(snapshot: IScriptSnapshot): void {
+  update(snapshot: IScriptSnapshot, ambient: AmbientSource = 'bundled'): void {
     this.snapshot = snapshot
     const text = snapshot.getText(0, snapshot.getLength())
     this.mappings = [
@@ -97,7 +112,7 @@ export class StatorVirtualCode implements VirtualCode {
         },
       },
     ]
-    const vc = toVirtualCode(text)
+    const vc = toVirtualCode(text, { ambient })
     this.embeddedCodes = [
       embed('tsx', 'typescriptreact', vc.tsx.code, vc.tsx.mappings),
       ...vc.styles.map((s, i) => embed(`css_${i}`, 'css', s.code, s.mappings)),

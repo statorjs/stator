@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
-import { toVirtualCode } from '../src/compiler/virtual-code.ts'
+import { type AmbientSource, toVirtualCode } from '../src/compiler/virtual-code.ts'
 
 /**
  * Typecheck-level regression net for the language-server emit: run REAL tsc
@@ -160,9 +160,10 @@ const FORM_ONSUBMIT_ATTR = `---
 <form method="post" onsubmit="return confirm('Delete all logs?')"><button type="submit">Go</button></form>
 `
 
-function emitAll(): Record<string, string> {
-  mkdirSync(dir, { recursive: true })
-  writeFileSync(join(dir, 'cart-machine.ts'), CART_MACHINE)
+function emitAll(ambient: AmbientSource): Record<string, string> {
+  const out = join(dir, ambient)
+  mkdirSync(out, { recursive: true })
+  writeFileSync(join(out, 'cart-machine.ts'), CART_MACHINE)
   const files: Record<string, string> = {}
   for (const [name, src] of [
     ['customer-layout', LAYOUT],
@@ -180,8 +181,8 @@ function emitAll(): Record<string, string> {
   ] as const) {
     // The editor resolves `.stator` imports through the language plugin; here
     // tsc plays that role by resolving the emitted sibling `.tsx`.
-    const code = toVirtualCode(src).tsx.code.replace(/\.stator'/g, "'")
-    const file = join(dir, `${name}.tsx`)
+    const code = toVirtualCode(src, { ambient }).tsx.code.replace(/\.stator'/g, "'")
+    const file = join(out, `${name}.tsx`)
     writeFileSync(file, code)
     files[name] = file
   }
@@ -211,64 +212,80 @@ function diagnosticsFor(files: Record<string, string>): Map<string, string[]> {
   return byFile
 }
 
-describe('virtual code under real tsc (the editor contract)', () => {
-  const diags = diagnosticsFor(emitAll())
+// Both ambient sources: `project` types the macros from this package's own
+// `@statorjs/stator/editor`, `bundled` from the frozen inline shape. Today the
+// two describe the same surface, so they must agree exactly.
+const results = {
+  bundled: diagnosticsFor(emitAll('bundled')),
+  project: diagnosticsFor(emitAll('project')),
+}
 
-  it('a Stator.reads binding is assignable to InstanceOf props — no false positives', () => {
-    // Regression: the ambient once typed reads with the engine (selectors-only)
-    // InstanceOf, making every binding "missing send, state, snapshot".
-    assert.deepStrictEqual(diags.get('route-good'), [])
-    assert.deepStrictEqual(diags.get('customer-layout'), [])
-  })
-
-  it('a wrong prop shape is a real error at the usage site', () => {
-    const bad = diags.get('route-bad')!
-    assert.ok(bad.length > 0)
-    assert.match(bad.join('\n'), /notACart|not assignable/)
-  })
-
-  it('a component forwards {...rest} onto a native element and typechecks clean', () => {
-    assert.deepStrictEqual(diags.get('button'), [])
-  })
-
-  it('a spread whose type conflicts with a known attribute is a real error', () => {
-    const bad = diags.get('button-bad')!
-    assert.ok(bad.length > 0)
-    assert.match(bad.join('\n'), /disabled|not assignable/)
-  })
-
-  it('a forwarding component (Stator.forwarded + on:click on an inner element) typechecks clean', () => {
-    assert.deepStrictEqual(diags.get('forward-button'), [])
-  })
-
-  it("Stator.forwarded rejects a string that isn't an on: directive name", () => {
-    const bad = diags.get('forward-bad')!
-    assert.ok(bad.length > 0)
-    assert.match(bad.join('\n'), /on:|not assignable/)
-  })
-
-  it('Stator.response.headers.set(...) typechecks clean — the real Headers API', () => {
-    assert.deepStrictEqual(diags.get('response-headers-good'), [])
-  })
-
-  it('Stator.response.headers[...] = ... is a real type error, not a silent runtime no-op', () => {
-    const bad = diags.get('response-headers-bad')!
-    assert.ok(bad.length > 0)
-  })
-
-  it('input[form=] typechecks clean — associates it with a <form> outside its DOM subtree', () => {
-    assert.deepStrictEqual(diags.get('input-form-attr'), [])
-  })
-
-  it('form[onsubmit=] typechecks clean — a native inline-handler attribute, distinct from on:submit', () => {
-    assert.deepStrictEqual(diags.get('form-onsubmit-attr'), [])
-  })
-
-  it('a top-level await in frontmatter is a TS error (sync-frontmatter contract)', () => {
-    // The body compiles into a non-async render function, so `await` there is
-    // TS1308 — surfaced in-editor, matching the runtime. A regression that moved
-    // the body back to module scope would make this pass silently.
-    const awaited = diags.get('component-await')!
-    assert.match(awaited.join('\n'), /'await' expressions are only allowed within async functions/)
-  })
+it('the project ambient and the frozen bundled ambient agree on every case', () => {
+  assert.deepStrictEqual(results.project, results.bundled)
 })
+
+for (const ambient of ['bundled', 'project'] as const)
+  describe(`virtual code under real tsc (the editor contract, ${ambient} ambient)`, () => {
+    const diags = results[ambient]
+
+    it('a Stator.reads binding is assignable to InstanceOf props — no false positives', () => {
+      // Regression: the ambient once typed reads with the engine (selectors-only)
+      // InstanceOf, making every binding "missing send, state, snapshot".
+      assert.deepStrictEqual(diags.get('route-good'), [])
+      assert.deepStrictEqual(diags.get('customer-layout'), [])
+    })
+
+    it('a wrong prop shape is a real error at the usage site', () => {
+      const bad = diags.get('route-bad')!
+      assert.ok(bad.length > 0)
+      assert.match(bad.join('\n'), /notACart|not assignable/)
+    })
+
+    it('a component forwards {...rest} onto a native element and typechecks clean', () => {
+      assert.deepStrictEqual(diags.get('button'), [])
+    })
+
+    it('a spread whose type conflicts with a known attribute is a real error', () => {
+      const bad = diags.get('button-bad')!
+      assert.ok(bad.length > 0)
+      assert.match(bad.join('\n'), /disabled|not assignable/)
+    })
+
+    it('a forwarding component (Stator.forwarded + on:click on an inner element) typechecks clean', () => {
+      assert.deepStrictEqual(diags.get('forward-button'), [])
+    })
+
+    it("Stator.forwarded rejects a string that isn't an on: directive name", () => {
+      const bad = diags.get('forward-bad')!
+      assert.ok(bad.length > 0)
+      assert.match(bad.join('\n'), /on:|not assignable/)
+    })
+
+    it('Stator.response.headers.set(...) typechecks clean — the real Headers API', () => {
+      assert.deepStrictEqual(diags.get('response-headers-good'), [])
+    })
+
+    it('Stator.response.headers[...] = ... is a real type error, not a silent runtime no-op', () => {
+      const bad = diags.get('response-headers-bad')!
+      assert.ok(bad.length > 0)
+    })
+
+    it('input[form=] typechecks clean — associates it with a <form> outside its DOM subtree', () => {
+      assert.deepStrictEqual(diags.get('input-form-attr'), [])
+    })
+
+    it('form[onsubmit=] typechecks clean — a native inline-handler attribute, distinct from on:submit', () => {
+      assert.deepStrictEqual(diags.get('form-onsubmit-attr'), [])
+    })
+
+    it('a top-level await in frontmatter is a TS error (sync-frontmatter contract)', () => {
+      // The body compiles into a non-async render function, so `await` there is
+      // TS1308 — surfaced in-editor, matching the runtime. A regression that moved
+      // the body back to module scope would make this pass silently.
+      const awaited = diags.get('component-await')!
+      assert.match(
+        awaited.join('\n'),
+        /'await' expressions are only allowed within async functions/,
+      )
+    })
+  })

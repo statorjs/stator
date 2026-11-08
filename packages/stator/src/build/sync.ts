@@ -66,8 +66,10 @@ export async function syncTypes(root: string): Promise<SyncResult> {
     // Same mirroring for the virtual TSX — the exact code the editor
     // typechecks, HTML→TSX compatibility included (see compiler/virtual-code
     // appendTemplateTsx). Relative imports resolve through the app's
-    // `rootDirs`; ambient Stator/JSX scaffolding is self-contained per file.
-    const virtual = toVirtualCode(source)
+    // `rootDirs`. This is the project's own release, so the Stator macros are
+    // typed from its `/editor` contract: the strict check for current API,
+    // where the editor's bundled compiler stays tolerant.
+    const virtual = toVirtualCode(source, { ambient: 'project' })
     const checkTarget = join(checkDir, `${rel}.check.tsx`)
     await mkdir(dirname(checkTarget), { recursive: true })
     await writeFile(checkTarget, virtual.tsx.code)

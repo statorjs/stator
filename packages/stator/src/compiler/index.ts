@@ -45,6 +45,6 @@ export type {
   VirtualFile,
   VirtualMapping,
 } from './virtual-code.ts'
-export { toVirtualCode } from './virtual-code.ts'
+export { type AmbientSource, toVirtualCode, type VirtualCodeOptions } from './virtual-code.ts'
 export type { CompileWarning } from './warnings.ts'
 export { compileWarnings } from './warnings.ts'

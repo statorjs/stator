@@ -1,7 +1,7 @@
 {
   "name": "@statorjs/stator",
   "version": "3.0.0-next.1",
-  "description": "Server-canonical web framework: business logic in composable state machines, UI as a thin renderer binding machine outputs to DOM positions. Ships TypeScript source, loaded natively by its own toolchain — no build step.",
+  "description": "Server-canonical web framework: business logic in composable state machines, UI as a thin renderer binding machine outputs to DOM positions. Ships TypeScript source, loaded natively by its own toolchain \u2014 no build step.",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -73,6 +73,10 @@
     "./compiler": {
       "types": "./src/compiler/index.ts",
       "default": "./src/compiler/index.ts"
+    },
+    "./editor": {
+      "types": "./src/editor.ts",
+      "default": "./src/editor.ts"
     }
   },
   "scripts": {
