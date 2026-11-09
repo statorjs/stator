@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { builtinModules } from 'node:module'
 import { dirname, relative, resolve } from 'node:path'
@@ -50,20 +51,21 @@ export async function stubMachineImports(file: string): Promise<string[]> {
   return names
 }
 
-/** Imports that must never reach a browser bundle: Node built-ins and the
- *  server-side Stator subpaths. */
-const SERVER_STATOR = [
-  '@statorjs/stator',
-  '@statorjs/stator/server',
-  '@statorjs/stator/server/runtime',
-  '@statorjs/stator/machine',
-  '@statorjs/stator/dev',
-  '@statorjs/stator/build',
-  '@statorjs/stator/register',
-  '@statorjs/stator/test-env',
-  '@statorjs/stator/config',
-  '@statorjs/stator/compiler',
-]
+/** Subpaths of `@statorjs/stator` a browser bundle may import: the client
+ *  runtime compiled entries import, the template helpers, and the type-only
+ *  editor contract. Every other code subpath in its `exports` is server-side. */
+const BROWSER_SAFE = new Set(['./client', './template', './editor'])
+
+/** The server-side `@statorjs/stator` specifiers, from its own `package.json`. */
+export const SERVER_STATOR: readonly string[] = (() => {
+  const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as {
+    name: string
+    exports: Record<string, unknown>
+  }
+  return Object.keys(pkg.exports)
+    .filter((sub) => !BROWSER_SAFE.has(sub) && !/\.css$/.test(sub))
+    .map((sub) => (sub === '.' ? pkg.name : `${pkg.name}/${sub.slice(2)}`))
+})()
 const BUILTINS = new Set(builtinModules)
 function serverOnly(spec: string): boolean {
   return (

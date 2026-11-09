@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { scanImports } from './imports.ts'
+import { probeModule, scanImports } from './imports.ts'
 
 /**
  * The island-bundling seam.
@@ -88,8 +88,8 @@ export async function routeIslandMap(opts: {
 
 /** Absolute targets of a file's relative import specifiers, bounded to
  *  `baseDir`: a static read through `imports.ts`, no module evaluation (an
- *  unreadable file yields none). Specifiers carry explicit extensions by
- *  convention. */
+ *  unreadable file yields none). An extensionless specifier is probed the way
+ *  `probeModule` does. */
 export async function localImports(file: string, baseDir: string): Promise<string[]> {
   let code: string
   try {
@@ -100,7 +100,8 @@ export async function localImports(file: string, baseDir: string): Promise<strin
   const out: string[] = []
   for (const { spec } of scanImports(code, file)) {
     if (!spec.startsWith('.')) continue
-    const target = resolve(join(file, '..'), spec)
+    const base = resolve(join(file, '..'), spec)
+    const target = probeModule(base) ?? base
     if (target.startsWith(baseDir)) out.push(target)
   }
   return out

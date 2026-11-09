@@ -1,8 +1,9 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
+import { createRequire, findPackageJSON } from 'node:module'
 import { dirname, join, relative, resolve, sep } from 'node:path'
-import { scanImports } from './imports.ts'
+import { pathToFileURL } from 'node:url'
+import { probeModule, scanImports } from './imports.ts'
 
 /**
  * What a route reaches: the one import-graph walk that route CSS, route
@@ -14,8 +15,9 @@ import { scanImports } from './imports.ts'
  * activate that arm with no fresh request.
  *
  * Imports are read by `imports.ts`, so one in a comment or a string is not
- * one. Relative imports are followed inside the app root. A bare specifier is
- * resolved with Node resolution from the importing file, and the package it
+ * one. Relative imports are followed inside the app root, an extensionless one
+ * probed as `.ts`, `.js`, `/index.ts`, `/index.js`. A bare specifier is
+ * resolved as an ES module import from the importing file (`resolveBare`), and the package it
  * lands in is walked through its own relative imports, inside that package's
  * root, and on through its own bare imports, to any depth. Only Stator-aware
  * packages are entered (`@statorjs/stator` itself, or one depending on it):
@@ -72,8 +74,10 @@ async function importsOf(file: string): Promise<Imports> {
   }
   const imports: Imports = { relative: [], bare: [] }
   for (const { spec } of scanImports(code, file)) {
-    if (spec.startsWith('.')) imports.relative.push(resolve(file, '..', spec))
-    else if (!spec.startsWith('node:')) imports.bare.push(spec)
+    if (spec.startsWith('.')) {
+      const base = resolve(file, '..', spec)
+      imports.relative.push(probeModule(base) ?? base)
+    } else if (!spec.startsWith('node:')) imports.bare.push(spec)
   }
   parsed.set(file, { mtimeMs: stat.mtimeMs, imports })
   return imports
@@ -81,14 +85,90 @@ async function importsOf(file: string): Promise<Imports> {
 
 const within = (dir: string, file: string): boolean => file === dir || file.startsWith(dir + sep)
 
-/** Node's resolution of `spec` from `importer`, or undefined when it does not
- *  resolve (an `import`-only export, a type-only package, a typo). */
-function resolveBare(spec: string, importer: string): string | undefined {
+/**
+ * Where `spec`, imported from `importer`, resolves for an ES module import, or
+ * undefined when it does not resolve (a type-only package, a typo). A package
+ * with an `exports` map is resolved through it under the `import`, `node` and
+ * `default` conditions; anything else, or an `exports` map with no match, goes
+ * through Node's `require` resolution.
+ */
+export function resolveBare(spec: string, importer: string): string | undefined {
+  const viaExports = resolveExports(spec, importer)
+  if (viaExports) return viaExports
   try {
     return createRequire(importer).resolve(spec)
   } catch {
     return undefined
   }
+}
+
+const IMPORT_CONDITIONS = new Set(['import', 'node', 'default'])
+
+function resolveExports(spec: string, importer: string): string | undefined {
+  let pkgJson: string | undefined
+  try {
+    pkgJson = findPackageJSON(spec, pathToFileURL(importer))
+  } catch {
+    return undefined
+  }
+  if (!pkgJson) return undefined
+  let json: { name?: string; exports?: unknown }
+  try {
+    json = JSON.parse(readFileSync(pkgJson, 'utf8')) as typeof json
+  } catch {
+    return undefined
+  }
+  if (json.exports === undefined || json.exports === null) return undefined
+  const name = spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0]!
+  const subpath = `.${spec.slice(name.length)}`
+  const root = dirname(pkgJson)
+  const hit = exportsTarget(json.exports, subpath)
+  if (!hit?.startsWith('./')) return undefined
+  const file = resolve(root, hit)
+  return within(root, file) && existsSync(file) ? file : undefined
+}
+
+/** The target `exports` maps `subpath` to, `*` patterns substituted. */
+function exportsTarget(exports: unknown, subpath: string): string | undefined {
+  const isMap =
+    typeof exports === 'object' &&
+    exports !== null &&
+    !Array.isArray(exports) &&
+    Object.keys(exports).some((k) => k.startsWith('.'))
+  if (!isMap) return subpath === '.' ? conditionTarget(exports, undefined) : undefined
+  const map = exports as Record<string, unknown>
+  if (subpath in map && !subpath.includes('*')) return conditionTarget(map[subpath], undefined)
+  let best: { key: string; star: string } | undefined
+  for (const key of Object.keys(map)) {
+    const i = key.indexOf('*')
+    if (i === -1) continue
+    const [pre, post] = [key.slice(0, i), key.slice(i + 1)]
+    if (!subpath.startsWith(pre) || !subpath.endsWith(post) || subpath.length < key.length - 1)
+      continue
+    if (!best || pre.length > best.key.indexOf('*')) {
+      best = { key, star: subpath.slice(pre.length, subpath.length - post.length) }
+    }
+  }
+  return best ? conditionTarget(map[best.key], best.star) : undefined
+}
+
+function conditionTarget(target: unknown, star: string | undefined): string | undefined {
+  if (typeof target === 'string') return star === undefined ? target : target.replaceAll('*', star)
+  if (Array.isArray(target)) {
+    for (const t of target) {
+      const hit = conditionTarget(t, star)
+      if (hit) return hit
+    }
+    return undefined
+  }
+  if (typeof target === 'object' && target !== null) {
+    for (const [cond, value] of Object.entries(target)) {
+      if (!IMPORT_CONDITIONS.has(cond)) continue
+      const hit = conditionTarget(value, star)
+      if (hit) return hit
+    }
+  }
+  return undefined
 }
 
 const packages = new Map<string, PackageRef | null>()

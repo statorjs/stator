@@ -42,7 +42,8 @@ export interface IslandReach {
   /** Every package island any route reaches, by rel. */
   packageIslands: Map<string, PackageIsland>
   /** Every reached compiled package component (shells and server
-   *  components), by file: what the contract check reads. */
+   *  components), and every package module named like compiled output in a
+   *  shape `build:lib` never emits, by file: what the contract check reads. */
   packageComponents: Map<string, ReachedModule>
 }
 
@@ -73,8 +74,14 @@ export async function reachIslands(opts: {
         reached.add(app)
         continue
       }
-      if (!mod.pkg || !mod.file.endsWith('.stator.ts')) continue
-      if (mod.pkg.name !== '@statorjs/stator') packageComponents.set(mod.file, mod)
+      if (!mod.pkg) continue
+      const own = mod.pkg.name === '@statorjs/stator'
+      if (!own && unrecognisedStator(mod.file)) {
+        packageComponents.set(mod.file, mod)
+        continue
+      }
+      if (!mod.file.endsWith('.stator.ts')) continue
+      if (!own) packageComponents.set(mod.file, mod)
       if (!isIslandShell(mod.file)) continue
       const rel = moduleLabel(mod, baseDir)
       reached.add(rel)
@@ -90,9 +97,16 @@ export async function reachIslands(opts: {
   return { routes, packageIslands, packageComponents }
 }
 
+/** A module named like compiled Stator output (`x.stator.<ext>`) in a shape
+ *  `build:lib` never emits: anything but `x.stator.ts`, `x.stator.client.ts`
+ *  and `x.stator.d.ts`. */
+export const unrecognisedStator = (file: string): boolean =>
+  /\.stator\.[^\\/]+$/.test(file) && !/\.stator\.(client\.ts|ts|d\.ts)$/.test(file)
+
 /**
  * The contract check: every reached package component, and the client entry
- * beside an island shell, must carry this compiler's `COMPILED_CONTRACT`.
+ * beside an island shell, must carry this compiler's `COMPILED_CONTRACT`, and
+ * a module named like compiled output must be in a shape this compiler emits.
  * Returns one located message per refused file; empty when all match.
  */
 export async function contractErrors(components: Iterable<ReachedModule>): Promise<string[]> {
@@ -100,6 +114,16 @@ export async function contractErrors(components: Iterable<ReachedModule>): Promi
   const mine = `Stator ${statorVersion()} reads contract ${COMPILED_CONTRACT}`
   for (const mod of components) {
     const pkg = mod.pkg!
+    if (unrecognisedStator(mod.file)) {
+      const where = `${pkg.name}/${relative(pkg.root, mod.file).replace(/\\/g, '/')}`
+      errors.push(
+        `stator: ${where} is named like a compiled Stator component, but \`stator build:lib\` ` +
+          'compiles a component to x.stator.ts (with x.stator.client.ts beside an island), so this ' +
+          `Stator does not read it. Install a version of ${pkg.name} built with \`stator build:lib\`, ` +
+          'or ask its author to republish it.',
+      )
+      continue
+    }
     const client = mod.file.replace(/\.ts$/, '.client.ts')
     for (const file of existsSync(client) ? [mod.file, client] : [mod.file]) {
       const stamp = readContract(await readFile(file, 'utf8'))

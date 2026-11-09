@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { join, relative } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import ts from 'typescript'
 import { syncTypes } from '../../build/index.ts'
 import { contractErrors, reachIslands } from '../../build/library-islands.ts'
@@ -17,11 +17,12 @@ import type { CliContext } from '../run.ts'
  * (2) every `.stator` file goes through the real compiler — the same call `dev`
  * makes on import and the editor makes per edit, so all three reject the same
  * inputs; (3) every compiled component the routes reach in a package carries
- * this compiler's contract stamp (`library-islands.ts`); (4) a
+ * this compiler's contract stamp (`library-islands.ts`), walking from
+ * `opts.routesDir` (default `<root>/routes`); (4) a
  * `tsc --noEmit`-equivalent pass via the TypeScript API.
  * Compiler warnings print alongside the compile step but don't fail the check.
  */
-export async function checkStack(root: string): Promise<void> {
+export async function checkStack(root: string, opts: { routesDir?: string } = {}): Promise<void> {
   const { written, files } = await syncTypes(root)
 
   const { errors: compileErrors, warnings } = await compileAll(root, files)
@@ -33,7 +34,7 @@ export async function checkStack(root: string): Promise<void> {
   }
 
   const reach = await reachIslands({
-    routesDir: join(root, 'routes'),
+    routesDir: opts.routesDir ? resolve(root, opts.routesDir) : join(root, 'routes'),
     baseDir: root,
     shells: new Map(),
   })
