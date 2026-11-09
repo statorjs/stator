@@ -1,0 +1,16 @@
+---
+import Card from '../templates/card.stator'
+import CountStepper from '../templates/count-stepper.stator'
+const items = ['a', 'b']
+---
+<html>
+  <head><title>contract</title></head>
+  <body>
+    <Card label="hi">
+      <p>child</p>
+      <p child="footer">foot</p>
+    </Card>
+    <CountStepper />
+    <ul>{each(items, (i) => <li>{i}</li>)}</ul>
+  </body>
+</html>

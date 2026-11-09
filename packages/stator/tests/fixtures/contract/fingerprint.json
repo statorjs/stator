@@ -1,0 +1,49 @@
+[
+  {
+    "contract": 1,
+    "fingerprint": "2bc9915f7ba9a0f9",
+    "imports": {
+      "@statorjs/stator/client": [
+        "StatorElement",
+        "attrValue",
+        "bind",
+        "bindSlot",
+        "defineElement",
+        "dispatch",
+        "effect",
+        "machine",
+        "setAttr",
+        "use"
+      ],
+      "@statorjs/stator/server": ["defineRoute"],
+      "@statorjs/stator/template": [
+        "classList",
+        "clientShellAttrs",
+        "createHtmlFragment",
+        "defer",
+        "each",
+        "html",
+        "itemBind",
+        "match",
+        "on",
+        "read",
+        "spreadAttrs",
+        "styleList",
+        "when"
+      ]
+    },
+    "markers": [
+      "attr:data-b",
+      "attr:data-ref",
+      "attr:data-s-<hash>",
+      "children:callee reads props.children.<name>",
+      "children:caller passes children.{ default, <name> }",
+      "comment:<!--sN-->",
+      "element:this.querySelectorAll()",
+      "element:this.track()",
+      "export:const GET = defineRoute",
+      "export:default function",
+      "shell:html result .html"
+    ]
+  }
+]

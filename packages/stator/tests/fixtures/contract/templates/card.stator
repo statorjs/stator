@@ -1,0 +1,9 @@
+---
+const { label } = Stator.props<{ label: string }>()
+---
+<div class="card"><h2>{label}</h2><children /><children name="footer" /></div>
+
+<style>
+  .card { color: red; }
+  h2 { margin: 0; }
+</style>
