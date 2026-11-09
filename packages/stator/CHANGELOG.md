@@ -1,5 +1,19 @@
 # @statorjs/stator
 
+## 3.0.0-next.4
+
+### Minor Changes
+
+- a3822f2: `stator check` checks a component library. `stator check src` regenerates the declarations and virtual TSX for every `.stator` under `src`, written under the root's `.stator/` mirroring `src/`, so a library's tsconfig includes `.stator/check/**/*.tsx` and sets `rootDirs: [".", ".stator/types", ".stator/check"]` the way an app's does. The contract check walks `<dir>/routes` when it exists, `--routes <dir>` names another, and a library without routes skips it with a note. `stator build:lib` runs the same check first and compiles nothing when it fails, so a component with a type error can't be published. `checkStack` takes `{ dir, routesDir }` and `syncTypes` takes `{ dir }`.
+
+  `stator check` now typechecks each island's compiled client module too, in apps and libraries alike, so the wiring the compiler generates for a template is held to the class: `on:click={save}` fails when `save` takes something other than the event. Errors in generated code are reported at the `.stator` line they came from, not at `.stator/check/…`. The generated wiring typechecks the way passing the method as a listener does, so a handler taking no argument or a narrower event is accepted; the compiled `.stator.client.ts` carries those type assertions, which erase to the same calls as before.
+
+- 05efa99: Library islands read source through the TypeScript API, so an import that appears only in a comment or a string is never followed, stubbed or counted, in route CSS, route islands, the `build:lib` machine stub, the tags and machines read back from a published client entry, and dev's live-reload graph. A server machine module is defined once for `build:lib` and for the island bundler: a module importing `defineMachine` from `@statorjs/stator/server` or `@statorjs/stator/machine`, named, aliased, as `import * as S` used as `S.defineMachine`, or through a local module that re-exports it. An app island importing such a module outside `machines/` now gets the `{ name }` stub instead of the machine's code. The walk resolves a package's `exports` under the `import` condition, so an `import`-only export is reached, and probes an extensionless relative import as `.ts`, `.js`, `/index.ts` and `/index.js`. A reached package module named like compiled output in a shape `build:lib` never emits, such as `x.stator.js`, fails `stator build` and `stator check`, naming the package and the file. The browser-safety check derives the server-side subpaths from the package's own `exports`, so `@statorjs/stator/components` is now refused in a client entry. `checkStack` takes a `routesDir` option. Compiled output is unchanged.
+
+### Patch Changes
+
+- 70f204d: Stator's TypeScript loader and the dev loader register through `module.registerHooks`, so `--import @statorjs/stator/register`, `stator test` and `stator dev` no longer print Node 26's `DEP0205` deprecation warning for `module.register`. The hooks run synchronously on the main thread; which files are transformed, the `.stator` compile and the inline source maps are unchanged. The CLI and `@statorjs/stator/register` now check for `module.registerHooks` (Node 22.15+ or 23.5+), within the `>=24` floor.
+
 ## 3.0.0-next.3
 
 ### Patch Changes
