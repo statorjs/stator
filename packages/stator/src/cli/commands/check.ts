@@ -177,7 +177,7 @@ function clientOrigin(c: CompiledClient): Origin {
         generated.slice(start - delta, start + length) === c.text.slice(base, base + delta + length)
       if (verbatim) return [base + delta, length]
       const end = lineEnd === -1 ? c.text.length : lineEnd
-      const word = /^[^\s}]+/.exec(c.text.slice(base, end))
+      const word = /^[^\s=]+=\{[^}]*\}|^\S+/.exec(c.text.slice(base, end))
       return [base, word ? word[0].length : 0]
     },
   }

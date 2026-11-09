@@ -1,0 +1,5 @@
+{
+  "name": "@fixture/check-lib",
+  "private": true,
+  "type": "module"
+}
