@@ -2,6 +2,7 @@ import { readFile, stat, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { compileComponentFile } from './compile-component.ts'
 import { walkFiles } from './islands.ts'
+import { assertBrowserSafe, stubMachineImports } from './lib-client.ts'
 import { entryCss } from './route-css.ts'
 
 export interface CompileLibraryOptions {
@@ -22,6 +23,9 @@ export interface CompileLibraryOptions {
 export interface CompileLibraryResult {
   compiled: number
   islands: number
+  /** The server machines the library's islands dispatch to (their stubs'
+   *  names). A consuming app registers these. */
+  machines: string[]
   cssOut: string
   cssBytes: number
   /** The barrel the stylesheet was aggregated from; undefined when every
@@ -55,11 +59,15 @@ export async function compileLibrary(opts: CompileLibraryOptions): Promise<Compi
   const packageName = await readPackageName(root)
   let islands = 0
   const compiled: string[] = []
+  const clientFiles: string[] = []
   for (const file of files) {
     const r = await compileComponentFile(file, root, packageName ? { idPrefix: packageName } : {})
     if (r.isClient) islands++
     compiled.push(`${file}.ts`)
-    if (r.clientFile) compiled.push(r.clientFile)
+    if (r.clientFile) {
+      compiled.push(r.clientFile)
+      clientFiles.push(r.clientFile)
+    }
   }
 
   // A component importing a sibling `.stator` must import the compiled module
@@ -69,6 +77,15 @@ export async function compileLibrary(opts: CompileLibraryOptions): Promise<Compi
     const code = await readFile(file, 'utf8')
     const rewritten = code.replace(/(['"])(\.\.?\/[^'"]+\.stator)\1/g, '$1$2.ts$1')
     if (rewritten !== code) await writeFile(file, rewritten)
+  }
+
+  // A published client entry carries no server code: machine imports become
+  // `{ name }` stubs, then a browser bundle of each entry proves nothing on the
+  // server side is left (spec `library-islands-…`, Approach 1).
+  const machines = new Set<string>()
+  for (const file of clientFiles) {
+    for (const name of await stubMachineImports(file)) machines.add(name)
+    await assertBrowserSafe(file, root)
   }
 
   const entry = opts.entry ? resolve(opts.entry) : await existing(join(dir, 'index.ts'))
@@ -88,6 +105,7 @@ export async function compileLibrary(opts: CompileLibraryOptions): Promise<Compi
   return {
     compiled: files.length,
     islands,
+    machines: [...machines].sort(),
     cssOut,
     cssBytes: css.length,
     entry,

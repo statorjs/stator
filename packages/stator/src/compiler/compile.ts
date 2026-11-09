@@ -7,6 +7,7 @@ import {
   isCustomElementTag,
   pascalToKebab,
 } from './client-script.ts'
+import { contractPragma } from './contract.ts'
 import { CompileError, type DiagnosticLocation, locAt, parseDiagnosticsOf } from './diagnostics.ts'
 import {
   ISLAND_SHELL_EXTRAS,
@@ -104,6 +105,10 @@ export interface CompileOptions {
    *  and template) in `serverCode`, its script and directive wiring in
    *  `clientCode`. */
   sourceMap?: { source: string }
+  /** Stamp the compiled-shape contract (see `contract.ts`) on line 1 of the
+   *  emitted module(s), naming `compiler` as the version that produced them.
+   *  The build and `build:lib` stamp; the dev loader need not. */
+  stamp?: { compiler: string }
 }
 
 export function compile(source: string, opts: CompileOptions = {}): CompileResult {
@@ -153,6 +158,11 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
         marks,
         scriptAt: marks && scripts.length === 1 ? scriptContentOffsets[0] : undefined,
       })
+      if (opts.stamp) {
+        const pragma = contractPragma(opts.stamp.compiler)
+        island.serverCode = `${pragma}\n${island.serverCode}`
+        island.clientCode = `${pragma}\n${island.clientCode}`
+      }
       if (!opts.sourceMap) return island
       const server = finalizeSourceMap(island.serverCode, source, opts.sourceMap.source)
       const client = finalizeSourceMap(island.clientCode, source, opts.sourceMap.source)
@@ -195,6 +205,7 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
   const fm = processFrontmatter(frontmatter, kind, source, frontmatterOffset, opts.id, marks)
   let serverCode =
     kind === 'route' ? emitRoute(fm, htmlExpr, meta) : emitComponent(fm, htmlExpr, meta)
+  if (opts.stamp) serverCode = `${contractPragma(opts.stamp.compiler)}\n${serverCode}`
   let map: SourceMapV3 | undefined
   if (opts.sourceMap) {
     ;({ code: serverCode, map } = finalizeSourceMap(serverCode, source, opts.sourceMap.source))

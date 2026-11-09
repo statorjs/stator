@@ -1,4 +1,4 @@
-/* src/components/image.stator.ts */
+/* src/components/image.stator */
 /* height:auto preserves the aspect ratio the width/height attributes
      declare; radius, margin, object-fit are the app's call. */
 :where(img[data-s-afd5216f]) {
