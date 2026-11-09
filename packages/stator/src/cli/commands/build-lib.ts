@@ -1,12 +1,16 @@
 import { relative, resolve } from 'node:path'
 import { compileLibrary } from '../../build/index.ts'
 import type { CliContext } from '../run.ts'
+import { checkStack } from './check.ts'
 
 /** Compile a component library for publishing — see `compileLibrary`. The
  *  directory is the first positional (default `src`); its `index.ts` is the
- *  barrel when present, and the stylesheet lands beside it. */
+ *  barrel when present, and the stylesheet lands beside it. `stator check`
+ *  over the same directory runs first, so a component that fails it is never
+ *  compiled for publishing. */
 export async function run(ctx: CliContext): Promise<void> {
   const dir = resolve(ctx.root, ctx.rest[0] ?? 'src')
+  await checkStack(ctx.root, { dir, ...(ctx.routesDir ? { routesDir: ctx.routesDir } : {}) })
   const r = await compileLibrary({ root: ctx.root, dir })
   const rel = (p: string) => relative(ctx.root, p).replace(/\\/g, '/')
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`

@@ -30,14 +30,14 @@ Commands:
   check [dir]      Typecheck the whole stack (server + generated .stator types), no output;
                    dir narrows the .stator files checked (a library's src)
   test             Run the test suite
-  build:lib [dir]  Compile a component library for publishing (default dir: src)
+  build:lib [dir]  Check, then compile a component library for publishing (default dir: src)
 
 Options:
   --root <dir>        App root (default: current directory)
   --port <n>          Listen port for dev/start (default: $PORT or 3000)
   --previous <path>   build: the last deployed stator-manifest.json, to report which
                       machines' sessions this build resets (default: dist/'s own)
-  --routes <dir>      check: routes the contract check walks from (default: <dir>/routes)
+  --routes <dir>      check, build:lib: routes the contract check walks from (default: <dir>/routes)
   -h, --help          Show this help
 `
 
