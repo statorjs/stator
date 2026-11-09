@@ -21,13 +21,22 @@
     "@statorjs/stator": "2.16.0"
   },
   "changesets": [
+    "build-lib-islands",
+    "consumer-library-islands",
+    "dev-route-css",
+    "editor-contract",
     "events-unknown-400",
     "flat-config-keys-removed",
+    "island-source-maps",
+    "ls-follows-project",
     "node-24-floor",
     "node-test-runner",
+    "reachability-walk",
     "stator-source-maps",
     "toolchain-reexport-removed",
     "vite-removed",
-    "vscode-diagnostic-positions"
+    "vscode-bundled-compiler-contract",
+    "vscode-diagnostic-positions",
+    "vscode-island-error-positions"
   ]
 }
