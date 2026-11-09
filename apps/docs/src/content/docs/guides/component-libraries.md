@@ -21,7 +21,37 @@ The CLI owns that step. `stator build:lib [dir]` walks the directory (default `s
 
 The same operation is `compileLibrary()` on `@statorjs/stator/build` for a script that needs to do more around it.
 
+## Typechecking a library
+
+`stator check src` checks a library the way `stator check` checks an app: every `.stator` under `src`, server components and island scripts alike, with the compiler and with `tsc`. An island's compiled client module is checked too, so the wiring generated for its template is held to the class: `on:click={save}` fails when `save` takes something other than the event. Errors are reported at the `.stator` line they came from. A plain `tsc --noEmit` sees none of this, since a library's own `.ts` sources never import the `.stator` files.
+
+`check` writes the virtual TSX under `.stator/check/`, mirroring `src/`, and `tsc` reads it through your `tsconfig.json`. Include it, and add both generated trees to `rootDirs` so its relative imports (`./sibling.stator`, `../server/x.ts`) resolve against `src/`:
+
+```json
+{
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "jsx": "preserve",
+    "rootDirs": [".", ".stator/types", ".stator/check"]
+  },
+  "include": ["src", ".stator/check/**/*.tsx"],
+  "exclude": ["src/**/*.stator.ts", "src/**/*.stator.client.ts"]
+}
+```
+
+Exclude the compiled siblings if you like, but never `.stator/check`: excluded, the islands go unchecked and `check` still passes. Gitignore `.stator/`. Then make `check` the library's typecheck:
+
+```json
+{
+  "scripts": { "typecheck": "stator check src" }
+}
+```
+
+The contract check walks `src/routes` when the library has one, for the pages it ships (`--routes <dir>` names another), and is skipped with a note when it doesn't.
+
 ## What build:lib checks and stamps
+
+`build:lib` runs `stator check` over the same directory first, the way `stator build` does for an app, and compiles nothing when it fails, so a component with a type error can't be published.
 
 Every compiled module starts with a stamp naming the compiled-shape contract it speaks and the Stator version that produced it, `/* @stator contract=1 compiler=3.0.0 */`. The contract is the interface between compiled components and the runtime they run on, and it changes only when that interface does, not with every release.
 
