@@ -1,5 +1,11 @@
 # stator-vscode
 
+## 1.4.0-next.2
+
+### Patch Changes
+
+- 703594d: The bundled compiler emits typed `Stator.reads` handles and an optional props parameter for components without props. Editor behavior is unchanged.
+
 ## 1.4.0-next.1
 
 ### Minor Changes

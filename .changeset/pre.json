@@ -34,9 +34,11 @@
     "reachability-walk",
     "stator-source-maps",
     "toolchain-reexport-removed",
+    "typed-compiled-output",
     "vite-removed",
     "vscode-bundled-compiler-contract",
     "vscode-diagnostic-positions",
-    "vscode-island-error-positions"
+    "vscode-island-error-positions",
+    "vscode-typed-compiled-output"
   ]
 }
