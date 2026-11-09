@@ -2,10 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { realpathSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
-import { register } from 'node:module'
 import { relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { MessageChannel } from 'node:worker_threads'
 import { getRequestListener } from '@hono/node-server'
 import chokidar from 'chokidar'
 import type { Hono } from 'hono'
@@ -28,6 +26,7 @@ import { findFreePort, installGracefulShutdown, printDevBanner } from './banner.
 import { type BootTeardown, discoverBoot, runBoot } from './boot.ts'
 import type { DevAppConfig } from './dev.ts'
 import { findPollLoops } from './dev-lint.ts'
+import { registerDevLoader } from './dev-loader.ts'
 import { isPrunedDevPath } from './dev-watch.ts'
 import { discoverMachines } from './discovery.ts'
 import { wireAppEffects } from './effects.ts'
@@ -48,7 +47,7 @@ import { InMemoryStore } from './store.ts'
 /**
  * Native dev server. The server runs from the app's SOURCE tree with no
  * mirror: `.stator` files are compiled on
- * import by `dev-loader.mjs` (the framework compiler + esbuild on Node's loader
+ * import by `dev-loader.ts` (the framework compiler + esbuild on Node's loader
  * hooks), machines/routes/middleware are discovered from their real paths, and
  * the app is served by Hono exactly as `stator start` serves a build. Because
  * nothing is copied, `import.meta.url`-relative paths in app code (a SQLite
@@ -141,52 +140,19 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   // per-process id would answer "same build" to a page from three rebuilds ago.
   let buildId = randomUUID()
 
-  // Loaders, BEFORE the first app import. The CLI's TS loader first — a no-op
-  // extra link when the CLI already registered it, required when the dev server
-  // is started programmatically, because the dev loader (a hooks-thread module)
-  // imports the TypeScript compiler source. Then the dev loader: `.stator`
-  // compile-on-load plus per-file `?v=` stamping scoped to the app root, fed
-  // over a MessagePort.
-  const { port1, port2 } = new MessageChannel()
-  register('../cli/loader.js', import.meta.url)
-  register('./dev-loader.mjs', import.meta.url, {
-    data: { appDir: root, port: port2 },
-    transferList: [port2],
-  })
-
   // ── Module graph + per-file versions (importer-only invalidation) ──────────
   // An edit re-evaluates the changed file and its transitive importers — nothing
   // else. The graph is a static regex read of relative imports (no evaluation),
   // rebuilt on structural changes and patched per edited file otherwise; the
   // loader stamps each app module with its version at resolve time.
   const versions = new Map<string, number>()
+  // The dev loader, before the first app import: `.stator` compile-on-load plus
+  // `?v=` stamping from `versions`, scoped to the app root.
+  const loader = registerDevLoader({ appDir: root, versions })
   const forward = new Map<string, Set<string>>()
   const importers = new Map<string, Set<string>>()
-  let seq = 0
-  const acks = new Map<number, () => void>()
-  port1.on('message', (m: { type?: string; id?: number }) => {
-    if (m?.type !== 'ack' || m.id === undefined) return
-    acks.get(m.id)?.()
-    acks.delete(m.id)
-    if (acks.size === 0) port1.unref()
-  })
-  port1.unref()
-  // Bump versions and push them to the loader; resolves once the loader has
-  // them, so the next import sees the new stamps.
-  const bumpVersions = (files: Iterable<string>): Promise<void> => {
-    const entries: Array<[string, number]> = []
-    for (const f of files) {
-      const v = (versions.get(f) ?? 1) + 1
-      versions.set(f, v)
-      entries.push([f, v])
-    }
-    if (entries.length === 0) return Promise.resolve()
-    return new Promise((done) => {
-      const id = ++seq
-      acks.set(id, done)
-      port1.ref()
-      port1.postMessage({ type: 'versions', id, entries })
-    })
+  const bumpVersions = (files: Iterable<string>): void => {
+    for (const f of files) versions.set(f, (versions.get(f) ?? 1) + 1)
   }
   const bust = (file: string): Promise<Record<string, unknown>> =>
     import(`${pathToFileURL(file).href}?v=${versions.get(file) ?? 1}`)
@@ -542,7 +508,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
         await updateEdges(files)
       }
       const affected = affectedBy(files)
-      await bumpVersions(affected)
+      bumpVersions(affected)
       await regenCss()
       const packagesMoved = await remapRoutes()
       const needsBundle =
@@ -674,7 +640,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
     },
     close: async () => {
       await watcher.close()
-      port1.close()
+      loader.deregister()
     },
   }
 }

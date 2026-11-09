@@ -7,14 +7,15 @@
 // `stator test` passes it to the runner. Plain JS so Node can import it with
 // no loader in place yet.
 import nodeModule from 'node:module'
+import { registerTsLoader } from './cli/loader.js'
 
-if (typeof nodeModule.register !== 'function') {
+if (typeof nodeModule.registerHooks !== 'function') {
   throw new Error(
-    `@statorjs/stator/register needs module.register — Node 18.19+ or 20.6+ (found ${process.version}).`,
+    `@statorjs/stator/register needs module.registerHooks — Node 22.15+ or 23.5+ (found ${process.version}).`,
   )
 }
 
-nodeModule.register('./cli/loader.js', import.meta.url)
+registerTsLoader()
 
 // Every transform the loader makes emits an inline map; V8 only applies
 // them to stack traces when the process opts in.

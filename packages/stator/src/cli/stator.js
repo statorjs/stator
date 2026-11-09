@@ -7,13 +7,12 @@
 // The package declares `engines: { node: ">=24" }`: Node's own test
 // runner, assertion APIs and TypeScript stripping are what `stator test` and
 // the native dev loop stand on. The check below stays as a clear message for
-// a Node too old to have `module.register` at all.
+// a Node too old to have `module.registerHooks` at all.
 import nodeModule from 'node:module'
 
-const register = nodeModule?.register
-if (typeof register !== 'function') {
+if (typeof nodeModule?.registerHooks !== 'function') {
   process.stderr.write(
-    `stator: the CLI requires module.register — Node 18.19+ or 20.6+ (found ${process.version}).\n` +
+    `stator: the CLI requires module.registerHooks — Node 22.15+ or 23.5+ (found ${process.version}).\n` +
       `The framework runtime itself has no such requirement.\n`,
   )
   process.exit(1)

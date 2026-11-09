@@ -85,6 +85,15 @@ describe('@statorjs/stator/register', () => {
     assert.equal(res.stderr, '')
     assert.equal(res.stdout.trim(), 'function function')
   })
+
+  it('registers without a deprecation warning', () => {
+    const res = run({
+      ...process.env,
+      NODE_OPTIONS: '--throw-deprecation --import @statorjs/stator/register',
+    })
+    assert.equal(res.status, 0, res.stderr)
+    assert.doesNotMatch(res.stderr, /DeprecationWarning|DEP0205/)
+  })
 })
 
 describe('stator test', () => {

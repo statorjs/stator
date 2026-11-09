@@ -86,6 +86,10 @@ after(() => {
 })
 
 describe('native dev server: .stator end to end, no Vite', () => {
+  it('registers its loaders without a deprecation warning', () => {
+    assert.doesNotMatch(output.join(''), /DeprecationWarning|DEP0205/)
+  })
+
   it('renders a .stator route with scoped CSS (production head shape) and patches events', async () => {
     const res = await get('/')
     assert.equal(res.status, 200)
