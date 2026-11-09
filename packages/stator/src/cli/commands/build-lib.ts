@@ -23,7 +23,13 @@ export async function run(ctx: CliContext): Promise<void> {
   }
   if (r.islands > 0) {
     process.stdout.write(
-      `  note: ${plural(r.islands, 'island')} compiled, but a consuming app can't discover islands from a package yet — they stay in the app\n`,
+      `  ${plural(r.islands, 'island')} compiled browser-safe` +
+        (r.machines.length > 0
+          ? `, dispatching to ${r.machines.join(', ')} (a consuming app registers these)\n`
+          : '\n'),
+    )
+    process.stdout.write(
+      "  note: a consuming app can't discover islands from a package yet — they stay in the app\n",
     )
   }
 }

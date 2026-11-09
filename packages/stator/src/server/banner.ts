@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs'
 import { networkInterfaces } from 'node:os'
+import { statorVersion } from '../version.ts'
 import { logger } from './logger.ts'
 import { type ClosableServer, drainAndClose } from './shutdown.ts'
 
@@ -15,19 +15,6 @@ const c = {
   dim: (s: string) => (useColor ? `\x1b[2m${s}\x1b[0m` : s),
   cyan: (s: string) => (useColor ? `\x1b[36m${s}\x1b[0m` : s),
   copper: (s: string) => (useColor ? `\x1b[38;5;173m${s}\x1b[0m` : s),
-}
-
-let cachedVersion: string | undefined
-function statorVersion(): string {
-  if (!cachedVersion) {
-    try {
-      const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))
-      cachedVersion = String(pkg.version)
-    } catch {
-      cachedVersion = ''
-    }
-  }
-  return cachedVersion
 }
 
 function lanAddress(): string | undefined {

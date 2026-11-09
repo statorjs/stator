@@ -21,6 +21,14 @@ The CLI owns that step. `stator build:lib [dir]` walks the directory (default `s
 
 The same operation is `compileLibrary()` on `@statorjs/stator/build` for a script that needs to do more around it.
 
+## What build:lib checks and stamps
+
+Every compiled module starts with a stamp naming the compiled-shape contract it speaks and the Stator version that produced it, `/* @stator contract=1 compiler=3.0.0 */`. The contract is the interface between compiled components and the runtime they run on, and it changes only when that interface does, not with every release.
+
+For a component with a `<script>` (an island), `build:lib` also makes the published client entry stand on its own. A default import of a server machine becomes the machine's `{ name }`, which is all an island dispatches by, so the machine's code never reaches the browser. Then each client entry is bundled for the browser as a check, and the publish fails, naming the file and the import, if anything it reaches imports a Node built-in or a server-side Stator module. `build:lib` lists the machines the islands dispatch to: a consuming app registers those.
+
+Compiled modules carry inline source maps pointing at the `.stator` file beside them, so ship the sources too.
+
 ## CSS follows what a route reaches
 
 A consuming app collects a route's CSS by walking its import graph. The walk crosses into a package at the bare specifier the app imports, follows that package's own relative imports, and continues into any Stator package it imports in turn, so a library component composing others is reached whole. Each reached component contributes its sibling `.css`, read by path beside the compiled module. A route gets the styles of exactly the components it can reach, the same way it does for the app's own components, however the library lays out its files or names its exports.

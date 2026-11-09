@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, relative, sep } from 'node:path'
 import { compile, regionResolverFor } from '../compiler/index.ts'
+import { statorVersion } from '../version.ts'
 import { sourceId } from './source-id.ts'
 
 export interface CompileComponentResult {
@@ -36,6 +37,9 @@ export async function compileComponentFile(
     id: opts.idPrefix ? `${opts.idPrefix}/${rel}` : rel,
     kind,
     resolveRegions: regionResolverFor(file, source),
+    // The compiled-shape contract on line 1: a consumer refuses a component
+    // stamped with a contract its runtime does not speak.
+    stamp: { compiler: statorVersion() },
     // Relative to the emitted sibling, which is where a consumer resolves it.
     sourceMap: {
       source: relative(dirname(file), opts.sourcePath ?? file)

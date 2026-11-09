@@ -24,6 +24,7 @@ export {
 } from './client-script.ts'
 export type { CompileOptions, CompileResult } from './compile.ts'
 export { compile } from './compile.ts'
+export { COMPILED_CONTRACT, contractPragma, readContract } from './contract.ts'
 export type { DiagnosticLocation } from './diagnostics.ts'
 export {
   CompileError,
