@@ -97,8 +97,8 @@ const INTRINSICS_IMPORT =
  * directives + custom elements don't flood false errors; it must be `declare
  * global` because TS resolves `JSX.IntrinsicElements` globally, and `extends
  * Record` (rather than an own index signature) lets every file's copy merge
- * without a duplicate-index-signature clash. Real per-element JSX typing — the
- * Astro `astro-jsx.d.ts` approach — is a Phase 2 refinement.
+ * without a duplicate-index-signature clash. Elements are not typed per tag
+ * here.
  */
 const JSX_GLOBAL = `declare global {
   namespace JSX {
@@ -387,7 +387,7 @@ function buildClientTsx(regions: ScannedRegions, ambient: string): VirtualFile {
     injectImports(CLIENT_GLOBALS, '@statorjs/stator/client', userScript) +
     ambient
 
-  // The island's SERVER FENCE (2.1): typed here so the editor checks it, but
+  // The island's SERVER FENCE: typed here so the editor checks it, but
   // wrapped so its bindings don't leak into the <script>'s scope (at runtime
   // the two never meet). Hoisted imports that also appear verbatim in the
   // script are skipped — same module, one binding.

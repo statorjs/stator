@@ -39,7 +39,7 @@ export interface ListBinding extends BindingBase {
   kind: 'list'
   /** Re-invoked per item when the list re-renders. */
   itemRenderer: ErasedItemRenderer
-  /** SPIKE (finding #5 / option C): per-row item-value bindings, collected at
+  /** Per-row item-value bindings, collected at
    *  render. On recompute a *same-length* list re-evaluates these instead of
    *  re-rendering the whole body — a content change patches the changed field
    *  only, and the row DOM (islands, focus) is preserved. `undefined` on lists
@@ -80,7 +80,7 @@ export interface KeyedListBinding extends BindingBase {
   keyFn: ErasedKeyFn
   /** The previous render's keys, in order — the diff baseline. */
   lastKeys: string[]
-  /** SPIKE (option C, keyed): per-row item-value bindings keyed by identity key
+  /** Per-row item-value bindings keyed by identity key
    *  — stable across moves (a row's slot ids live under its key scope). On
    *  recompute, retained keys re-evaluate these for field-level patches instead
    *  of relying on nested read()s. `undefined` when the rows have no itemBind(). */
@@ -161,7 +161,7 @@ export interface RenderState {
    *  first data arrival (FINDINGS #3). Null on the initial render, where the
    *  closure instance already IS the current proxy. */
   currentRuntime: { proxyFor(name: string): unknown } | null
-  /** SPIKE (option C): the each row currently rendering. `itemBind()` reads
+  /** The each row currently rendering. `itemBind()` reads
    *  `currentItem`/`currentItemIndex` to evaluate its selector, and pushes its
    *  binding into `currentRowBindings` (the row collector the list attaches to
    *  its ListBinding.rows). All three are ambient like the render state itself,

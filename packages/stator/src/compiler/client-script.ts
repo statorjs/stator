@@ -2,7 +2,7 @@ import ts from 'typescript'
 import { CompileError, type DiagnosticLocation } from './diagnostics.ts'
 
 /**
- * Phase 3b — analyze a component's client `<script>` and its template's
+ * Analyze a component's client `<script>` and its template's
  * custom-element tags, and validate the name-match binding:
  *
  *   <quantity-stepper>  ↔  export class QuantityStepper extends StatorElement
@@ -210,10 +210,10 @@ function loc(file?: string): DiagnosticLocation | undefined {
 }
 
 /**
- * A `bind:` / `on:` directive collected from a client component's template
- * (Phase 3b stage 4). The marker addresses the node at runtime
- * (`data-b="<marker>"` ↔ `this.querySelector('[data-b="<marker>"]')`); stage 5
- * emits the wiring from this.
+ * A `bind:` / `on:` directive collected from a client component's template.
+ * The marker addresses the node at runtime
+ * (`data-b="<marker>"` ↔ `this.querySelector('[data-b="<marker>"]')`);
+ * `client-emit.ts` emits the wiring from this.
  */
 export interface ClientDirective {
   /** Node marker. Element wiring (`on`/`bind`): `b<N>`, rendered as

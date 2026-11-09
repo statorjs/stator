@@ -11,7 +11,7 @@ function freshId(): string {
 }
 
 /** One identity per PAGE, not per bundle. The page runtime (a classic-script
- *  bundle) and island modules (the Vite/asset graph) each carry their own copy
+ *  bundle) and island modules (the island bundle) each carry their own copy
  *  of this module — a plain module-scoped id would mint one per copy, the SSE
  *  connection and an island's dispatch would disagree, and fan-out's
  *  originator skip would never fire (double-applying keyed inserts on the

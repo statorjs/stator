@@ -3,9 +3,9 @@ import type { AppStore } from './app-store.ts'
 import type { Store } from './store.ts'
 
 /**
- * The flat `createApp`/`createDevApp` keys of 2.x and where each moved. They
- * were deprecated in 2.2 and removed in 3.0; a caller that still passes one
- * gets an error naming the new home instead of a silently ignored option.
+ * Flat `createApp`/`createDevApp` keys that are no longer accepted, and where
+ * each moved. A caller that passes one gets an error naming the new home
+ * instead of a silently ignored option.
  */
 const REMOVED_KEYS: Record<string, string> = {
   store: 'persistence.session',
@@ -50,7 +50,7 @@ export interface ResolvedAppConfig {
 
 /**
  * Resolve the nested config into the flat values `createApp`/`createDevApp`
- * consume. Throws on a key removed in 3.0, naming where it moved.
+ * consume. Throws on a removed flat key, naming where it moved.
  */
 export function resolveAppConfig(config: NestedReads): ResolvedAppConfig {
   const removed = Object.keys(REMOVED_KEYS).filter(

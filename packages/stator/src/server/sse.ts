@@ -210,12 +210,12 @@ async function drain(conn: Connection): Promise<void> {
  * A write to a live socket resolves; a write to a closed one rejects. A write
  * to a HALF-OPEN one does neither once its buffer is full — when a remote
  * laptop sleeps or a NAT drops the mapping, no FIN ever arrives, the socket
- * still looks writable, and the promise simply never settles. Fan-out used to
- * await these serially with no deadline, so one such connection stalled the
- * loop and every connection registered after it received nothing until the
- * kernel gave up on the socket (minutes) or the same page reconnected and
- * evicted it. Under the session lock the same stall ran into the lock's 30s
- * backstop, failing the dispatching request each time.
+ * still looks writable, and the promise simply never settles. Awaited with no
+ * deadline, one such connection would stall the fan-out loop: every connection
+ * registered after it would receive nothing until the kernel gave up on the
+ * socket (minutes) or the same page reconnected and evicted it, and under the
+ * session lock the stall would run into the lock's 30s backstop, failing the
+ * dispatching request.
  *
  * On a timeout the connection is dropped rather than retried: the client
  * reconnects and gets a full resync, which is cheap by design. Note what the

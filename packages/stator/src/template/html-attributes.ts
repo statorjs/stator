@@ -27,8 +27,7 @@ type Reactivize<A> = { [K in keyof A]: Reactive<A[K]> }
 
 /** Stator template directives — colon-namespaced, valid on any element and on any
  *  component that forwards them. Not reactivized: their values are handlers/specs,
- *  not bindings. Values are `unknown` for now — a later pass gives `on:`/`bind:`/
- *  `ref:` their Stator-specific types. */
+ *  not bindings. Values are `unknown`. */
 export interface StatorDirectiveAttributes {
   'class:list'?: unknown
   'style:list'?: unknown

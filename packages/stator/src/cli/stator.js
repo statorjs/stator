@@ -2,10 +2,9 @@
 // The `stator` CLI entry (bin). Plain JS so it runs on any Node the framework
 // supports; it registers a small esbuild TS loader (see loader.js) so the rest
 // of the CLI — and the framework API it drives — can be authored in TypeScript
-// without a `tsx` dependency. As Node's native TS support stabilizes this loader
-// becomes removable; the bin stays.
+// without a `tsx` dependency.
 //
-// The package declares `engines: { node: ">=24" }` (3.0): Node's own test
+// The package declares `engines: { node: ">=24" }`: Node's own test
 // runner, assertion APIs and TypeScript stripping are what `stator test` and
 // the native dev loop stand on. The check below stays as a clear message for
 // a Node too old to have `module.register` at all.

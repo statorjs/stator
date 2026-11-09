@@ -1,9 +1,8 @@
 /**
  * Stator's custom isomorphic state-machine engine. Public surface.
  *
- * Replaces the XState-backed POC `defineMachine`. Lean feature set, fresh API
- * (inline transitions, typed events), runs identically server- and client-side.
- * See spec: custom-isomorphic-state-machine-engine.
+ * Lean feature set (inline transitions, typed events), runs identically
+ * server- and client-side.
  */
 
 export type { Actor, AnyActor, CreateActorOptions } from './actor.ts'

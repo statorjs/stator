@@ -13,12 +13,12 @@ describe('cors()', () => {
     const app = await createApp({
       ...base,
       middlewareFile: resolve(fixtures, 'mw-cors.ts'),
-      cors: { origins: ['https://*.tonysull.co'], credentials: true },
+      cors: { origins: ['https://*.example.com'], credentials: true },
     })
     const res = await app.fetch(
-      new Request('http://localhost/', { headers: { Origin: 'https://app.tonysull.co' } }),
+      new Request('http://localhost/', { headers: { Origin: 'https://app.example.com' } }),
     )
-    assert.equal(res.headers.get('access-control-allow-origin'), 'https://app.tonysull.co')
+    assert.equal(res.headers.get('access-control-allow-origin'), 'https://app.example.com')
     assert.equal(res.headers.get('access-control-allow-credentials'), 'true')
     assert.ok(res.headers.get('vary'))
     assert.ok(res.headers.get('vary')!.includes('Origin'))
@@ -28,7 +28,7 @@ describe('cors()', () => {
     const app = await createApp({
       ...base,
       middlewareFile: resolve(fixtures, 'mw-cors.ts'),
-      cors: { origins: ['https://*.tonysull.co'] },
+      cors: { origins: ['https://*.example.com'] },
     })
     const res = await app.fetch(
       new Request('http://localhost/', { headers: { Origin: 'https://evil.com' } }),
@@ -40,12 +40,12 @@ describe('cors()', () => {
     const app = await createApp({
       ...base,
       middlewareFile: resolve(fixtures, 'mw-cors.ts'),
-      cors: { origins: ['https://*.tonysull.co'] },
+      cors: { origins: ['https://*.example.com'] },
     })
     const res = await app.fetch(
       new Request('http://localhost/', {
         method: 'OPTIONS',
-        headers: { Origin: 'https://app.tonysull.co', 'Access-Control-Request-Method': 'POST' },
+        headers: { Origin: 'https://app.example.com', 'Access-Control-Request-Method': 'POST' },
       }),
     )
     assert.equal(res.status, 204)
@@ -57,12 +57,12 @@ describe('cors()', () => {
     const app = await createApp({
       ...base,
       middlewareFile: resolve(fixtures, 'mw-cors.ts'),
-      trustedOrigins: ['https://*.tonysull.co'],
+      trustedOrigins: ['https://*.example.com'],
     })
     const res = await app.fetch(
-      new Request('http://localhost/', { headers: { Origin: 'https://app.tonysull.co' } }),
+      new Request('http://localhost/', { headers: { Origin: 'https://app.example.com' } }),
     )
-    assert.equal(res.headers.get('access-control-allow-origin'), 'https://app.tonysull.co')
+    assert.equal(res.headers.get('access-control-allow-origin'), 'https://app.example.com')
   })
 })
 

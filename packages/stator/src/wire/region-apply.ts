@@ -8,8 +8,8 @@
  *
  * A region is the run of nodes strictly between its two markers, sharing the
  * markers' parent. Keyed-list ops (insert/remove/move) address the region's
- * ELEMENT children by index — the same contract as the old wrapper's
- * `element.children[i]`, just counted between markers instead of inside a span.
+ * ELEMENT children by index, like `element.children[i]` but counted between
+ * the markers.
  */
 
 export const startTag = (id: string): string => `s:${id}`

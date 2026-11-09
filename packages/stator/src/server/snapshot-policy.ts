@@ -3,8 +3,7 @@ import { scopedLogger } from './logger.ts'
 import { codeHashOf } from './machine-hash.ts'
 
 /**
- * Snapshot hydration policy — "sessions never outlive the code that made them"
- * (spec `machine-state-is-working-state-snapshot-hydration-policy`).
+ * Snapshot hydration policy — "sessions never outlive the code that made them".
  *
  * The host stamps every persisted snapshot with the snapshot `format` and the
  * writing machine's code hash (`stampSnapshot`), and reconciles a persisted

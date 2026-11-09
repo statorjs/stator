@@ -200,7 +200,7 @@ export class MachineStore {
       for (const sub of def.subscribes) {
         if (sub.from == null) {
           // The classic cause: a circular import between machine modules.
-          // Bundler/loader interop (Vite SSR, tsx) resolves the mid-cycle
+          // Bundler/loader interop resolves the mid-cycle
           // binding to `undefined` SILENTLY — no TDZ error — so this check
           // is where the mistake first becomes visible. Name it properly.
           throw new Error(

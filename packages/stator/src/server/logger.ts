@@ -20,7 +20,7 @@ type PrettyFactory = (opts: Record<string, unknown>) => NodeJS.WritableStream
  *
  *  It runs in-process as pino's destination stream, not as a pino transport:
  *  a transport is a worker thread that pino locates by sniffing its callers'
- *  script names, which a module evaluated by a Vite SSR runner doesn't have.
+ *  script names, which a module evaluated by a custom loader may not have.
  *  Dev-only prettifying has no need for a worker. */
 export function loadPinoPretty(): PrettyFactory | null {
   try {

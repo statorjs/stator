@@ -46,28 +46,25 @@ import { broadcastEnvelope } from './sse.ts'
 import { InMemoryStore } from './store.ts'
 
 /**
- * Native dev server — the Vite exit (Option D). The server runs from the app's
- * SOURCE tree with no Vite and no mirror: `.stator` files are compiled on
+ * Native dev server. The server runs from the app's SOURCE tree with no
+ * mirror: `.stator` files are compiled on
  * import by `dev-loader.mjs` (the framework compiler + esbuild on Node's loader
  * hooks), machines/routes/middleware are discovered from their real paths, and
  * the app is served by Hono exactly as `stator start` serves a build. Because
  * nothing is copied, `import.meta.url`-relative paths in app code (a SQLite
  * file, a data dir) mean the same thing in dev as in prod.
  *
- * The dev-only capabilities Vite used to provide are reproduced natively:
+ * The dev-only capabilities:
  *  - **Live reload** — a source change bumps the version of the changed file
  *    and its transitive importers (a static reverse import graph; the loader
  *    stamps every app module with its own `?v=`), so exactly that subtree
  *    re-evaluates and everything else keeps its module instance; connected
- *    browsers reload via a tiny SSE channel (`/__stator_dev`), replacing
- *    Vite's HMR websocket. A failed rebuild keeps the last good
+ *    browsers reload via a tiny SSE channel (`/__stator_dev`). A failed rebuild keeps the last good
  *    graph serving and renders the error (with its code frame) in an overlay.
  *  - **Scoped CSS + island scripts** — islands bundle through the
  *    `bundleIslands` seam (esbuild, never on the SSR path) and are served
- *    from memory with the concatenated scoped CSS, local and `node_modules`
+ *    from memory with each route's scoped CSS, local and `node_modules`
  *    alike, on the same URLs and with the same `<head>` shape as production.
- *
- * See spec `toolchain-adapter-seam-and-the-vite-exit`.
  */
 export interface NativeDevApp {
   fetch: (request: Request) => Response | Promise<Response>
@@ -80,7 +77,7 @@ export interface NativeDevApp {
   close: () => Promise<void>
 }
 
-// The dev browser client (replaces Vite's `/@vite/client`): reloads on a successful
+// The dev browser client: reloads on a successful
 // rebuild and renders a full-screen overlay with the message on a build failure, so
 // a compile error is visible instead of a frozen page.
 //
@@ -194,7 +191,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   const bust = (file: string): Promise<Record<string, unknown>> =>
     import(`${pathToFileURL(file).href}?v=${versions.get(file) ?? 1}`)
 
-  // ── Dev live-reload channel (replaces Vite's `/@vite/client` HMR socket) ────
+  // ── Dev live-reload channel ──────────────────────────────────────────────────
   // Only pages WITHOUT a live channel open this. A `live: true` page already
   // holds a /__sse stream, and its dev signals ride that one instead — a
   // second event-stream would spend another slot from the browser's six-per-

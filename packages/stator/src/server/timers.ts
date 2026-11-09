@@ -16,7 +16,7 @@ export const APP_SCOPE = '@app'
  * Session runtimes are transient (per request) and app instances live for the
  * process, so a timer can't live on either — it lives here, keyed by the state
  * it's counting down for, and fires across (or between) requests. A process
- * restart drops armed timers (the 1.0 non-durable contract, same as effects).
+ * restart drops armed timers (non-durable, like effects).
  */
 const timers = new Map<string, ReturnType<typeof setTimeout>[]>()
 

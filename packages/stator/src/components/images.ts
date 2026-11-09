@@ -46,7 +46,7 @@ export type GetImageOptions = {
    *  silently emitting URLs the endpoint would 400. Omit for the source's own
    *  shape. Cropping is what `<picture>` art direction does per breakpoint;
    *  as a plain prop it also covers the common case of one fixed geometry
-   *  (a thumbnail grid), which previously needed an always-true media query. */
+   *  (a thumbnail grid). */
   crop?: number
 }
 

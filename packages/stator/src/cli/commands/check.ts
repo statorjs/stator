@@ -9,19 +9,17 @@ import type { CliContext } from '../run.ts'
 
 /**
  * Validate the WHOLE stack — server machines/routes/lib plus the generated
- * `.stator` types — with no output. This is the piece production builds were
- * missing: `buildApp` only ever touched client islands and copied server files
- * to `dist/` unvalidated, so a broken server import shipped silently. `build`
- * now runs this first.
+ * `.stator` types — with no output. `stator build` runs it first, so a broken
+ * server import fails the build instead of shipping.
  *
- * Three steps: (1) `syncTypes` regenerates each `.stator.d.ts` + the virtual TSX
+ * Four steps: (1) `syncTypes` regenerates each `.stator.d.ts` + the virtual TSX
  * the language server typechecks, so the app's `tsconfig` sees current types;
  * (2) every `.stator` file goes through the real compiler — the same call `dev`
  * makes on import and the editor makes per edit, so all three reject the same
  * inputs; (3) every compiled component the routes reach in a package carries
  * this compiler's contract stamp (`library-islands.ts`); (4) a
  * `tsc --noEmit`-equivalent pass via the TypeScript API.
- * Compiler warnings print alongside step 2 but don't fail the check.
+ * Compiler warnings print alongside the compile step but don't fail the check.
  */
 export async function checkStack(root: string): Promise<void> {
   const { written, files } = await syncTypes(root)

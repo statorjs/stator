@@ -40,8 +40,8 @@ export function isEachResult(v: unknown): v is EachResult {
 }
 
 /**
- * SPIKE (finding #5 / option C): the value of an item-dependent interpolation
- * inside an `each` row — what the compiler will lower `{item.field}` to. It
+ * The value of an item-dependent interpolation inside an `each` row — what the
+ * compiler lowers `read(item, …)` to. It
  * evaluates the selector against the *current* row's item now, and registers a
  * per-row binding so a later content change patches this one slot in place
  * (rather than re-rendering the row, so islands/focus survive).
@@ -266,7 +266,7 @@ export function renderKeyedItem<T>(
   unregisterBindingsForScope(state, keyedScopePrefix(listSlotId, token))
   pushKeyedScope(state, listSlotId, token)
 
-  // Item-value binding context for this row (option C, keyed), save/restore
+  // Item-value binding context for this row (keyed), save/restore
   // around the body so a nested each() doesn't clobber it.
   const prevItem = state.currentItem
   const prevIndex = state.currentItemIndex

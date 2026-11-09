@@ -2,9 +2,8 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 /**
- * Load `.env` files into `process.env` — the home for server config/secrets
- * that's uniform across dev and prod (unlike Vite's transform-time
- * `import.meta.env`, absent in prod). Precedence, highest first:
+ * Load `.env` files into `process.env` — the home for server config/secrets,
+ * the same in dev and prod. Precedence, highest first:
  *
  *   real shell env  >  .env.local  >  .env
  *

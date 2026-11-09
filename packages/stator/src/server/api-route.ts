@@ -150,7 +150,7 @@ export async function runApiRoute(
 }
 
 /** `instanceof Response` alone misses Response objects from another realm or
- *  a wrapping library (Vite SSR loaders, @hono/node-server's lightweight
+ *  a wrapping library (another module loader, @hono/node-server's lightweight
  *  class) — and a miss here silently reinterprets the handler's Response as
  *  an envelope. Duck-type the shape the passthrough actually needs. */
 export function isResponseLike(v: unknown): v is Response {

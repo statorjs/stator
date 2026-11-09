@@ -1,6 +1,6 @@
 /**
  * Production build for `.stator` apps. Compiles a `.stator` app to a `dist/` of
- * plain `.ts` the runtime serves with no Vite. See `buildApp`.
+ * plain `.ts` that `stator start` serves. See `buildApp`.
  */
 
 export type { ArtifactDeps } from './artifact.ts'

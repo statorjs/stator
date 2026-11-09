@@ -5,8 +5,7 @@ import { dirname, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 /**
- * The publish-time half of library islands (spec `library-islands-…`,
- * Approach 1): a published client entry must reach only browser-safe code on
+ * The publish-time half of library islands: a published client entry must reach only browser-safe code on
  * its own, so a consuming app's bundler needs to know nothing about the
  * package's machines.
  */
