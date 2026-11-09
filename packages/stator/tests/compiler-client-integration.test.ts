@@ -30,7 +30,11 @@ describe('compiler: client-component integration (3b stage 6a)', () => {
 
   it('server shell renders the custom-element root with declared attrs + inner markers', () => {
     const r = compile(CLIENT, { id: 'quantity-stepper.stator' })
-    assert.ok(r.serverCode.includes('export default function (props = {})'))
+    assert.ok(
+      r.serverCode.includes(
+        'export default function (props: { unitPrice?: number | __SReadResult<number> } & { [prop: string]: unknown } = {})',
+      ),
+    )
     // Third arg carries the root's own static attributes (none here → {}).
     assert.ok(r.serverCode.includes('clientShellAttrs(props, { unitPrice: "number" }, {})'))
     assert.ok(r.serverCode.includes('<quantity-stepper'))

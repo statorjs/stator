@@ -41,7 +41,7 @@ describe('compiler: client component end-to-end (3b stage 6a)', () => {
     })
 
     // 1. Render the server shell with a unit-price prop, inside a render context.
-    const render = runModule(serverCode, templateApi) as (p: any) => HtmlFragment
+    const render = runModule(jsOf(serverCode), templateApi) as (p: any) => HtmlFragment
     const state = createRenderState('s1', 'GET /')
     const fragment = runInRender(state, () => render({ unitPrice: 98 }))
     const shell = fragment.html

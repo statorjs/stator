@@ -43,7 +43,7 @@ function loadClient(clientCode: string): void {
 }
 
 function renderShell(serverCode: string, props: object = {}): string {
-  const body = serverCode
+  const body = jsOf(serverCode)
     .replace(/^import .*$/gm, '')
     .replace(/^\s*export default /m, 'return ')
     .replace(/^\s*export /gm, '')

@@ -33,7 +33,7 @@ const label = fenceGreeting + '!'
 </script>`
 
 function renderShell(serverCode: string, extraApi: Record<string, unknown> = {}): string {
-  const body = serverCode
+  const body = jsOf(serverCode)
     .replace(/^import .*$/gm, '')
     .replace(/^\s*export default /m, 'return ')
     .replace(/^\s*export /gm, '')
