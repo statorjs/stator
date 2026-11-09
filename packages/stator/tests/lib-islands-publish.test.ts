@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path'
 import { after, beforeEach, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { compileLibrary } from '../src/build/compile-library.ts'
+import { stubMachineImports } from '../src/build/lib-client.ts'
 import { COMPILED_CONTRACT, readContract } from '../src/compiler/index.ts'
 import { statorVersion } from '../src/version.ts'
 
@@ -130,6 +131,7 @@ describe('build:lib for a library island', () => {
     assert.deepStrictEqual(map.sources, ['stepper.stator'])
     assert.ok(existsSync(join(src, 'stepper.stator')), 'the source ships beside it')
     const lines = client.split('\n')
+    assert.ok(client.includes('const Counter = /* @stator machine */'))
     const genLine = lines.findIndex((l) => l.includes('void dispatch(Counter'))
     const seg = decode(map.mappings).filter(([l]) => l === genLine)[0]
     assert.ok(seg)
@@ -160,6 +162,48 @@ describe('build:lib for a library island', () => {
       assert.match(err.message, /machines\/counter\.ts imports "@statorjs\/stator\/server"/)
       return true
     })
+  })
+})
+
+describe('the machine stub rewrite', () => {
+  it('stubs a machine defined through a namespace import of @statorjs/stator/server', async () => {
+    const dir = scaffold(STUBBED, {
+      'machines/counter.ts': MACHINE.replace(
+        "import { defineMachine } from '@statorjs/stator/server'",
+        "import * as S from '@statorjs/stator/server'",
+      ).replace('export default defineMachine(', 'export default S.defineMachine('),
+    })
+    const result = await compileLibrary({ root, dir })
+    assert.deepStrictEqual(result.machines, ['CounterMachine'])
+    const client = readFileSync(join(dir, 'stepper.stator.client.ts'), 'utf8')
+    assert.ok(client.includes('const Counter = /* @stator machine */ { name: "CounterMachine" };'))
+  })
+
+  it('rewrites only real imports, line for line, leaving comments and strings alone', async () => {
+    scaffold(STUBBED)
+    const file = join(root, 'src/entry.ts')
+    const before = [
+      "import { defineElement } from '@statorjs/stator/client'",
+      '// import Ghost from "../machines/counter.ts"',
+      'const doc = "import Ghost2 from \'../machines/counter.ts\'"',
+      'import Counter',
+      "  from '../machines/counter.ts'",
+      'export const used = [Counter, doc]',
+      '//# sourceMappingURL=data:application/json;base64,e30=',
+    ].join('\n')
+    writeFileSync(file, before)
+    assert.deepStrictEqual(await stubMachineImports(file), ['CounterMachine'])
+    const after = readFileSync(file, 'utf8')
+    const [b, a] = [before.split('\n'), after.split('\n')]
+    assert.equal(a.length, b.length)
+    assert.deepStrictEqual(
+      a.map((line, i) => (line === b[i] ? null : i)).filter((i) => i !== null),
+      [3, 4],
+    )
+    assert.equal(a[3], 'const Counter = /* @stator machine */ { name: "CounterMachine" };')
+    assert.equal(a[4], '')
+    assert.ok(after.includes('// import Ghost from "../machines/counter.ts"'))
+    assert.ok(after.includes("import Ghost2 from '../machines/counter.ts'"))
   })
 })
 

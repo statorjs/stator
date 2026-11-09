@@ -1,9 +1,12 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
+import ts from 'typescript'
 import { COMPILED_CONTRACT, readContract } from '../compiler/contract.ts'
 import { statorVersion } from '../version.ts'
+import { parseModule } from './imports.ts'
 import { walkFiles } from './islands.ts'
+import { MACHINE_STUB } from './lib-client.ts'
 import { isIslandShell, moduleLabel, type ReachedModule, reachFrom } from './reachability.ts'
 
 /**
@@ -39,7 +42,8 @@ export interface IslandReach {
   /** Every package island any route reaches, by rel. */
   packageIslands: Map<string, PackageIsland>
   /** Every reached compiled package component (shells and server
-   *  components), by file: what the contract check reads. */
+   *  components), and every package module named like compiled output in a
+   *  shape `build:lib` never emits, by file: what the contract check reads. */
   packageComponents: Map<string, ReachedModule>
 }
 
@@ -70,8 +74,14 @@ export async function reachIslands(opts: {
         reached.add(app)
         continue
       }
-      if (!mod.pkg || !mod.file.endsWith('.stator.ts')) continue
-      if (mod.pkg.name !== '@statorjs/stator') packageComponents.set(mod.file, mod)
+      if (!mod.pkg) continue
+      const own = mod.pkg.name === '@statorjs/stator'
+      if (!own && unrecognisedStator(mod.file)) {
+        packageComponents.set(mod.file, mod)
+        continue
+      }
+      if (!mod.file.endsWith('.stator.ts')) continue
+      if (!own) packageComponents.set(mod.file, mod)
       if (!isIslandShell(mod.file)) continue
       const rel = moduleLabel(mod, baseDir)
       reached.add(rel)
@@ -87,9 +97,16 @@ export async function reachIslands(opts: {
   return { routes, packageIslands, packageComponents }
 }
 
+/** A module named like compiled Stator output (`x.stator.<ext>`) in a shape
+ *  `build:lib` never emits: anything but `x.stator.ts`, `x.stator.client.ts`
+ *  and `x.stator.d.ts`. */
+export const unrecognisedStator = (file: string): boolean =>
+  /\.stator\.[^\\/]+$/.test(file) && !/\.stator\.(client\.ts|ts|d\.ts)$/.test(file)
+
 /**
  * The contract check: every reached package component, and the client entry
- * beside an island shell, must carry this compiler's `COMPILED_CONTRACT`.
+ * beside an island shell, must carry this compiler's `COMPILED_CONTRACT`, and
+ * a module named like compiled output must be in a shape this compiler emits.
  * Returns one located message per refused file; empty when all match.
  */
 export async function contractErrors(components: Iterable<ReachedModule>): Promise<string[]> {
@@ -97,6 +114,16 @@ export async function contractErrors(components: Iterable<ReachedModule>): Promi
   const mine = `Stator ${statorVersion()} reads contract ${COMPILED_CONTRACT}`
   for (const mod of components) {
     const pkg = mod.pkg!
+    if (unrecognisedStator(mod.file)) {
+      const where = `${pkg.name}/${relative(pkg.root, mod.file).replace(/\\/g, '/')}`
+      errors.push(
+        `stator: ${where} is named like a compiled Stator component, but \`stator build:lib\` ` +
+          'compiles a component to x.stator.ts (with x.stator.client.ts beside an island), so this ' +
+          `Stator does not read it. Install a version of ${pkg.name} built with \`stator build:lib\`, ` +
+          'or ask its author to republish it.',
+      )
+      continue
+    }
     const client = mod.file.replace(/\.ts$/, '.client.ts')
     for (const file of existsSync(client) ? [mod.file, client] : [mod.file]) {
       const stamp = readContract(await readFile(file, 'utf8'))
@@ -114,19 +141,53 @@ export async function contractErrors(components: Iterable<ReachedModule>): Promi
   return errors
 }
 
-const DEFINE_RE = /defineElement\([^,()]+,\s*("(?:[^"\\]|\\.)*")\s*\)/g
-
-/** The custom-element tags a compiled client entry registers. */
+/** The custom-element tags a compiled client entry registers: the string
+ *  second argument of each `defineElement(…)` call. */
 export function entryTags(code: string): string[] {
-  return [...code.matchAll(DEFINE_RE)].map((m) => JSON.parse(m[1]!) as string)
+  const sf = parseModule(code, 'entry.ts')
+  const tags: string[] = []
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'defineElement'
+    ) {
+      const tag = node.arguments[1]
+      if (tag && ts.isStringLiteralLike(tag)) tags.push(tag.text)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  return tags
 }
 
-const STUB_RE = /\/\* @stator machine \*\/\s*\{\s*name:\s*("(?:[^"\\]|\\.)*")\s*\}/g
-
-/** The machines a published client entry dispatches to, by its stubs. */
+/** The machines a published client entry dispatches to, by its stubs: each
+ *  object literal whose only leading trivia is the `MACHINE_STUB` comment, read
+ *  for its `name`. */
 export function entryMachines(code: string): string[] {
-  return [...new Set([...code.matchAll(STUB_RE)].map((m) => JSON.parse(m[1]!) as string))]
+  const sf = parseModule(code, 'entry.ts')
+  const names = new Set<string>()
+  const visit = (node: ts.Node): void => {
+    if (ts.isObjectLiteralExpression(node) && isStub(sf, node)) {
+      for (const prop of node.properties) {
+        if (
+          ts.isPropertyAssignment(prop) &&
+          ts.isIdentifier(prop.name) &&
+          prop.name.text === 'name' &&
+          ts.isStringLiteralLike(prop.initializer)
+        ) {
+          names.add(prop.initializer.text)
+        }
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  return [...names]
 }
+
+const isStub = (sf: ts.SourceFile, node: ts.Node): boolean =>
+  sf.text.slice(node.pos, node.getStart(sf)).trim() === MACHINE_STUB
 
 export interface TaggedIsland {
   rel: string

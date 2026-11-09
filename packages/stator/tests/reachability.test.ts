@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, it } from 'node:test'
-import { reachFrom } from '../src/build/reachability.ts'
+import { contractErrors, reachIslands } from '../src/build/library-islands.ts'
+import { reachFrom, resolveBare } from '../src/build/reachability.ts'
 import { routeCssMap } from '../src/build/route-css.ts'
 
 /** Write `files` (path → contents) under a fresh directory; returns its real path. */
@@ -91,6 +92,56 @@ describe('reachability', () => {
     assert.ok(!files.some((f) => f.endsWith('outside.ts')), 'a file outside the app root')
   })
 
+  it('ignores an import spelled only inside a string', async () => {
+    const root = app({
+      'routes/index.ts':
+        "import Hero from '@acme/blocks/hero.stator'\n" +
+        'const doc = "import Ghost from \'@acme/blocks/ghost.stator\'"\n' +
+        "const tpl = `import { x } from '../lib/local.ts'`\n" +
+        'export const GET = { Hero, doc, tpl }\n',
+    })
+    const files = [
+      ...(await reachFrom(join(root, 'routes/index.ts'), { appRoot: root })).modules.keys(),
+    ]
+    assert.ok(!files.some((f) => f.endsWith('ghost.stator.ts')))
+    assert.ok(!files.some((f) => f.endsWith('lib/local.ts')))
+  })
+
+  it('probes an extensionless relative import as .ts, .js, /index.ts, /index.js', async () => {
+    const root = app({
+      'routes/index.ts':
+        "import { local } from '../lib/local'\nimport { idx } from '../lib/dir'\nexport const GET = { local, idx }\n",
+      'lib/dir/index.js': 'export const idx = 1\n',
+    })
+    const { modules } = await reachFrom(join(root, 'routes/index.ts'), { appRoot: root })
+    assert.ok(modules.has(join(root, 'lib/local.ts')))
+    assert.ok(modules.has(join(root, 'lib/dir/index.js')))
+  })
+
+  it('resolves a package whose exports carry only an import condition', async () => {
+    const root = app({
+      'routes/index.ts': "import Card from '@esm/only/card.stator'\nexport const GET = { Card }\n",
+      'node_modules/@esm/only/package.json': JSON.stringify({
+        name: '@esm/only',
+        version: '1.0.0',
+        type: 'module',
+        exports: {
+          '.': { types: './index.d.ts', import: './index.ts' },
+          './*.stator': { import: './src/*.stator.ts' },
+        },
+        peerDependencies: { '@statorjs/stator': '*' },
+      }),
+      'node_modules/@esm/only/index.ts': 'export {}\n',
+      'node_modules/@esm/only/src/card.stator.ts': 'export default 1\n',
+      'node_modules/@esm/only/src/card.stator.css': '.card { color: teal; }\n',
+    })
+    const importer = join(root, 'routes/index.ts')
+    assert.equal(resolveBare('@esm/only', importer), join(root, 'node_modules/@esm/only/index.ts'))
+    const { modules } = await reachFrom(importer, { appRoot: root })
+    const card = modules.get(join(root, 'node_modules/@esm/only/src/card.stator.ts'))
+    assert.equal(card?.pkg?.name, '@esm/only')
+  })
+
   it('follows a Stator-aware package into another, to any depth', async () => {
     const root = app()
     const { modules } = await reachFrom(join(root, 'routes/index.ts'), { appRoot: root })
@@ -136,6 +187,35 @@ describe('reachability', () => {
       packages: false,
     })
     assert.ok(![...modules.values()].some((m) => m.pkg))
+  })
+})
+
+describe('compiled output in a shape build:lib never emits', () => {
+  it('fails the contract check for a .js-compiled component, naming the package and file', async () => {
+    const root = app({
+      'routes/index.ts':
+        "import Card from '@hand/built/card.stator'\nexport const GET = { Card }\n",
+      'node_modules/@hand/built/package.json': pkg('@hand/built', {
+        './card.stator': './dist/card.stator.js',
+      }),
+      'node_modules/@hand/built/dist/card.stator.js':
+        "import './helper.stator.mjs'\nexport default 1\n",
+      'node_modules/@hand/built/dist/card.stator.client.js': 'export {}\n',
+      'node_modules/@hand/built/dist/helper.stator.mjs': 'export {}\n',
+    })
+    const reach = await reachIslands({
+      routesDir: join(root, 'routes'),
+      baseDir: root,
+      shells: new Map(),
+    })
+    const errors = await contractErrors(reach.packageComponents.values())
+    assert.equal(errors.length, 2, errors.join('\n'))
+    assert.match(
+      errors[0]!,
+      /@hand\/built\/dist\/card\.stator\.js is named like a compiled Stator component/,
+    )
+    assert.match(errors[1]!, /@hand\/built\/dist\/helper\.stator\.mjs/)
+    assert.match(errors[0]!, /Install a version of @hand\/built built with `stator build:lib`/)
   })
 })
 
