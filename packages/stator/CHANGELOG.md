@@ -1,5 +1,11 @@
 # @statorjs/stator
 
+## 3.0.0-next.5
+
+### Patch Changes
+
+- 26e0918: A compiled island shell takes the props its declaration types. The shell was `export default function (props = {})`, whose parameter infers as `{}`, so an app importing a library island from `node_modules`, or a library whose compiled siblings sit beside its sources, failed `stator check` on every declared attr: `<RichEditor target="content" />` reported `Property 'target' does not exist on type '{}'`. The shell's parameter is now the `.stator.d.ts` props type, each `static attrs` key as its kind or a `read()` binding plus an open tail for the props the shell's markup reads, and a server component's shell is typed from the same computation, so the two can't drift. A library's tsconfig lists the generated trees first, `rootDirs: [".stator/types", ".stator/check", "."]`: `tsc` tries them in order, and with `.` first `./x.stator` resolves to the compiled `x.stator.ts` that `build:lib` writes beside it instead of the generated declaration. An app has no compiled siblings and keeps `.` first. Runtime output is unchanged.
+
 ## 3.0.0-next.4
 
 ### Minor Changes
