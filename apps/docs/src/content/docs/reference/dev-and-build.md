@@ -81,11 +81,11 @@ interface BuildResult {
 }
 ```
 
-The production build: compiles the app to a `dist/` of plain `.ts` that `stator start` serves, and bundles client islands with esbuild. It copies the app dirs, compiles each `*.stator` to a sibling `*.stator.ts`, rewrites `.stator` import specifiers, and writes each route's scoped CSS to its own stylesheet under `dist/static/css/`, from the components that route reaches. When the app has client components, every island entry is bundled in one Vite build (hashed assets, server-machine imports stubbed to `{ name }`) and `dist/stator-manifest.json` maps each route file to the island script URLs it reaches:
+The production build: compiles the app to a `dist/` of plain `.ts` that `stator start` serves, and bundles client islands with esbuild. It copies the app dirs, compiles each `*.stator` to a sibling `*.stator.ts`, rewrites relative `.stator` import specifiers, and writes each route's scoped CSS to its own stylesheet under `dist/static/css/`, from the components that route reaches. When the app has client components, or a route reaches one a library ships, every island entry is bundled in one esbuild pass (hashed assets, server-machine imports stubbed to `{ name }`) and `dist/stator-manifest.json` maps each route file to the island script URLs it reaches. The same walk refuses a reached library component compiled for another contract, two islands defining one tag, and a library island dispatching to a machine the app doesn't register (see [Component libraries](/guides/component-libraries/#shipping-islands)):
 
 ```ts
 interface StatorManifest {
-  islands: Record<string, string>   // island .stator path → script URL
+  islands: Record<string, string>   // island .stator path (a library's: @pkg/path/x.stator) → script URL
   routes: Record<string, string[]>  // route file → script URLs it reaches
   machines: Record<string, string>  // machine file (relative to machines/) → code hash
 }

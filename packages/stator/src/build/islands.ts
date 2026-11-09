@@ -1,6 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { reachFrom } from './reachability.ts'
 
 /**
  * The island-bundling seam — Lock 1 of the Vite exit (spec
@@ -70,32 +69,21 @@ export const bundleIslands: IslandBundler = async (opts) => {
 }
 
 /**
- * Per-route island reachability: walk each route file's relative-import graph
- * (bounded to `baseDir`) and record which island shells it reaches. `shells`
- * maps an island's server-side module file (the `.stator` source in dev, the
- * compiled `.stator.ts` in dist) to the island's rel. Returns absolute route
- * file → sorted island rels, only for routes that reach at least one island.
+ * Per-route island reachability: which islands each route file's import graph
+ * reaches (`reachability.ts`). `shells` maps an app island's server-side
+ * module (the `.stator` source in dev, the compiled `.stator.ts` in dist) to
+ * its rel; islands inside packages are found by the sibling rule and named
+ * `@pkg/path/x.stator` (`library-islands.ts`, which also returns them).
+ * Returns absolute route file → sorted island rels, only for routes that
+ * reach at least one island.
  */
 export async function routeIslandMap(opts: {
   routesDir: string
   baseDir: string
   shells: Map<string, string>
 }): Promise<Map<string, string[]>> {
-  const baseDir = resolve(opts.baseDir)
-  const routes = new Map<string, string[]>()
-  const routeFiles = await walkFiles(opts.routesDir, (f) => /\.(ts|js|stator)$/.test(f)).catch(
-    () => [] as string[],
-  )
-  for (const routeFile of routeFiles) {
-    const reached = new Set<string>()
-    const { modules } = await reachFrom(routeFile, { appRoot: baseDir })
-    for (const file of modules.keys()) {
-      const island = opts.shells.get(file)
-      if (island) reached.add(island)
-    }
-    if (reached.size > 0) routes.set(routeFile, [...reached].sort())
-  }
-  return routes
+  const { reachIslands } = await import('./library-islands.ts')
+  return (await reachIslands(opts)).routes
 }
 
 const IMPORT_SPECIFIER_RE = /(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g

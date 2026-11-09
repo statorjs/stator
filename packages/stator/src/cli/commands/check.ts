@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises'
-import { relative } from 'node:path'
+import { join, relative } from 'node:path'
 import ts from 'typescript'
 import { syncTypes } from '../../build/index.ts'
+import { contractErrors, reachIslands } from '../../build/library-islands.ts'
 import { sourceId } from '../../build/source-id.ts'
 import { CompileError, compile, compileWarnings, regionResolverFor } from '../../compiler/index.ts'
 import type { CliContext } from '../run.ts'
@@ -17,7 +18,9 @@ import type { CliContext } from '../run.ts'
  * the language server typechecks, so the app's `tsconfig` sees current types;
  * (2) every `.stator` file goes through the real compiler — the same call `dev`
  * makes on import and the editor makes per edit, so all three reject the same
- * inputs; (3) a `tsc --noEmit`-equivalent pass via the TypeScript API.
+ * inputs; (3) every compiled component the routes reach in a package carries
+ * this compiler's contract stamp (`library-islands.ts`); (4) a
+ * `tsc --noEmit`-equivalent pass via the TypeScript API.
  * Compiler warnings print alongside step 2 but don't fail the check.
  */
 export async function checkStack(root: string): Promise<void> {
@@ -30,6 +33,14 @@ export async function checkStack(root: string): Promise<void> {
   if (compileErrors.length > 0) {
     process.stderr.write(`${compileErrors.join('\n\n')}\n\n`)
   }
+
+  const reach = await reachIslands({
+    routesDir: join(root, 'routes'),
+    baseDir: root,
+    shells: new Map(),
+  })
+  const stampErrors = await contractErrors(reach.packageComponents.values())
+  if (stampErrors.length > 0) process.stderr.write(`${stampErrors.join('\n\n')}\n\n`)
 
   const configPath = ts.findConfigFile(root, ts.sys.fileExists, 'tsconfig.json')
   if (!configPath) throw new Error(`no tsconfig.json found at or above ${root}`)
@@ -61,7 +72,7 @@ export async function checkStack(root: string): Promise<void> {
       }),
     )
   }
-  const n = compileErrors.length + diagnostics.length
+  const n = compileErrors.length + stampErrors.length + diagnostics.length
   if (n > 0) {
     throw new Error(`typecheck failed with ${n} error${n === 1 ? '' : 's'}`)
   }
