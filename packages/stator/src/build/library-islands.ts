@@ -7,8 +7,8 @@ import { walkFiles } from './islands.ts'
 import { isIslandShell, moduleLabel, type ReachedModule, reachFrom } from './reachability.ts'
 
 /**
- * Islands a consuming app reaches inside packages (spec `library-islands-…`,
- * step 4), and the three checks that make shipping them safe:
+ * Islands a consuming app reaches inside packages, and the three checks that
+ * make shipping them safe:
  *
  *   - the compiled-shape contract stamp on every reached package component
  *     (a mismatch, or no stamp, refuses the build, naming the package);

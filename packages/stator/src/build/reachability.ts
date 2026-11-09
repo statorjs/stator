@@ -5,8 +5,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path'
 
 /**
  * What a route reaches: the one import-graph walk that route CSS, route
- * islands and the compiled-contract, custom-element and machine checks all read
- * (spec `library-islands-…`, "Build plan on the 3.0 line").
+ * islands and the compiled-contract, custom-element and machine checks all read.
  *
  * The walk is a static read of import specifiers, not module evaluation, and
  * "reached" is import reachability, not render tracing: a component used only

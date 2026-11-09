@@ -8,8 +8,8 @@ import { buildApp, type StatorManifest } from '../src/build/build.ts'
 import { compileLibrary } from '../src/build/compile-library.ts'
 
 /**
- * A consuming app reaching an island a package ships precompiled (spec
- * `library-islands-…`, step 4): the build bundles it, maps it to the routes
+ * A consuming app reaching an island a package ships precompiled: the build
+ * bundles it, maps it to the routes
  * that reach it and folds its CSS in; it refuses a component compiled for
  * another contract, two islands defining one tag, and a package island
  * dispatching to a machine the app does not register; dev serves it. The
