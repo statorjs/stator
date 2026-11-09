@@ -1,0 +1,10 @@
+---
+import { greeting } from '../server/greeting.ts'
+import Counter from './counter.stator'
+
+const { name } = Stator.props<{ name: string }>()
+---
+<section class="card">
+  <h2>{greeting(name)}</h2>
+  <Counter />
+</section>

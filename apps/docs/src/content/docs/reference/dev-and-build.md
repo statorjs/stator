@@ -121,7 +121,7 @@ Both artifacts are optional — a server-only app without styles gets an empty h
 ## syncTypes
 
 ```ts
-function syncTypes(root: string): Promise<SyncResult>  // { written, outDir }
+function syncTypes(root: string, opts?: { dir?: string }): Promise<SyncResult>  // { written, checks, outDir, files, virtual }
 ```
 
-Type sync for editors and `tsc`: generates a `.d.ts` per component so `import X from './x.stator'` is typed against the component's real props. Generated files live in a framework-managed `.stator/types/` directory that mirrors the source tree (gitignored — the `.astro/`/`.svelte-kit/` convention); your tsconfig's `rootDirs: ['.', '.stator/types']` merges the two trees. Route pages are skipped — they export a route, not a render function.
+Type sync for editors and `tsc`: generates a `.d.ts` per component so `import X from './x.stator'` is typed against the component's real props. Generated files live in a framework-managed `.stator/types/` directory that mirrors the source tree (gitignored — the `.astro/`/`.svelte-kit/` convention); your tsconfig's `rootDirs: ['.', '.stator/types']` merges the two trees. Route pages are skipped — they export a route, not a render function. It also writes each component's virtual TSX to `.stator/check/`, mirrored the same way, for `tsc` to check templates and island scripts. `dir` narrows the walk (a library's `src`); output still lands under `<root>/.stator`, so `src/x.stator` becomes `.stator/check/src/x.stator.check.tsx`.

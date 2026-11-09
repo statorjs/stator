@@ -28,3 +28,6 @@ cf-chain.pem
 # A shared .claude/settings.json, if one ever exists, stays committable.
 .claude/worktrees/
 .claude/settings.local.json
+
+# Type sync output (stator check, build:lib)
+.stator/
