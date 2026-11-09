@@ -472,7 +472,7 @@ const VALID_PRAGMAS = new Set(['live'])
  * capability matrix.
  *
  * Component: `Stator.props<P>()` → `props`. Route/request/response/pragmas are
- * errors. Route: `Stator.reads([A,B])` RHS → `[__ctx[A.name], __ctx[B.name]]`
+ * errors. Route: `Stator.reads([A,B])` RHS → `[__ctx[A.name] as …, __ctx[B.name] as …]`
  * (and `[A,B]` captured for the `reads:` config); `Stator.request` → `__req`;
  * `Stator.response` → `__ctx.response`. `Stator.props` is an error.
  */
@@ -569,7 +569,13 @@ function processFrontmatter(
         }
         const ids = arg.elements.map((el) => el.getText(sf))
         reads.push(...ids)
-        const bound = `[${ids.map((id) => `__ctx[${id}.name]`).join(', ')}]`
+        // Typed as the editor types them, so compiled output a package ships
+        // typechecks in the consuming app. The cast is erased at runtime.
+        const handle = (el: ts.Expression, id: string): string =>
+          ts.isIdentifier(el) || ts.isPropertyAccessExpression(el)
+            ? `__ctx[${id}.name] as __InstanceOf<typeof ${id}>`
+            : `__ctx[${id}.name]`
+        const bound = `[${arg.elements.map((el, i) => handle(el, ids[i]!)).join(', ')}]`
         repls.push([n.getStart(sf), n.getEnd(), bound])
         return
       }
@@ -665,6 +671,8 @@ function emitComponent(fm: FrontmatterParts, htmlExpr: string, meta: LowerMeta):
   if (fm.propsType && meta.usesChildren) param = `props: ${fm.propsType} & { children?: any }`
   else if (fm.propsType) param = `props: ${fm.propsType}`
   else if (meta.usesChildren) param = `props: { children?: any }`
+  // A component without props still takes the call's empty props object.
+  else param = '_props: Record<string, never> = {}'
 
   const lines = [PRIMITIVES_IMPORT]
   if (fm.hoisted) lines.push(fm.hoisted)
@@ -678,6 +686,9 @@ function emitComponent(fm: FrontmatterParts, htmlExpr: string, meta: LowerMeta):
 
 function emitRoute(fm: FrontmatterParts, htmlExpr: string, _meta: LowerMeta): string {
   const lines = [PRIMITIVES_IMPORT, "import { defineRoute } from '@statorjs/stator/server'"]
+  if (fm.reads.length > 0) {
+    lines.push("import type { InstanceOf as __InstanceOf } from '@statorjs/stator/template'")
+  }
   if (fm.hoisted) lines.push(fm.hoisted)
   lines.push('')
   lines.push('export const GET = defineRoute({')

@@ -49,9 +49,9 @@ const { cart } = Stator.props<{ cart: InstanceOf<typeof CartMachine> }>()
     assert.ok(serverCode.includes('defer(() => db.getPost(1),'))
   })
 
-  it('handles a template with no frontmatter (no props param)', () => {
+  it('handles a template with no frontmatter (an optional, empty props param)', () => {
     const { serverCode } = compile('<p>static</p>')
-    assert.ok(serverCode.includes('export default function () {'))
+    assert.ok(serverCode.includes('export default function (_props: Record<string, never> = {}) {'))
     assert.ok(serverCode.includes('return html`<p>static</p>`'))
   })
 

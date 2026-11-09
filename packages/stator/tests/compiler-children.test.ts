@@ -63,8 +63,8 @@ const { items } = Stator.props<{ items: string[] }>()
     assert.ok(serverCode.includes('props: { items: string[] } & { children?: any }'))
   })
 
-  it('does not add a props param when there are no children and no props', () => {
+  it('takes an optional, empty props param when there are no children and no props', () => {
     const { serverCode } = compile('<p>static</p>')
-    assert.ok(serverCode.includes('export default function () {'))
+    assert.ok(serverCode.includes('export default function (_props: Record<string, never> = {}) {'))
   })
 })
