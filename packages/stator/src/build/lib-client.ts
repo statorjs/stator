@@ -1,8 +1,9 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { builtinModules } from 'node:module'
 import { dirname, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { probeModule, scanImports } from './imports.ts'
 
 /**
  * The publish-time half of library islands: a published client entry must reach only browser-safe code on
@@ -22,23 +23,21 @@ function isServerMachineModule(file: string): boolean {
  *  the machines a package island dispatches to (`library-islands.ts`). */
 export const MACHINE_STUB = '/* @stator machine */'
 
-const DEFAULT_IMPORT_RE = /import\s+([A-Za-z_$][\w$]*)\s+from\s*(['"])(\.{1,2}\/[^'"]+)\2[ \t]*;?/g
-
 /**
  * Replace each default import of a server machine in a compiled client entry
  * with an inline `{ name }` stub, the identity an island dispatches by. The
- * rewrite is line-preserving (the stub takes the import's place, newlines
- * kept), so the entry's inline source map stays valid. Returns the stubbed
- * machine names.
+ * stub takes exactly the import statement's text range, with the statement's
+ * newlines kept after it, so every other line stays where it was and the
+ * entry's inline source map stays valid. Returns the stubbed machine names.
  */
 export async function stubMachineImports(file: string): Promise<string[]> {
   const code = await readFile(file, 'utf8')
   const repls: Array<{ start: number; end: number; text: string }> = []
   const names: string[] = []
-  for (const m of code.matchAll(DEFAULT_IMPORT_RE)) {
-    const [whole, id, , spec] = m as unknown as [string, string, string, string]
-    const base = resolve(dirname(file), spec)
-    const target = [base, `${base}.ts`, `${base}.js`].find((f) => existsSync(f))
+  for (const imp of scanImports(code, file)) {
+    if (imp.kind !== 'import' || imp.typeOnly || !imp.defaultName) continue
+    if (imp.named.length > 0 || imp.namespace || !imp.spec.startsWith('.')) continue
+    const target = probeModule(resolve(dirname(file), imp.spec))
     if (!target || !isServerMachineModule(target)) continue
     let name: unknown
     try {
@@ -46,21 +45,22 @@ export async function stubMachineImports(file: string): Promise<string[]> {
       name = mod.default?.name
     } catch (err) {
       throw new Error(
-        `stator build:lib: cannot stub the machine import "${spec}" in ${file}: importing it in ` +
+        `stator build:lib: cannot stub the machine import "${imp.spec}" in ${file}: importing it in ` +
           `Node failed: ${(err as Error).message}`,
       )
     }
     if (typeof name !== 'string') {
       throw new Error(
-        `stator build:lib: "${spec}" in ${file} imports defineMachine but does not ` +
+        `stator build:lib: "${imp.spec}" in ${file} imports defineMachine but does not ` +
           `default-export a machine with a name, so it cannot be stubbed for the browser.`,
       )
     }
+    const whole = code.slice(imp.start, imp.end)
     const newlines = '\n'.repeat(whole.split('\n').length - 1)
     repls.push({
-      start: m.index,
-      end: m.index + whole.length,
-      text: `const ${id} = ${MACHINE_STUB} { name: ${JSON.stringify(name)} };${newlines}`,
+      start: imp.start,
+      end: imp.end,
+      text: `const ${imp.defaultName} = ${MACHINE_STUB} { name: ${JSON.stringify(name)} };${newlines}`,
     })
     names.push(name)
   }

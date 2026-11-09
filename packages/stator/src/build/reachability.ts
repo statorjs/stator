@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join, relative, resolve, sep } from 'node:path'
+import { scanImports } from './imports.ts'
 
 /**
  * What a route reaches: the one import-graph walk that route CSS, route
@@ -12,7 +13,8 @@ import { dirname, join, relative, resolve, sep } from 'node:path'
  * in an inactive `match`/`when`/`each` arm is reached, since a live update can
  * activate that arm with no fresh request.
  *
- * Relative imports are followed inside the app root. A bare specifier is
+ * Imports are read by `imports.ts`, so one in a comment or a string is not
+ * one. Relative imports are followed inside the app root. A bare specifier is
  * resolved with Node resolution from the importing file, and the package it
  * lands in is walked through its own relative imports, inside that package's
  * root, and on through its own bare imports, to any depth. Only Stator-aware
@@ -24,7 +26,6 @@ import { dirname, join, relative, resolve, sep } from 'node:path'
  * registers the machines it dispatches to).
  */
 
-const IMPORT_SPECIFIER_RE = /(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g
 const CODE = /\.(ts|mts|tsx|js|mjs|jsx|stator)$/
 
 export interface PackageRef {
@@ -48,51 +49,6 @@ export interface Reach {
   modules: Map<string, ReachedModule>
 }
 
-/** Strip `/* *\/` and `//` comments before scanning for import specifiers,
- *  so a doc-comment usage example isn't mistaken for a real import. Tracks
- *  string/template-literal state so a `//` or `/*` inside one is left alone.
- *  Not a full tokenizer (doesn't walk into `${...}` interpolation); errs
- *  toward under-stripping. */
-function stripComments(code: string): string {
-  let out = ''
-  let i = 0
-  let inString: '"' | "'" | '`' | null = null
-  while (i < code.length) {
-    const c = code[i]!
-    const next = code[i + 1]
-    if (inString) {
-      out += c
-      if (c === '\\' && next !== undefined) {
-        out += next
-        i += 2
-        continue
-      }
-      if (c === inString) inString = null
-      i += 1
-      continue
-    }
-    if (c === '"' || c === "'" || c === '`') {
-      inString = c
-      out += c
-      i += 1
-      continue
-    }
-    if (c === '/' && next === '/') {
-      const nl = code.indexOf('\n', i)
-      i = nl === -1 ? code.length : nl
-      continue
-    }
-    if (c === '/' && next === '*') {
-      const end = code.indexOf('*/', i + 2)
-      i = end === -1 ? code.length : end + 2
-      continue
-    }
-    out += c
-    i += 1
-  }
-  return out
-}
-
 interface Imports {
   relative: string[]
   bare: string[]
@@ -110,13 +66,12 @@ async function importsOf(file: string): Promise<Imports> {
   if (hit && hit.mtimeMs === stat.mtimeMs) return hit.imports
   let code: string
   try {
-    code = stripComments(await readFile(file, 'utf8'))
+    code = await readFile(file, 'utf8')
   } catch {
     return { relative: [], bare: [] }
   }
   const imports: Imports = { relative: [], bare: [] }
-  for (const match of code.matchAll(IMPORT_SPECIFIER_RE)) {
-    const spec = match[1]!
+  for (const { spec } of scanImports(code, file)) {
     if (spec.startsWith('.')) imports.relative.push(resolve(file, '..', spec))
     else if (!spec.startsWith('node:')) imports.bare.push(spec)
   }
