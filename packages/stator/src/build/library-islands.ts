@@ -1,9 +1,12 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
+import ts from 'typescript'
 import { COMPILED_CONTRACT, readContract } from '../compiler/contract.ts'
 import { statorVersion } from '../version.ts'
+import { parseModule } from './imports.ts'
 import { walkFiles } from './islands.ts'
+import { MACHINE_STUB } from './lib-client.ts'
 import { isIslandShell, moduleLabel, type ReachedModule, reachFrom } from './reachability.ts'
 
 /**
@@ -114,19 +117,53 @@ export async function contractErrors(components: Iterable<ReachedModule>): Promi
   return errors
 }
 
-const DEFINE_RE = /defineElement\([^,()]+,\s*("(?:[^"\\]|\\.)*")\s*\)/g
-
-/** The custom-element tags a compiled client entry registers. */
+/** The custom-element tags a compiled client entry registers: the string
+ *  second argument of each `defineElement(…)` call. */
 export function entryTags(code: string): string[] {
-  return [...code.matchAll(DEFINE_RE)].map((m) => JSON.parse(m[1]!) as string)
+  const sf = parseModule(code, 'entry.ts')
+  const tags: string[] = []
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'defineElement'
+    ) {
+      const tag = node.arguments[1]
+      if (tag && ts.isStringLiteralLike(tag)) tags.push(tag.text)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  return tags
 }
 
-const STUB_RE = /\/\* @stator machine \*\/\s*\{\s*name:\s*("(?:[^"\\]|\\.)*")\s*\}/g
-
-/** The machines a published client entry dispatches to, by its stubs. */
+/** The machines a published client entry dispatches to, by its stubs: each
+ *  object literal whose only leading trivia is the `MACHINE_STUB` comment, read
+ *  for its `name`. */
 export function entryMachines(code: string): string[] {
-  return [...new Set([...code.matchAll(STUB_RE)].map((m) => JSON.parse(m[1]!) as string))]
+  const sf = parseModule(code, 'entry.ts')
+  const names = new Set<string>()
+  const visit = (node: ts.Node): void => {
+    if (ts.isObjectLiteralExpression(node) && isStub(sf, node)) {
+      for (const prop of node.properties) {
+        if (
+          ts.isPropertyAssignment(prop) &&
+          ts.isIdentifier(prop.name) &&
+          prop.name.text === 'name' &&
+          ts.isStringLiteralLike(prop.initializer)
+        ) {
+          names.add(prop.initializer.text)
+        }
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  return [...names]
 }
+
+const isStub = (sf: ts.SourceFile, node: ts.Node): boolean =>
+  sf.text.slice(node.pos, node.getStart(sf)).trim() === MACHINE_STUB
 
 export interface TaggedIsland {
   rel: string
