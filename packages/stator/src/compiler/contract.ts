@@ -8,6 +8,11 @@
  * package version, so a release that leaves the shape alone does not refuse
  * every library compiled before it. Source maps, the pragma itself and
  * anything else that does not reach the runtime are not part of it.
+ *
+ * `scripts/contract-fingerprint.json` records the surface each value stands
+ * for, and `tests/contract-fingerprint.test.ts` fails when the compiled
+ * surface moves without a bump. Bump this by one and run
+ * `pnpm contract:refresh` in the same commit.
  */
 export const COMPILED_CONTRACT = 1
 

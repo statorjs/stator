@@ -1,0 +1,25 @@
+---
+const title = 'Count'
+---
+<count-stepper>
+  <h3>{title}</h3>
+  <button type="button" on:click={bump} ref:btn>+1</button>
+  <span>{read(c, (s) => s.count)}</span>
+</count-stepper>
+
+<style>
+  button { color: blue; }
+</style>
+
+<script>
+  import Counter from '../machines/counter.ts'
+
+  const C = machine({ count: 0 }, { on: { INC: (s) => { s.count++ } } })
+  export class CountStepper extends StatorElement {
+    c = use(C)
+    bump() {
+      this.c.send('INC')
+      void dispatch(Counter, { type: 'INCREMENT' })
+    }
+  }
+</script>
