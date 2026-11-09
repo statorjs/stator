@@ -20,8 +20,8 @@ import {
 import { routeCssMap, routeCssPath } from './route-css.ts'
 
 /**
- * Production build: compile a `.stator` app to a `dist/` of plain `.ts` that the
- * existing `createApp` + tsx runtime serves with no Vite.
+ * Production build: compile a `.stator` app to a `dist/` of plain `.ts` that
+ * `stator start` serves, with no compiler in the process.
  *
  *   1. copy what the app's module graph reaches (see `resolveCopySet`) — the
  *      directories its routes/machines/hooks import from, the root-level files
@@ -129,8 +129,8 @@ export interface StatorManifest {
    *  `stator start` reads config from the artifact and nowhere else, so it needs
    *  to tell "this app has no config" from "the config didn't make the trip" —
    *  the second is a partial copy and must fail loudly rather than silently
-   *  falling back to in-memory persistence. Absent on a dist built before this
-   *  existed, which is itself the signal to rebuild. */
+   *  falling back to in-memory persistence. A manifest without this key is
+   *  read as "rebuild". */
   config: string | null
   /** The `@statorjs/stator` version that produced this artifact. */
   statorVersion: string
@@ -183,9 +183,8 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   }
 
   // Root-level files the graph reached: the single-file hooks (middleware.ts,
-  // boot.ts, stator.config.*) and any data file a module opens by path — an
-  // `import.meta.url`-relative SQLite file being the case that used to be
-  // missed entirely, since the old copy step only ever handled directories.
+  // boot.ts, stator.config.*) and any data file a module opens by path, such
+  // as an `import.meta.url`-relative SQLite file.
   for (const file of copySet.files) {
     const src = join(root, file)
     if (!(await exists(src))) continue

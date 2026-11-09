@@ -8,8 +8,7 @@ import type { AnyMachineDef } from '../engine/index.ts'
 
 /**
  * The per-machine code hash — the fingerprint behind "sessions never outlive
- * the code that made them" (spec `machine-state-is-working-state-snapshot-
- * hydration-policy`; follow-ups in `snapshot-policy-follow-ups-…`).
+ * the code that made them".
  *
  * Each machine file is bundled by esbuild — tree-shaken, minified, in memory —
  * and the bundle is hashed. The hash therefore changes exactly when code that

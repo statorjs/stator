@@ -14,8 +14,7 @@ import { defineMachine, type MachineDef } from '../engine/index.ts'
  * Context and behavior are SEPARATE arguments so TypeScript can infer the
  * context first and then contextually type every handler and selector
  * against it — one bag can't be soundly inferred (the handlers' parameter
- * types would depend on the same object they're part of; see the probe
- * history in the 1.0 spec). Events are structurally loose (`ev.color` is
+ * types would depend on the same object they're part of). Events are structurally loose (`ev.color` is
  * `unknown`); the machine desugars to a single-state `defineMachine`.
  *
  * Client machines run only via `createActor` (never the Store), so the name
@@ -63,8 +62,8 @@ export interface ClientBehavior<C> {
   select?: Record<string, (ctx: C) => unknown>
 }
 
-// Data-only: no behavior, no events. With `@set` gone (2.0) a machine with
-// no `on` map accepts NOTHING — its state is set at construction (a seed)
+// Data-only: no behavior, no events. A machine with no `on` map accepts
+// NOTHING — its state is set at construction (a seed)
 // and read for display; `send` is a type error by construction.
 export function machine<C extends Record<string, unknown>>(
   context: C & { on?: never; select?: never; name?: never; events?: never },

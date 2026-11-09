@@ -69,7 +69,7 @@ export interface CollectedActor {
  *  construction, so `StatorElement` can start/seed/stop them on connect/disconnect.
  *  A stack supports nested construction (rare, but correct).
  *
- *  Dual-bundle note (the clientId lesson): module state is PER BUNDLE, and
+ *  Dual-bundle note: module state is PER BUNDLE, and
  *  the page runtime and island modules are separate bundles. This stack is
  *  safe because it is construction-scoped and both its writer (`use()`) and
  *  its reader (`StatorElement`) always come from the SAME bundle as the

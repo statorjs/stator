@@ -10,11 +10,10 @@ import { compile, regionResolverFor } from '../compiler/index.ts'
  * What `stator build` copies into `dist/` — derived from the app's own module
  * graph, not from a list of directory names.
  *
- * The build used to copy every top-level directory that wasn't on a denylist,
- * which meant runtime data (an uploads dir, a JSON cache a deploy script
- * maintains) landed in the artifact, while a root-level file a module actually
- * reads — `new URL('../app.db', import.meta.url)` — did not. Both failures come
- * from the same place: guessing at the app's shape instead of asking the code.
+ * Copying by directory name gets both directions wrong: runtime data (an
+ * uploads dir, a JSON cache a deploy script maintains) lands in the artifact,
+ * while a root-level file a module reads, `new URL('../app.db',
+ * import.meta.url)`, does not.
  *
  * So one esbuild pass walks the graph from the entry points the FRAMEWORK
  * itself loads — the route and machine files, plus the root single-file hooks —
@@ -136,7 +135,7 @@ export async function resolveCopySet(opts: CopySetOptions): Promise<CopySet> {
   const root = resolve(opts.root)
   // esbuild reports REAL paths (on macOS /var is a symlink to /private/var), so
   // classify against the real root or every reached file looks external and
-  // nothing gets copied. Same lesson as `hashMachines`.
+  // nothing gets copied (`hashMachines` does the same).
   const realRoot = ((): string => {
     try {
       return realpathSync(root)
@@ -183,11 +182,10 @@ export async function resolveCopySet(opts: CopySetOptions): Promise<CopySet> {
    * The two dependencies a module carries that the bundler's own graph misses,
    * read from the SYNTAX rather than the text.
    *
-   * Both used to be regex scans over raw source, which cannot tell code from
-   * prose: a comment explaining why the app avoids `import(name)`, or a string
-   * documenting the pattern, was picked up as a real untraceable import and
-   * failed the build. Found by dogfooding, and the reason this parses. Comments
-   * and string contents are simply not part of the tree.
+   * Parsed rather than scanned as text: a comment explaining why the app avoids
+   * `import(name)`, or a string documenting the pattern, must not read as a
+   * real untraceable import. Comments and string contents are not part of the
+   * tree.
    */
   const scan = (text: string, file: string): string => {
     const sourceFile = ts.createSourceFile(

@@ -1,4 +1,4 @@
-// Native dev-server module loader — the Vite exit's dev half. Three jobs, all
+// Native dev-server module loader. Three jobs, all
 // on Node's module-customization hooks thread:
 //
 //  1. `.stator` compile-on-load: a `.stator` import is read from the SOURCE tree,
@@ -22,8 +22,7 @@
 // The versioning boundary is CRITICAL: it applies only to files under the app
 // root (`initialize({ appDir })`) and never inside a `node_modules` directory.
 // Versioning framework internals would fork their singletons (render context,
-// registries) into a second instance and break `read()` — the same dual-
-// instance hazard as the old Vite fence, from the other side. Both checks are
+// registries) into a second instance and break `read()`. Both checks are
 // needed: under pnpm the framework realpaths OUT of node_modules (so the app-
 // root allowlist catches it), under a flat install it sits INSIDE the app root
 // (so the node_modules denylist catches it).

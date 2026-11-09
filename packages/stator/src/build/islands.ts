@@ -2,15 +2,14 @@ import { readdir, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 
 /**
- * The island-bundling seam — Lock 1 of the Vite exit (spec
- * `toolchain-adapter-seam-and-the-vite-exit`).
+ * The island-bundling seam.
  *
  * `bundleIslands` is a pure inputs→outputs function: island entries in; emitted
  * files, a rel→URL map, and the list of source modules that went in, out.
  * Nothing is written or served here — `buildApp` writes the assets under
  * `dist/static/assets/`, the native dev server keeps them in memory. That is
- * what keeps the bundler one implementation (esbuild) with the same core
- * feeding both sides.
+ * what keeps the bundler one implementation with the same core feeding both
+ * sides.
  *
  * The entry contract is deliberately tiny: an entry is either the island's
  * `.stator` SOURCE (the bundler compiles its `<script>` to the client module)

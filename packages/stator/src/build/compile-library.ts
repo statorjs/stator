@@ -81,7 +81,7 @@ export async function compileLibrary(opts: CompileLibraryOptions): Promise<Compi
 
   // A published client entry carries no server code: machine imports become
   // `{ name }` stubs, then a browser bundle of each entry proves nothing on the
-  // server side is left (spec `library-islands-…`, Approach 1).
+  // server side is left.
   const machines = new Set<string>()
   for (const file of clientFiles) {
     for (const name of await stubMachineImports(file)) machines.add(name)

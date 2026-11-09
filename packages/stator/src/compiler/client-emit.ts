@@ -5,7 +5,7 @@ import { CLIENT_AUTHOR_GLOBALS, CLIENT_LOWERING_TARGETS, importLine } from './em
 import { mark } from './source-map.ts'
 
 /**
- * Phase 3b stage 5 — emit the client entry module for a client component: the
+ * Emit the client entry module for a client component: the
  * author's `<script>` (with auto-injected primitives) plus a generated subclass
  * whose `setup()` wires the collected directives, then `defineElement`.
  *

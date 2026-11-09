@@ -4,12 +4,11 @@ import { readFile } from 'node:fs/promises'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 
 /**
- * Framework image serving — the promotion of the pattern proven in
- * `examples/indie-blog` (spec `images-are-part-of-stator-*`). Mounted only
+ * Framework image serving. Mounted only
  * when `stator.config.ts` declares `images: { dir }`; an unconfigured app has
  * no routes here and never loads a transformer.
  *
- * The contract, unchanged from the proof: the URL's **extension is the
+ * The contract: the URL's **extension is the
  * delivery format** (request `x.webp` of a stored `x.jpg` and the endpoint
  * converts — it never lies about an extension; there is no Accept-header or
  * user-agent negotiation, ever), `?w=` resizes to an allowlisted width, and
@@ -96,9 +95,7 @@ export const DEFAULT_IMAGE_WIDTHS = [400, 800, 1200, 1600]
  *  trio, and their portrait duals. A crop `?w=&h=` is valid iff `w` is an
  *  allowlisted width AND `h === round(w / a)` for an allowlisted aspect — the
  *  variant space stays finite (|widths| x |aspects|) while the aspects people
- *  actually shoot in (16:9, 3:2, 4:3) all work. (The first cut required
- *  `h ∈ widths`, which silently forbade every non-square aspect — caught in
- *  review before the URL grammar froze.) */
+ *  actually shoot in (16:9, 3:2, 4:3) all work. */
 export const DEFAULT_IMAGE_ASPECT_RATIOS = [1, 4 / 3, 3 / 2, 16 / 9, 3 / 4, 2 / 3, 9 / 16]
 
 /** What the render side needs to emit URLs the endpoint will accept — carried
@@ -153,9 +150,8 @@ function originalHash(full: string): string {
   return hash
 }
 
-/** The freshness dial (spec: image-caching, adjudicated 2026-08-30 — a dial,
- *  not an immutable boolean, because over-caching has no server-side
- *  recovery). Defaults preserve the conservative revalidation contract;
+/** The freshness dial (a dial, not an immutable boolean, because
+ *  over-caching has no server-side recovery). Defaults preserve the conservative revalidation contract;
  *  `staleWhileRevalidate` trades must-revalidate for background self-healing
  *  (SWR forbids what must-revalidate demands, so they never co-emit);
  *  `immutable` appends only on top of an explicit long maxAge. */
@@ -171,7 +167,7 @@ function cacheControlValue(config: ResolvedImagesConfig): string {
 /** Global encode semaphore — DIFFERENT variants queue behind a small number
  *  of concurrent transforms. Without it, one cold-cache gallery page fans a
  *  dozen simultaneous sharp encodes (AVIF is memory-brutal) and OOM-kills a
- *  small host — found the first hour tonysull.co ran on a 512MB Fly machine.
+ *  small host (a 512MB machine).
  *  Module-level on purpose: the resource being protected (CPU/memory) is
  *  process-wide, whatever app object serves the request. */
 let activeTransforms = 0
@@ -252,9 +248,8 @@ export function resolveImagesConfig(config: {
 
 /** Write-time probe for app upload handlers — the render never does this.
  *  Defaults to the sharp transformer; pass your configured one if you swapped
- *  it. (First dogfood finding: an earlier signature took the whole resolved
- *  config, which apps don't hold — bytes + optional transformer is the shape
- *  an upload handler actually has in hand.) */
+ *  it. Bytes plus an optional transformer is what an upload handler has in
+ *  hand; apps don't hold the resolved config. */
 export async function probeImage(
   bytes: Uint8Array,
   transformer: ImageTransformer = sharpTransformer(),
@@ -321,7 +316,7 @@ export async function serveImage(
   const original = resolveOriginal(config, rel)
   if (!original) return new Response('not found', { status: 404 })
 
-  // Content-hash validators (spec: image-caching). ETags are per-URL and the
+  // Content-hash validators. ETags are per-URL and the
   // transform params ARE the URL, so hash(original) is the complete entropy;
   // the params suffix on variants is labeling for humans, not identity. The
   // encoder is deliberately excluded (an upgrade must not mass-bust visually

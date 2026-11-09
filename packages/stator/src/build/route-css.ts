@@ -4,9 +4,7 @@ import { walkFiles } from './islands.ts'
 import { moduleLabel, type Reach, reachFrom } from './reachability.ts'
 
 /**
- * Per-route scoped CSS (spec
- * `stator-component-libraries-publish-time-compile-per-component-scoped-css-usage-driven-aggregation`,
- * revised by `library-islands-…` for 3.0). Each route's sheet is the sibling
+ * Per-route scoped CSS. Each route's sheet is the sibling
  * `.css` of every module its import graph reaches (`reachability.ts`), app or
  * package alike, read by path: a package module's CSS is its own sibling, not
  * whatever the package's `exports` map hands out for `${specifier}.css`.

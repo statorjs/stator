@@ -59,8 +59,7 @@ export interface DefineMachineConfig<
    *  every interior S position (`to:`, the machine-level `on:`) is NoInfer.
    *  Without that, `to:` string literals become competing inference
    *  candidates, and whenever they don't happen to cover every state the
-   *  union silently collapses to the covered subset (surfaced by the store's
-   *  cart machine when its line ops moved to machine-level `on:`). */
+   *  union silently collapses to the covered subset. */
   states: Record<S, StateNode<C, E, NoInfer<S>, ReadsMap<TReads>>>
   /** Machine-level transitions: handlers that apply in ANY state, consulted only
    *  when the current state does not declare the event (a state-scoped handler

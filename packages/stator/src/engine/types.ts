@@ -5,9 +5,9 @@
  * Designed fresh for Stator's needs, NOT for XState compatibility. The shape is
  * a declarative `states` map (so the transition graph stays statically
  * analyzable — the framework's core value), with inline functions on
- * transitions (Option A: per-transition event narrowing, co-located logic).
+ * transitions (per-transition event narrowing, co-located logic).
  *
- * Lean feature set per the engine spec: flat states, typed events, guards,
+ * Lean feature set: flat states, typed events, guards,
  * mutation-style actions, declared emits, selectors, snapshot ser/de. State
  * value is a PATH ARRAY (`['active']`) — depth-1 today, the extension point for
  * hierarchy later without a rewrite.
@@ -190,7 +190,7 @@ export type Transition<
 
 /** The `on` map: each event type maps to a transition (or an ordered array of
  *  guarded candidates — first whose `when` passes wins) whose action/guard see
- *  the event NARROWED to exactly that type. This is the Option A payoff. */
+ *  the event NARROWED to exactly that type. */
 export type OnMap<C, E extends EventObject, S extends string, R = Record<string, any>> = {
   [K in E['type']]?:
     | Transition<C, Extract<E, { type: K }>, S, R, E>

@@ -12,10 +12,8 @@ import { isUrlAttribute, safeAttrUrl } from './safe-url.ts'
  * does). `true` → present-and-empty. Arrays join with no separator (matching
  * text interpolation); everything else stringifies.
  *
- * History: this contract used to live in four drifting copies, and two of
- * them disagreed in ways users hit — `checked={false}` rendered
- * `checked="false"` on the static path, and array values patched as "a,b"
- * but rendered as "ab". One implementation, so the seams can't disagree.
+ * The static render and the patch path both call this, so they can't disagree
+ * on `checked={false}` or on how an array joins.
  */
 export function attrValue(v: unknown): string | null {
   if (v === false || v === null || v === undefined) return null

@@ -26,34 +26,34 @@ describe('matchOrigin', () => {
   })
 
   describe('wildcard subdomain', () => {
-    const pat = ['https://*.tonysull.co']
+    const pat = ['https://*.example.com']
     it('matches a single-level subdomain', () => {
-      assert.equal(matchOrigin('https://app.tonysull.co', pat), true)
+      assert.equal(matchOrigin('https://app.example.com', pat), true)
     })
     it('matches a multi-level subdomain (any depth)', () => {
-      assert.equal(matchOrigin('https://a.b.tonysull.co', pat), true)
+      assert.equal(matchOrigin('https://a.b.example.com', pat), true)
     })
     it('does NOT match the apex', () => {
-      assert.equal(matchOrigin('https://tonysull.co', pat), false)
+      assert.equal(matchOrigin('https://example.com', pat), false)
     })
     it('rejects the suffix attack', () => {
-      assert.equal(matchOrigin('https://tonysull.co.evil.com', pat), false)
+      assert.equal(matchOrigin('https://example.com.evil.com', pat), false)
     })
     it('rejects a non-boundary prefix', () => {
-      assert.equal(matchOrigin('https://eviltonysull.co', pat), false)
+      assert.equal(matchOrigin('https://evilexample.com', pat), false)
     })
     it('rejects a scheme mismatch under wildcard', () => {
-      assert.equal(matchOrigin('http://app.tonysull.co', pat), false)
+      assert.equal(matchOrigin('http://app.example.com', pat), false)
     })
     it('honors an explicit port on the wildcard pattern', () => {
       assert.equal(
-        matchOrigin('https://app.tonysull.co:8443', ['https://*.tonysull.co:8443']),
+        matchOrigin('https://app.example.com:8443', ['https://*.example.com:8443']),
         true,
       )
-      assert.equal(matchOrigin('https://app.tonysull.co', ['https://*.tonysull.co:8443']), false)
+      assert.equal(matchOrigin('https://app.example.com', ['https://*.example.com:8443']), false)
     })
     it('a wildcard without a port matches any port', () => {
-      assert.equal(matchOrigin('https://app.tonysull.co:8443', pat), true)
+      assert.equal(matchOrigin('https://app.example.com:8443', pat), true)
     })
   })
 
@@ -71,7 +71,7 @@ describe('matchOrigin', () => {
     })
     it('matches if ANY pattern matches', () => {
       assert.equal(
-        matchOrigin('https://app.tonysull.co', ['https://other.com', 'https://*.tonysull.co']),
+        matchOrigin('https://app.example.com', ['https://other.com', 'https://*.example.com']),
         true,
       )
     })

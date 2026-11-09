@@ -5,25 +5,23 @@
  *   - `---` frontmatter fence (server: type-only machine imports, props)
  *   - the JSX-flavored template body (server-rendered)
  *   - one or more `<style>` blocks (scoped styles)
- *   - one or more bare `<script>` blocks (client code; processed in 3b)
+ *   - one or more bare `<script>` blocks (client code)
  *
  * Region detection is a light lexer (`template-scan.ts`), not a parse — the
- * JSX *inside* the template is handed to the TypeScript parser in a later
- * stage. Only TOP-LEVEL `<script>` / `<style>` elements are regions: the same
+ * JSX *inside* the template is handed to the TypeScript parser by `lower.ts`. Only TOP-LEVEL `<script>` / `<style>` elements are regions: the same
  * text inside a `{…}` expression, a string or a comment is template content.
  * Splitting is the only job of this module.
  *
  * Script disambiguation: an **inline** `<script>` is the component's client
- * code — it's pulled out as a region and (in a later stage) compiled to a
- * `StatorElement`. Two explicit forms opt out and stay in the template as
+ * code — it's pulled out as a region and compiled to a `StatorElement`. Two explicit forms opt out and stay in the template as
  * literal document markup, emitted verbatim:
  *   - `<script src="...">`  — an external reference is never an inline component.
  *   - `<script is:inline>`  — opt-out directive for a verbatim inline script.
  * Note the rule keys off *presence* of `src` / `is:inline`, not "has any
  * attribute": `<script type="module">` or `<script lang="ts">` are still
  * compiled as components, so an incidental attribute can't silently demote a
- * component to dead markup. (`<style>` still uses the older bare-vs-attributed
- * rule; aligning it on `is:inline` is a follow-up.)
+ * component to dead markup. (`<style>` keys off the bare-vs-attributed rule
+ * instead.)
  */
 
 import { scanTemplate, type TemplateBlock } from './template-scan.ts'

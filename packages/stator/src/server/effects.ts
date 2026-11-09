@@ -124,7 +124,7 @@ async function runAppEffect(invocation: EffectInvocation, store: MachineStore): 
  * fan out to live SSE connections. Non-live pages simply see the new state on
  * their next request.
  *
- * At-most-once, non-durable (1.0 contract): a crash between commit and
+ * At-most-once, non-durable: a crash between commit and
  * completion loses the effect; the machine stays in its pending state.
  */
 export function scheduleSessionEffects(

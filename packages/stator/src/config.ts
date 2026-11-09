@@ -6,9 +6,8 @@ import type { AppStore, Store } from './server/index.ts'
 export type LogLevel = 'silent' | 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace'
 
 /**
- * Stator app configuration — the home for what previously forced a hand-written
- * `server.ts`/`start.ts`: the persistence adapters, session/realtime policy, and
- * dev port.
+ * Stator app configuration: the persistence adapters, session/realtime policy,
+ * and dev port.
  *
  * Loaded from `stator.config.{ts,mts,js,mjs}` at the app root by the `stator`
  * CLI (`dev`/`start`). Grouped by concern so the config principle is visible in

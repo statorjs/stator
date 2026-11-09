@@ -6,10 +6,9 @@
  * verbatim on a duplicate.
  *
  * Module-level and in-process, like the SSE connection registry and timers:
- * single-replica is a stated 1.0 constraint, and the cache carries the same
+ * single-replica is a stated constraint, and the cache carries the same
  * non-durable contract (a restart forgets it — the retry window is seconds,
- * the cost of a lost entry is one duplicate apply, and durable delivery is
- * 1.x inbox work).
+ * and the cost of a lost entry is one duplicate apply).
  */
 
 /** Ample for the retry window (client retries at ~0.3s/1s); bounds memory. */

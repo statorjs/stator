@@ -127,7 +127,7 @@ function recomputeInner(state: RenderState, machineName: string, runtime: Sessio
       const newArray = newValue as readonly unknown[]
       const oldArray = binding.lastValue as readonly unknown[]
       const rows = binding.rows
-      // SPIKE (finding #5 / option C): a same-length list with item bindings
+      // A same-length list with item bindings
       // diffs each row's item-value bindings and patches only the changed fields
       // — the row DOM (islands, focus) is preserved, and identity churn (the VM
       // re-deriving item objects) no longer forces a re-render, because we
@@ -158,7 +158,7 @@ function recomputeInner(state: RenderState, machineName: string, runtime: Sessio
       // Keyed diff: shape changes become per-item insert/remove/move ops from
       // a replay simulation (`work` mirrors what the client's DOM will look
       // like after each emitted op — see the wire contract). Retained rows keep
-      // their DOM; their content updates through nested read()s and — option C —
+      // their DOM; their content updates through nested read()s and
       // per-row itemBind item-value bindings (diffed after the shape pass).
       const newArray = newValue as readonly unknown[]
       const newKeys = coerceKeys(newArray, binding.keyFn, slotId)
@@ -203,7 +203,7 @@ function recomputeInner(state: RenderState, machineName: string, runtime: Sessio
         }
         binding.lastKeys = newKeys
       }
-      // Option C (keyed): retained rows re-evaluate their item-value bindings, so
+      // Keyed: retained rows re-evaluate their item-value bindings, so
       // a content change patches the changed field in place — no re-render, no
       // reliance on the row carrying a nested read(). Rows inserted this pass are
       // already current (rendered above); removed rows are gone.

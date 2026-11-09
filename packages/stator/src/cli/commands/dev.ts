@@ -4,8 +4,7 @@ import { loadConfig, resolvePort } from '../config.ts'
 import type { CliContext } from '../run.ts'
 
 /** Run the dev server. Live reload, inspector, conventions for machines/routes/
- *  static; `stator.config.ts` for the store/session/port an app previously
- *  hand-wrote a `server.ts` for.
+ *  static; `stator.config.ts` for the store, session and port.
  *
  *  The app runs natively from its source tree, exactly as `stator start` runs a
  *  build. */

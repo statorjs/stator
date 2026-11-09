@@ -69,9 +69,9 @@ export interface LowerMeta {
    *  resolution / validation in later stages). */
   components: Set<string>
   /** Custom-element tags (lowercase, hyphenated) used in this file's template —
-   *  the client islands the `<script>` defines (Phase 3b). */
+   *  the client islands the `<script>` defines. */
   customElements: Set<string>
-  /** `ref:<name>` handles declared in the template (Phase 3b). */
+  /** `ref:<name>` handles declared in the template. */
   refs: Set<string>
 }
 
@@ -166,7 +166,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
   const scopeSuffix = opts.scopeAttr ? ` ${opts.scopeAttr}` : ''
   const meta = opts.meta
 
-  // Item-value bindings (finding #5): the item param of the each row currently
+  // Item-value bindings: the item param of the each row currently
   // being lowered (null outside any each, or for a destructured item param). A
   // `read(<item>, …)` inside such a row lowers to a per-row `itemBind`. Server
   // path only — itemBind needs server render state, so client-island shells keep
@@ -202,8 +202,8 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     ts.isIdentifier(n.arguments[0]) &&
     opts.client.useFields.has(n.arguments[0].text)
 
-  /** `bind:` was removed in 2.0 — display folds into `read()`, input capture
-   *  is a typed commit event. One error, both compile modes. */
+  /** `bind:` is not a directive: display goes through `read()`, input capture
+   *  through a typed commit event. One error, both compile modes. */
   const bindRemoved = (name: string, at: DiagnosticLocation | undefined): CompileError =>
     new CompileError(
       `stator: bind:${name} was removed in 2.0. Display state with read() — ` +

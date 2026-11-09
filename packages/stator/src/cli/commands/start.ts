@@ -22,7 +22,7 @@ const exists = (p: string): Promise<boolean> =>
   )
 
 /**
- * Serve a built artifact in production (no Vite).
+ * Serve a built artifact in production.
  *
  * Everything comes from the artifact, `stator.config.ts` included. There is
  * deliberately no fall back to the source tree: a config read from outside the

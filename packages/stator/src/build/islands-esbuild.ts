@@ -4,8 +4,8 @@ import { pathToFileURL } from 'node:url'
 import type { BundleIslandsOptions, IslandAsset, IslandBundler } from './islands.ts'
 
 /**
- * Implementation #2 of the island-bundling seam (spike for Option E of the
- * Vite exit): one esbuild build over every island entry, `splitting: true` so
+ * The island bundler behind the `bundleIslands` seam: one esbuild build over
+ * every island entry, `splitting: true` so
  * shared modules — the client runtime above all — land in shared chunks
  * instead of duplicating per island.
  *
@@ -19,8 +19,8 @@ const norm = (p: string): string => p.replace(/\\/g, '/')
 
 const STUB_NS = 'stator-machine-stub'
 
-/** Extensions an island may reference by URL; emitted as hashed files (the
- *  seam contract — never inlined), mirroring Vite's `assetsInlineLimit: 0`. */
+/** Extensions an island may reference by URL; emitted as hashed files, never
+ *  inlined (the seam contract). */
 const FILE_LOADERS: Record<string, 'file'> = Object.fromEntries(
   ['.wasm', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.woff', '.woff2'].map((e) => [
     e,
@@ -51,11 +51,11 @@ export const bundleIslandsEsbuild: IslandBundler = async (opts: BundleIslandsOpt
   }))
   const byFile = new Map(opts.entries.map((e) => [norm(resolve(e.file)), e]))
 
-  // Rollup/Vite rewrite `new URL('./x', import.meta.url)` to an emitted asset;
-  // esbuild does not, so the seam does it here: each URL-referenced relative
+  // esbuild does not rewrite `new URL('./x', import.meta.url)` to an emitted
+  // asset, so the seam does it here: each URL-referenced relative
   // asset becomes an import (the file loader emits it hashed and exports its
   // public URL, root-absolute under `publicPath`, so the `new URL` still
-  // resolves). Only string-literal relative specifiers — same limit as Vite.
+  // resolves). Only string-literal relative specifiers are rewritten.
   const URL_ASSET_RE = /new\s+URL\(\s*(['"])(\.{1,2}\/[^'"\n]+)\1\s*,\s*import\.meta\.url\s*\)/g
   const rewriteUrlAssets = (code: string): string => {
     let n = 0

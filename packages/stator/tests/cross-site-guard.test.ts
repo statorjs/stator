@@ -34,8 +34,8 @@ function crossSitePost(app: StatorApp, origin: string) {
 
 describe('crossSiteGuard + trustedOrigins', () => {
   it('allows a cross-site write from a wildcard-trusted subdomain', async () => {
-    const app = await boot(['https://*.tonysull.co'])
-    assert.equal((await crossSitePost(app, 'https://app.tonysull.co')).status, 200)
+    const app = await boot(['https://*.example.com'])
+    assert.equal((await crossSitePost(app, 'https://app.example.com')).status, 200)
   })
 
   it('allows a cross-site write from an exact-trusted origin', async () => {
@@ -44,15 +44,15 @@ describe('crossSiteGuard + trustedOrigins', () => {
   })
 
   it('still blocks an untrusted cross-site origin', async () => {
-    const app = await boot(['https://*.tonysull.co'])
+    const app = await boot(['https://*.example.com'])
     const res = await crossSitePost(app, 'https://evil.com')
     assert.equal(res.status, 403)
     assert.ok(((await res.json()) as { error: string }).error.includes('cross-site'))
   })
 
   it('rejects the suffix-attack origin even with a matching wildcard entry', async () => {
-    const app = await boot(['https://*.tonysull.co'])
-    assert.equal((await crossSitePost(app, 'https://tonysull.co.evil.com')).status, 403)
+    const app = await boot(['https://*.example.com'])
+    assert.equal((await crossSitePost(app, 'https://example.com.evil.com')).status, 403)
   })
 
   it('403s a cross-site write to an unknown path before route-matching (no 404 leak)', async () => {
@@ -123,12 +123,12 @@ describe('crossSiteGuard strict posture (SameSite=Strict)', () => {
 
   it('blocks a same-site write not in the allowlist', async () => {
     const app = await bootStrict()
-    assert.equal((await sameSitePost(app, 'https://sibling.tonysull.co')).status, 403)
+    assert.equal((await sameSitePost(app, 'https://sibling.example.com')).status, 403)
   })
 
   it('allows a same-site write from an allowlisted subdomain', async () => {
-    const app = await bootStrict(['https://*.tonysull.co'])
-    assert.equal((await sameSitePost(app, 'https://sibling.tonysull.co')).status, 200)
+    const app = await bootStrict(['https://*.example.com'])
+    assert.equal((await sameSitePost(app, 'https://sibling.example.com')).status, 200)
   })
 
   it('still allows same-origin writes under strict', async () => {

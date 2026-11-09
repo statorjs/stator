@@ -1,6 +1,5 @@
 /**
- * The compiled-shape contract (spec `library-islands-…`, "The contract, and
- * the test that guards it"): the interface between a compiled component and
+ * The compiled-shape contract: the interface between a compiled component and
  * the runtime it runs on. What compiled output imports from
  * `@statorjs/stator/template` and `/client`, the island protocol its client
  * entry speaks, the scope attribute format, and the prop-signature shape.

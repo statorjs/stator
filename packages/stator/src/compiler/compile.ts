@@ -31,8 +31,7 @@ import { scopeCss } from './styles.ts'
 
 /**
  * Assemble a `.stator` source into the server `.ts` module the runtime
- * consumes. Phase 3a: server module only (template + frontmatter). Styles and
- * the client `<script>` are layered in later stages.
+ * consumes, plus its scoped CSS and, for an island, the client entry module.
  *
  * Frontmatter handling:
  *   - import / type / interface declarations hoist to the module top
@@ -55,7 +54,7 @@ export interface CompileResult {
   scripts: string[]
   /** True when this `.stator` is a client component (whole-file custom element). */
   isClient: boolean
-  /** The generated client entry module (Phase 3b) — the `StatorElement` subclass
+  /** The generated client entry module — the `StatorElement` subclass
    *  + `setup()` + `defineElement`. Empty for server components. */
   clientCode: string
   /** Custom-element tag this client component defines (e.g. `quantity-stepper`),
@@ -136,7 +135,7 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
   const script = scripts.join('\n')
   if (script.trim()) {
     if (analyzeScriptClasses(script).length > 0) {
-      // The island's SERVER FENCE (2.1): runs per shell render, on the
+      // The island's SERVER FENCE: runs per shell render, on the
       // server only, with its bindings in template scope. The <script>
       // never sees it, in either direction.
       const fm = processFrontmatter(
@@ -238,7 +237,7 @@ function compileClient(
     scopeAttr?: string
     styles: string[]
     file?: string
-    /** The island's processed server fence (2.1) — empty parts when absent. */
+    /** The island's processed server fence — empty parts when absent. */
     fm?: FrontmatterParts
     /** Original source, for located collision diagnostics. */
     source?: string
@@ -498,9 +497,9 @@ function processFrontmatter(
     locAt(source, fmStart + node.getStart(sf), file)
 
   // The fence is plain TypeScript (ScriptKind.TS): a bare `<p>` lexes as an
-  // old-style type assertion, so JSX here used to surface only as esbuild's
-  // `Expected ")" but found "return"` on the emitted module — while the
-  // editor's TSX model accepted it. Report syntax errors here, with the one
+  // old-style type assertion, so JSX here would otherwise surface only as
+  // esbuild's `Expected ")" but found "return"` on the emitted module, while
+  // the editor's TSX model accepts it. Report syntax errors here, with the one
   // targeted hint for that shape.
   const syntax = parseDiagnosticsOf(sf)
   if (syntax.length > 0) {
