@@ -1,0 +1,5 @@
+---
+"@statorjs/stator": major
+---
+
+One import-graph walk now feeds route CSS and route islands, in dev and the build alike. It crosses bare specifiers into Stator packages (`@statorjs/stator` itself, or a package depending on it) and follows their relative and bare imports to any depth, so a route's stylesheet holds the sibling `.css` of every library component it reaches, read by path, including components a library itself renders, such as `<Image>`. That replaces resolving `${specifier}.css` through a package's `exports` map. A library needs no `.css` entries in its exports for Stator apps; one that published CSS only through such an entry, without per-component siblings beside its compiled modules, should republish with `stator build:lib`. Packages that don't depend on Stator are never walked. Imports that appear only in comments no longer count as reached for islands either. An island reached from one package through another package's import fails the walk naming both, until the build can check the machines such an island needs.

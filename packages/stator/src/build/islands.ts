@@ -1,5 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
+import { reachFrom } from './reachability.ts'
 
 /**
  * The island-bundling seam — Lock 1 of the Vite exit (spec
@@ -87,10 +88,11 @@ export async function routeIslandMap(opts: {
   )
   for (const routeFile of routeFiles) {
     const reached = new Set<string>()
-    await walkImports(routeFile, baseDir, new Set(), (file) => {
+    const { modules } = await reachFrom(routeFile, { appRoot: baseDir })
+    for (const file of modules.keys()) {
       const island = opts.shells.get(file)
       if (island) reached.add(island)
-    })
+    }
     if (reached.size > 0) routes.set(routeFile, [...reached].sort())
   }
   return routes
@@ -116,21 +118,6 @@ export async function localImports(file: string, baseDir: string): Promise<strin
     if (target.startsWith(baseDir)) out.push(target)
   }
   return out
-}
-
-/** Depth-first walk of a file's relative-import graph, bounded to `baseDir`. */
-export async function walkImports(
-  file: string,
-  baseDir: string,
-  seen: Set<string>,
-  visit: (file: string) => void,
-): Promise<void> {
-  if (seen.has(file)) return
-  seen.add(file)
-  visit(file)
-  for (const target of await localImports(file, baseDir)) {
-    await walkImports(target, baseDir, seen, visit)
-  }
 }
 
 /** Recursive file listing. `skipDir` prunes a directory by name. */
