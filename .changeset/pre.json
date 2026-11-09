@@ -28,6 +28,7 @@
     "editor-contract",
     "events-unknown-400",
     "flat-config-keys-removed",
+    "island-shell-props",
     "island-source-maps",
     "library-islands-ast",
     "ls-follows-project",
