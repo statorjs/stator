@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { compile } from '../src/compiler/index.ts'
+import { compile } from '../../src/compiler/index.ts'
 
 /**
  * The runtime-facing surface of compiled output, read from a fixed set of
  * fixtures compiled by the current compiler: what `COMPILED_CONTRACT` stands
- * for. `contract-fingerprint.json` records one entry per contract, and
+ * for. `tests/fixtures/contract/fingerprint.json` records one entry per
+ * contract, and
  * `tests/contract-fingerprint.test.ts` fails when the surface moves without a
  * bump, or the number moves without the surface.
  *
@@ -20,7 +21,7 @@ import { compile } from '../src/compiler/index.ts'
  * argument's meaning, say) still needs a deliberate bump.
  */
 
-const FIXTURES = join(import.meta.dirname, 'contract-fixtures')
+const FIXTURES = join(import.meta.dirname, '../fixtures/contract')
 const FILES: Array<[string, 'route' | 'component']> = [
   ['templates/card.stator', 'component'],
   ['templates/count-stepper.stator', 'component'],
@@ -149,7 +150,7 @@ export function refreshRecord(
   return [...history, entry]
 }
 
-export const RECORD_PATH = join(import.meta.dirname, 'contract-fingerprint.json')
+export const RECORD_PATH = join(FIXTURES, 'fingerprint.json')
 
 export function readRecord(): ContractRecord[] {
   return JSON.parse(readFileSync(RECORD_PATH, 'utf8')) as ContractRecord[]

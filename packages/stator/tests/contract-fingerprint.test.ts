@@ -1,6 +1,7 @@
 // @env happy-dom
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { COMPILED_CONTRACT } from '../src/compiler/contract.ts'
 import {
   type ContractRecord,
   type ContractSurface,
@@ -9,8 +10,7 @@ import {
   readRecord,
   refreshRecord,
   surfaceDiff,
-} from '../scripts/contract-surface.ts'
-import { COMPILED_CONTRACT } from '../src/compiler/contract.ts'
+} from './helpers/contract-surface.ts'
 
 /**
  * The compiled-shape contract gate. `COMPILED_CONTRACT` and the recorded

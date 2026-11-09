@@ -1,6 +1,11 @@
 import { existsSync, writeFileSync } from 'node:fs'
 import { COMPILED_CONTRACT } from '../src/compiler/contract.ts'
-import { contractSurface, RECORD_PATH, readRecord, refreshRecord } from './contract-surface.ts'
+import {
+  contractSurface,
+  RECORD_PATH,
+  readRecord,
+  refreshRecord,
+} from '../tests/helpers/contract-surface.ts'
 
 /**
  * `pnpm contract:refresh`: record the compiled-shape surface for the current
