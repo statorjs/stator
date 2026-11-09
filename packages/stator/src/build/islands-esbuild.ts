@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { probeModule } from './imports.ts'
 import type { BundleIslandsOptions, IslandAsset, IslandBundler } from './islands.ts'
+import { isServerMachineModule, machineName } from './machines.ts'
 
 /**
  * The island bundler behind the `bundleIslands` seam: one esbuild build over
@@ -11,7 +12,8 @@ import type { BundleIslandsOptions, IslandAsset, IslandBundler } from './islands
  *
  * The contract `islands.ts` defines: entries are
  * `.stator` sources (compiled to their client module here) or prebuilt client
- * entry modules; server-machine imports collapse to `{ name }` stubs; nothing
+ * entry modules; server-machine imports (a module under `machinesDir`, or any
+ * module `machines.ts` reads as one) collapse to `{ name }` stubs; nothing
  * is written — callers own the assets.
  */
 
@@ -109,29 +111,20 @@ export const bundleIslandsEsbuild: IslandBundler = async (opts: BundleIslandsOpt
       b.onResolve({ filter: /^[./]/ }, (args) => {
         if (args.namespace === STUB_NS) return null
         const base = isAbsolute(args.path) ? args.path : resolve(args.resolveDir, args.path)
-        const abs = [base, `${base}.ts`, `${base}.js`].find(inMachinesDir)
+        const file = probeModule(base)
+        const abs = file
+          ? inMachinesDir(file) || isServerMachineModule(file)
+            ? file
+            : undefined
+          : [base, `${base}.ts`, `${base}.js`].find(inMachinesDir)
         if (!abs) return null
         return { path: abs, namespace: STUB_NS }
       })
       b.onLoad({ filter: /.*/, namespace: STUB_NS }, async (args) => {
-        let name: unknown
-        try {
-          const mod = (await import(pathToFileURL(args.path).href)) as {
-            default?: { name?: unknown }
-          }
-          name = mod.default?.name
-        } catch (err) {
-          throw new Error(
-            `stator: cannot stub server-machine import "${args.path}" for the client bundle — ` +
-              `importing it in Node failed: ${(err as Error).message}`,
-          )
-        }
-        if (typeof name !== 'string') {
-          throw new Error(
-            `stator: cannot stub "${args.path}" — it does not default-export a machine with a name. ` +
-              `Only machine defs may be imported from the machines directory in client code.`,
-          )
-        }
+        const name = await machineName(
+          args.path,
+          'stator: cannot stub a server-machine import for the client bundle',
+        )
         return { contents: `export default { name: ${JSON.stringify(name)} }\n`, loader: 'js' }
       })
     },

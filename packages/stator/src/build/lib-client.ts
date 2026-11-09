@@ -1,23 +1,14 @@
-import { readFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { builtinModules } from 'node:module'
 import { dirname, relative, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { probeModule, scanImports } from './imports.ts'
+import { isServerMachineModule, machineName } from './machines.ts'
 
 /**
  * The publish-time half of library islands: a published client entry must reach only browser-safe code on
  * its own, so a consuming app's bundler needs to know nothing about the
  * package's machines.
  */
-
-/** A module that defines a server machine: it imports `defineMachine`
- *  (from `@statorjs/stator/server`, or inside the framework by path). Read as
- *  text first, so a client helper that touches browser globals is never
- *  imported in Node to find out. */
-function isServerMachineModule(file: string): boolean {
-  return /import\s*\{[^}]*\bdefineMachine\b[^}]*\}\s*from/.test(readFileSync(file, 'utf8'))
-}
 
 /** Marks a stub in a published client entry, so a consuming build can list
  *  the machines a package island dispatches to (`library-islands.ts`). */
@@ -39,22 +30,10 @@ export async function stubMachineImports(file: string): Promise<string[]> {
     if (imp.named.length > 0 || imp.namespace || !imp.spec.startsWith('.')) continue
     const target = probeModule(resolve(dirname(file), imp.spec))
     if (!target || !isServerMachineModule(target)) continue
-    let name: unknown
-    try {
-      const mod = (await import(pathToFileURL(target).href)) as { default?: { name?: unknown } }
-      name = mod.default?.name
-    } catch (err) {
-      throw new Error(
-        `stator build:lib: cannot stub the machine import "${imp.spec}" in ${file}: importing it in ` +
-          `Node failed: ${(err as Error).message}`,
-      )
-    }
-    if (typeof name !== 'string') {
-      throw new Error(
-        `stator build:lib: "${imp.spec}" in ${file} imports defineMachine but does not ` +
-          `default-export a machine with a name, so it cannot be stubbed for the browser.`,
-      )
-    }
+    const name = await machineName(
+      target,
+      `stator build:lib: cannot stub the machine import "${imp.spec}" in ${file}`,
+    )
     const whole = code.slice(imp.start, imp.end)
     const newlines = '\n'.repeat(whole.split('\n').length - 1)
     repls.push({
