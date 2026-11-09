@@ -1,5 +1,16 @@
 # stator-vscode
 
+## 1.4.0-next.1
+
+### Minor Changes
+
+- d43dda6: The editor follows the Stator release installed in the project, not the one bundled in the extension. The language server finds the project's `@statorjs/stator`, and when it exports the editor contract (`@statorjs/stator/editor`, 3.0 and later) the `Stator.*` macros are typed from it, so each project sees its own release's API and the extension can update without moving it. Projects on earlier releases keep the macro types those releases had. An upgrade is picked up on the next edit.
+
+### Patch Changes
+
+- b624aa2: The bundled compiler now knows the compiled-shape contract stamp that published components carry. Nothing changes in the editor.
+- 61e79b3: Compile errors inside an island's markup (an `on:click` with no handler, a misplaced directive) are underlined where they are written; before, they had no position and landed at the top of the file.
+
 ## 1.3.5-next.0
 
 ### Patch Changes
