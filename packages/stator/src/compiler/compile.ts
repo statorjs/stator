@@ -9,6 +9,7 @@ import {
 } from './client-script.ts'
 import { contractPragma } from './contract.ts'
 import { CompileError, type DiagnosticLocation, locAt, parseDiagnosticsOf } from './diagnostics.ts'
+import { READ_RESULT_TYPE_IMPORT, statorPropsType } from './dts.ts'
 import {
   ISLAND_SHELL_EXTRAS,
   importLine,
@@ -67,6 +68,8 @@ export interface CompileResult {
    *  with `sourceMap` (also inlined at the end of `clientCode`). */
   clientMap?: SourceMapV3
 }
+
+type PropsType = ReturnType<typeof statorPropsType>
 
 const PRIMITIVES_IMPORT = importLine(
   [...TEMPLATE_AUTHOR_GLOBALS, ...TEMPLATE_LOWERING_TARGETS],
@@ -156,6 +159,7 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
         templateOffset,
         marks,
         scriptAt: marks && scripts.length === 1 ? scriptContentOffsets[0] : undefined,
+        props: statorPropsType(frontmatter, template, scripts),
       })
       if (opts.stamp) {
         const pragma = contractPragma(opts.stamp.compiler)
@@ -203,7 +207,9 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
 
   const fm = processFrontmatter(frontmatter, kind, source, frontmatterOffset, opts.id, marks)
   let serverCode =
-    kind === 'route' ? emitRoute(fm, htmlExpr, meta) : emitComponent(fm, htmlExpr, meta)
+    kind === 'route'
+      ? emitRoute(fm, htmlExpr, meta)
+      : emitComponent(fm, htmlExpr, meta, statorPropsType(frontmatter, template, scripts))
   if (opts.stamp) serverCode = `${contractPragma(opts.stamp.compiler)}\n${serverCode}`
   let map: SourceMapV3 | undefined
   if (opts.sourceMap) {
@@ -247,6 +253,8 @@ function compileClient(
     marks?: boolean
     /** Where the script starts in `source`, when it is mapped. */
     scriptAt?: number
+    /** The shell's props type, as the `.d.ts` declares it. */
+    props: PropsType
   },
 ): CompileResult {
   const classes = analyzeScriptClasses(script)
@@ -316,9 +324,10 @@ function compileClient(
   const rootScope = ctx.scopeAttr ? ` data-s-${ctx.hash}` : ''
   const serverCode = [
     SHELL_PRIMITIVES_IMPORT,
+    ...(ctx.props.needsReadResult ? [READ_RESULT_TYPE_IMPORT] : []),
     ...(ctx.fm?.hoisted ? [ctx.fm.hoisted] : []),
     '',
-    `export default function (props = {}) {`,
+    `export default function (props: ${ctx.props.propsT} = {}) {`,
     // The fence body runs here — per shell render, server only, ahead of
     // the template so its bindings are in scope for the interpolations.
     ...(ctx.fm?.body ? [ctx.fm.body] : []),
@@ -666,15 +675,18 @@ function fenceBindingNames(fm: FrontmatterParts): Set<string> {
   return names
 }
 
-function emitComponent(fm: FrontmatterParts, htmlExpr: string, meta: LowerMeta): string {
-  let param = ''
-  if (fm.propsType && meta.usesChildren) param = `props: ${fm.propsType} & { children?: any }`
-  else if (fm.propsType) param = `props: ${fm.propsType}`
-  else if (meta.usesChildren) param = `props: { children?: any }`
-  // A component without props still takes the call's empty props object.
-  else param = '_props: Record<string, never> = {}'
+function emitComponent(
+  fm: FrontmatterParts,
+  htmlExpr: string,
+  meta: LowerMeta,
+  props: PropsType,
+): string {
+  // A component without declared props still takes the call's empty props object.
+  const param =
+    fm.propsType || meta.usesChildren ? `props: ${props.propsT}` : `_props: ${props.propsT} = {}`
 
   const lines = [PRIMITIVES_IMPORT]
+  if (props.needsReadResult) lines.push(READ_RESULT_TYPE_IMPORT)
   if (fm.hoisted) lines.push(fm.hoisted)
   lines.push('')
   lines.push(`export default function (${param}) {`)

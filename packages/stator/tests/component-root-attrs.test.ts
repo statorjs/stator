@@ -6,6 +6,7 @@ import { CompileError } from '../src/compiler/diagnostics.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import * as templateApi from '../src/template/index.ts'
 import type { HtmlFragment } from '../src/template/types.ts'
+import { jsOf } from './helpers/js-of.ts'
 
 /**
  * Regression for FINDINGS #4 (spec: attribute-composition-on-an-element-is-
@@ -27,7 +28,7 @@ function runModule(code: string, api: Record<string, unknown>): unknown {
 
 const render = (src: string, id: string) => {
   const { serverCode } = compile(src, { id, kind: 'component' })
-  return runModule(serverCode, templateApi) as (p: Record<string, unknown>) => HtmlFragment
+  return runModule(jsOf(serverCode), templateApi) as (p: Record<string, unknown>) => HtmlFragment
 }
 
 describe('client component root static attributes (FINDINGS #4)', () => {

@@ -25,9 +25,7 @@ export function generateDts(
   const { propsT, needsReadResult } = statorPropsType(frontmatter, template, scripts)
 
   const lines = ["import type { HtmlFragment } from '@statorjs/stator/template'"]
-  if (needsReadResult) {
-    lines.push("import type { ReadResult as __SReadResult } from '@statorjs/stator/template'")
-  }
+  if (needsReadResult) lines.push(READ_RESULT_TYPE_IMPORT)
   if (hoisted) lines.push(hoisted)
   lines.push('')
   lines.push(`declare const _default: (props: ${propsT}) => HtmlFragment`)
@@ -35,11 +33,16 @@ export function generateDts(
   return `${lines.join('\n')}\n`
 }
 
+/** Brings `__SReadResult` into scope for a props type that references it. */
+export const READ_RESULT_TYPE_IMPORT =
+  "import type { ReadResult as __SReadResult } from '@statorjs/stator/template'"
+
 /**
  * The component's props type — THE shared computation for the `.d.ts`
- * generator (tsc) and the language-server virtual emit (editor), islands
- * included, so the two can't disagree. `needsReadResult` means the type
- * references `__SReadResult<T>`, which the caller must bring into scope.
+ * generator (tsc), the compiled shell's parameter (`compile()`) and the
+ * language-server virtual emit (editor), islands included, so they can't
+ * disagree. `needsReadResult` means the type references `__SReadResult<T>`,
+ * which the caller must bring into scope.
  */
 export function statorPropsType(
   frontmatter: string,
