@@ -38,6 +38,27 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+  # The same typecheck and tests on the Node release after the floor, so a
+  # deprecation or behaviour change lands here before a user on that release
+  # meets it. Not a required check: `ci` on the floor release is the gate.
+  ci-next-node:
+    name: ci (node ${{ matrix.node }})
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [26]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+
   # Stator owns its dev loop AND its build, and both are full of path handling —
   # so both must be proven on every OS. File watching (chokidar) diverges across
   # macOS, Linux and Windows; so does resolution, where Windows paths are
