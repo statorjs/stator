@@ -6,7 +6,17 @@ import { hashMachines } from '../server/machine-hash.ts'
 import { type ArtifactDeps, writeArtifactDeps } from './artifact.ts'
 import { compileComponentFile } from './compile-component.ts'
 import { type CopySet, resolveCopySet } from './copy-set.ts'
-import { bundleIslands, routeIslandMap, walkFiles } from './islands.ts'
+import { bundleIslands, walkFiles } from './islands.ts'
+import {
+  collisionMessage,
+  contractErrors,
+  entryTags,
+  type IslandReach,
+  missingMachines,
+  neededMachines,
+  reachIslands,
+  tagCollisions,
+} from './library-islands.ts'
 import { routeCssMap, routeCssPath } from './route-css.ts'
 
 /**
@@ -26,11 +36,16 @@ import { routeCssMap, routeCssPath } from './route-css.ts'
  *      artifact per route under `dist/static/css/`, from exactly the
  *      components that route reaches — local siblings just written, plus any
  *      `node_modules` component library's published sibling stylesheet
- *   5. when the app has client components: bundle every island entry through
- *      the `bundleIslands` seam (hashed output written under
- *      `dist/static/assets/`, server-machine imports stubbed to `{ name }`),
- *      walk each route's import graph to find which islands it reaches, and
- *      write `dist/stator-manifest.json` mapping route files → island script URLs
+ *   5. walk each route's import graph for the islands it reaches, the app's
+ *      and any a package ships (`library-islands.ts`), refusing a reached
+ *      package component compiled for another contract, two islands defining
+ *      one tag, and a package island dispatching to a machine the app does
+ *      not register
+ *   6. when any island is reached or the app has one: bundle every island
+ *      entry through the `bundleIslands` seam (hashed output written under
+ *      `dist/static/assets/`, server-machine imports stubbed to `{ name }`)
+ *      and write `dist/stator-manifest.json` mapping route files → island
+ *      script URLs
  *
  * The prod server runs `createApp` over `dist/` with the `headExtras` hook
  * from `loadProductionHead(dist)` — it links each route's own CSS href from
@@ -68,7 +83,8 @@ export interface BuildResult {
   compiled: number
   /** True when any route's import graph reached a component with scoped CSS. */
   hasCss: boolean
-  /** Number of client components bundled for the browser. */
+  /** Number of client components bundled for the browser, the app's and
+   *  those its routes reach in packages. */
   islands: number
   /** Machines hashed for the snapshot hydration policy, and how long it took. */
   machines: number
@@ -94,7 +110,9 @@ export interface StatorManifest {
   /** Per-build identifier — `stator start` serves it into live pages for the
    *  reload handshake (a client on an older build reloads on reconnect). */
   buildId: string
-  /** Island component (dist-relative `.stator` path) → its script URL. */
+  /** Island component → its script URL. An app island by its dist-relative
+   *  `.stator` path, a package island by package name plus its path inside
+   *  the package (`@acme/blocks/src/x.stator`). */
   islands: Record<string, string>
   /** Route file (dist-relative) → script URLs for every island it reaches. */
   routes: Record<string, string[]>
@@ -193,11 +211,13 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   }
   for (const file of statorFiles) await rm(file)
 
-  // Rewrite `.stator` import specifiers to the compiled `.stator.ts` sibling.
+  // Rewrite `.stator` import specifiers to the compiled `.stator.ts` sibling:
+  // relative ones and `#` subpath imports, which land in the app. A package's
+  // `@acme/blocks/x.stator` is its own `exports` key and stays as written.
   const tsFiles = await walkFiles(outDir, (f) => f.endsWith('.ts'))
   for (const file of tsFiles) {
     const code = await readFile(file, 'utf8')
-    const rewritten = code.replace(/(['"])([^'"]+\.stator)\1/g, '$1$2.ts$1')
+    const rewritten = code.replace(/(['"])((?:\.{1,2}\/|#)[^'"]*\.stator)\1/g, '$1$2.ts$1')
     if (rewritten !== code) await writeFile(file, rewritten)
   }
 
@@ -232,6 +252,16 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
     ? Object.keys(machines).filter((k) => previous[k] !== machines[k])
     : undefined
 
+  // Islands: the app's own, plus every one a route reaches in a package, and
+  // the checks that make shipping a package's compiled output safe.
+  const shells = new Map(islands.map((i) => [resolve(outDir, `${i.rel}.ts`), i.rel]))
+  const reach = await reachIslands({ routesDir: join(outDir, 'routes'), baseDir: outDir, shells })
+  await checkReach(reach, islands, machinesDir)
+  const allIslands = [
+    ...islands,
+    ...[...reach.packageIslands.values()].map((i) => ({ rel: i.rel, entry: i.entry })),
+  ]
+
   // The dependency half of the artifact: the app's own manifest + lockfile when
   // it has one, else a pinned manifest. Written after the tree so a generated
   // package.json cannot be clobbered by the copy step.
@@ -243,10 +273,10 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   // the app has one, since the graph walk treats it as an entry point.
   const configFile = copySet.files.find((f) => /^stator\.config\.(ts|mts|js|mjs)$/.test(f)) ?? null
   const manifest: StatorManifest =
-    islands.length > 0
+    allIslands.length > 0
       ? {
           buildId: randomUUID(),
-          ...(await buildClientAssets(outDir, islands)),
+          ...(await buildClientAssets(outDir, allIslands, reach)),
           routeCss: routeCssHrefs,
           machines,
           config: configFile,
@@ -267,7 +297,7 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
     outDir,
     compiled: statorFiles.length,
     hasCss: Object.keys(routeCssHrefs).length > 0,
-    islands: islands.length,
+    islands: allIslands.length,
     machines: machineFiles.length,
     machineHashMs,
     ...(resetMachines ? { resetMachines, previousManifest: previousPath } : {}),
@@ -283,6 +313,7 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
 async function buildClientAssets(
   outDir: string,
   islands: Array<{ rel: string; entry: string }>,
+  reach: IslandReach,
 ): Promise<Pick<StatorManifest, 'islands' | 'routes'>> {
   const bundle = await bundleIslands({
     root: outDir,
@@ -298,21 +329,54 @@ async function buildClientAssets(
     await writeFile(target, asset.source)
   }
 
-  // Per-route reachability over the rewritten dist tree: island shells appear
-  // as `<island>.stator.ts`.
-  const shells = new Map(islands.map((i) => [resolve(outDir, `${i.rel}.ts`), i.rel]))
-  const byRoute = await routeIslandMap({
-    routesDir: join(outDir, 'routes'),
-    baseDir: outDir,
-    shells,
-  })
   const routes: Record<string, string[]> = {}
-  for (const [routeFile, rels] of byRoute) {
+  for (const [routeFile, rels] of reach.routes) {
     routes[relative(outDir, routeFile).replace(/\\/g, '/')] = rels.map(
       (rel) => bundle.islandUrls[rel]!,
     )
   }
   return { islands: bundle.islandUrls, routes }
+}
+
+/**
+ * Refuse what the walk found unsafe to ship: a reached package component whose
+ * contract stamp this compiler does not read, two islands defining one custom
+ * element tag, a package island dispatching to a machine the app does not
+ * register. Every problem is listed at once.
+ */
+async function checkReach(
+  reach: IslandReach,
+  appIslands: Array<{ rel: string; entry: string }>,
+  machinesDir: string,
+): Promise<void> {
+  const errors = await contractErrors(reach.packageComponents.values())
+  const tagged = []
+  for (const i of appIslands) {
+    for (const tag of entryTags(await readFile(i.entry, 'utf8'))) {
+      tagged.push({ rel: i.rel, tag, source: i.rel })
+    }
+  }
+  for (const i of [...reach.packageIslands.values()].sort((a, b) => (a.rel < b.rel ? -1 : 1))) {
+    for (const tag of entryTags(await readFile(i.entry, 'utf8'))) {
+      tagged.push({ rel: i.rel, tag, source: i.rel })
+    }
+  }
+  errors.push(...tagCollisions(tagged).map(collisionMessage))
+  // The app's machines are imported only when a package island dispatches.
+  if ((await neededMachines(reach.packageIslands.values())).size > 0) {
+    const { discoverMachines } = await import('../server/discovery.ts')
+    const { defs } = await discoverMachines(machinesDir)
+    errors.push(
+      ...(await missingMachines(reach.packageIslands.values(), new Set(defs.map((d) => d.name)))),
+    )
+  }
+  if (errors.length > 0) {
+    const n = errors.length
+    throw new Error(
+      `stator build: ${n} problem${n === 1 ? '' : 's'} with what the routes reach:\n` +
+        errors.map((e) => `  ${e}`).join('\n'),
+    )
+  }
 }
 
 async function exists(path: string): Promise<boolean> {

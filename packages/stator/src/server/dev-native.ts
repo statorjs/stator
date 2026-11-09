@@ -9,13 +9,16 @@ import { MessageChannel } from 'node:worker_threads'
 import { getRequestListener } from '@hono/node-server'
 import chokidar from 'chokidar'
 import type { Hono } from 'hono'
+import { bundleIslands, type IslandBundle, localImports, walkFiles } from '../build/islands.ts'
 import {
-  bundleIslands,
-  type IslandBundle,
-  localImports,
-  routeIslandMap,
-  walkFiles,
-} from '../build/islands.ts'
+  collisionMessage,
+  entryTags,
+  missingMachines,
+  type PackageIsland,
+  reachIslands,
+  type TaggedIsland,
+  tagCollisions,
+} from '../build/library-islands.ts'
 import { routeCssMap, routeCssPath } from '../build/route-css.ts'
 import { sourceId } from '../build/source-id.ts'
 import { CompileError, compile, formatCompileError, regionResolverFor } from '../compiler/index.ts'
@@ -252,6 +255,8 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   interface StatorInfo {
     css: string
     isClient: boolean
+    /** The custom-element tag an island defines. */
+    tag?: string
   }
   const infos = new Map<string, StatorInfo>() // abs `.stator` → info
   const skipDir = (name: string): boolean => name.startsWith('.') || SKIP_DIRS.has(name)
@@ -296,7 +301,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
     const source = await readFile(file, 'utf8')
     const { id, kind } = sourceId(root, file)
     const r = compile(source, { id, kind, resolveRegions: regionResolverFor(file, source) })
-    return { css: r.css ?? '', isClient: r.isClient }
+    return { css: r.css ?? '', isClient: r.isClient, tag: r.clientTag }
   }
   // Tolerant at boot: a broken file is logged and skipped here (it surfaces
   // with its code frame when something imports it), so one bad template
@@ -340,9 +345,18 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   const assetBodies = new Map<string, string | Uint8Array>() // URL path → body
   let islandGraph = new Set<string>() // every source module in the last bundle
   let routeIslands = new Map<string, string[]>() // abs route file → island rels
+  // Islands the routes reach inside packages, found by the same walk as the
+  // route mapping; a change to the set (an edit adding an import) rebundles.
+  let packageIslands = new Map<string, PackageIsland>()
+  // Rels not served because an earlier island holds their tag (logged once).
+  let shadowed = new Set<string>()
+  const loggedProblems = new Set<string>()
   const islandFiles = (): string[] => [...infos].filter(([, i]) => i.isClient).map(([f]) => f)
   const rebundleIslands = async (): Promise<void> => {
-    const entries = islandFiles().map((file) => ({ rel: sourceId(root, file).id, file }))
+    const entries = [
+      ...islandFiles().map((file) => ({ rel: sourceId(root, file).id, file })),
+      ...[...packageIslands.values()].map((i) => ({ rel: i.rel, file: i.entry })),
+    ]
     // Inline sourcemaps in dev: browser devtools show island SOURCE, and the
     // in-memory bundle stays self-contained (no `.map` files to serve).
     islands = entries.length
@@ -352,9 +366,44 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
     for (const a of islands.assets) assetBodies.set(`/static/assets/${a.fileName}`, a.source)
     islandGraph = new Set(islands.modules)
   }
-  const remapRoutes = async (): Promise<void> => {
+  /** Re-walk the routes; true when the package island set moved. */
+  const remapRoutes = async (): Promise<boolean> => {
     const shells = new Map(islandFiles().map((file) => [file, sourceId(root, file).id]))
-    routeIslands = await routeIslandMap({ routesDir, baseDir: root, shells })
+    const reach = await reachIslands({ routesDir, baseDir: root, shells })
+    routeIslands = reach.routes
+    const before = [...packageIslands.keys()].sort().join('\n')
+    packageIslands = reach.packageIslands
+    return [...packageIslands.keys()].sort().join('\n') !== before
+  }
+  // What `stator build` refuses, logged here instead: dev keeps serving the
+  // island that holds a tag first (app islands, then packages by rel), names
+  // the route reaching the other, and the next build fails on it.
+  const checkIslands = async (): Promise<void> => {
+    const tagged: TaggedIsland[] = []
+    for (const file of islandFiles()) {
+      const tag = infos.get(file)?.tag
+      if (tag) tagged.push({ rel: sourceId(root, file).id, tag, source: sourceId(root, file).id })
+    }
+    for (const i of [...packageIslands.values()].sort((a, b) => (a.rel < b.rel ? -1 : 1))) {
+      for (const tag of entryTags(await readFile(i.entry, 'utf8'))) {
+        tagged.push({ rel: i.rel, tag, source: i.rel })
+      }
+    }
+    const collisions = tagCollisions(tagged)
+    shadowed = new Set(collisions.map((c) => c.other.rel))
+    const problems = collisions.map((c) => {
+      const route = [...routeIslands].find(([, rels]) => rels.includes(c.other.rel))?.[0]
+      const reached = route ? ` (${sourceId(root, route).id} reaches ${c.other.source})` : ''
+      return `${collisionMessage(c)}${reached} Serving ${c.holder.source} in dev.`
+    })
+    problems.push(
+      ...(await missingMachines(packageIslands.values(), new Set(defs.map((d) => d.name)))),
+    )
+    for (const msg of problems) {
+      if (loggedProblems.has(msg)) continue
+      loggedProblems.add(msg)
+      logger.error(msg)
+    }
   }
 
   // Production head shape (CSS link + per-route island scripts), then the dev
@@ -364,6 +413,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
     const sheet = routeSheets.get(resolve(routeFile))
     if (sheet) head.push(`<link rel="stylesheet" href="${sheet}">`)
     for (const rel of routeIslands.get(resolve(routeFile)) ?? []) {
+      if (shadowed.has(rel)) continue
       const url = islands.islandUrls[rel]
       if (url) head.push(`<script type="module" src="${url}"></script>`)
     }
@@ -445,7 +495,6 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   const rebuildServer = async (): Promise<void> => {
     routes = await discoverRoutes(routesDir, bust)
     const middleware = await discoverMiddleware(resolve(root, 'middleware.ts'), bust)
-    await remapRoutes()
     app = await buildHonoApp({
       images,
       routes,
@@ -467,8 +516,10 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   await scanAll()
   await buildGraph()
   await regenCss()
+  await remapRoutes()
   await rebundleIslands()
   await rebuildStore()
+  await checkIslands()
   await rebuildServer()
 
   // boot.ts once per process (a long-lived source shouldn't restart on edits).
@@ -496,8 +547,11 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       const affected = affectedBy(files)
       await bumpVersions(affected)
       await regenCss()
+      const packagesMoved = await remapRoutes()
       const needsBundle =
-        structural || files.some((f) => islandGraph.has(norm(f)) || infos.get(f)?.isClient)
+        structural ||
+        packagesMoved ||
+        files.some((f) => islandGraph.has(norm(f)) || infos.get(f)?.isClient)
       if (needsBundle) {
         await rebundleIslands()
         rebundled = true
@@ -506,6 +560,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
         machinesChanged = await rebuildStore()
         storeRebuilt = true
       }
+      await checkIslands()
       buildId = randomUUID()
       await rebuildServer()
       broadcast({ type: 'reload' })

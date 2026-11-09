@@ -28,8 +28,5 @@ export async function run(ctx: CliContext): Promise<void> {
           ? `, dispatching to ${r.machines.join(', ')} (a consuming app registers these)\n`
           : '\n'),
     )
-    process.stdout.write(
-      "  note: a consuming app can't discover islands from a package yet — they stay in the app\n",
-    )
   }
 }

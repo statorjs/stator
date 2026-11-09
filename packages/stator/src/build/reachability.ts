@@ -5,7 +5,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path'
 
 /**
  * What a route reaches: the one import-graph walk that route CSS, route
- * islands and (later) the compiled-contract and custom-element checks all read
+ * islands and the compiled-contract, custom-element and machine checks all read
  * (spec `library-islands-…`, "Build plan on the 3.0 line").
  *
  * The walk is a static read of import specifiers, not module evaluation, and
@@ -20,11 +20,9 @@ import { dirname, join, relative, resolve, sep } from 'node:path'
  * packages are entered (`@statorjs/stator` itself, or one depending on it):
  * nothing else can hold a component, and walking all of TipTap or Hono would
  * cost a dependency tree's worth of reads for nothing. So a library rendering
- * `<Image>` brings `<Image>`'s CSS with it.
- *
- * Islands are the exception, for now: one reached from inside a package that
- * another package's import led to is an error, since nothing yet checks that
- * the app registers the machines such an island dispatches to (spec, step 4).
+ * `<Image>` brings `<Image>`'s CSS with it, and a library composing another
+ * library's island brings the island (`library-islands.ts` checks that the app
+ * registers the machines it dispatches to).
  */
 
 const IMPORT_SPECIFIER_RE = /(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g
@@ -186,8 +184,6 @@ function packageOf(file: string): PackageRef | undefined {
 export const isIslandShell = (file: string): boolean =>
   file.endsWith('.stator.ts') && existsSync(file.replace(/\.ts$/, '.client.ts'))
 
-export class ReachError extends Error {}
-
 /**
  * Walk from `entry`. `appRoot` bounds the app's relative imports; `packages:
  * false` stops at every bare specifier (a library aggregating its own CSS).
@@ -216,15 +212,6 @@ export async function reachFrom(
       }
       const ref = packageOf(target)
       if (!ref?.stator) continue
-      // Package to package: a second hop. Server components (and their CSS)
-      // are followed; an island is refused until its machines can be checked.
-      if (pkg && ref.root !== pkg.root && isIslandShell(target)) {
-        throw new ReachError(
-          `stator: ${pkg.name} imports the island "${spec}" from ${ref.name} ` +
-            `(in ${relative(pkg.root, file)}). An island has to be imported by the app or by a ` +
-            `package the app imports directly: import it from the app instead.`,
-        )
-      }
       await visit(target, ref.root === pkg?.root ? pkg : ref)
     }
   }

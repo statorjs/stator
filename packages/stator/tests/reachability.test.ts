@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, it } from 'node:test'
-import { ReachError, reachFrom } from '../src/build/reachability.ts'
+import { reachFrom } from '../src/build/reachability.ts'
 import { routeCssMap } from '../src/build/route-css.ts'
 
 /** Write `files` (path → contents) under a fresh directory; returns its real path. */
@@ -119,20 +119,14 @@ describe('reachability', () => {
     )
   })
 
-  it("refuses a package importing another package's island, naming both", async () => {
+  it("follows a package importing another package's island", async () => {
     const root = app({
       'node_modules/@acme/blocks/src/hero.stator.ts':
         "import Stepper from '@other/kit/stepper.stator'\nexport default Stepper\n",
     })
-    await assert.rejects(reachFrom(join(root, 'routes/index.ts'), { appRoot: root }), (err) => {
-      assert.ok(err instanceof ReachError)
-      assert.match(
-        err.message,
-        /@acme\/blocks imports the island "@other\/kit\/stepper\.stator" from @other\/kit/,
-      )
-      assert.match(err.message, /import it from the app instead/)
-      return true
-    })
+    const { modules } = await reachFrom(join(root, 'routes/index.ts'), { appRoot: root })
+    const stepper = modules.get(join(root, 'node_modules/@other/kit/stepper.stator.ts'))
+    assert.equal(stepper?.pkg?.name, '@other/kit')
   })
 
   it('stops at every bare specifier with packages: false', async () => {

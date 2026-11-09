@@ -19,6 +19,10 @@ function isServerMachineModule(file: string): boolean {
   return /import\s*\{[^}]*\bdefineMachine\b[^}]*\}\s*from/.test(readFileSync(file, 'utf8'))
 }
 
+/** Marks a stub in a published client entry, so a consuming build can list
+ *  the machines a package island dispatches to (`library-islands.ts`). */
+export const MACHINE_STUB = '/* @stator machine */'
+
 const DEFAULT_IMPORT_RE = /import\s+([A-Za-z_$][\w$]*)\s+from\s*(['"])(\.{1,2}\/[^'"]+)\2[ \t]*;?/g
 
 /**
@@ -57,7 +61,7 @@ export async function stubMachineImports(file: string): Promise<string[]> {
     repls.push({
       start: m.index,
       end: m.index + whole.length,
-      text: `const ${id} = { name: ${JSON.stringify(name)} };${newlines}`,
+      text: `const ${id} = ${MACHINE_STUB} { name: ${JSON.stringify(name)} };${newlines}`,
     })
     names.push(name)
   }

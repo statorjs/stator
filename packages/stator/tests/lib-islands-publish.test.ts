@@ -113,7 +113,7 @@ describe('build:lib for a library island', () => {
   it('replaces the machine import with its { name }, and reports the machine', async () => {
     const result = await compileLibrary({ root, dir: src })
     const client = readFileSync(join(src, 'stepper.stator.client.ts'), 'utf8')
-    assert.ok(client.includes('const Counter = { name: "CounterMachine" };'))
+    assert.ok(client.includes('const Counter = /* @stator machine */ { name: "CounterMachine" };'))
     assert.ok(!client.includes('../machines/counter.ts'))
     assert.deepStrictEqual(result.machines, ['CounterMachine'])
   })

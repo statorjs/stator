@@ -64,7 +64,16 @@ node_modules
 
 Nothing to configure. `stator dev` and `stator build` fold each reached library component's sibling CSS into the stylesheet of every route that reaches it, including through an inactive `match`/`when`/`each` arm, since a live update can activate the arm with no fresh request. The walk follows a library into the packages it imports, to any depth, as long as they are Stator packages (`@statorjs/stator` itself, or a package that depends on it), so a library component that renders `<Image>` brings `<Image>`'s CSS with it. Packages that don't depend on Stator are never walked. See [Scoped styles](/guides/scoped-styles/).
 
+## Shipping islands
+
+An island ships like any other component: its compiled `x.stator.ts` shell, the `x.stator.client.ts` entry `build:lib` writes beside it, its `.css`, and its `.stator` source. A consuming app needs nothing more than the import. When a route reaches the shell, directly or through the library's own server components, `stator dev` and `stator build` bundle the client entry with the app's islands, sharing one copy of the client runtime, and add its script to that route's `<head>`. Its manifest key and asset name come from the package name and its path inside the package, so they can't clash with the app's.
+
+Three things are checked where the walk finds them, and `stator build` fails, listing every problem at once:
+
+- **The contract stamp.** Every reached library component has to carry the contract the app's Stator reads. A component compiled for another contract, or before stamps existed, refuses the build, naming the package and both versions. Install a version of the library built for your Stator, or ask its author to republish. `stator check` runs the same check.
+- **Custom element tags.** Two islands defining one tag, from two libraries or a library and the app, fail the build naming both sources, since the page could upgrade only one of them. Give a library's tags a package prefix, as design systems do. `stator dev` logs the collision with the route that reached the second island, and keeps serving the first.
+- **Machines.** A library island dispatches by machine name, and the app is what registers machines. When a reached island dispatches to a machine the app's `machines/` doesn't have, the build fails naming the island and the machine. Re-export the library's machine from `machines/`. `stator dev` logs the same message.
+
 ## Limits
 
-- **Islands stay in the app.** Island discovery walks the app tree only, so a library can't ship a client component yet. Server components compose freely; a `<script>` component has to live under the app's own `templates/`.
 - **Type declarations ride the compiled `.ts`.** Each compiled module carries the component's prop signature, so `stator check` and the editor see library props without a separate `.d.ts` step.

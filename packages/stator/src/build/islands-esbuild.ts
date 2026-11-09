@@ -42,7 +42,12 @@ export const bundleIslandsEsbuild: IslandBundler = async (opts: BundleIslandsOpt
 
   const entryPoints = opts.entries.map((entry) => ({
     in: resolve(entry.file),
-    out: entry.rel.replace(/\.stator$/, '').replace(/[\\/]/g, '_'),
+    // A package island's rel is `@scope/pkg/…`: the `@` is legal in a URL
+    // path but reads as noise in an asset name.
+    out: entry.rel
+      .replace(/\.stator$/, '')
+      .replace(/^@/, '')
+      .replace(/[\\/]/g, '_'),
   }))
   const byFile = new Map(opts.entries.map((e) => [norm(resolve(e.file)), e]))
 
