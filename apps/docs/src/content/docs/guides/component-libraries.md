@@ -25,19 +25,21 @@ The same operation is `compileLibrary()` on `@statorjs/stator/build` for a scrip
 
 `stator check src` checks a library the way `stator check` checks an app: every `.stator` under `src`, server components and island scripts alike, with the compiler and with `tsc`. An island's compiled client module is checked too, so the wiring generated for its template is held to the class: `on:click={save}` fails when `save` takes something other than the event. Errors are reported at the `.stator` line they came from. A plain `tsc --noEmit` sees none of this, since a library's own `.ts` sources never import the `.stator` files.
 
-`check` writes the virtual TSX under `.stator/check/`, mirroring `src/`, and `tsc` reads it through your `tsconfig.json`. Include it, and add both generated trees to `rootDirs` so its relative imports (`./sibling.stator`, `../server/x.ts`) resolve against `src/`:
+`check` writes the virtual TSX under `.stator/check/`, mirroring `src/`, and `tsc` reads it through your `tsconfig.json`. Include it, and add both generated trees to `rootDirs` so its relative imports (`./sibling.stator`, `../server/x.ts`) resolve against `src/`. List the generated trees before `.`:
 
 ```json
 {
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "jsx": "preserve",
-    "rootDirs": [".", ".stator/types", ".stator/check"]
+    "rootDirs": [".stator/types", ".stator/check", "."]
   },
   "include": ["src", ".stator/check/**/*.tsx"],
   "exclude": ["src/**/*.stator.ts", "src/**/*.stator.client.ts"]
 }
 ```
+
+`tsc` tries the `rootDirs` in order, and `build:lib` writes each compiled `x.stator.ts` beside its source. With `.` first, `./x.stator` resolves to that compiled module and shadows the generated `.stator/types` declaration, so the check reads whatever the last build left behind instead of the source. An app has no compiled siblings and can keep `.` first.
 
 Exclude the compiled siblings if you like, but never `.stator/check`: excluded, the islands go unchecked and `check` still passes. Gitignore `.stator/`. Then make `check` the library's typecheck:
 

@@ -10,7 +10,7 @@
     "noEmit": true,
     "types": [],
     "jsx": "preserve",
-    "rootDirs": [".", ".stator/types", ".stator/check"]
+    "rootDirs": [".stator/types", ".stator/check", "."]
   },
   "include": ["src", ".stator/check/**/*.tsx"],
   "exclude": ["src/**/*.stator.ts", "src/**/*.stator.client.ts"]
