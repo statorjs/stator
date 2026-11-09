@@ -7,6 +7,7 @@ import { CompileError } from '../src/compiler/diagnostics.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import * as templateApi from '../src/template/index.ts'
 import type { HtmlFragment } from '../src/template/types.ts'
+import { jsOf } from './helpers/js-of.ts'
 
 /**
  * Client-lowered `read()` — the bind:-as-display fold (reactive-model spec,
@@ -33,7 +34,9 @@ const ISLAND = `<count-badge>
 </script>`
 
 function loadClient(clientCode: string): void {
-  const body = clientCode.replace(/^import .*$/gm, '').replace(/^\s*export /gm, '')
+  const body = jsOf(clientCode)
+    .replace(/^import .*$/gm, '')
+    .replace(/^\s*export /gm, '')
   const names = Object.keys(clientApi)
   // eslint-disable-next-line no-new-func
   new Function(...names, body)(...names.map((n) => (clientApi as Record<string, unknown>)[n]))

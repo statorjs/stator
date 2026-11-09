@@ -4,6 +4,7 @@ import { describe, it } from 'node:test'
 import * as clientApi from '../src/client/index.ts'
 import { emitClientModule, rewriteMembers } from '../src/compiler/client-emit.ts'
 import type { ClientDirective } from '../src/compiler/client-script.ts'
+import { jsOf } from './helpers/js-of.ts'
 
 describe('compiler: rewriteMembers', () => {
   const members = new Set(['qty', 'inc', 'count'])
@@ -49,7 +50,9 @@ export class QuantityStepper extends StatorElement {
     assert.ok(out.includes('export class QuantityStepper extends StatorElement'))
     assert.ok(out.includes('class __QuantityStepperImpl extends QuantityStepper'))
     assert.ok(out.includes('this.querySelectorAll("[data-b=\\"b0\\"]")'))
-    assert.ok(out.includes('addEventListener("click", (e) => this.dec(e))'))
+    assert.ok(
+      out.includes('addEventListener("click", (e) => (this.dec as (e: Event) => unknown)(e))'),
+    )
     assert.ok(out.includes('bindSlot(this, "s0", [this.qty], () => (this.qty.count))'))
     assert.ok(out.includes('defineElement(__QuantityStepperImpl, "quantity-stepper")'))
   })
@@ -64,7 +67,9 @@ export class QuantityStepper extends StatorElement {
     // Run the module body with the client API in scope. Strip the import line
     // and the `export` keyword (module-only syntax invalid in a Function body —
     // a test-harness limitation; the real emitted module keeps both).
-    const body = out.replace(/^import .*$/m, '').replace(/^export /m, '')
+    const body = jsOf(out)
+      .replace(/^import .*$/m, '')
+      .replace(/^export /m, '')
     const names = Object.keys(clientApi)
     // eslint-disable-next-line no-new-func
     new Function(...names, body)(...names.map((n) => (clientApi as any)[n]))

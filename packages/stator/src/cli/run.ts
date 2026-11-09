@@ -12,6 +12,8 @@ export interface CliContext {
   /** `--previous` flag, if given: `build` diffs machine hashes against this
    *  manifest (the last deployed build's) instead of the one in `dist/`. */
   previousManifest?: string
+  /** `--routes` flag, if given: `check` walks the contract check from here. */
+  routesDir?: string
 }
 
 const COMMANDS = ['dev', 'build', 'start', 'check', 'test', 'build:lib'] as const
@@ -22,11 +24,12 @@ const HELP = `stator — the Stator toolchain CLI
 Usage: stator <command> [options]
 
 Commands:
-  dev       Run the dev server (live reload, inspector)
-  build     Compile the app to dist/ (runs \`check\` first)
-  start     Serve a built dist/ in production mode
-  check     Typecheck the whole stack (server + generated .stator types), no output
-  test      Run the test suite
+  dev              Run the dev server (live reload, inspector)
+  build            Compile the app to dist/ (runs \`check\` first)
+  start            Serve a built dist/ in production mode
+  check [dir]      Typecheck the whole stack (server + generated .stator types), no output;
+                   dir narrows the .stator files checked (a library's src)
+  test             Run the test suite
   build:lib [dir]  Compile a component library for publishing (default dir: src)
 
 Options:
@@ -34,6 +37,7 @@ Options:
   --port <n>          Listen port for dev/start (default: $PORT or 3000)
   --previous <path>   build: the last deployed stator-manifest.json, to report which
                       machines' sessions this build resets (default: dist/'s own)
+  --routes <dir>      check: routes the contract check walks from (default: <dir>/routes)
   -h, --help          Show this help
 `
 
@@ -44,6 +48,7 @@ const { values, positionals } = parseArgs({
     root: { type: 'string' },
     port: { type: 'string' },
     previous: { type: 'string' },
+    routes: { type: 'string' },
     help: { type: 'boolean', short: 'h' },
   },
 })
@@ -65,6 +70,7 @@ const ctx: CliContext = {
   portFlag: values.port != null ? Number(values.port) : undefined,
   rest: positionals.slice(1),
   ...(values.previous != null ? { previousManifest: String(values.previous) } : {}),
+  ...(values.routes != null ? { routesDir: String(values.routes) } : {}),
 }
 
 // Load .env before importing the command — so `stator.config.ts` (imported by

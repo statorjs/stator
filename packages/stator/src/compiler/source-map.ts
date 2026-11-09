@@ -170,3 +170,41 @@ function vlq(n: number): string {
   } while (v > 0)
   return s
 }
+
+/** A decoded map: per generated line, its segments as
+ *  `[genCol, sourceLine, sourceCol]`, ascending by `genCol`, zero-based. */
+export function decodeMappings(mappings: string): Array<Array<[number, number, number]>> {
+  let line = 0
+  let col = 0
+  return mappings.split(';').map((group) => {
+    let gen = 0
+    const segs: Array<[number, number, number]> = []
+    for (const seg of group.split(',')) {
+      if (!seg) continue
+      const [dGen = 0, , dLine = 0, dCol = 0] = unvlq(seg)
+      gen += dGen
+      line += dLine
+      col += dCol
+      segs.push([gen, line, col])
+    }
+    return segs
+  })
+}
+
+function unvlq(seg: string): number[] {
+  const out: number[] = []
+  let v = 0
+  let shift = 0
+  for (const ch of seg) {
+    const digit = B64.indexOf(ch)
+    v += (digit & 31) << shift
+    if (digit & 32) {
+      shift += 5
+      continue
+    }
+    out.push(v & 1 ? -(v >>> 1) : v >>> 1)
+    v = 0
+    shift = 0
+  }
+  return out
+}

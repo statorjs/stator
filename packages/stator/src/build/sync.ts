@@ -1,8 +1,8 @@
 import type { Dirent } from 'node:fs'
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { dirname, join, relative, sep } from 'node:path'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import { generateDts } from '../compiler/dts.ts'
-import { toVirtualCode } from '../compiler/virtual-code.ts'
+import { toVirtualCode, type VirtualMapping } from '../compiler/virtual-code.ts'
 
 /**
  * Type sync: generate a `<name>.stator.d.ts` for each component so editors and
@@ -24,6 +24,11 @@ import { toVirtualCode } from '../compiler/virtual-code.ts'
  * surface only as runtime ReferenceErrors. Opt-in per app: add
  * ".stator/check" to `rootDirs` and its .tsx files to `include` (see the
  * example tsconfigs); apps that don't are unaffected (the files sit ignored).
+ *
+ * `dir` narrows the walk (a library's `src`); output still lands under
+ * `<root>/.stator` and mirrors paths relative to the root, so
+ * `src/x.stator` → `.stator/check/src/x.stator.check.tsx` and one tsconfig
+ * shape serves an app and a library alike.
  */
 export interface SyncResult {
   /** Number of `.stator.d.ts` files written. */
@@ -34,25 +39,40 @@ export interface SyncResult {
   outDir: string
   /** Every `.stator` file the walk found, absolute. */
   files: string[]
+  /** Each written `.check.tsx` (absolute, `/`-separated) → the `.stator` it
+   *  was generated from, that file's text, and the mappings back into it. */
+  virtual: Map<string, VirtualSource>
+}
+
+export interface VirtualSource {
+  file: string
+  text: string
+  mappings: VirtualMapping[]
 }
 
 const TYPES_DIR = join('.stator', 'types')
 const CHECK_DIR = join('.stator', 'check')
 
-export async function syncTypes(root: string): Promise<SyncResult> {
+export interface SyncOptions {
+  /** Directory walked for `.stator` files. Default: the root. */
+  dir?: string
+}
+
+export async function syncTypes(root: string, opts: SyncOptions = {}): Promise<SyncResult> {
   const outDir = join(root, TYPES_DIR)
   const checkDir = join(root, CHECK_DIR)
   await rm(outDir, { recursive: true, force: true })
   await rm(checkDir, { recursive: true, force: true })
 
-  const files = await walk(root)
+  const files = await walk(opts.dir ? resolve(root, opts.dir) : root)
   let written = 0
   let checks = 0
+  const virtual = new Map<string, VirtualSource>()
   for (const file of files) {
     const source = await readFile(file, 'utf8')
     const rel = relative(root, file)
 
-    const kind = file.split(sep).includes('routes') ? 'route' : 'component'
+    const kind = rel.split(sep).includes('routes') ? 'route' : 'component'
     const dts = generateDts(source, { kind })
     if (dts !== null) {
       // Mirror the source path under .stator/types: templates/x.stator →
@@ -69,13 +89,14 @@ export async function syncTypes(root: string): Promise<SyncResult> {
     // `rootDirs`. This is the project's own release, so the Stator macros are
     // typed from its `/editor` contract: the strict check for current API,
     // where the editor's bundled compiler stays tolerant.
-    const virtual = toVirtualCode(source, { ambient: 'project' })
+    const { tsx } = toVirtualCode(source, { ambient: 'project' })
     const checkTarget = join(checkDir, `${rel}.check.tsx`)
     await mkdir(dirname(checkTarget), { recursive: true })
-    await writeFile(checkTarget, virtual.tsx.code)
+    await writeFile(checkTarget, tsx.code)
+    virtual.set(checkTarget.replace(/\\/g, '/'), { file, text: source, mappings: tsx.mappings })
     checks++
   }
-  return { written, checks, outDir, files }
+  return { written, checks, outDir, files, virtual }
 }
 
 async function walk(dir: string): Promise<string[]> {

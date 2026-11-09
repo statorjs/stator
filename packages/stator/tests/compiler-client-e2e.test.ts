@@ -6,6 +6,7 @@ import { compile } from '../src/compiler/compile.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import * as templateApi from '../src/template/index.ts'
 import type { HtmlFragment } from '../src/template/types.ts'
+import { jsOf } from './helpers/js-of.ts'
 
 const CLIENT = `<quantity-stepper>
   <button on:click={dec}>-</button>
@@ -49,7 +50,9 @@ describe('compiler: client component end-to-end (3b stage 6a)', () => {
     assert.ok(shell.includes('<!--s0-->')) // the read() slot marker
 
     // 2. Register the client element (the generated module, minus its import).
-    const body = clientCode.replace(/^import .*$/gm, '').replace(/^\s*export /gm, '')
+    const body = jsOf(clientCode)
+      .replace(/^import .*$/gm, '')
+      .replace(/^\s*export /gm, '')
     const names = Object.keys(clientApi)
     // eslint-disable-next-line no-new-func
     new Function(...names, body)(...names.map((n) => (clientApi as any)[n]))

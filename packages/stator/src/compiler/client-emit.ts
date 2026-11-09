@@ -99,12 +99,16 @@ function wireDirective(node: string, d: ClientDirective, members: Set<string>): 
   return `this.track(bind(${deps}, ${thunk}, ${writer}))`
 }
 
-/** on: handler — a bare method reference becomes `(e) => this.m(e)`; any other
+/** on: handler — a bare method reference becomes
+ *  `(e) => (this.m as (e: Event) => unknown)(e)`, which typechecks the way
+ *  passing `this.m` as a listener does: a method taking no argument, or a
+ *  narrower event, is accepted; an incompatible parameter is an error. The
+ *  assertion erases to `(this.m)(e)`, a call with `this` intact. Any other
  *  expression is used directly (with member references rewritten). */
 function emitHandler(expr: string, members: Set<string>): string {
   const t = expr.trim()
   if (/^[A-Za-z_$][\w$]*$/.test(t) && members.has(t)) {
-    return `(e) => this.${t}(e)`
+    return `(e) => (this.${t} as (e: Event) => unknown)(e)`
   }
   return rewriteMembers(expr, members)
 }
@@ -113,8 +117,9 @@ function emitWriter(node: string, target: string): string {
   switch (target) {
     case 'disabled':
     case 'hidden':
-      // Boolean IDL properties write as properties, not attributes.
-      return `(v) => { if (${node}.${target} !== !!v) ${node}.${target} = !!v }`
+      // Boolean IDL properties write as properties, not attributes. The node
+      // is typed `Element`, which declares neither.
+      return `(v) => { const el = ${node} as Element & { ${target}: boolean }; if (el.${target} !== !!v) el.${target} = !!v }`
     default:
       // arbitrary attribute — the shared attr contract (wire/attr-value.ts)
       return `(v) => setAttr(${node}, ${JSON.stringify(target)}, attrValue(v))`
