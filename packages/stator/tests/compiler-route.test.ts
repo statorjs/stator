@@ -24,10 +24,10 @@ const [cart, products] = Stator.reads([CartMachine, ProductsMachine])
     assert.ok(serverCode.includes('export const GET = defineRoute({'))
     assert.ok(serverCode.includes('reads: [CartMachine, ProductsMachine],'))
     assert.ok(serverCode.includes('render: (__ctx, __req) => {'))
-    // positional binding via runtime machine .name keys
+    // positional binding via runtime machine .name keys, typed as the editor types them
     assert.ok(
       serverCode.includes(
-        'const [cart, products] = [__ctx[CartMachine.name], __ctx[ProductsMachine.name]]',
+        'const [cart, products] = [__ctx[CartMachine.name] as __InstanceOf<typeof CartMachine>, __ctx[ProductsMachine.name] as __InstanceOf<typeof ProductsMachine>]',
       ),
     )
     assert.ok(serverCode.includes('return html`'))
