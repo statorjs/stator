@@ -32,6 +32,7 @@ export type BareEventTypes<E extends { type: string }> = E extends { type: infer
 /**
  * The client-side reactive handle for a machine. Returned by `use()`, held as a
  * class field (`qty = use(Qty)`). Exposes:
+ *   - `state`, the current state's name, for a machine with real states.
  *   - each selector / context key as a live property (read through the actor's
  *     current snapshot on every access — the client mirror of the server
  *     instance proxy). This is what `bind:text={qty.count}` reads.
@@ -50,10 +51,16 @@ export interface ClientInstanceBase<
 /** Context keys + selector results as readonly live properties — the typed
  *  mirror of what the runtime proxy exposes. */
 type ClientView<D> =
-  D extends MachineDef<infer C, infer _E, infer _S, infer Sel, infer _N>
+  D extends MachineDef<infer C, infer _E, infer S, infer Sel, infer _N>
     ? { readonly [K in keyof C]: C[K] } & {
         readonly [K in keyof Sel]: Sel[K] extends (...args: never[]) => infer R ? R : never
-      }
+      } & ('state' extends keyof C | keyof Sel
+          ? unknown
+          : {
+              /** The current state's name. A context key or selector named
+               *  `state` takes its place. */
+              readonly state: S
+            })
     : unknown
 
 export type ClientInstance<D extends MachineDef = MachineDef> = ClientInstanceBase<EventOf<D>> &
@@ -148,6 +155,16 @@ export function use<D extends MachineDef>(
         // Client machines have no cross-machine reads; pass a stub so the
         // shared SelectorMap signature holds.
         return sel ? sel(ctx, CLIENT_HELPERS) : (ctx as Record<string, unknown>)[key]
+      },
+    })
+  }
+
+  if (!('state' in inst)) {
+    Object.defineProperty(inst, 'state', {
+      enumerable: true,
+      get: () => {
+        const v = actor.getSnapshot().value
+        return v[v.length - 1]
       },
     })
   }

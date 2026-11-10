@@ -125,6 +125,8 @@ export default defineMachine({
 
 Passing the import to `use()` is what puts the machine's code in the island's bundle; see [running a machine, or addressing one](/concepts/server-client-boundary/#running-a-machine-or-addressing-one). It is an ordinary machine module, written like any other, and the same file tests in Node with `createActor`. Keep it [portable](/concepts/state-machines/#capabilities): a machine that reads another machine fails the build when an island runs it.
 
+The handle carries the current state's name as `state`, typed to the machine's state names: `read(wizard, (w) => w.state === 'details')`. A `machine()` handle has it too (always `'active'`), unless the context or a selector is itself named `state`.
+
 A reusable machine is a function that returns one. Each call gives a machine its own name, which is what lets the server register several:
 
 ```ts
