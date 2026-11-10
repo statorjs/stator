@@ -25,7 +25,7 @@ after(() => {
 })
 
 const CART_MACHINE = `
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 
 type Events = { type: 'ADD'; productId: string }
 

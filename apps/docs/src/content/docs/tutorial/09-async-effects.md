@@ -12,7 +12,7 @@ Desksmith renders, reacts, persists, and broadcasts — but it can't take an ord
 This is the tutorial's first machine with **more than one state**. Every machine so far has lived in a single `idle` state; a checkout genuinely moves — shipping details, then payment, then done — so its transitions name a target with `to:`. Create `machines/checkout.ts`:
 
 ```ts
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 
 type CheckoutContext = {
   shippingName: string

@@ -84,7 +84,7 @@ A **client island** is a whole-file custom element — the file kind is structur
 </script>
 ```
 
-Server machines imported in client code collapse to identity stubs (`{ name }`) in browser bundles — `dispatch(Cart, event)` crosses the wire, the machine's body never does.
+A machine an island only dispatches to collapses to an identity stub (`{ name }`) in its bundle — `dispatch(Cart, event)` crosses the wire, the machine's body never does. A machine the island passes to `use()` runs in the browser instead. The build reads which from the script; no file is marked client or server.
 
 ## What's here
 

@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import { LOW_WATER, REFILL_LEVEL, RESTOCK_ETA_MS, seedStock } from '../lib/stock.ts'
 import AdminMachine from './admin.ts'
 

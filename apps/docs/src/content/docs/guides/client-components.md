@@ -90,6 +90,68 @@ const Checks = machine(
 )
 ```
 
+### Machines with real states
+
+`machine()` has one implicit state. When an island needs a real chart (named states, `to` transitions), define it with `defineMachine` in its own module and pass the import to `use()`:
+
+```ts
+// lib/wizard.ts
+import { defineMachine } from '@statorjs/stator/machine'
+
+export default defineMachine({
+  name: 'Wizard',
+  lifecycle: 'session',
+  events: {} as { type: 'NEXT' } | { type: 'BACK' },
+  context: { answers: [] as string[] },
+  initial: 'intro',
+  states: {
+    intro: { on: { NEXT: { to: 'details' } } },
+    details: { on: { BACK: { to: 'intro' } } },
+  },
+  selectors: { answered: (ctx) => ctx.answers.length },
+})
+```
+
+```astro
+<script>
+  import Wizard from '../lib/wizard.ts'
+
+  export class SetupWizard extends StatorElement {
+    wizard = use(Wizard)
+    next() { this.wizard.send({ type: 'NEXT' }) }
+  }
+</script>
+```
+
+Passing the import to `use()` is what puts the machine's code in the island's bundle; see [running a machine, or addressing one](/concepts/server-client-boundary/#running-a-machine-or-addressing-one). It is an ordinary machine module, written like any other, and the same file tests in Node with `createActor`. Keep it [portable](/concepts/state-machines/#capabilities): a machine that reads another machine fails the build when an island runs it.
+
+A reusable machine is a function that returns one. Each call gives a machine its own name, which is what lets the server register several:
+
+```ts
+// lib/toggle.ts
+export const makeToggle = (name: string) =>
+  defineMachine({
+    name,
+    lifecycle: 'session',
+    events: {} as { type: 'TOGGLE' },
+    context: { on: false },
+    initial: 'idle',
+    states: { idle: { on: { TOGGLE: (ctx) => { ctx.on = !ctx.on } } } },
+    selectors: {},
+  })
+```
+
+```astro
+<script>
+  import { makeToggle } from '../lib/toggle.ts'
+  const Menu = makeToggle('Menu')
+
+  export class NavMenu extends StatorElement {
+    menu = use(Menu)
+  }
+</script>
+```
+
 ### Eager vs deferred seeds
 
 The optional seed sets initial context. Pass a **plain object** for static values, or a **thunk** when the seed reads `this.attrs` or the browser (these aren't available at field-construction; a thunk defers to connect):

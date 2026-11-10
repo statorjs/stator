@@ -21,8 +21,8 @@ pnpm add @statorjs/stator hono
 
 | import | contents |
 |---|---|
-| `@statorjs/stator/server`   | `createApp`, `defineMachine`, `defineRoute`, `defineApiRoute`, stores, `dispatchToApp` |
-| `@statorjs/stator/machine`  | the browser-safe engine core (`defineMachine`, `createActor`) |
+| `@statorjs/stator/machine`  | `defineMachine`, `createActor` — the engine, and the one place a machine is defined from |
+| `@statorjs/stator/server`   | `createApp`, `defineRoute`, `defineApiRoute`, stores, `dispatchToApp` |
 | `@statorjs/stator/template` | `html`, `read`, `each`, `when`/`match`, `raw`, directives |
 | `@statorjs/stator/client`   | island runtime — `StatorElement`, `use`, `machine`, `bind`, `dispatch` |
 | `@statorjs/stator/dev`      | `createDevApp` — the Vite-embedded dev server |
@@ -50,7 +50,7 @@ await app.listen(3000)
 
 ```ts
 // machines/counter.ts
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 
 type Events = { type: 'INCREMENT' }
 

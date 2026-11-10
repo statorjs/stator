@@ -21,7 +21,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const base = resolve(here, 'fixtures/.tmp-consume-islands')
 after(() => rmSync(base, { recursive: true, force: true }))
 
-const MACHINE = `import { defineMachine } from '@statorjs/stator/server'
+const MACHINE = `import { defineMachine } from '@statorjs/stator/machine'
 
 export default defineMachine({
   name: 'CounterMachine',
@@ -127,8 +127,8 @@ describe('an app consuming a package island', () => {
         "import Local from '../templates/local-stepper.stator'\n---\n<html>",
       ).replace('<Stepper />', '<Stepper /><Local />'),
       'templates/local-counter.ts': MACHINE.replace(
-        "import { defineMachine } from '@statorjs/stator/server'",
-        "import * as S from '@statorjs/stator/server'",
+        "import { defineMachine } from '@statorjs/stator/machine'",
+        "import * as S from '@statorjs/stator/machine'",
       )
         .replace('export default defineMachine(', 'export default S.defineMachine(')
         .replace("'CounterMachine'", "'LocalCounter'"),
@@ -148,6 +148,52 @@ describe('an app consuming a package island', () => {
     const bundle = readFileSync(join(outDir, url.replace(/^\//, '')), 'utf8')
     assert.ok(bundle.includes('LocalCounter'), 'dispatches by name')
     assert.ok(!bundle.includes('lifecycle'), 'the machine body is not')
+  })
+
+  it('bundles a machine an app island passes to use(), written like any other machine', async () => {
+    const root = await scaffold({
+      'routes/index.stator': ROUTE.replace(
+        '---\n<html>',
+        "import Local from '../templates/local-stepper.stator'\n---\n<html>",
+      ).replace('<Stepper />', '<Stepper /><Local />'),
+      'templates/local-counter.ts': MACHINE.replace("'CounterMachine'", "'LocalCounter'").replace(
+        'selectors: {}',
+        "selectors: { marker: () => 'client-machine-body' }",
+      ),
+      'templates/local-stepper.stator':
+        '<local-stepper><button type="button" on:click={bump}>+1</button></local-stepper>\n\n' +
+        "<script>\n  import Local from './local-counter.ts'\n\n" +
+        '  export class LocalStepper extends StatorElement {\n' +
+        '    local = use(Local)\n' +
+        "    bump() {\n      this.local.send({ type: 'INCREMENT' })\n    }\n  }\n</script>\n",
+    })
+    const outDir = join(root, 'dist')
+    await buildApp({ root, outDir })
+    const manifest = JSON.parse(
+      readFileSync(join(outDir, 'stator-manifest.json'), 'utf8'),
+    ) as StatorManifest
+    const url = manifest.islands['templates/local-stepper.stator']
+    assert.ok(url, JSON.stringify(manifest.islands))
+    const bundle = readFileSync(join(outDir, url.replace(/^\//, '')), 'utf8')
+    assert.ok(bundle.includes('client-machine-body'), 'the machine runs in the browser')
+  })
+
+  it('refuses, at build, an app island that uses a machine import in a way that says neither', async () => {
+    const root = await scaffold({
+      'routes/index.stator': ROUTE.replace(
+        '---\n<html>',
+        "import Local from '../templates/local-stepper.stator'\n---\n<html>",
+      ).replace('<Stepper />', '<Stepper /><Local />'),
+      'templates/local-stepper.stator':
+        '<local-stepper><button type="button" on:click={bump}>+1</button></local-stepper>\n\n' +
+        "<script>\n  import Counter from '../machines/counter.ts'\n\n" +
+        '  export class LocalStepper extends StatorElement {\n' +
+        '    bump() {\n      console.log([Counter])\n    }\n  }\n</script>\n',
+    })
+    await assert.rejects(
+      buildApp({ root, outDir: join(root, 'dist') }),
+      /templates\/local-stepper\.stator\.client\.ts:\d+ uses the machine import "Counter"/,
+    )
   })
 
   it('refuses a component compiled for another contract, naming the package', async () => {

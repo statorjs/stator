@@ -23,7 +23,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const dir = resolve(here, '.tmp-compiled-typecheck')
 after(() => rmSync(dir, { recursive: true, force: true }))
 
-const MACHINE = `import { defineMachine } from '@statorjs/stator/server'
+const MACHINE = `import { defineMachine } from '@statorjs/stator/machine'
 
 export default defineMachine({
   name: 'CartMachine',

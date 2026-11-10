@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 
 /** Single-shot fan-out probe: an app-lifecycle tally bumped once per round.
  *  Its own fixture on purpose — the dev suites share `fixtures/dev-app` and

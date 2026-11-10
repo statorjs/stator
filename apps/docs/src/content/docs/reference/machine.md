@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-`@statorjs/stator/machine` is the engine itself — browser-safe (no server imports), running identically on the server and in a client island.
+`@statorjs/stator/machine` is the engine itself — browser-safe (no server imports), running identically on the server and in a client island. It is the only entry that exports `defineMachine`: every machine imports it from here, and nothing in the import says where the machine runs.
 
 ## defineMachine
 

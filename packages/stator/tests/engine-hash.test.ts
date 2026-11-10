@@ -68,7 +68,7 @@ describe('engine hash', () => {
       await mkdir(dir, { recursive: true })
       await writeFile(
         join(dir, 'plain.ts'),
-        `import { defineMachine } from '@statorjs/stator/server'
+        `import { defineMachine } from '@statorjs/stator/machine'
 export default defineMachine({ name: 'Plain', context: { n: 0 }, initial: 'idle', states: { idle: {} } })
 `,
       )

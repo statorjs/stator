@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import { verifySource } from '../lib/webmention.ts'
 import OwnerMachine from './owner.ts'
 import ReceiverMachine from './receiver.ts'

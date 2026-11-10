@@ -27,6 +27,18 @@ describe('client runtime (3b stage 0)', () => {
     assert.ok(Object.keys(Qty.selectors).includes('atMax'))
   })
 
+  it('use() names the identity stub it was handed, since only a definition can run', () => {
+    assert.throws(
+      () => use({ name: 'CartMachine' } as never),
+      /use\(\) was given the "CartMachine" identity stub, not a machine definition/,
+    )
+    assert.throws(
+      () => use({ name: 'CartMachine', __stub: 'machines/cart.ts' } as never),
+      /the "CartMachine" identity stub \(machines\/cart\.ts\)/,
+    )
+    assert.throws(() => use(undefined as never), /use\(\) was given a value that is not a machine/)
+  })
+
   it('use() exposes live context + selectors and send() drives them', () => {
     const Qty = machine(
       { count: 1 },

@@ -33,6 +33,89 @@ async function scaffold(route: string): Promise<void> {
 afterEach(() => mock.restoreAll())
 after(() => rm(root, { recursive: true, force: true }))
 
+describe('stator check: how island scripts use machine modules', () => {
+  const MACHINE = (name: string, extra = '', reads = '') =>
+    `import { defineMachine } from '@statorjs/stator/machine'\n${extra}\n` +
+    `export default defineMachine({\n  name: '${name}',\n  lifecycle: 'session',\n${reads}` +
+    "  events: {} as { type: 'ADD' },\n  context: { n: 0 },\n  initial: 'idle',\n" +
+    '  states: { idle: { on: { ADD: (ctx) => { ctx.n += 1 } } } },\n  selectors: {},\n})\n'
+  const ISLAND = (script: string, body: string) =>
+    '<cart-panel><button type="button" on:click={go}>go</button></cart-panel>\n\n' +
+    `<script>\n${script}\n  export class CartPanel extends StatorElement {\n${body}\n  }\n</script>\n`
+
+  async function app(files: Record<string, string>): Promise<void> {
+    await scaffold("---\nimport Panel from '../templates/cart-panel.stator'\n---\n<Panel />\n")
+    for (const [path, text] of Object.entries(files)) {
+      await mkdir(dirname(join(root, path)), { recursive: true })
+      await writeFile(join(root, path), text)
+    }
+  }
+  const errorsOf = async (): Promise<string> => {
+    const stderr = mock.method(process.stderr, 'write', () => true)
+    mock.method(process.stdout, 'write', () => true)
+    await assert.rejects(checkStack(root), /typecheck failed with \d+ error/)
+    return stderr.mock.calls.map((c) => String(c.arguments[0])).join('')
+  }
+
+  it('passes an island that runs one machine and dispatches to another', async () => {
+    await app({
+      'machines/cart.ts': MACHINE('CartMachine'),
+      'shared/draft.ts': MACHINE('Draft'),
+      'templates/cart-panel.stator': ISLAND(
+        "  import Draft from '../shared/draft.ts'\n  import Cart from '../machines/cart.ts'",
+        "    draft = use(Draft)\n    go() { void dispatch(Cart, { type: 'ADD' }) }",
+      ),
+    })
+    mock.method(process.stdout, 'write', () => true)
+    assert.equal(await checkStack(root), undefined)
+  })
+
+  it('fails a machine import the script uses in a way that says neither, located', async () => {
+    await app({
+      'machines/cart.ts': MACHINE('CartMachine'),
+      'templates/cart-panel.stator': ISLAND(
+        "  import Cart from '../machines/cart.ts'",
+        '    go() { console.log([Cart]) }',
+      ),
+    })
+    const out = await errorsOf()
+    assert.match(out, /templates\/cart-panel\.stator:6 uses the machine import "Cart"/)
+    assert.match(out, /Pass it straight to use\(\) to run it in the browser, or to dispatch\(\)/)
+  })
+
+  it('fails a server-pinned machine passed to use(), naming what pins it', async () => {
+    await app({
+      'machines/prices.ts': MACHINE('Prices'),
+      'machines/cart.ts': MACHINE(
+        'CartMachine',
+        "import Prices from './prices.ts'\n",
+        '  reads: [Prices],\n',
+      ),
+      'templates/cart-panel.stator': ISLAND(
+        "  import Cart from '../machines/cart.ts'",
+        '    cart = use(Cart)\n    go() {}',
+      ),
+    })
+    const out = await errorsOf()
+    assert.match(out, /passes "CartMachine" from machines\/cart\.ts to use\(\)/)
+    assert.match(out, /server-pinned: it reads machine "Prices"/)
+  })
+
+  it('fails a script that takes server code from @statorjs/stator/server', async () => {
+    await app({
+      'templates/cart-panel.stator': ISLAND(
+        "  import { sessionStore } from '@statorjs/stator/server'",
+        '    go() { void sessionStore }',
+      ),
+    })
+    const out = await errorsOf()
+    assert.match(
+      out,
+      /templates\/cart-panel\.stator is bundled for the browser and imports "sessionStore"/,
+    )
+  })
+})
+
 describe('stator check: the compiler runs over every .stator file', () => {
   it('a template the dev server would reject fails check, located', async () => {
     await scaffold(`---\nconst { x } = Stator.props<{ x: string }>()\n---\n<p>{x}</p>\n`)

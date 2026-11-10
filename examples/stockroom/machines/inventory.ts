@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import { commitStock, loadStock, removeStock, type StockRecord } from '../lib/inventory-source.ts'
 
 /**

@@ -3,6 +3,7 @@ import {
   type AnyMachineDef,
   createActor,
   type EventOf,
+  isStatorMachine,
   type MachineDef,
   type Snapshot,
 } from '../engine/index.ts'
@@ -94,10 +95,26 @@ export function popCollector(): void {
  * connect — required when the seed reads `this.attrs`, since attributes aren't
  * available at construction (the custom-element upgrade-timing rule).
  */
+/** What `use()` says when it is handed the `{ name }` an island's bundle
+ *  carries for a machine it only addresses, or something else entirely. */
+function notAMachine(value: unknown): string {
+  const stub = (value ?? {}) as { name?: unknown; __stub?: unknown }
+  const what =
+    typeof stub.name === 'string'
+      ? `the "${stub.name}" identity stub${typeof stub.__stub === 'string' ? ` (${stub.__stub})` : ''}`
+      : 'a value that is not a machine'
+  return (
+    `stator: use() was given ${what}, not a machine definition. An island's bundle carries a ` +
+    "machine's code when its script passes the import to use(), as in `cart = use(Cart)`; an " +
+    'import the script only dispatches to is the { name } that dispatch() addresses.'
+  )
+}
+
 export function use<D extends MachineDef>(
   def: D,
   seed?: Partial<D['__context']> | (() => Partial<D['__context']>),
 ): ClientInstance<D> {
+  if (!isStatorMachine(def)) throw new Error(notAMachine(def))
   // The live properties are defined dynamically below; the mapped view type
   // is the static mirror of that runtime work.
   const eager = typeof seed === 'object' ? seed : undefined

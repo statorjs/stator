@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import { COLORWAYS_ORDER, type ColorwayKey, type Product } from '../lib/catalog-data.ts'
 import { chargeCard } from '../lib/payments.ts'
 import { productForSku } from '../lib/sku.ts'

@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import { chargeCard } from '../lib/payments.ts'
 
 type CheckoutContext = {

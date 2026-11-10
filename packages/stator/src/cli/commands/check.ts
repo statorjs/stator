@@ -4,6 +4,7 @@ import { join, relative, resolve } from 'node:path'
 import ts from 'typescript'
 import { syncTypes } from '../../build/index.ts'
 import { contractErrors, reachIslands } from '../../build/library-islands.ts'
+import { islandMachineErrors } from '../../build/machines.ts'
 import { sourceId } from '../../build/source-id.ts'
 import type { VirtualSource } from '../../build/sync.ts'
 import { CompileError, compile, compileWarnings, regionResolverFor } from '../../compiler/index.ts'
@@ -23,15 +24,17 @@ export interface CheckOptions {
  * it first, so a broken server import or island script fails the build
  * instead of shipping.
  *
- * Four steps: (1) `syncTypes` regenerates each `.stator.d.ts` + the virtual TSX
+ * Five steps: (1) `syncTypes` regenerates each `.stator.d.ts` + the virtual TSX
  * the language server typechecks for every `.stator` under `opts.dir` (default
  * the root), written under `<root>/.stator` either way; (2) every one of those
  * files goes through the real compiler — the same call `dev` makes on import
  * and the editor makes per edit, so all three reject the same inputs; (3)
- * every compiled component the routes reach in a package carries this
+ * every island script's use of a machine module is one the island bundler can
+ * place, read by the analysis the bundler itself runs (`build/machines.ts`);
+ * (4) every compiled component the routes reach in a package carries this
  * compiler's contract stamp (`library-islands.ts`), walking from
  * `opts.routesDir` (default `<dir>/routes`), skipped with a note when that
- * directory doesn't exist; (4) a `tsc --noEmit`-equivalent pass via the
+ * directory doesn't exist; (5) a `tsc --noEmit`-equivalent pass via the
  * TypeScript API over the nearest `tsconfig.json`.
  * Compiler warnings print alongside the compile step but don't fail the check.
  */
@@ -53,6 +56,9 @@ export async function checkStack(root: string, opts: CheckOptions = {}): Promise
   if (compileErrors.length > 0) {
     process.stderr.write(`${compileErrors.join('\n\n')}\n\n`)
   }
+
+  const machineErrors = await islandMachineErrors(root, files, join(root, 'machines'))
+  if (machineErrors.length > 0) process.stderr.write(`${machineErrors.join('\n\n')}\n\n`)
 
   const routesDir = opts.routesDir ? resolve(root, opts.routesDir) : join(dir, 'routes')
   let stampErrors: string[] = []
@@ -102,7 +108,7 @@ export async function checkStack(root: string, opts: CheckOptions = {}): Promise
       }),
     )
   }
-  const n = compileErrors.length + stampErrors.length + diagnostics.length
+  const n = compileErrors.length + machineErrors.length + stampErrors.length + diagnostics.length
   if (n > 0) {
     throw new Error(`typecheck failed with ${n} error${n === 1 ? '' : 's'}`)
   }

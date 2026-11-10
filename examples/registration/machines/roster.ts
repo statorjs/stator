@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import { cleanRegistration, seatsError } from '../lib/rules.ts'
 
 export type Attendee = {

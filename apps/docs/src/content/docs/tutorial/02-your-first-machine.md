@@ -12,7 +12,7 @@ Desksmith has two pieces of state: the **catalog** (the same for everyone, set o
 A machine is defined with `defineMachine` and lives in its own file under `machines/`. Start with the catalog — `machines/products.ts`:
 
 ```ts
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 
 export type Category = 'stationery' | 'office' | 'lifestyle'
 
@@ -60,7 +60,7 @@ export default defineMachine({
 The cart is where things happen. Create `machines/cart.ts`:
 
 ```ts
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import ProductsMachine from './products.ts'
 
 type CartItem = { productId: string; quantity: number; unitPrice: number }

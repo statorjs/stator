@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 
 /**
  * The whole app's business logic, UI-blind and unit-testable. Session-scoped:

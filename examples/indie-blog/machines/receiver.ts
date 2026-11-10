@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import { postBySlug } from '../lib/db.ts'
 import { SITE_ORIGIN, slugOfTarget } from '../lib/site.ts'
 import { requestError } from '../lib/webmention.ts'

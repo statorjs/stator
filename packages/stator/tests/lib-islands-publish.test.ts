@@ -19,7 +19,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const root = resolve(here, 'fixtures/.tmp-lib-islands')
 after(() => rmSync(root, { recursive: true, force: true }))
 
-const MACHINE = `import { defineMachine } from '@statorjs/stator/server'
+const MACHINE = `import { defineMachine } from '@statorjs/stator/machine'
 
 export default defineMachine({
   name: 'CounterMachine',
@@ -156,12 +156,74 @@ describe('build:lib for a library island', () => {
     })
   })
 
-  it('refuses a machine imported any way but by default, since only that can be stubbed', async () => {
+  it('stubs a default import beside type-only named ones, keeping the types', async () => {
     const dir = scaffold("  import Counter, { type Never } from '../machines/counter.ts'\n")
+    const result = await compileLibrary({ root, dir })
+    const client = readFileSync(join(dir, 'stepper.stator.client.ts'), 'utf8')
+    assert.ok(
+      client.includes(
+        'const Counter = /* @stator machine */ { name: "CounterMachine" }; ' +
+          'import type { Never } from "../machines/counter.ts";',
+      ),
+      client,
+    )
+    assert.deepStrictEqual(result.machines, ['CounterMachine'])
+  })
+
+  const RUNS = `${STUBBED}  import Local from './local.ts'\n\n  const start = () => use(Local)\n  void start\n`
+  const LOCAL = MACHINE.replace('CounterMachine', 'Local')
+
+  it('leaves a machine the island passes to use() in the entry', async () => {
+    const dir = scaffold(RUNS, { 'src/local.ts': LOCAL })
+    const result = await compileLibrary({ root, dir })
+    const client = readFileSync(join(dir, 'stepper.stator.client.ts'), 'utf8')
+    assert.match(client, /import Local from '\.\/local(\.ts|\.js)?'/)
+    assert.ok(client.includes('const Counter = /* @stator machine */ { name: "CounterMachine" };'))
+    assert.deepStrictEqual(result.machines, ['CounterMachine'])
+  })
+
+  it('leaves a module in the entry when the island reads a value from it', async () => {
+    const dir = scaffold(
+      "  import Counter, { LIMIT } from '../machines/counter.ts'\n  void LIMIT\n",
+      { 'machines/counter.ts': `${MACHINE}\nexport const LIMIT = 3\n` },
+    )
+    const result = await compileLibrary({ root, dir })
+    const client = readFileSync(join(dir, 'stepper.stator.client.ts'), 'utf8')
+    assert.ok(client.includes('../machines/counter'), client)
+    assert.ok(!client.includes('@stator machine'))
+    assert.deepStrictEqual(result.machines, [])
+  })
+
+  it('refuses a machine the island runs whose module imports the server entry', async () => {
+    const dir = scaffold(RUNS, {
+      'src/local.ts': `import { sessionStore } from '@statorjs/stator/server'\n${LOCAL}\nvoid sessionStore\n`,
+    })
     await assert.rejects(compileLibrary({ root, dir }), (err: Error) => {
-      assert.match(err.message, /machines\/counter\.ts imports "@statorjs\/stator\/server"/)
+      assert.match(err.message, /stepper\.stator\.client\.ts would ship server code to the browser/)
+      assert.match(err.message, /src\/local\.ts imports "@statorjs\/stator\/server"/)
       return true
     })
+  })
+
+  it('refuses a server-pinned machine the island runs', async () => {
+    const dir = scaffold(RUNS, {
+      'src/local.ts': LOCAL.replace(
+        'export default',
+        "import Counter from '../machines/counter.ts'\n\nexport default",
+      ).replace("lifecycle: 'session',", "lifecycle: 'session',\n  reads: [Counter],"),
+    })
+    await assert.rejects(
+      compileLibrary({ root, dir }),
+      /passes "Local" from .*src\/local\.ts to use\(\).*server-pinned: it reads machine "CounterMachine"/,
+    )
+  })
+
+  it('refuses a machine import the island uses in a way that says neither', async () => {
+    const dir = scaffold(`${STUBBED}  const all = [Counter]\n  void all\n`)
+    await assert.rejects(
+      compileLibrary({ root, dir }),
+      /stepper\.stator:\d+ uses the machine import "Counter" from "\.\.\/machines\/counter(\.ts|\.js)?" in a way the build cannot place/,
+    )
   })
 })
 
@@ -169,8 +231,8 @@ describe('the machine stub rewrite', () => {
   it('stubs a machine defined through a namespace import of @statorjs/stator/server', async () => {
     const dir = scaffold(STUBBED, {
       'machines/counter.ts': MACHINE.replace(
-        "import { defineMachine } from '@statorjs/stator/server'",
-        "import * as S from '@statorjs/stator/server'",
+        "import { defineMachine } from '@statorjs/stator/machine'",
+        "import * as S from '@statorjs/stator/machine'",
       ).replace('export default defineMachine(', 'export default S.defineMachine('),
     })
     const result = await compileLibrary({ root, dir })
@@ -188,7 +250,7 @@ describe('the machine stub rewrite', () => {
       'const doc = "import Ghost2 from \'../machines/counter.ts\'"',
       'import Counter',
       "  from '../machines/counter.ts'",
-      'export const used = [Counter, doc]',
+      'export const used = [dispatch(Counter, { type: doc })]',
       '//# sourceMappingURL=data:application/json;base64,e30=',
     ].join('\n')
     writeFileSync(file, before)

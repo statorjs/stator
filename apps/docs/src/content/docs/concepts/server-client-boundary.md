@@ -27,6 +27,39 @@ const [cart] = Stator.reads([CartMachine])
 
 That's the entire mechanism. The import site *is* the declaration of where the code lives.
 
+### Running a machine, or addressing one
+
+A `<script>` imports a machine for one of two reasons, and what you do with the import says which:
+
+```astro
+<script>
+  import Draft from '../lib/draft.ts'        // passed to use() → runs in the browser
+  import Cart from '../machines/cart.ts'     // only dispatched to → stays on the server
+
+  export class CartForm extends StatorElement {
+    draft = use(Draft)
+    submit() { void dispatch(Cart, { type: 'ADD', sku: this.draft.sku }) }
+  }
+</script>
+```
+
+- **`use(Machine)`** runs the machine in the island. Its code is bundled for the browser.
+- **`dispatch(Machine, event)`** addresses a machine that lives on the server. The import becomes its `{ name }` in the bundle, and the machine's code never ships.
+
+Nothing marks a file as client or server, and no pragma says which a machine is. The same definition can be registered on the server, run in an island, and tested in Node.
+
+The build reads this from the script, by following the import:
+
+| The script… | The bundle gets |
+|---|---|
+| passes the import to `use()`, directly or through a `const` alias | the machine's code |
+| calls the import, as with a machine factory (`const Menu = makeToggle('Menu')`) | the module's code |
+| reads a named export, or a property of the machine other than `name` | the module's code |
+| only passes the import to `dispatch()`, or reads its `name` | `{ name }` |
+| does anything else with it (hands it to another function, puts it in an array, re-exports it) | a build error |
+
+The last row is deliberate. A use the build can't place is refused rather than guessed at, so a machine never ships by accident and never arrives as a stub where its code was needed. Import a machine module directly in the script that uses it; a barrel file that re-exports machines is refused for the same reason.
+
 ### The explicit anti-goal
 
 Stator deliberately avoids the alternatives:
@@ -39,15 +72,21 @@ These are the things that make the React Server Components boundary hard to hold
 
 ## The definition is location-agnostic
 
-A machine definition has no inherent side. The same `defineMachine(...)` can run on the server in one place and in the browser in another; nothing about the definition changes. This is what makes a machine's selectors **isomorphic** — the `total` selector you `read()` on the server is the same function a client island `read()`s locally. You author the logic once and place it where each use needs it.
+A machine definition has no inherent side. The same `defineMachine(...)` can run on the server in one place and in the browser in another; nothing about the definition changes. Every machine imports `defineMachine` from the same place, `@statorjs/stator/machine`, the engine on its own; there is no client version and no server version to choose between. What a machine an island runs can't do is import `@statorjs/stator/server`, which is server code. This is what makes a machine's selectors **isomorphic** — the `total` selector you `read()` on the server is the same function a client island `read()`s locally. You author the logic once and place it where each use needs it.
 
 ## Portable vs server-pinned at the use site
 
 Placement is your decision; **legality** is the compiler's. A [portable](/concepts/state-machines/#capabilities) machine (no cross-machine reads, no server-only capability) can go in a `<script>`. A server-pinned one cannot — its work can't be done in the browser. You don't annotate which is which; the classification falls out of the definition.
 
-## The enforcing compile errors
+## The enforcing build errors
 
-If you import a server-pinned machine into a client `<script>`, compilation fails with an error that **names the offending capability** — e.g. "reads machine `ProductsMachine` (cross-machine reads resolve server-side only)." You learn the *why*, not just the *what*, at build time.
+Three things are refused, each with a message that says what to change:
+
+- **A server-pinned machine passed to `use()`.** The error **names the offending capability** — e.g. "reads machine `ProductsMachine` (cross-machine reads resolve server-side only)."
+- **Server code reached from an island.** A module in an island's bundle that imports `@statorjs/stator/server` is named, along with what it imported.
+- **A machine import the build can't place**, per the table above, located at its line in the `.stator` file.
+
+You see them in three places. `stator dev` shows the error in the browser overlay when you save, and keeps serving the last good build. `stator check` reports all of them without bundling, so CI catches them. `stator build` runs the check first and applies the same analysis again when it bundles.
 
 There's a runtime backstop too: a machine running client-side that somehow dereferences a `reads` helper hits throwing helpers rather than silently returning wrong data. The compile error is the front line; the runtime guard is the seatbelt.
 

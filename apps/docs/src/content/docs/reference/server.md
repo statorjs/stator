@@ -53,7 +53,7 @@ The production entry point. Discovers machines and routes from the given directo
 
 ## defineMachine
 
-Re-exported from [`@statorjs/stator/machine`](/reference/machine/#definemachine) so server code has one import surface — see that page for the full config. The machine-side types (`MachineDef`, `DefineMachineConfig`, `ActionHelpers`, `Lifecycle`, `SelectorMap`, `SubscribeEntry`, `SubscribeEvent`) are re-exported here too.
+Not exported here. A machine is defined with `defineMachine` from [`@statorjs/stator/machine`](/reference/machine/#definemachine), whether it runs on the server, in a client island, or both; this entry is server code and a browser bundle can't import it. The machine-side types (`MachineDef`, `DefineMachineConfig`, `ActionHelpers`, `Lifecycle`, `SelectorMap`, `SubscribeEntry`, `SubscribeEvent`) are still exported from here for typing server code.
 
 ## defineRoute
 

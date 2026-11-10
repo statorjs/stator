@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import { verifyOwnerPassword } from '../lib/site.ts'
 
 /** A bounced compose submission, stashed so the re-rendered form pre-fills —

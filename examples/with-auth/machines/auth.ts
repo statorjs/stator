@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import { findUserByEmail, findUserById, updateUserName } from '../lib/db.ts'
 import { verifyPasswordConstantTime } from '../lib/passwords.ts'
 

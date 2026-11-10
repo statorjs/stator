@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 
 /**
  * Server-canonical display preferences. Because this is a `session` machine, the
