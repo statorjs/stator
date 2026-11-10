@@ -20,9 +20,10 @@
 
 import ts from 'typescript'
 import { VOID_ELEMENTS } from '../template/void-elements.ts'
+import { attrsInterface } from './client-emit.ts'
 import { analyzeScriptClasses, pascalToKebab } from './client-script.ts'
 import { parseDiagnosticsOf } from './diagnostics.ts'
-import { statorPropsType } from './dts.ts'
+import { extractFrontmatterTypes, statorPropsType } from './dts.ts'
 import { CLIENT_AUTHOR_GLOBALS, TEMPLATE_AUTHOR_GLOBALS } from './emit-names.ts'
 import { type ScannedRegions, scanRegions } from './split.ts'
 
@@ -471,13 +472,22 @@ function buildClientTsx(regions: ScannedRegions, ambient: string): VirtualFile {
     for (const seg of body) code = emitSegment(mappings, `${code}  `, seg)
     if (element) {
       const members = [...element.members].filter((m) => m !== 'props')
+      // Declared with `Stator.props<P>()`, the shell's props are P plus the
+      // attrs; undeclared, they are open.
+      const { propsType } = extractFrontmatterTypes(fm)
+      const declared = propsType
+        ? statorPropsType(fm, tpl, [userScript]).propsT.replaceAll(
+            '__SReadResult<',
+            "import('@statorjs/stator/template').ReadResult<",
+          )
+        : undefined
       code += `  class __StatorShell extends ${element.name} {\n`
-      code += '    __shell(props: Record<string, any>) {\n'
+      code += `    __shell(props: ${declared ?? 'Record<string, any>'}) {\n`
       if (members.length > 0) {
         code += `      const { ${members.join(', ')} } = this; void [${members.join(', ')}];\n`
       }
       code += '      void props;\n      return (<>'
-      code = appendTemplateTsx(code, mappings, tpl, regions.template.contentOffset, true)
+      code = appendTemplateTsx(code, mappings, tpl, regions.template.contentOffset, !declared)
       code += '</>);\n    }\n  }\n  void __StatorShell\n'
     }
     code += '}\nvoid __statorFence\n'
@@ -486,6 +496,10 @@ function buildClientTsx(regions: ScannedRegions, ambient: string): VirtualFile {
   for (const script of regions.scripts) {
     push(mappings, script.contentOffset, code.length, script.content.length)
     code += `${script.content}\n`
+  }
+
+  for (const cls of classes) {
+    if (cls.staticAttrs.size > 0) code += `${attrsInterface(cls.name)}\n`
   }
 
   // A client component is also used as `<Tag/>` elsewhere, so its importers need

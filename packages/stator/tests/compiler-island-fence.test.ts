@@ -101,11 +101,23 @@ ${fence}
   export class CapProbe extends StatorElement {}
 </script>`
 
-  it('rejects Stator.props in an island fence', () => {
-    assert.throws(
-      () => compile(island('const p = Stator.props<{ a: string }>()'), { id: 'c.stator' }),
-      /static attrs/,
+  it("Stator.props in an island fence is the shell's props", () => {
+    const src = `---
+const { rows } = Stator.props<{ rows: string[] }>()
+---
+<row-list><ul>{rows.map((r) => <li>{r}</li>)}</ul></row-list>
+<script>
+  export class RowList extends StatorElement {
+    static attrs = { unitPrice: Number }
+  }
+</script>`
+    const { serverCode } = compile(src, { id: 'row-list.stator' })
+    // Declared props are P plus the attrs, closed, and may be required.
+    assert.match(
+      serverCode,
+      /export default function \(props: \(\{ rows: string\[\] \}\) & \{ unitPrice\?: number \| __SReadResult<number> \}\) \{/,
     )
+    assert.ok(serverCode.includes('const { rows } = props'))
   })
 
   it('rejects Stator.reads in an island fence', () => {
@@ -121,6 +133,88 @@ ${fence}
       () => compile(island('// @stator live\nconst x = 1'), { id: 'c.stator' }),
       /only valid in a route/,
     )
+  })
+})
+
+describe('island fences: what the <script> can see of the fence', () => {
+  const island = (fence: string, body: string) => `---
+${fence}
+---
+<type-probe><p>x</p></type-probe>
+<script>
+  export class TypeProbe extends StatorElement {
+${body}
+  }
+</script>`
+  const tail = (clientCode: string): string =>
+    clientCode.slice(clientCode.indexOf('defineElement(__TypeProbeImpl'))
+
+  it('fence types the script names are restated in the client module', () => {
+    const { clientCode } = compile(
+      island(
+        "import type { Row, Unused } from './rows.ts'\n" +
+          "import { type Cell, load } from './cells.ts'\n" +
+          'type Pick = { row: Row }\ninterface Other { n: number }\nconst x = load()',
+        '    last?: Pick\n    cell?: Cell',
+      ),
+      { id: 'type-probe.stator' },
+    )
+    const t = tail(clientCode)
+    assert.ok(t.includes('type Pick = { row: Row }'))
+    // Reached through `Pick`, and narrowed to the names in use.
+    assert.ok(t.includes("import type { Row } from './rows.ts'"))
+    assert.ok(t.includes("import type { Cell } from './cells.ts'"))
+    assert.ok(!t.includes('Unused'))
+    assert.ok(!t.includes('Other'))
+    assert.ok(!t.includes('load'))
+  })
+
+  it("a type the script declares itself is the script's", () => {
+    const { clientCode } = compile(
+      island('type Pick = { a: 1 }', '    last?: Pick').replace(
+        '<script>',
+        '<script>\n  type Pick = { b: 2 }',
+      ),
+      { id: 'type-probe.stator' },
+    )
+    assert.ok(!tail(clientCode).includes('type Pick'))
+  })
+
+  it('a fence value used in the script is a located error', () => {
+    const src = island(
+      "import { catalog } from './catalog.ts'\nconst limit = 3",
+      '    size() { return catalog.length + limit }',
+    )
+    assert.throws(
+      () => compile(src, { id: 'type-probe.stator' }),
+      (err: Error & { loc?: { line: number } }) => {
+        assert.match(err.message, /"catalog" is bound in this island's fence.*runs on the server/)
+        assert.equal(err.loc?.line, 8)
+        return true
+      },
+    )
+  })
+
+  it("a name the script binds itself, or uses only as a member, is not the fence's", () => {
+    const src = island(
+      'const limit = 3\nconst size = 1',
+      '    size = 2\n    over(limit: number) { return limit > this.size }',
+    )
+    assert.doesNotThrow(() => compile(src, { id: 'type-probe.stator' }))
+  })
+
+  it('this.attrs is typed from static attrs', () => {
+    const { clientCode } = compile(
+      island('const x = 1', '    static attrs = { unitPrice: Number }'),
+      { id: 'type-probe.stator' },
+    )
+    assert.ok(
+      tail(clientCode).includes(
+        "export interface TypeProbe { get attrs(): import('@statorjs/stator/client').AttrsOf<typeof TypeProbe.attrs> }",
+      ),
+    )
+    const none = compile(island('const x = 1', '    n = 1'), { id: 'type-probe.stator' })
+    assert.ok(!none.clientCode.includes('export interface TypeProbe'))
   })
 })
 

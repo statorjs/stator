@@ -203,6 +203,39 @@ const ISLAND_BAD_FENCE = ISLAND('  <p>{limit.toUpperCase()}</p>')
 // A callback over a typed value is TypeScript's to type, not waved through.
 const ISLAND_BAD_TYPED_CALLBACK = ISLAND('  <p>{[1, 2].map((n) => n.toUpperCase())}</p>')
 
+// An island that declares its shell's props: typed in the template, with the
+// attrs on top; and `this.attrs` typed from `static attrs` in the script.
+const TYPED_ISLAND = (template: string, method = '') => `---
+type Row = { name: string; cells: string[] }
+const { rows } = Stator.props<{ rows: Row[] }>()
+---
+<row-list>
+${template}
+</row-list>
+
+<script>
+  export class RowList extends StatorElement {
+    static attrs = { unitPrice: Number, open: Boolean, when: (raw: string) => new Date(raw) }
+    last?: Row
+    ${method}
+  }
+</script>
+`
+const TYPED_ISLAND_GOOD = TYPED_ISLAND(
+  `  <ul>{rows.map((r) => <li title={r.name}>{r.cells.map((c) => c.toUpperCase())}</li>)}</ul>
+  <p>{props.rows.length} {String(props.unitPrice)}</p>`,
+  `price(): number { return (this.attrs.unitPrice ?? 0) * 2 }
+    isOpen(): boolean { return this.attrs.open }
+    year(): number | undefined { return this.attrs.when?.getFullYear() }`,
+)
+const TYPED_ISLAND_BAD_ROW = TYPED_ISLAND('  <ul>{rows.map((r) => <li>{r.title}</li>)}</ul>')
+const TYPED_ISLAND_BAD_PROP = TYPED_ISLAND('  <p>{props.colours}</p>')
+const TYPED_ISLAND_BAD_ATTR = TYPED_ISLAND('  <p>x</p>', 'bad() { return this.attrs.price }')
+const TYPED_ISLAND_BAD_ATTR_TYPE = TYPED_ISLAND(
+  '  <p>x</p>',
+  'bad(): number { return this.attrs.unitPrice }',
+)
+
 function emitAll(ambient: AmbientSource): Record<string, string> {
   const out = join(dir, ambient)
   mkdirSync(out, { recursive: true })
@@ -228,6 +261,11 @@ function emitAll(ambient: AmbientSource): Record<string, string> {
     ['island-bad-plain', ISLAND_BAD_PLAIN],
     ['island-bad-fence', ISLAND_BAD_FENCE],
     ['island-bad-typed-callback', ISLAND_BAD_TYPED_CALLBACK],
+    ['typed-island-good', TYPED_ISLAND_GOOD],
+    ['typed-island-bad-row', TYPED_ISLAND_BAD_ROW],
+    ['typed-island-bad-prop', TYPED_ISLAND_BAD_PROP],
+    ['typed-island-bad-attr', TYPED_ISLAND_BAD_ATTR],
+    ['typed-island-bad-attr-type', TYPED_ISLAND_BAD_ATTR_TYPE],
   ] as const) {
     // The editor resolves `.stator` imports through the language plugin; here
     // tsc plays that role by resolving the emitted sibling `.tsx`.
@@ -311,6 +349,22 @@ for (const ambient of ['bundled', 'project'] as const)
       assert.match(
         of('island-bad-typed-callback'),
         /Property 'toUpperCase' does not exist on type 'number'/,
+      )
+    })
+
+    it('an island with declared shell props and static attrs typechecks clean', () => {
+      assert.deepStrictEqual(diags.get('typed-island-good'), [])
+    })
+
+    it('declared shell props are checked in the template; this.attrs in the script', () => {
+      const of = (name: string): string => diags.get(name)!.join('\n')
+      assert.match(of('typed-island-bad-row'), /Property 'title' does not exist on type 'Row'/)
+      assert.match(of('typed-island-bad-prop'), /Property 'colours' does not exist/)
+      assert.match(of('typed-island-bad-attr'), /Property 'price' does not exist/)
+      // An absent attribute reads as undefined.
+      assert.match(
+        of('typed-island-bad-attr-type'),
+        /'number \| undefined' is not assignable to type 'number'/,
       )
     })
 

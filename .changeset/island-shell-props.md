@@ -1,5 +1,10 @@
 ---
-"@statorjs/stator": patch
+"@statorjs/stator": minor
 ---
 
-A compiled island shell takes the props its declaration types. The shell was `export default function (props = {})`, whose parameter infers as `{}`, so an app importing a library island from `node_modules`, or a library whose compiled siblings sit beside its sources, failed `stator check` on every declared attr: `<RichEditor target="content" />` reported `Property 'target' does not exist on type '{}'`. The shell's parameter is now the `.stator.d.ts` props type, each `static attrs` key as its kind or a `read()` binding plus an open tail for the props the shell's markup reads, and a server component's shell is typed from the same computation, so the two can't drift. A library's tsconfig lists the generated trees first, `rootDirs: [".stator/types", ".stator/check", "."]`: `tsc` tries them in order, and with `.` first `./x.stator` resolves to the compiled `x.stator.ts` that `build:lib` writes beside it instead of the generated declaration. An app has no compiled siblings and keeps `.` first. Runtime output is unchanged.
+Islands get typed props and typed attrs.
+
+- **`Stator.props<P>()` in an island's fence** declares the props its shell takes beyond its attrs. It was a compile error. An island that declares them is closed: its props are `P` plus its `static attrs`, so a misspelled or missing prop at the use site is a type error, and the template is checked against them. An island that declares none stays open, as before.
+- **`this.attrs` is typed from `static attrs`.** `this.attrs.unitPrice` is `number | undefined`, a `Boolean` attr is `boolean`, a custom coercer gives its return type, and an undeclared attribute is a type error. It was `Record<string, unknown>`. Code that read an undeclared attribute through `this.attrs` now fails `stator check`: declare it, or read it with `this.attr(name)`. `AttrsOf` is exported from `@statorjs/stator/client`.
+- **Fence types are usable in the `<script>`.** A type alias, interface or `import type` in the fence that the script names is restated in the client module; types erase, so nothing follows them into the bundle.
+- **A fence value used in the `<script>` is a compile error** naming it. It was a `ReferenceError` in the browser.

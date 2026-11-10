@@ -53,21 +53,25 @@ export function statorPropsType(
   let propsT = componentPropsType(propsType, template)
   let needsReadResult = false
 
-  // Client islands declare their surface with `static attrs`, not
-  // `Stator.props`. Each attr accepts its coerced kind OR a live `read()`
+  // Client islands declare their attributes with `static attrs`, and their
+  // shell's other props, optionally, with `Stator.props`. Each attr accepts its coerced kind OR a live `read()`
   // binding — the compiler lowers read() island props to live attr bindings,
   // so the type surface must admit both.
   const classes = scripts.length > 0 ? analyzeScriptClasses(scripts.join('\n')) : []
-  if (!propsType && classes.length > 0) {
+  if (classes.length > 0) {
     const attrs = new Map<string, string>()
     for (const cls of classes) {
       for (const [key, kind] of cls.staticAttrs) attrs.set(key, kind)
     }
-    if (attrs.size > 0) {
-      needsReadResult = true
-      const fields = [...attrs]
-        .map(([key, kind]) => `${key}?: ${kind} | __SReadResult<${kind}>`)
-        .join('; ')
+    const fields = [...attrs]
+      .map(([key, kind]) => `${key}?: ${kind} | __SReadResult<${kind}>`)
+      .join('; ')
+    needsReadResult = attrs.size > 0
+    if (propsType) {
+      // `Stator.props<P>()` in the fence declares the shell's own props; the
+      // attrs come on top, and nothing else is accepted.
+      if (attrs.size > 0) propsT = `(${propsT}) & { ${fields} }`
+    } else if (attrs.size > 0) {
       // Declared attrs are typed strictly; the open tail admits the richer
       // props an island's SERVER-rendered markup may consume (they never
       // cross the attr wire, so `static attrs` can't know about them).

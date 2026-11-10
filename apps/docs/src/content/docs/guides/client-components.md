@@ -62,9 +62,35 @@ The rule of thumb: **fences are for server work the island owns; per-use data st
 
 Because the fence runs per shell render, an island placed three times runs its fence three times, and a server re-render containing the island re-runs it — identical to a server component's frontmatter.
 
-Two guardrails, both compile errors:
+### Typing the shell's props
 
-- **No `Stator.*` markers.** Island props are declared by `static attrs` (plus the open use-site tail), so `Stator.props` is rejected; `Stator.reads`, `Stator.request`, and `Stator.response` are route-only, as everywhere else.
+An island's attributes are declared by `static attrs`. Everything else its use site passes is a prop of the shell: it renders on the server and never reaches the browser. Left undeclared, those props are open, so any prop is accepted and none is checked. Declare them in the fence with `Stator.props`, as a server component does:
+
+```astro
+---
+import type { Colorway } from '../lib/catalog.ts'
+
+const { colorways } = Stator.props<{ colorways: Colorway[] }>()
+---
+<variant-picker>
+  {colorways.map((c) => <label title={c.label}>{c.value}</label>)}
+</variant-picker>
+
+<script>
+  export class VariantPicker extends StatorElement {
+    static attrs = { unitPrice: Number }
+  }
+</script>
+```
+
+The island's props are then that type plus its attrs, and closed: `<VariantPicker colorwys={…} />` is a type error, and so is a missing `colorways`. The two declarations stay separate on purpose. `static attrs` is what crosses to the browser; the fence type is what only the shell needs. To destructure an attr in the fence, name it in the type as well.
+
+A type the fence declares or imports with `import type` can be used in the `<script>`: types erase, so nothing follows them into the bundle. A fence *value* cannot, and the compiler says so, naming it.
+
+Three guardrails, all compile errors:
+
+- **Route-only markers stay route-only.** `Stator.reads`, `Stator.request`, and `Stator.response` are rejected in an island's fence, as in any component.
+- **No fence values in the `<script>`.** The fence runs on the server and the script in the browser. Import the module in the script too, or hand the value over as an attribute.
 - **No name collisions with `use()` fields.** A fence `const theme = …` alongside a `theme = use(Theme)` field is ambiguous by construction — the template couldn't tell the server value from the client machine — so the compiler makes you rename one.
 
 ## machine() and use()
@@ -170,6 +196,8 @@ Declare an attribute surface with a static coercer map. Author names are camelCa
 static attrs = { unitPrice: Number, selected: Boolean }
 // reads <… unit-price="12" selected>
 ```
+
+`this.attrs` is typed from that map, with nothing else to write: `this.attrs.unitPrice` is `number | undefined` (an absent attribute reads as `undefined`), `this.attrs.selected` is `boolean`, a custom coercer gives its return type, and an attribute you did not declare is a type error.
 
 ## this.refs
 

@@ -13,6 +13,19 @@ function kebabToCamel(name: string): string {
   return name.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())
 }
 
+/**
+ * What `this.attrs` reads for a `static attrs` declaration: `Boolean` is a
+ * presence flag, any other coercer's result is `undefined` while the attribute
+ * is absent. The compiler types each island's `attrs` with this.
+ */
+export type AttrsOf<A> = {
+  readonly [K in keyof A]: A[K] extends BooleanConstructor
+    ? boolean
+    : A[K] extends (raw: string) => infer R
+      ? R | undefined
+      : unknown
+}
+
 // Without a DOM (a Node test of a client machine) the module still loads;
 // only constructing an element needs one.
 const Base: typeof HTMLElement =
