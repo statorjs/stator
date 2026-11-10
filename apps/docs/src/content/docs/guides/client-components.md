@@ -179,6 +179,19 @@ Elements marked [`ref:name`](/guides/directives/#ref--element-handles) are reach
 
 Machine [actors](/concepts/state-machines/#definition-actor-instance) start on `connectedCallback` and stop on disconnect. Client-machine `read()`s and `effect()` subscribe to state and write the DOM natively — no client re-render.
 
+### Before the island connects
+
+The shell is server HTML, and a client machine does not exist on the server, so a client `read()` renders nothing there: empty text, and no attribute. On a cached page that is the first paint, and with scripting off it is the only one. Give the read a third argument and the shell renders that until the island connects:
+
+```astro
+<cart-button count={props.count}>
+  <button on:click={open}>Cart ({read(cart, (c) => c.count, props.count)})</button>
+  <p hidden={read(cart, (c) => c.count > 0, props.count > 0)}>Your cart is empty.</p>
+</cart-button>
+```
+
+The fallback is an ordinary shell expression, evaluated once on the server: a literal, a prop, a fence value. It cannot read a client machine. On connect the read replaces it with the machine's value, so make the two agree, usually by seeding the machine from the same prop the fallback uses.
+
 ## Islands are leaves
 
 Islands are also the only code Stator bundles, and there is no bundler plugin to configure — by design. Tailwind, global CSS, images, and WASM are handled outside the bundler so they apply to the whole app, not just the island tier: see [Styling and assets](/guides/styling-and-assets/).

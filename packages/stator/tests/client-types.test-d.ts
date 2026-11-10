@@ -176,3 +176,12 @@ const ownState = use(machine({ state: 'idle', n: 0 }))
 const _own: string = ownState.state
 // @ts-expect-error a context `state` is its own type, not the state-name union
 const _notName: 'active' = ownState.state
+
+// ---------------------------------------------------------------------------
+// read() with a shell fallback: the fallback has the selector's type.
+// ---------------------------------------------------------------------------
+import { read } from '../src/template/index.ts'
+
+read(sel, (s) => s.count, 0)
+// @ts-expect-error the fallback must match what the selector returns
+read(sel, (s) => s.count, 'none')

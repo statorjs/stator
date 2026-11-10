@@ -534,6 +534,12 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
           deps: inferDeps(expr, opts.client.useFields),
           ...(toSource ? { at: toSource(node.getStart(sf)) } : {}),
         })
+        // A third argument is the shell's content until the island connects;
+        // the closing comment bounds what the client replaces.
+        const fallback = node.expression.arguments[2]
+        if (fallback) {
+          return `<!--${marker}-->\${${lowerExprText(fallback)}}<!--/${marker}-->`
+        }
         return `<!--${marker}-->`
       }
       // A plain `{item.field}` renders once (per the reactivity doctrine); a
@@ -664,6 +670,12 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       }
       // In client mode, collected directives/bindings don't render in the shell.
       if (collected?.consumed.has(attr as ts.JsxAttribute)) continue
+      const fallback = collected?.fallbacks.get(attr as ts.JsxAttribute)
+      if (fallback) {
+        // The shell renders the read's fallback as an ordinary attribute.
+        out += ` ${attr.name.getText(sf)}="\${${lowerExprText(fallback)}}"`
+        continue
+      }
       const lowered = lowerAttribute(attr)
       if (lowered) out += ` ${lowered}`
     }
@@ -677,10 +689,16 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
   // and the set of consumed attribute nodes the shell must not render.
   const collectClientDirectives = (
     attrs: ts.JsxAttributes,
-  ): { marker?: string; consumed: Set<ts.JsxAttribute> } => {
+  ): {
+    marker?: string
+    consumed: Set<ts.JsxAttribute>
+    /** A client read's third argument: what the shell renders for the attribute. */
+    fallbacks: Map<ts.JsxAttribute, ts.Expression>
+  } => {
     const consumed = new Set<ts.JsxAttribute>()
+    const fallbacks = new Map<ts.JsxAttribute, ts.Expression>()
     const client = opts.client
-    if (!client) return { consumed }
+    if (!client) return { consumed, fallbacks }
     const pending: ClientDirective[] = []
     for (const attr of attrs.properties) {
       if (!ts.isJsxAttribute(attr)) continue
@@ -727,10 +745,12 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
           deps: inferDeps(expr, client.useFields),
           ...(toSource ? { at: toSource(attr.getStart(sf)) } : {}),
         })
-        consumed.add(attr)
+        const fallback = init.expression.arguments[2]
+        if (fallback) fallbacks.set(attr, fallback)
+        else consumed.add(attr)
       }
     }
-    if (pending.length === 0) return { consumed }
+    if (pending.length === 0) return { consumed, fallbacks }
     // One marker per element (sequential over ELEMENT markers — slots have
     // their own `s<N>` namespace).
     const marker = elementMarker(
@@ -740,7 +760,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       d.marker = marker
       client.directives.push(d)
     }
-    return { marker, consumed }
+    return { marker, consumed, fallbacks }
   }
 
   // `<children/>` → the default child bag entry; `<children name="x"/>` → the

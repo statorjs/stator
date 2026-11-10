@@ -40,6 +40,16 @@ export function read<TItem, TResult>(
   item: TItem,
   selector: (item: TItem) => TResult,
 ): ReadResult<TResult>
+/**
+ * Client-machine read with a fallback — `read(qty, (q) => q.count, 1)` in an
+ * island template. The island's shell renders `fallback` (text, or the
+ * attribute's value) until the island connects and the read takes over.
+ */
+export function read<TInstance extends { readonly __actor: unknown }, TResult>(
+  instance: TInstance,
+  selector: (instance: TInstance) => TResult,
+  fallback: NoInfer<TResult>,
+): ReadResult<TResult>
 export function read(
   // biome-ignore lint/suspicious/noExplicitAny: overload implementation — the typed surface is the two signatures above
   instance: any,

@@ -37,7 +37,8 @@ export function bind(
  * Text-slot binding for a client-machine `read()` in text position. The
  * compiler renders an `<!--sN-->` comment where the expression sat; this finds
  * every occurrence of the marker under `root` (a marker inside a `.map()`
- * repeats per row), materializes one text node after each, and binds them all
+ * repeats per row), drops any shell fallback content that follows it,
+ * materializes one text node after each, and binds them all
  * to the thunk through the normal `bind()` diff loop. Returns a disposer.
  */
 export function bindSlot(
@@ -54,6 +55,9 @@ export function bindSlot(
   while (stack.length > 0) {
     const n = stack.pop() as Node
     if (n.nodeType === 8 /* COMMENT_NODE */ && (n as Comment).data === marker) {
+      // Shell fallback content runs up to a closing `<!--/marker-->`.
+      const end = closingComment(n, `/${marker}`)
+      if (end) while (n.nextSibling && n.nextSibling !== end) n.nextSibling.remove()
       const t = document.createTextNode('')
       n.parentNode?.insertBefore(t, n.nextSibling)
       texts.push(t)
@@ -65,6 +69,13 @@ export function bindSlot(
     const s = v == null ? '' : String(v)
     for (const t of texts) if (t.data !== s) t.data = s
   })
+}
+
+function closingComment(from: Node, data: string): Node | null {
+  for (let s = from.nextSibling; s; s = s.nextSibling) {
+    if (s.nodeType === 8 /* COMMENT_NODE */ && (s as Comment).data === data) return s
+  }
+  return null
 }
 
 /**
