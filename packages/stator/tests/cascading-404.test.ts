@@ -273,6 +273,42 @@ describe('the 404 convention (a 404.stator/404.ts file) composes with cascading'
     assert.equal(miss.status, 404)
     assert.equal(await miss.text(), 'the actual 404 page')
   })
+
+  it('a 404 page answers 404 without setting the status, and is not cacheable', async () => {
+    const notFound = pageRoute(
+      '/*__stator_notfound__',
+      ['__stator_notfound__'],
+      defineRoute({ reads: [], render: () => html`<h1>Not here.</h1>` }),
+      true,
+    )
+    const store = new MachineStore([], new InMemoryStore())
+    const app = await buildHonoApp({
+      routes: sortRoutes([notFound]),
+      store,
+      caching: { sMaxAge: 60, staleWhileRevalidate: 300 },
+    })
+    const miss = await app.fetch(new Request('http://localhost/nope'))
+    assert.equal(miss.status, 404)
+    assert.match(await miss.text(), /Not here\./)
+    assert.equal(miss.headers.get('cache-control'), null)
+  })
+
+  it('a 404 page may still set its own status', async () => {
+    const gone = pageRoute(
+      '/*__stator_notfound__',
+      ['__stator_notfound__'],
+      defineRoute({
+        reads: [],
+        render: (ctx) => {
+          ctx.response.status = 410
+          return html`<h1>Gone.</h1>`
+        },
+      }),
+      true,
+    )
+    const app = await appWithRoutes([gone])
+    assert.equal((await app.fetch(new Request('http://localhost/nope'))).status, 410)
+  })
 })
 
 describe('cascading never crosses the suffixed-vs-bare-param boundary', () => {
