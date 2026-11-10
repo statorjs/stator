@@ -22,7 +22,9 @@ The docs say a portable machine can be imported into an island `<script>` and ru
 - make the stub decision follow portability, as the docs describe; or
 - keep stubbing, and make `use(<stubbed machine>)` a compile error in `stator check`, and correct the two docs pages.
 
-### 2. A top-level directory that only an island imports is not copied to `dist/`
+### 2. A top-level directory that only an island imports is not copied to `dist/` — FIXED ON `fix/beta-punchlist`
+
+**Resolution**: the copy-set walk follows each island's `<script>` imports. A package only a script imports is still left out of the artifact's dependencies, since the island bundle holds it. The landing's `build.include: ['lib']` can go.
 
 `stator build` derives the copy set from the server module graph (routes, machines, middleware, boot, config). `lib/cart-rules.ts` is imported only by an island `<script>`, so `lib/` was not copied, and the island bundle step then failed: `Could not resolve "../lib/cart-rules.ts"` from `templates/round-trip.stator.client.ts`.
 
@@ -30,13 +32,15 @@ The docs say a portable machine can be imported into an island `<script>` and ru
 
 **Cost**: a build failure whose message doesn't point at the cause. Worked around with `build.include: ['lib']` (`apps/landing/stator.config.ts`, marked TODO). **Would help**: include island `<script>` imports in the reachability walk, or bundle islands from the source tree.
 
-### 3. `routes/404.stator` answers 200, and cacheably, unless the fence sets the status
+### 3. `routes/404.stator` answers 200, and cacheably, unless the fence sets the status — FIXED ON `fix/beta-punchlist`
+
+**Resolution**: a `404.stator`/`404.ts` page's response starts at 404; the fence can still set another status.
 
 The routing guide says to set `Stator.response.status = 404`. Without that line the not-found page for every unknown URL went out as `200` with `Cache-Control: public, s-maxage=60, …`, since nothing in it withdraws the caching proof.
 
 **Cost**: one forgotten line turns every bad URL into a cacheable soft-200. **Would help**: default the status to 404 for the `404.stator` sugar route, leaving an explicit status as the override.
 
-### 4. The repo Dockerfile runs Node 22; 3.0 declares `engines.node >= 24`
+### 4. The repo Dockerfile runs Node 22; 3.0 declares `engines.node >= 24` — FIXED ON `fix/beta-punchlist`
 
 `Dockerfile:1` is `FROM node:22-slim`; `packages/stator/package.json` requires `>=24`. Whether the store deploy still boots on 22 was not tested. `apps/landing/Dockerfile` uses `node:24-slim`.
 
@@ -44,25 +48,31 @@ The routing guide says to set `Stator.response.status = 404`. Without that line 
 
 ## Paper cuts
 
-### 5. Island shells render client-machine reads as empty
+### 5. Island shells render client-machine reads as empty — OPEN, needs a design decision
 
 In the server-rendered shell a client `read()` in text position is just its marker (`Cart (<!--s0-->)`), and one in attribute position is absent (`hidden={read(...)}` rendered no `hidden`). Until the island script runs, buttons had no labels and both branches of a show/hide pair were visible; with scripting off they stay that way.
 
 **Cost**: on a cached page this is the first paint. The landing dropped `read()` in the hero island for static initial text plus one `effect()` that writes the DOM, and gave the theme button a fixed label. **Would help**: render a client read's initial value into the shell (the machine's initial context is known at shell render when the seed is static), or a documented fallback-content form.
 
-### 6. Client `machine()` definitions can't be tested in Node
+### 6. Client `machine()` definitions can't be tested in Node — FIXED ON `fix/beta-punchlist`
+
+**Resolution**: `@statorjs/stator/client` imports without a DOM; only constructing a `StatorElement` needs one, and says so.
 
 `import('@statorjs/stator/client')` throws `HTMLElement is not defined`, so a `machine()` definition can't be handed to `createActor` in `stator test`. The "most of your tests need no DOM" story stops at the island boundary.
 
 **Would help**: export `machine` from a module that doesn't load `StatorElement` (the engine subpath, or a `/client/machine` entry), so client machines test like server ones.
 
-### 7. A context key named `events`, `on`, `select` or `name` fails `machine()` with an opaque overload error
+### 7. A context key named `events`, `on`, `select` or `name` fails `machine()` with an opaque overload error — FIXED ON `fix/beta-punchlist`
+
+**Resolution**: the type error sits on the offending key and names it (`"events" is reserved in a machine() context: rename the key, or move behavior to the second argument`).
 
 `machine({ state: 'idle', events: 0 }, { … })` reports "No overload matches this call … Type 'string' is not assignable to type 'never'" against every context key, because the context parameter is typed `C & { on?: never; select?: never; name?: never; events?: never }`. Renaming the key fixes it.
 
 **Would help**: a targeted diagnostic naming the reserved key, in `stator check` or the language server.
 
-### 8. `ClientInstance` exposes context and selectors but not the state value
+### 8. `ClientInstance` exposes context and selectors but not the state value — FIXED ON `fix/beta-punchlist`
+
+**Resolution**: the handle has `state`, typed to the machine's state names, unless the context or a selector is named `state`.
 
 Only relevant if #1 goes the "allow portable machines" way: a `use()` handle on a multi-state machine has no public way to read the current state. The first draft reached for `instance.__actor.getSnapshot().value`, which is marked internal.
 
