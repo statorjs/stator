@@ -50,7 +50,7 @@ The routing guide says to set `Stator.response.status = 404`. Without that line 
 
 ### 5. Island shells render client-machine reads as empty — FIXED ON `fix/beta-punchlist`
 
-**Resolution**: the fallback form. `read(m, sel, fallback)` renders `fallback` in the shell (text between `<!--sN-->` and `<!--/sN-->`, or the attribute's value) until the island connects. Rendering the machine's own initial value on the server stays a later design. Found on the way: `stator check` does not typecheck an island's template at all (`read(qty, (q) => q.nope)` passes), so a mistyped fallback is caught only by the overload in hand-written TS.
+**Resolution**: the fallback form. `read(m, sel, fallback)` renders `fallback` in the shell (text between `<!--sN-->` and `<!--/sN-->`, or the attribute's value) until the island connects. Rendering the machine's own initial value on the server stays a later design. `stator check` now typechecks an island's template as its shell (fence bindings, class members, read fallbacks), with `props` open. Typing an island's shell props is the remaining gap. A `machine()` with no selectors also no longer accepts every property on its handle.
 
 In the server-rendered shell a client `read()` in text position is just its marker (`Cart (<!--s0-->)`), and one in attribute position is absent (`hidden={read(...)}` rendered no `hidden`). Until the island script runs, buttons had no labels and both branches of a show/hide pair were visible; with scripting off they stay that way.
 

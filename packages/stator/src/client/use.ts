@@ -48,13 +48,21 @@ export interface ClientInstanceBase<
   readonly __actor: AnyActor
 }
 
+type DeclaredKeys<T> = keyof { [K in keyof T as string extends K ? never : K]: T[K] }
+
 /** Context keys + selector results as readonly live properties — the typed
  *  mirror of what the runtime proxy exposes. */
 type ClientView<D> =
   D extends MachineDef<infer C, infer _E, infer S, infer Sel, infer _N>
     ? { readonly [K in keyof C]: C[K] } & {
-        readonly [K in keyof Sel]: Sel[K] extends (...args: never[]) => infer R ? R : never
-      } & ('state' extends keyof C | keyof Sel
+        // A machine with no declared selectors has an index-signature selector
+        // type; mapping it would make every property access legal.
+        readonly [K in keyof Sel as string extends K ? never : K]: Sel[K] extends (
+          ...args: never[]
+        ) => infer R
+          ? R
+          : never
+      } & ('state' extends keyof C | DeclaredKeys<Sel>
           ? unknown
           : {
               /** The current state's name. A context key or selector named

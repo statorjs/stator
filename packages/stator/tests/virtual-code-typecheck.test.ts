@@ -160,6 +160,49 @@ const FORM_ONSUBMIT_ATTR = `---
 <form method="post" onsubmit="return confirm('Delete all logs?')"><button type="submit">Go</button></form>
 `
 
+// An island's template is its server shell. It sees the fence's bindings, the
+// shell's open `props`, and the element class's members.
+const ISLAND = (template: string) => `---
+const limit: number = 3
+---
+<cart-panel>
+${template}
+</cart-panel>
+
+<script>
+  const Cart = machine({ count: 1 }, {
+    on: { ADD: (s) => { s.count++ } },
+    select: { label: (s) => 'Cart ' + s.count },
+  })
+  const Plain = machine({ open: false })
+  export class CartPanel extends StatorElement {
+    cart = use(Cart)
+    plain = use(Plain)
+    add() { this.cart.send('ADD') }
+  }
+</script>
+`
+
+const ISLAND_GOOD = ISLAND(`  <button on:click={add} title={read(cart, (c) => c.label, 'Cart')}>
+    {read(cart, (c) => c.count, limit)} of {limit}
+  </button>
+  <p hidden={read(plain, (p) => p.open, false)}>{read(cart, (c) => c.state)}</p>
+  <ul>
+    {props.rows.map((row) => (
+      <li title={row.name}>{row.cells.map(cell => <b>{cell.text}</b>)}</li>
+    ))}
+    {props.pairs.map(({ key, value }, i) => <li data-i={i}>{key}: {value}</li>)}
+  </ul>
+  <span>{read(props.machine, (m) => m.count)}</span>`)
+
+const ISLAND_BAD_FALLBACK = ISLAND("  <p>{read(cart, (c) => c.count, 'none')}</p>")
+const ISLAND_BAD_MEMBER = ISLAND('  <p>{read(basket, (c) => c.count)}</p>')
+const ISLAND_BAD_SELECTOR = ISLAND('  <p>{read(cart, (c) => c.total)}</p>')
+const ISLAND_BAD_PLAIN = ISLAND('  <p>{read(plain, (p) => p.closed)}</p>')
+const ISLAND_BAD_FENCE = ISLAND('  <p>{limit.toUpperCase()}</p>')
+// A callback over a typed value is TypeScript's to type, not waved through.
+const ISLAND_BAD_TYPED_CALLBACK = ISLAND('  <p>{[1, 2].map((n) => n.toUpperCase())}</p>')
+
 function emitAll(ambient: AmbientSource): Record<string, string> {
   const out = join(dir, ambient)
   mkdirSync(out, { recursive: true })
@@ -178,6 +221,13 @@ function emitAll(ambient: AmbientSource): Record<string, string> {
     ['response-headers-bad', RESPONSE_HEADERS_BAD],
     ['input-form-attr', INPUT_FORM_ATTR],
     ['form-onsubmit-attr', FORM_ONSUBMIT_ATTR],
+    ['island-good', ISLAND_GOOD],
+    ['island-bad-fallback', ISLAND_BAD_FALLBACK],
+    ['island-bad-member', ISLAND_BAD_MEMBER],
+    ['island-bad-selector', ISLAND_BAD_SELECTOR],
+    ['island-bad-plain', ISLAND_BAD_PLAIN],
+    ['island-bad-fence', ISLAND_BAD_FENCE],
+    ['island-bad-typed-callback', ISLAND_BAD_TYPED_CALLBACK],
   ] as const) {
     // The editor resolves `.stator` imports through the language plugin; here
     // tsc plays that role by resolving the emitted sibling `.tsx`.
@@ -239,6 +289,29 @@ for (const ambient of ['bundled', 'project'] as const)
       const bad = diags.get('route-bad')!
       assert.ok(bad.length > 0)
       assert.match(bad.join('\n'), /notACart|not assignable/)
+    })
+
+    it('an island template typechecks clean: members, fence bindings, open props', () => {
+      // Callbacks over the shell's untyped props (nested, destructured, bare
+      // single parameter) are not implicit-any errors.
+      assert.deepStrictEqual(diags.get('island-good'), [])
+    })
+
+    it('an island template reports what is wrong in it', () => {
+      const of = (name: string): string => diags.get(name)!.join('\n')
+      assert.match(
+        of('island-bad-fallback'),
+        /'string' is not assignable to parameter of type 'number'/,
+      )
+      assert.match(of('island-bad-member'), /Cannot find name 'basket'/)
+      assert.match(of('island-bad-selector'), /Property 'total' does not exist/)
+      // A machine with no declared selectors does not accept every property.
+      assert.match(of('island-bad-plain'), /Property 'closed' does not exist/)
+      assert.match(of('island-bad-fence'), /Property 'toUpperCase' does not exist on type 'number'/)
+      assert.match(
+        of('island-bad-typed-callback'),
+        /Property 'toUpperCase' does not exist on type 'number'/,
+      )
     })
 
     it('a component forwards {...rest} onto a native element and typechecks clean', () => {

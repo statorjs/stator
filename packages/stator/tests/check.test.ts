@@ -116,6 +116,54 @@ describe('stator check: how island scripts use machine modules', () => {
   })
 })
 
+describe('stator check: an island template is typechecked', () => {
+  const island = (fallback: string) =>
+    '<qty-badge>\n' +
+    '  <ul>{props.rows.map((row) => <li>{row.name}</li>)}</ul>\n' +
+    `  <span>{read(qty, (q) => q.count, ${fallback})}</span>\n` +
+    '</qty-badge>\n\n' +
+    '<script>\n  const Qty = machine({ count: 1 })\n' +
+    '  export class QtyBadge extends StatorElement {\n    qty = use(Qty)\n  }\n</script>\n'
+  const app = async (fallback: string): Promise<void> => {
+    await scaffold("---\nimport Badge from '../templates/qty-badge.stator'\n---\n<Badge />\n")
+    await mkdir(join(root, 'templates'), { recursive: true })
+    await writeFile(join(root, 'templates/qty-badge.stator'), island(fallback))
+    // An app's tsconfig: the generated check files are part of the program.
+    const config = JSON.parse(tsconfig)
+    config.compilerOptions = {
+      ...config.compilerOptions,
+      module: 'ESNext',
+      moduleResolution: 'Bundler',
+      lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+      allowImportingTsExtensions: true,
+      jsx: 'preserve',
+      rootDirs: ['.', '.stator/types', '.stator/check'],
+    }
+    config.include = ['lib', '.stator/check/**/*.tsx']
+    await writeFile(join(root, 'tsconfig.json'), JSON.stringify(config))
+  }
+
+  it('passes a sound template, callbacks over untyped props included', async () => {
+    await app('1')
+    mock.method(process.stdout, 'write', () => true)
+    assert.equal(await checkStack(root), undefined)
+  })
+
+  it('fails a mistyped read fallback, located in the .stator source', async () => {
+    await app("'one'")
+    const stderr = mock.method(process.stderr, 'write', () => true)
+    mock.method(process.stdout, 'write', () => true)
+    await assert.rejects(checkStack(root), /typecheck failed with 1 error/)
+    const out = stderr.mock.calls
+      .map((c) => String(c.arguments[0]))
+      .join('')
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: strips tsc's colour codes
+      .replace(/\x1b\[\d+m/g, '')
+    assert.match(out, /templates\/qty-badge\.stator:3:36/)
+    assert.match(out, /'string' is not assignable to parameter of type 'number'/)
+  })
+})
+
 describe('stator check: the compiler runs over every .stator file', () => {
   it('a template the dev server would reject fails check, located', async () => {
     await scaffold(`---\nconst { x } = Stator.props<{ x: string }>()\n---\n<p>{x}</p>\n`)
