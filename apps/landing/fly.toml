@@ -1,0 +1,22 @@
+# statorjs.dev. Deploy from the repo root:
+#   fly deploy --config apps/landing/fly.toml --dockerfile apps/landing/Dockerfile
+
+app = 'statorjs-landing'
+primary_region = 'ord'
+
+[env]
+  NODE_ENV = 'production'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # No route reads a session machine and nothing is live, so any machine can
+  # answer any request and an idle one can stop.
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'

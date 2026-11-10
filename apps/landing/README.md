@@ -1,41 +1,46 @@
 # Stator landing page
 
-Static site for [statorjs.dev](https://statorjs.dev). Plain HTML + CSS, no build step. Deployed to Netlify.
+[statorjs.dev](https://statorjs.dev), built with Stator and deployed to Fly.io.
 
 ## Layout
 
 ```
 apps/landing/
-  index.html      ← single-page content
-  styles.css      ← all styles, theme tokens for light/dark
-  package.json    ← workspace member, optional deploy scripts
+  routes/index.stator          the page
+  routes/404.stator            not-found page
+  templates/layout.stator      document shell, header, footer
+  templates/round-trip.stator  hero demo (client island)
+  templates/site-mark.stator   logo; its rotor turns once per demo event (client island)
+  templates/theme-toggle.stator
+  lib/cart-rules.ts            the demo cart's rules, as plain functions
+  lib/demo-cart.ts             the same cart as a session machine (tested, shown on the page)
+  static/site.css              design tokens and global styles, light and dark
+  tests/demo-cart.test.ts
 ```
 
-Deploy config (`base = "apps/landing"`, headers, etc.) lives in the repo-root [`netlify.toml`](../../netlify.toml), not here. That root config is what Netlify reads when it auto-deploys on push to `main`.
-
-## Local preview
-
-Open `index.html` in a browser directly, or run a tiny static server so relative paths and `localStorage` work consistently:
+## Run it
 
 ```bash
-python3 -m http.server -d apps/landing 8080
-# then visit http://localhost:8080
+pnpm --filter landing dev      # http://localhost:3000
+pnpm --filter landing test
+pnpm --filter landing build && pnpm --filter landing start
 ```
+
+Fonts are copied from the Fontsource packages into `static/fonts/` before `dev` and `build`.
+
+## Caching
+
+The home route declares no machine reads, so the production server sends
+`Cache-Control: public, max-age=0, s-maxage=60, stale-while-revalidate=300` and no session cookie. Keep it that
+way: a session-machine read on this route would create a session per visitor and withdraw the header.
+
+That is why the hero demo is a client island. It runs the cart in the browser and shows the events and patches
+that would cross the wire in a server-rendered app.
 
 ## Deploy
 
-The site is connected to this GitHub repo via the Netlify dashboard. Pushes to `main` trigger an auto-deploy. No manual command needed for the normal case.
-
-For ad-hoc deploys from your machine (e.g. testing a config change before pushing), the optional scripts in this package:
+From the repo root:
 
 ```bash
-cd apps/landing
-pnpm preview           # → netlify deploy --dir .   (returns a unique URL)
-pnpm deploy            # → netlify deploy --prod --dir .  (promotes to prod)
+fly deploy --config apps/landing/fly.toml --dockerfile apps/landing/Dockerfile
 ```
-
-Both expect `netlify login` + `netlify link` already done. The CLI flow uses the root `netlify.toml`'s base/publish settings, so behavior matches the git-integration path.
-
-## Content notes
-
-The page describes the framework as it exists today, with V1 plans split out in the `§5 What works, what's planned` section. When the V1 work lands (client machines, SFC compiler, typed events, etc.), move those items from PLANNED to WORKING and update §2's code example if the `defineMachine` shape has changed.

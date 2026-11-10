@@ -1,0 +1,41 @@
+<theme-toggle>
+  <button class="btn btn--tertiary press" type="button" on:click={toggle} aria-label="Switch colour theme">
+    Theme
+  </button>
+</theme-toggle>
+
+<script>
+  const Theme = machine(
+    { mode: 'light' },
+    {
+      on: { TOGGLE: (s) => { s.mode = s.mode === 'light' ? 'dark' : 'light' } },
+    },
+  )
+
+  export class ThemeToggle extends StatorElement {
+    theme = use(Theme, () => ({ mode: currentTheme() }))
+
+    toggle() {
+      this.theme.send('TOGGLE')
+      const mode = this.theme.mode
+      document.documentElement.dataset.theme = mode
+      try { localStorage.setItem('stator-theme', mode) } catch {}
+    }
+  }
+
+  function currentTheme() {
+    const forced = document.documentElement.dataset.theme
+    if (forced === 'light' || forced === 'dark') return forced
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  }
+</script>
+
+<style>
+  theme-toggle {
+    display: inline-flex;
+  }
+  button {
+    min-width: 76px;
+    justify-content: center;
+  }
+</style>

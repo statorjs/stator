@@ -2,9 +2,26 @@
 	"name": "landing",
 	"version": "0.0.2",
 	"private": true,
-	"description": "Static landing page for statorjs.dev. Plain HTML/CSS, deployed to Netlify.",
+	"type": "module",
+	"description": "statorjs.dev, built with Stator and deployed to Fly.io.",
 	"scripts": {
-		"deploy": "netlify deploy --prod --dir .",
-		"preview": "netlify deploy --dir ."
+		"sync:fonts": "node scripts/sync-fonts.mjs",
+		"predev": "pnpm run sync:fonts",
+		"prebuild": "pnpm run sync:fonts",
+		"dev": "stator dev",
+		"build": "stator build",
+		"start": "stator start",
+		"check": "stator check",
+		"test": "stator test"
+	},
+	"dependencies": {
+		"@fontsource-variable/jetbrains-mono": "^5.2.0",
+		"@fontsource-variable/space-grotesk": "^5.2.0",
+		"@statorjs/stator": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "^22.20.5",
+		"pino-pretty": "^13.2.0",
+		"typescript": "^5.6.0"
 	}
 }

@@ -1,0 +1,145 @@
+---
+import Layout from '../templates/layout.stator'
+import RoundTrip from '../templates/round-trip.stator'
+
+const TITLE = 'Stator · render HTML where your state lives'
+const DESCRIPTION =
+  'A TypeScript framework where your app’s state lives in machines on the server. An event goes up, a patch comes down.'
+
+const TEST_HEAD = `import assert from 'node:assert/strict'
+import { it } from 'node:test'
+import { createActor } from '@statorjs/stator/machine'
+import CartMachine from '../lib/demo-cart.ts'
+
+it('refuses to check out an empty cart', () => {
+  const actor = createActor(CartMachine).start()
+  actor.send({ type: 'CHECKOUT' })
+  `
+const TEST_TAIL = `.deepStrictEqual(actor.getSnapshot().value, ['idle'])
+})`
+---
+<Layout title={TITLE} description={DESCRIPTION}>
+  <div child="hero">
+    <section class="wrap hero">
+      <h1 class="display">Render HTML where your state lives.</h1>
+      <div class="hero-side">
+        <p class="lede">
+          Stator is a TypeScript framework where your app’s state lives in machines on the server. An event
+          goes up, a patch comes down. No API layer, no client store, nothing to hydrate.
+        </p>
+        <div class="actions">
+          <a class="btn btn--primary press" href="https://docs.statorjs.dev">Start the tutorial</a>
+          <span class="install"><span class="prompt">$</span> pnpm create stator</span>
+        </div>
+      </div>
+    </section>
+    <section class="wrap demo">
+      <RoundTrip />
+    </section>
+  </div>
+
+  <section class="wrap section cards">
+    <article class="card card--pink">
+      <h2 class="h2">One program, not two.</h2>
+      <p>
+        No endpoints, no fetch calls, no client copy of your data to go stale. State lives in typed machines
+        on the server, and templates read from them.
+      </p>
+    </article>
+    <article class="card card--vermilion">
+      <h2 class="h2">Live without writing it.</h2>
+      <p>
+        Add <code>live: true</code> to a route and every open page that reads a changed machine updates,
+        across sessions.
+      </p>
+    </article>
+    <article class="card card--violet">
+      <h2 class="h2">Instant where it matters.</h2>
+      <p>
+        A component with a <code>{'<script>'}</code> becomes a client island: the same machine engine in the
+        browser, as a custom element. The compiler checks what ships.
+      </p>
+    </article>
+  </section>
+
+  <section class="band band--violet">
+    <div class="wrap section split">
+      <div class="split-text">
+        <h2 class="h1">This is the entire test.</h2>
+        <p>
+          Business logic is a machine, so it tests with Node’s own runner. Nothing to install, no DOM, no
+          mock server. This one covers the same cart rules you just pressed.
+        </p>
+      </div>
+      <figure class="code-window">
+        <figcaption>tests/demo-cart.test.ts</figcaption>
+        <pre><code>{TEST_HEAD}<span class="hl">assert</span>{TEST_TAIL}</code></pre>
+      </figure>
+    </div>
+  </section>
+
+  <section class="wrap section split split--center">
+    <div class="split-text">
+      <h2 class="h1">No Vite. No Vitest. No build config.</h2>
+      <p>
+        Stator runs your TypeScript directly on Node 24 and ships its own dev server, type checker, test
+        command and production build. The dev server runs your app the way production does.
+      </p>
+      <div class="chips">
+        <span class="counter">stator dev</span>
+        <span class="counter">stator check</span>
+        <span class="counter">stator test</span>
+        <span class="counter">stator build</span>
+      </div>
+    </div>
+    <a class="btn btn--secondary btn--lg press" href="https://demo.statorjs.dev">Open the demo</a>
+  </section>
+
+  <section class="band band--surface">
+    <div class="wrap section stack">
+      <h2 class="h1 measure">If you know these, you know most of it.</h2>
+      <div class="cards">
+        <article class="card">
+          <h3 class="h3">Phoenix LiveView</h3>
+          <p>
+            The closest relative. The server holds the state, diffs it and patches the DOM. Stator brings that
+            model to TypeScript, with state machines as the unit and state in a store you choose.
+          </p>
+          <p class="small">Pick LiveView when you can be on the BEAM and need to scale across nodes today.</p>
+        </article>
+        <article class="card">
+          <h3 class="h3">Hotwire and htmx</h3>
+          <p>
+            The same HTML-over-the-wire instinct. Where they swap fragments, Stator sends typed events to
+            typed machines and gets structured patches back.
+          </p>
+          <p class="small">Pick Hotwire when you are already a Rails shop and the app is shaped like CRUD.</p>
+        </article>
+        <article class="card">
+          <h3 class="h3">React and RSC</h3>
+          <p>
+            The opposite default. React ships a renderer and marks files as server or client. Stator ships no
+            renderer, and where code runs is decided by where you import it.
+          </p>
+          <p class="small">Pick React when ecosystem depth or the hiring pool matters most.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap section stack">
+    <span class="chip chip--lg">NOT A GOAL</span>
+    <ul class="struck">
+      <li><s>A virtual DOM.</s></li>
+      <li><s>A client-side router.</s></li>
+      <li><s>Hydration.</s></li>
+      <li><s>Your React components.</s></li>
+      <li><s>Optimistic updates.</s></li>
+    </ul>
+    <p class="measure">
+      Stator is small because it says no. An optimistic update is a second copy of the truth, so there are
+      none; what must be instant lives in a client island. Stator also runs on a single replica today, with
+      scale-out planned.
+    </p>
+  </section>
+</Layout>
