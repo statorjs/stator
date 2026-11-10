@@ -2,7 +2,7 @@ import { type Dirent, realpathSync } from 'node:fs'
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { builtinModules } from 'node:module'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
-import { build } from 'esbuild'
+import { build, type OnLoadArgs, type OnLoadResult } from 'esbuild'
 import ts from 'typescript'
 import { compile, regionResolverFor } from '../compiler/index.ts'
 
@@ -22,7 +22,9 @@ import { compile, regionResolverFor } from '../compiler/index.ts'
  * pass parses nothing itself: resolution is esbuild's, so tsconfig `paths`,
  * extensionless specifiers, index files and `exports` maps behave exactly as
  * they do at runtime, and `.stator` files are compiled on load so frontmatter
- * imports are in the graph like any other import.
+ * imports are in the graph like any other import. An island's `<script>` is
+ * walked too, so a directory only a script imports is copied, but a package
+ * only a script imports is not recorded: the island bundle already holds it.
  *
  * Copying is DIRECTORY-granular on purpose. A module's data files — a template
  * read with `readFile`, a fixture JSON — are invisible to any import graph, so
@@ -59,6 +61,12 @@ const BUILTIN = new Set([...builtinModules, ...builtinModules.map((m) => `node:$
  *  dependency, never app source — and a real app's `node_modules` sits INSIDE
  *  its root, so root containment alone cannot tell them apart. */
 const NODE_MODULES = /[\\/]node_modules[\\/]/
+/** esbuild namespaces: an island's generated client module, and every app
+ *  module reached from one. Kept apart from `file` so a module both sides
+ *  import is walked once per side. */
+const ISLAND = 'stator-island'
+const CLIENT = 'stator-client'
+const ISLAND_PREFIX = 'stator-island:'
 const norm = (p: string): string => p.replace(/\\/g, '/')
 
 export interface UntracedImport {
@@ -128,7 +136,7 @@ async function walk(dir: string, match: (f: string) => boolean): Promise<string[
 }
 
 /**
- * Walk the app's server graph and report what `dist/` needs. Writes nothing and
+ * Walk the app's module graph and report what `dist/` needs. Writes nothing and
  * runs no app code — `.stator` is compiled, everything else is only parsed.
  */
 export async function resolveCopySet(opts: CopySetOptions): Promise<CopySet> {
@@ -177,6 +185,7 @@ export async function resolveCopySet(opts: CopySetOptions): Promise<CopySet> {
   const external = new Set<string>()
   const unresolved = new Set<string>()
   const untraced: UntracedImport[] = []
+  const islandCode = new Map<string, string>()
 
   /**
    * The two dependencies a module carries that the bundler's own graph misses,
@@ -264,7 +273,13 @@ export async function resolveCopySet(opts: CopySetOptions): Promise<CopySet> {
           setup(b) {
             b.onResolve({ filter: /.*/ }, async (args) => {
               if (args.kind === 'entry-point' || args.pluginData?.resolved) return null
+              if (args.path.startsWith(ISLAND_PREFIX)) {
+                return { path: args.path.slice(ISLAND_PREFIX.length), namespace: ISLAND }
+              }
               if (BUILTIN.has(args.path)) return { path: args.path, external: true }
+              // Reached from an island `<script>`: source the build must copy,
+              // but never a runtime dependency of the server.
+              const client = args.namespace === ISLAND || args.namespace === CLIENT
 
               const r = await b.resolve(args.path, {
                 kind: args.kind,
@@ -290,7 +305,7 @@ export async function resolveCopySet(opts: CopySetOptions): Promise<CopySet> {
               const bare = !args.path.startsWith('.') && !isAbsolute(args.path)
               const inRoot = isAbsolute(abs) && insideRoot(abs)
               if (NODE_MODULES.test(abs) || (!inRoot && bare)) {
-                if (bare) {
+                if (bare && !client) {
                   packages.add(
                     args.path.startsWith('@')
                       ? args.path.split('/').slice(0, 2).join('/')
@@ -307,10 +322,14 @@ export async function resolveCopySet(opts: CopySetOptions): Promise<CopySet> {
                 assets.add(abs) // data file: recorded, never parsed
                 return { path: abs, external: true }
               }
-              return { path: abs, pluginData: { resolved: true } }
+              return {
+                path: abs,
+                namespace: client ? CLIENT : 'file',
+                pluginData: { resolved: true },
+              }
             })
 
-            b.onLoad({ filter: /\.stator$/ }, async (args) => {
+            const loadStator = async (args: OnLoadArgs): Promise<OnLoadResult> => {
               reached.add(args.path)
               const source = await readFile(args.path, 'utf8')
               const kind = /[\\/]routes[\\/].*\.stator$/.test(args.path) ? 'route' : 'component'
@@ -319,14 +338,20 @@ export async function resolveCopySet(opts: CopySetOptions): Promise<CopySet> {
                 kind,
                 resolveRegions: regionResolverFor(args.path, source),
               })
+              if (out.clientCode) islandCode.set(args.path, out.clientCode)
+              // An island's script is a second module the shell never imports;
+              // linking it here puts what only the script imports in the graph.
+              const island = out.clientCode
+                ? `\nimport ${JSON.stringify(ISLAND_PREFIX + args.path)}\n`
+                : ''
               return {
-                contents: scan(out.serverCode, args.path),
+                contents: scan(out.serverCode, args.path) + island,
                 loader: 'ts',
                 resolveDir: dirname(args.path),
               }
-            })
+            }
 
-            b.onLoad({ filter: CODE }, async (args) => {
+            const loadCode = async (args: OnLoadArgs): Promise<OnLoadResult> => {
               reached.add(args.path)
               const source = await readFile(args.path, 'utf8')
               return {
@@ -338,7 +363,17 @@ export async function resolveCopySet(opts: CopySetOptions): Promise<CopySet> {
                     : 'ts',
                 resolveDir: dirname(args.path),
               }
-            })
+            }
+
+            for (const namespace of ['file', CLIENT]) {
+              b.onLoad({ filter: /\.stator$/, namespace }, loadStator)
+              b.onLoad({ filter: CODE, namespace }, loadCode)
+            }
+            b.onLoad({ filter: /.*/, namespace: ISLAND }, (args) => ({
+              contents: scan(islandCode.get(args.path) ?? '', args.path),
+              loader: 'ts',
+              resolveDir: dirname(args.path),
+            }))
           },
         },
       ],
