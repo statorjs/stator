@@ -17,6 +17,7 @@ import {
   type TaggedIsland,
   tagCollisions,
 } from '../build/library-islands.ts'
+import { routeOfferedEvents } from '../build/offered-events.ts'
 import { routeCssMap, routeCssPath } from '../build/route-css.ts'
 import { sourceId } from '../build/source-id.ts'
 import { CompileError, compile, formatCompileError, regionResolverFor } from '../compiler/index.ts'
@@ -473,6 +474,11 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       buildId,
       cors: resolved.cors,
       middleware,
+      eventGate: config.events?.gate,
+      eventMaxBytes: config.events?.maxBytes,
+      // Read from source on every event: files change under the dev server,
+      // and each one is re-read only when its mtime moves.
+      offeredEvents: (routeFile) => routeOfferedEvents(routeFile, root),
     })
   }
 

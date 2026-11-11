@@ -1,0 +1,20 @@
+<add-button>
+  <button on:click={add}>add</button>
+  <span>{read(local, (l) => l.n)}</span>
+</add-button>
+
+<script>
+  import Cart from '../machines/cart.ts'
+  import { ping } from '../lib/ping.ts'
+
+  const Local = machine({ n: 0 }, { on: { BUMP: (s) => { s.n++ } } })
+
+  export class AddButton extends StatorElement {
+    local = use(Local)
+    async add() {
+      this.local.send('BUMP')
+      await dispatch(Cart, { type: 'ADD', id: 'p1' })
+      ping()
+    }
+  }
+</script>

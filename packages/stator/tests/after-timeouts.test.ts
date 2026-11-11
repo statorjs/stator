@@ -10,6 +10,8 @@ const efFixtures = resolve(here, 'fixtures/entry-effects')
 
 const boot = () =>
   createApp({
+    // These fixtures post events their pages do not render.
+    events: { gate: 'off' },
     machinesDir: resolve(efFixtures, 'machines'),
     routesDir: resolve(efFixtures, 'routes'),
   })

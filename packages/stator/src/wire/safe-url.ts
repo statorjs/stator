@@ -42,6 +42,31 @@ export function safeNavigationUrl(url: string, fallback = '/'): string {
   return isSafeNavigationUrl(url) ? url : fallback
 }
 
+/**
+ * A path on this site, for "send them back where they came from": `target`
+ * when it is one, else `fallback`. A value read from a query string, a form
+ * field or a cookie is the visitor's to choose, and a redirect to it is only
+ * safe when it cannot leave the origin.
+ *
+ * `target.startsWith('/')` is not that test. `//host` is another origin, and
+ * so is `/\host`: browsers read a backslash as a slash. This resolves the
+ * value the way a browser would and keeps it only if it stayed put.
+ */
+export function safeLocalPath(target: string | null | undefined, fallback = '/'): string {
+  if (!target) return fallback
+  if (target[0] !== '/' || target[1] === '/' || target.includes('\\')) return fallback
+  for (let i = 0; i < target.length; i++) {
+    const code = target.charCodeAt(i)
+    if (code <= 0x20 || (code >= 0x7f && code <= 0x9f)) return fallback
+  }
+  const base = 'http://local.invalid'
+  try {
+    return new URL(target, base).origin === base ? target : fallback
+  } catch {
+    return fallback
+  }
+}
+
 /** Attribute names whose values are fetched/navigated as URLs. */
 const URL_ATTRS = new Set([
   'href',

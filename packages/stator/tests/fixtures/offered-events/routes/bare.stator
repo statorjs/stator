@@ -1,0 +1,6 @@
+---
+import Cart from '../machines/cart.ts'
+
+const [cart] = Stator.reads([Cart])
+---
+<p>{read(cart, (c) => c.count)} items</p>

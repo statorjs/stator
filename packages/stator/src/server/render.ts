@@ -156,7 +156,9 @@ async function resolveDeferred(state: RenderState, html: string): Promise<string
     await new Promise((resolve) => setTimeout(resolve, 0))
     await Promise.all(batch.map((record) => record.resource.settled))
     for (const record of batch) {
-      html = html.replace(deferSentinel(record.slotId), fillDeferSlot(state, record))
+      // A function, so `$&` and its kin in rendered text are not replacement patterns.
+      const filled = fillDeferSlot(state, record)
+      html = html.replace(deferSentinel(record.slotId), () => filled)
     }
   }
   return html

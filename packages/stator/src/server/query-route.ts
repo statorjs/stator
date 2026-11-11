@@ -4,6 +4,7 @@ import { isResponseLike } from './api-route.ts'
 import { scheduleSessionEffects } from './effects.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
+import { markDerivedCaching, withContextHeaders } from './response-context.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
 import { buildRouteRequest } from './route-request.ts'
 import type {
@@ -75,7 +76,7 @@ export async function runQueryRoute(
     if ((c.req.header('if-none-match') ?? '').includes(revisionEtag)) {
       const notModified = new Response(null, { status: 304, headers: { ETag: revisionEtag } })
       applyDerivedCaching(c, notModified, { caching, needsSession })
-      return notModified
+      return withContextHeaders(c, notModified)
     }
   }
   const sessionId = needsSession
@@ -87,7 +88,11 @@ export async function runQueryRoute(
 
   const runtime = new SessionRuntime(sessionId, store)
   try {
-    await withSessionLock(sessionId, () => runtime.loadGraph(route.reads))
+    // The lock orders hydration of a session's machines. A route that reads
+    // none has nothing to hydrate, and must not queue every anonymous caller
+    // behind one shared id.
+    if (needsSession) await withSessionLock(sessionId, () => runtime.loadGraph(route.reads))
+    else await runtime.loadGraph(route.reads)
 
     // Same shape as a page's render context: proxies keyed by machine name.
     // Session machines come from the hydrated runtime, app machines resolve
@@ -135,7 +140,7 @@ export async function runQueryRoute(
       }
     }
     applyDerivedCaching(c, res, { caching, needsSession })
-    return res
+    return withContextHeaders(c, res)
   } finally {
     runtime.dispose()
   }
@@ -163,6 +168,7 @@ function applyDerivedCaching(
     return
   }
   try {
+    markDerivedCaching(c)
     res.headers.set(
       'cache-control',
       `public, max-age=0, s-maxage=${opts.caching.sMaxAge}, stale-while-revalidate=${opts.caching.staleWhileRevalidate}`,

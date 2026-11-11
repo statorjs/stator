@@ -17,6 +17,7 @@ import {
   reachIslands,
   tagCollisions,
 } from './library-islands.ts'
+import { routeOfferedEvents } from './offered-events.ts'
 import { routeCssMap, routeCssPath } from './route-css.ts'
 
 /**
@@ -125,6 +126,10 @@ export interface StatorManifest {
    *  `stator start` for the snapshot hydration policy; the build fails if a
    *  machine's closure cannot be bundled, so this lands in CI, not at boot. */
   machines: Record<string, string>
+  /** Route file (relative to `routes/`) → the event types its page offers
+   *  the browser, and any send the build could not read (which leaves the
+   *  route open). `stator start` gates `/__events` on it. */
+  events: Record<string, { types: string[]; open: string[] }>
   /** The config file copied into the artifact, or `null` when the app has none.
    *  `stator start` reads config from the artifact and nowhere else, so it needs
    *  to tell "this app has no config" from "the config didn't make the trip" —
@@ -271,6 +276,15 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
   // The config file the artifact carries, by name — `copySet.files` holds it if
   // the app has one, since the graph walk treats it as an entry point.
   const configFile = copySet.files.find((f) => /^stator\.config\.(ts|mts|js|mjs)$/.test(f)) ?? null
+  const events: StatorManifest['events'] = {}
+  const builtRoutes = join(outDir, 'routes')
+  for (const routeFile of await walkFiles(builtRoutes, (f) => /\.(ts|js)$/.test(f))) {
+    const offered = await routeOfferedEvents(routeFile, outDir)
+    events[relative(builtRoutes, routeFile).replace(/\\/g, '/')] = {
+      types: [...offered.types].sort(),
+      open: [...offered.open],
+    }
+  }
   const manifest: StatorManifest =
     allIslands.length > 0
       ? {
@@ -278,6 +292,7 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
           ...(await buildClientAssets(outDir, allIslands, reach)),
           routeCss: routeCssHrefs,
           machines,
+          events,
           config: configFile,
           statorVersion,
         }
@@ -287,6 +302,7 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
           routes: {},
           routeCss: routeCssHrefs,
           machines,
+          events,
           config: configFile,
           statorVersion,
         }

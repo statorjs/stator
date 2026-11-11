@@ -11,6 +11,8 @@ const fixtures = resolve(here, 'fixtures/server-only')
 
 const boot = () =>
   createApp({
+    // These fixtures post events their pages do not render.
+    events: { gate: 'off' },
     machinesDir: resolve(fixtures, 'machines'),
     routesDir: resolve(fixtures, 'routes'),
   })

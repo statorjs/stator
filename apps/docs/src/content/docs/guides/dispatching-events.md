@@ -51,6 +51,26 @@ A machine an island imports only to dispatch to collapses to an identity stub (`
 - **`patchCount`** — patches applied to *this* page. A committed event may patch zero slots here if the machines it touched aren't bound on the current route.
 - **`error`** — present only when `ok` is false: `{ phase: 'network' | 'timeout' | 'http', status? }`.
 
+## What a page may send
+
+`/__events` accepts an event only when the page it names **offers** it: some template or island that page can render sends that event type. The list is read from your source, not from what a visitor happens to see. A button inside an inactive `when` arm, a `defer` section or a row that isn't rendered yet still counts, so a slow click is never refused for arriving late.
+
+What the rule excludes is what no UI sends. An effect's completion (`CHARGE_OK`), an `after:` timer's event, an event only another machine raises: none appears in a template, so a browser that posts one gets a **403**. That holds without any declaration from you.
+
+Three things to know:
+
+- **Write event types as literals.** The list is built from `{ type: 'ADD' }` in `machine.send(…)` and `dispatch(Machine, …)`. A type computed at runtime can't be listed, so a page that has one stays open, accepting every event its machines handle. `stator check` warns and names the line; branch to one send per type to close it.
+- **It is per page.** An event the product page sends is refused when posted under the cart page's route. A test that posts to `/__events` has to name a page that offers the event.
+- **It is not authorization.** The list is by event type and the same for every visitor: an admin-only button puts its event on the page's list for everyone. Whether *this* visitor may commit it is still the machine guard's decision.
+
+`events: { gate: 'warn' }` in `stator.config.ts` logs what would be refused and lets it through, for rolling the rule onto an existing app; `'off'` disables it.
+
+### What arrives is JSON, not your event type
+
+The event union types your code; it does not check the wire. The server confirms the event's `type` and nothing else, so a field typed `string` can arrive as an object, and a field typed `'name' | 'email'` can arrive as any string. A guard or action that uses a field to index, compute or store has to check it first. `ctx[ev.field] = ev.value` trusts the browser with the choice of field.
+
+An event body is capped at 64 KiB (`events.maxBytes`); a larger one is refused with a 413 before it is parsed.
+
 ## Failure and retry semantics
 
 Every event POST carries an `eventId`. Network and timeout failures retry with backoff under the same id, and the server's replay cache makes a duplicate that did arrive safe to re-send — so a flaky connection can't apply an event twice. Non-2xx responses are terminal immediately: the server saw the event and answered.

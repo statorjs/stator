@@ -6,6 +6,7 @@ import { scheduleSessionEffects } from './effects.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import type { RenderedResponseEffects } from './render.ts'
+import { withContextHeaders } from './response-context.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
 import { buildRouteRequest } from './route-request.ts'
 import type {
@@ -130,8 +131,9 @@ export async function runApiRoute(
       // (never under the session lock); see server/effects.ts.
       scheduleSessionEffects(runtime, store, effectsSessionId)
 
-      // Escape hatch: handler returned a real Response. Pass through.
-      if (isResponseLike(result)) return result
+      // Escape hatch: handler returned a real Response. It goes out with what
+      // the context gathered (security headers, the session cookie).
+      if (isResponseLike(result)) return withContextHeaders(c, result as Response)
 
       const envelope = result as ApiRouteEnvelope
       if (envelope.patches === undefined && envelope.directives === undefined) {

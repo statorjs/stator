@@ -23,10 +23,14 @@ let uncached: StatorApp
 
 before(async () => {
   app = await createApp({
+    // These fixtures post events their pages do not render.
+    events: { gate: 'off' },
     machinesDir: resolve(fixtures, 'machines'),
     routesDir: resolve(fixtures, 'routes'),
   })
   uncached = await createApp({
+    // These fixtures post events their pages do not render.
+    events: { gate: 'off' },
     machinesDir: resolve(fixtures, 'machines'),
     routesDir: resolve(fixtures, 'routes'),
     caching: false,

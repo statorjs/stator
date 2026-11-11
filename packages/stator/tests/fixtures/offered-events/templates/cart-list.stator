@@ -1,0 +1,18 @@
+---
+import type { InstanceOf } from '../../../../src/template/index.ts'
+import type CartMachine from '../machines/cart.ts'
+
+const { cart } = Stator.props<{ cart: InstanceOf<typeof CartMachine> }>()
+const clear = () => cart.send({ type: 'CLEAR' })
+---
+<ul>
+  {each(
+    read(cart, (c) => c.ids),
+    (id) => <li>{id} <button on:click={() => cart.send({ type: 'REMOVE', id })}>remove</button></li>,
+    { key: (id: string) => id },
+  )}
+</ul>
+<button on:click={clear}>clear</button>
+{when(read(cart, (c) => c.count > 0), () => (
+  <button on:click={() => cart.send({ type: 'CHECKOUT' })}>check out</button>
+))}
