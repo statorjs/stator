@@ -32,7 +32,38 @@
   border: 0;
 }
 
+/* Where the file runs (src/code-side.mjs). */
+.expressive-code .frame.has-title:not(.is-terminal) .header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.expressive-code .side-chip {
+  flex: none;
+  margin-inline-end: 12px;
+  padding: 1px 8px;
+  border: 2px solid var(--st-line);
+  border-radius: 6px;
+  font-family: var(--st-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.expressive-code .side-chip--server {
+  background: var(--st-violet);
+  color: var(--st-paper);
+}
+.expressive-code .side-chip--browser {
+  background: var(--st-pink);
+  color: var(--st-ink);
+}
+
+/* The button's own background fills the corners: Expressive Code paints it
+   on ::before, which leaves the code ground showing between it and the
+   rounded border. */
 .expressive-code .copy button {
+  background: var(--st-yellow);
   opacity: 1;
   width: 30px;
   height: 30px;
@@ -58,9 +89,11 @@
   transform: translate(3px, 3px);
   filter: drop-shadow(0 0 0 var(--st-code-fg));
 }
+/* A drop-shadow filter would shadow the outline too, drawing two rings. */
 .expressive-code .copy button:focus-visible {
   outline: 3px solid var(--st-code-fg);
   outline-offset: 3px;
+  filter: none;
 }
 .expressive-code .copy .feedback {
   font-family: var(--st-mono);

@@ -1,9 +1,12 @@
-// A VS Code theme for Expressive Code. Code sits on a near-black ground in
-// both site themes, so one theme serves both.
+// A VS Code theme for Expressive Code, in the landing page's token colours.
+// Code sits on a near-black ground in both site themes, so one theme serves both.
 const text = '#e4e4e0'
-const keyword = '#ff9ccb'
-const name = '#ffd60a'
-const comment = '#a8a8a4'
+const keyword = '#ff4fa3'
+const string = '#ffd60a'
+const call = '#b9a5ff'
+const name = '#8fd6c4'
+const number = '#ff8a5c'
+const comment = '#8f8f8a'
 
 export const statorCodeTheme = {
   name: 'stator',
@@ -16,7 +19,7 @@ export const statorCodeTheme = {
     { settings: { foreground: text } },
     {
       scope: ['comment', 'punctuation.definition.comment'],
-      settings: { foreground: comment },
+      settings: { foreground: comment, fontStyle: 'italic' },
     },
     {
       scope: [
@@ -27,7 +30,6 @@ export const statorCodeTheme = {
         'constant.language',
         'variable.language.this',
         'entity.name.tag',
-        'support.class.component',
         'punctuation.definition.tag',
         'markup.heading',
       ],
@@ -52,7 +54,7 @@ export const statorCodeTheme = {
         'string.template punctuation.definition.template-expression',
         'markup.inline.raw',
       ],
-      settings: { foreground: keyword },
+      settings: { foreground: string },
     },
     {
       scope: ['meta.template.expression', 'punctuation.definition.template-expression'],
@@ -60,19 +62,34 @@ export const statorCodeTheme = {
     },
     {
       scope: [
-        'meta.object-literal.key',
         'entity.name.function',
         'support.function',
+        'meta.function-call entity.name.function',
         'entity.other.attribute-name',
-        'support.type.property-name',
         'entity.name.command',
-        'meta.property-name',
         'markup.bold',
+      ],
+      settings: { foreground: call },
+    },
+    {
+      scope: [
+        'entity.name.type',
+        'entity.name.class',
+        'entity.other.inherited-class',
+        'support.type',
+        'support.class',
+        'support.class.component',
       ],
       settings: { foreground: name },
     },
+    {
+      // Property names are data, not types: CSS and JSON keys stay plain.
+      scope: ['support.type.property-name', 'meta.object-literal.key', 'meta.property-name'],
+      settings: { foreground: text },
+    },
+    { scope: ['constant.numeric', 'keyword.other.unit'], settings: { foreground: number } },
     { scope: 'markup.italic', settings: { fontStyle: 'italic' } },
-    { scope: 'markup.inserted', settings: { foreground: '#8fd6c4' } },
-    { scope: 'markup.deleted', settings: { foreground: '#ff8a5c' } },
+    { scope: 'markup.inserted', settings: { foreground: name } },
+    { scope: 'markup.deleted', settings: { foreground: number } },
   ],
 }
