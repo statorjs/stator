@@ -52,7 +52,9 @@
     color: var(--ink);
     border: 2px solid var(--code-fg);
     border-radius: 6px;
-    filter: drop-shadow(3px 3px 0 var(--code-fg));
+    --depth: 3px;
+    --lift: 1px;
+    filter: drop-shadow(var(--depth) var(--depth) 0 var(--code-fg));
     font-family: var(--mono);
     font-size: 12.5px;
     font-weight: 700;
@@ -62,12 +64,14 @@
       filter 0.08s ease;
   }
   button:hover {
-    filter: drop-shadow(4px 4px 0 var(--code-fg));
-    transform: translate(-1px, -1px);
+    filter: drop-shadow(
+      calc(var(--depth) + var(--lift)) calc(var(--depth) + var(--lift)) 0 var(--code-fg)
+    );
+    transform: translate(calc(-1 * var(--lift)), calc(-1 * var(--lift)));
   }
   button:active {
     filter: drop-shadow(0 0 0 var(--code-fg));
-    transform: translate(3px, 3px);
+    transform: translate(var(--depth), var(--depth));
   }
   /* A drop-shadow filter would shadow the outline too, drawing two rings. */
   button:focus-visible {

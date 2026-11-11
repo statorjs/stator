@@ -160,19 +160,24 @@ code {
   max-width: 38em;
 }
 
-/* ---- Pressable controls ---- */
+/* ---- Pressable controls ----
+   A control rests `--depth` above the page on a hard shadow, lifts by `--lift`
+   on hover and lands flush when pressed. Depth follows size: 3px small,
+   4px standard, 6px large. */
 .press {
-  box-shadow: 4px 4px 0 var(--line);
+  --depth: 4px;
+  --lift: calc(var(--depth) / 2);
+  box-shadow: var(--depth) var(--depth) 0 var(--line);
   transition:
     transform 0.08s ease,
     box-shadow 0.08s ease;
 }
 .press:hover {
-  transform: translate(-2px, -2px);
-  box-shadow: 6px 6px 0 var(--line);
+  transform: translate(calc(-1 * var(--lift)), calc(-1 * var(--lift)));
+  box-shadow: calc(var(--depth) + var(--lift)) calc(var(--depth) + var(--lift)) 0 var(--line);
 }
 .press:active {
-  transform: translate(4px, 4px);
+  transform: translate(var(--depth), var(--depth));
   box-shadow: 0 0 0 var(--line);
 }
 .press:focus-visible {
@@ -199,6 +204,7 @@ code {
   cursor: pointer;
 }
 .btn--lg {
+  --depth: 6px;
   min-height: 56px;
   padding: 0 28px;
   font-size: 18px;
