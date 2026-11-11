@@ -79,7 +79,7 @@ Bindings aren't only for text. `class:list` composes a class attribute reactivel
 
 Give the two states some style — add these rules to `product-list.stator`'s `<style>` block (the one from step 4):
 
-```css title="templates/product-list.stator"
+```css title="templates/product-list.stator" side="none"
 .add-btn {
   align-self: flex-start;
   margin-top: 0.75rem;

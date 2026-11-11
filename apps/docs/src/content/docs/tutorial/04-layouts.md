@@ -129,7 +129,7 @@ And the `<style>` block is the key styling idea: **it's scoped to this component
 
 Give the product grid from step 3 a scoped `<style>` too. Add this to the bottom of `templates/product-list.stator`:
 
-```astro title="templates/product-list.stator"
+```astro title="templates/product-list.stator" side="none"
 <style>
   .product-grid {
     list-style: none;
