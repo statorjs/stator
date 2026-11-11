@@ -1,5 +1,6 @@
 // An Expressive Code plugin: a SERVER or BROWSER chip in a titled code
-// block's title bar, saying where that file runs.
+// block's title bar, saying where that file runs, and a matching class on
+// the frame.
 //
 // `side="server"`, `side="browser"` or `side="none"` in the block's meta
 // decides. Without it the title does: routes and the root hooks run on the
@@ -33,7 +34,13 @@ export const codeSide = () => ({
   hooks: {
     postprocessRenderedBlock: ({ codeBlock, renderData }) => {
       const side = sideOf(codeBlock)
-      const header = side && find(renderData.blockAst, 'figcaption')
+      if (!side) return
+      // The frame carries the side too: its shadow takes the side's colour.
+      const frame = find(renderData.blockAst, 'figure')
+      if (frame) {
+        frame.properties.className = [...(frame.properties.className ?? []), `side-${side}`]
+      }
+      const header = find(renderData.blockAst, 'figcaption')
       if (!header || !find(header, 'span')) return
       header.children.push({
         type: 'element',

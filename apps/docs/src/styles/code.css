@@ -4,8 +4,17 @@
 .expressive-code {
   margin-inline-end: 6px;
 }
+/* The code ground is near-black in both themes, so the shadow is an accent:
+   yellow by default, the side's colour where the block has one. */
 .expressive-code .frame {
-  filter: drop-shadow(6px 6px 0 var(--st-line));
+  --st-code-shadow: var(--st-yellow);
+  filter: drop-shadow(6px 6px 0 var(--st-code-shadow));
+}
+.expressive-code .frame.side-server {
+  --st-code-shadow: var(--st-violet);
+}
+.expressive-code .frame.side-browser {
+  --st-code-shadow: var(--st-pink);
 }
 .expressive-code .frame.is-terminal .header {
   padding-block: 8px 12px;
