@@ -44,7 +44,9 @@ const inDir = (dir: string, file: string): boolean =>
 
 function target(spec: string, importer: string): string | undefined {
   if (!spec.startsWith('.') && !isAbsolute(spec)) return undefined
-  return probeModule(resolve(dirname(importer), spec))
+  const base = resolve(dirname(importer), spec)
+  // `./cart.js` names `cart.ts` under TypeScript's ESM resolution.
+  return probeModule(base) ?? probeModule(base.replace(/\.(m?)js$/, '.$1ts'))
 }
 
 /** Whether `spec`, imported from `importer`, is a module Stator exports
@@ -236,15 +238,18 @@ const FACTORY = '(factory)'
  *   product of calling an import (a machine factory);
  * - calls an import, or reads a property of the default import other than
  *   `name`;
- * - takes a named or namespace import, or `import()`s the module.
+ * - reads a named import as a value, takes a namespace import, or
+ *   `import()`s the module.
  *
  * Otherwise only the default import is in play. When every use of it is
  * `dispatch(X, …)` or `X.name`, it is a stub. Any other use (an argument to
  * some other function, an array element, an export) cannot be placed: an error
  * in an island script or a helper, an address in a machine module.
  *
- * Matching is by name within the script, not by scope: a local that shadows
- * an import is read as the import.
+ * A named import used only as a type needs nothing from the module, with or
+ * without the `type` keyword: `import Cart, { CartEvents } from …` is still a
+ * stub. A parameter or a nested declaration with an import's name is its own
+ * binding, not the import.
  */
 export function machineImportUse(
   importer: string,
@@ -304,9 +309,8 @@ function regionUse(
     }
     if (imp.defaultName) carries.set(imp.defaultName, 'default')
     for (const n of imp.named) {
-      if (n.typeOnly) continue
-      carries.set(n.local, n.imported)
-      needsModule = true
+      // Not `needsModule` yet: a name written without `type` may still be one.
+      if (!n.typeOnly) carries.set(n.local, n.imported)
     }
     if (imp.namespace) {
       namespaces.add(imp.namespace)
@@ -325,6 +329,8 @@ function regionUse(
     }
   }
 
+  /** The names the imports themselves bind, before any alias. */
+  const imports = new Set(carries.keys())
   /** Locals holding what calling an import returned: a factory's machine. */
   const products = new Set<string>()
   const isImport = (node: ts.Expression): node is ts.Identifier =>
@@ -369,13 +375,28 @@ function regionUse(
   const runs = new Set<string>()
   const placed = new Set<ts.Node>()
   let unplaced: ts.Identifier | undefined
+  /** Names a scope being visited binds for itself, hiding the import. */
+  const shadowed = new Map<string, number>()
   const tracked = (node: ts.Node): node is ts.Identifier =>
-    ts.isIdentifier(node) && (carries.has(node.text) || products.has(node.text))
+    ts.isIdentifier(node) &&
+    !shadowed.get(node.text) &&
+    (carries.has(node.text) || products.has(node.text))
 
   const visit = (node: ts.Node): void => {
     if (ts.isTypeNode(node) || ts.isImportDeclaration(node)) return
     if (ts.isExportDeclaration(node) && node.moduleSpecifier) return
 
+    const hidden = node === sf ? [] : scopeBindings(node).filter((n) => imports.has(n))
+    if (hidden.length > 0) {
+      for (const name of hidden) shadowed.set(name, (shadowed.get(name) ?? 0) + 1)
+      visitNode(node)
+      for (const name of hidden) shadowed.set(name, shadowed.get(name)! - 1)
+      return
+    }
+    visitNode(node)
+  }
+
+  const visitNode = (node: ts.Node): void => {
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
       const callee = node.expression.text
       const first = node.arguments[0] ? unwrap(node.arguments[0]) : undefined
@@ -412,7 +433,14 @@ function regionUse(
       if (tracked(init)) placed.add(init)
     }
 
-    if (tracked(node) && !placed.has(node) && !unplaced && isReference(node)) unplaced = node
+    if (tracked(node) && isReference(node)) {
+      // A named export read as a value: the module's own code is needed.
+      if (carries.get(node.text) !== undefined && carries.get(node.text) !== 'default') {
+        needsModule = true
+      } else if (!placed.has(node) && !unplaced) {
+        unplaced = node
+      }
+    }
     ts.forEachChild(node, visit)
   }
   visit(sf)
@@ -428,6 +456,35 @@ function regionUse(
     }
   }
   return { kind: 'stub' }
+}
+
+/** The names `node` binds for its own scope: a function's parameters, a
+ *  block's declarations, a loop's variable, a catch clause's. */
+function scopeBindings(node: ts.Node): string[] {
+  const names: string[] = []
+  const bind = (name: ts.BindingName | undefined): void => {
+    if (!name) return
+    if (ts.isIdentifier(name)) names.push(name.text)
+    else for (const el of name.elements) if (ts.isBindingElement(el)) bind(el.name)
+  }
+  const declared = (list: ts.Node | undefined): void => {
+    if (list && ts.isVariableDeclarationList(list)) for (const d of list.declarations) bind(d.name)
+  }
+  if (ts.isFunctionLike(node)) {
+    for (const p of node.parameters) bind(p.name)
+  } else if (ts.isBlock(node) || ts.isModuleBlock(node) || ts.isCaseClause(node)) {
+    for (const stmt of node.statements) {
+      if (ts.isVariableStatement(stmt)) declared(stmt.declarationList)
+      else if ((ts.isFunctionDeclaration(stmt) || ts.isClassDeclaration(stmt)) && stmt.name) {
+        names.push(stmt.name.text)
+      }
+    }
+  } else if (ts.isForStatement(node) || ts.isForOfStatement(node) || ts.isForInStatement(node)) {
+    declared(node.initializer)
+  } else if (ts.isCatchClause(node)) {
+    bind(node.variableDeclaration?.name)
+  }
+  return names
 }
 
 /** Whether `node` reads a binding, as opposed to naming a declaration, a

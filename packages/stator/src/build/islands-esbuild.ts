@@ -1,6 +1,6 @@
+import { realpathSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
-import { probeModule } from './imports.ts'
 import type { BundleIslandsOptions, IslandAsset, IslandBundler } from './islands.ts'
 import {
   assertRunsInBrowser,
@@ -28,6 +28,14 @@ const norm = (p: string): string => p.replace(/\\/g, '/')
 
 const STUB_NS = 'stator-machine-stub'
 
+const realPath = (p: string): string => {
+  try {
+    return realpathSync(p)
+  } catch {
+    return p
+  }
+}
+
 /** Extensions an island may reference by URL; emitted as hashed files, never
  *  inlined (the seam contract). */
 const FILE_LOADERS: Record<string, 'file'> = Object.fromEntries(
@@ -46,8 +54,11 @@ export const bundleIslandsEsbuild: IslandBundler = async (opts: BundleIslandsOpt
   const root = resolve(opts.root)
   const machinesDir = resolve(opts.machinesDir)
   const outDir = resolve(root, '.stator-island-out') // virtual — write: false
+  // Both spellings: the bundler reports real paths, and the app root may be
+  // reached through a symlink.
+  const machinesDirs = [...new Set([machinesDir, realPath(machinesDir)])]
   const inMachinesDir = (abs: string): boolean =>
-    abs === machinesDir || abs.startsWith(machinesDir + sep)
+    machinesDirs.some((dir) => abs === dir || abs.startsWith(dir + sep))
 
   const entryPoints = opts.entries.map((entry) => ({
     in: resolve(entry.file),
@@ -116,31 +127,50 @@ export const bundleIslandsEsbuild: IslandBundler = async (opts: BundleIslandsOpt
     name: 'stator-machine-stub',
     setup(b: import('esbuild').PluginBuild) {
       const isMachine = (file: string): boolean => inMachinesDir(file) || isMachineModule(file)
-      b.onResolve({ filter: /^[./]/ }, async (args) => {
-        if (args.namespace === STUB_NS) return null
-        const base = isAbsolute(args.path) ? args.path : resolve(args.resolveDir, args.path)
-        const file = probeModule(base)
-        const abs = file
-          ? isMachine(file)
-            ? file
-            : undefined
-          : [base, `${base}.ts`, `${base}.js`].find(inMachinesDir)
-        if (!abs) return null
+      // The server entry is server code. Named here, with what was imported,
+      // before the bundler fails on a Node built-in somewhere inside it.
+      b.onResolve({ filter: /^@statorjs\/stator\/server$/ }, async (args) => {
+        const names = args.importer ? await serverImports(args.importer) : []
+        return { errors: [{ text: serverImportError(args.importer, names, root) }] }
+      })
+      // Every import, however it is spelled: the decision is made on the file
+      // the bundler itself resolves, so a tsconfig `paths` alias, a package
+      // `imports` entry, a `.js` specifier for a `.ts` file and a package's
+      // own machine are all the module they resolve to, not a way round the stub.
+      b.onResolve({ filter: /.*/ }, async (args) => {
+        if (args.namespace === STUB_NS || args.pluginData?.statorResolved) return null
+        if (args.kind === 'entry-point') return null
+        const resolved = await b.resolve(args.path, {
+          kind: args.kind,
+          importer: args.importer,
+          resolveDir: args.resolveDir,
+          pluginData: { statorResolved: true },
+        })
+        let file: string | undefined
+        if (resolved.errors.length === 0 && !resolved.external && resolved.namespace === 'file') {
+          file = resolved.path
+        } else if (/^[./]/.test(args.path)) {
+          // Unresolvable, but written into machines/: stub it, so the failure
+          // names the machine and not a missing file.
+          const base = isAbsolute(args.path) ? args.path : resolve(args.resolveDir, args.path)
+          file = [base, `${base}.ts`, `${base}.js`].find(inMachinesDir)
+          if (file) return { path: file, namespace: STUB_NS }
+        }
+        if (!file || !isMachine(file)) return null
         // What the importing script does with the machine decides: its code
         // when the script runs it, its { name } when it only addresses it.
-        const use =
-          file && args.importer
-            ? machineImportUse(args.importer, args.path, {
-                lenient: isMachine(args.importer),
-                root,
-              })
-            : undefined
+        const use = args.importer
+          ? machineImportUse(args.importer, args.path, {
+              lenient: isMachine(args.importer),
+              root,
+            })
+          : undefined
         if (use?.kind === 'error') return { errors: [{ text: `stator: ${use.message}` }] }
-        if (use?.kind === 'real' && file) {
+        if (use?.kind === 'real') {
           await assertRunsInBrowser(file, args.importer, use.runs, root)
           return null
         }
-        return { path: abs, namespace: STUB_NS }
+        return { path: file, namespace: STUB_NS }
       })
       b.onLoad({ filter: /.*/, namespace: STUB_NS }, async (args) => {
         const name = await machineName(
@@ -150,12 +180,6 @@ export const bundleIslandsEsbuild: IslandBundler = async (opts: BundleIslandsOpt
         // In dev the stub says where it came from, for use()'s error.
         const stub = opts.sourcemap ? { name, __stub: norm(relative(root, args.path)) } : { name }
         return { contents: `export default ${JSON.stringify(stub)}\n`, loader: 'js' }
-      })
-      // The server entry is server code. Named here, with what was imported,
-      // before the bundler fails on a Node built-in somewhere inside it.
-      b.onResolve({ filter: /^@statorjs\/stator\/server$/ }, async (args) => {
-        const names = args.importer ? await serverImports(args.importer) : []
-        return { errors: [{ text: serverImportError(args.importer, names, root) }] }
       })
     },
   }
