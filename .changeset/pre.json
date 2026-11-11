@@ -25,6 +25,7 @@
     "check-libraries",
     "client-machine-ergonomics",
     "client-read-fallback",
+    "client-read-selector-arity",
     "consumer-library-islands",
     "define-machine-one-entry",
     "dev-route-css",
