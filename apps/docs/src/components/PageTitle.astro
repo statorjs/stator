@@ -1,0 +1,60 @@
+---
+// Starlight's skip link and TOC "Overview" entry target this id.
+const PAGE_TITLE_ID = '_top'
+
+type SidebarEntry = (typeof Astro.locals.starlightRoute.sidebar)[number]
+
+const { entry, sidebar } = Astro.locals.starlightRoute
+const { title, description } = entry.data
+
+const containsCurrent = (item: SidebarEntry): boolean =>
+  item.type === 'link' ? item.isCurrent : item.entries.some(containsCurrent)
+
+const group = sidebar.find((item) => item.type === 'group' && containsCurrent(item))
+---
+
+<div class="st-page-title">
+  {group && <p class="st-eyebrow">{group.label}</p>}
+  <h1 id={PAGE_TITLE_ID}>{title}</h1>
+  {description && <p class="st-lede">{description}</p>}
+</div>
+
+<style>
+  .st-page-title {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    margin-top: 1rem;
+    padding-bottom: 1.375rem;
+    border-bottom: 4px solid var(--st-line);
+  }
+  .st-eyebrow {
+    margin: 0;
+    font-family: var(--st-mono);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--st-text-2);
+  }
+  h1 {
+    margin: 0;
+    font-size: var(--sl-text-h1);
+    line-height: 0.96;
+    letter-spacing: -0.045em;
+    font-weight: 700;
+    color: var(--st-text);
+  }
+  .st-lede {
+    margin: 0;
+    max-width: 38em;
+    font-size: 1.25rem;
+    line-height: 1.45;
+    font-weight: 500;
+    color: var(--st-text-2);
+  }
+  @media (max-width: 50em) {
+    .st-lede {
+      font-size: 1.0625rem;
+    }
+  }
+</style>
