@@ -15,7 +15,12 @@ const here = dirname(fileURLToPath(import.meta.url))
 const examples = resolve(here, '../../../examples')
 const routesDir = resolve(here, 'fixtures/plain-route/routes')
 
-function send(app: StatorApp, cookie: string, machine: string, event: object): Promise<Response> {
+async function send(
+  app: StatorApp,
+  cookie: string,
+  machine: string,
+  event: object,
+): Promise<Response> {
   return app.fetch(
     new Request('http://localhost/__events', {
       method: 'POST',
