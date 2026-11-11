@@ -65,6 +65,12 @@ Three things to know:
 
 `events: { gate: 'warn' }` in `stator.config.ts` logs what would be refused and lets it through, for rolling the rule onto an existing app; `'off'` disables it.
 
+### What arrives is JSON, not your event type
+
+The event union types your code; it does not check the wire. The server confirms the event's `type` and nothing else, so a field typed `string` can arrive as an object, and a field typed `'name' | 'email'` can arrive as any string. A guard or action that uses a field to index, compute or store has to check it first. `ctx[ev.field] = ev.value` trusts the browser with the choice of field.
+
+An event body is capped at 64 KiB (`events.maxBytes`); a larger one is refused with a 413 before it is parsed.
+
 ## Failure and retry semantics
 
 Every event POST carries an `eventId`. Network and timeout failures retry with backoff under the same id, and the server's replay cache makes a duplicate that did arrive safe to re-send — so a flaky connection can't apply an event twice. Non-2xx responses are terminal immediately: the server saw the event and answered.

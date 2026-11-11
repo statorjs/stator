@@ -19,6 +19,11 @@ import type { MiddlewareDefinition } from './middleware.ts'
 import { runQueryRoute } from './query-route.ts'
 import { initialSyncPatches, recompute } from './recompute.ts'
 import { renderRoute } from './render.ts'
+import {
+  markDerivedCaching,
+  withContextHeaders,
+  withdrawCachingForCookies,
+} from './response-context.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
 import { buildRouteRequest } from './route-request.ts'
 import { isStatorQueryRoute, type RouteDefinition } from './routing.ts'
@@ -66,6 +71,8 @@ export interface HttpConfig {
   ) => Promise<{ types: ReadonlySet<string>; open: readonly string[] } | undefined>
   /** See `StatorConfig.events.gate`. Default `enforce`. */
   eventGate?: 'enforce' | 'warn' | 'off'
+  /** See `StatorConfig.events.maxBytes`. Default 64 KiB. */
+  eventMaxBytes?: number
   /** Serve the dev inspector asset at `/@stator/inspector.js`. The dev server
    *  sets this and injects the script tag; production leaves it off. */
   inspector?: boolean
@@ -282,6 +289,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     if (admissionProbes.has(c.req.raw)) return next()
     const start = performance.now()
     await next()
+    withdrawCachingForCookies(c)
     const ms = Math.round(performance.now() - start)
     const status = c.res.status
     const isLive = c.req.path === '/__sse'
@@ -469,19 +477,22 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
   if (config.images) {
     const images = config.images
-    app.get(`${images.path}/*`, (c) => {
+    app.get(`${images.path}/*`, async (c) => {
       let rel: string
       try {
         rel = decodeURIComponent(c.req.path.slice(images.path.length + 1))
       } catch {
         return c.text('not found', 404) // malformed percent-encoding is a 404, not a 500
       }
-      return serveImage(
-        images,
-        rel,
-        c.req.query('w'),
-        c.req.query('h'),
-        c.req.header('if-none-match') ?? null,
+      return withContextHeaders(
+        c,
+        await serveImage(
+          images,
+          rel,
+          c.req.query('w'),
+          c.req.query('h'),
+          c.req.header('if-none-match') ?? null,
+        ),
       )
     })
   }
@@ -665,9 +676,16 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       query: parsed.query,
     }
 
+    // An event is a type and a few fields. A body past the cap is refused
+    // while it is read, before anything is parsed or stored.
+    const maxBytes = config.eventMaxBytes ?? 64 * 1024
+    const text = await readCapped(c.req.raw, maxBytes)
+    if (text === undefined) {
+      return c.json({ error: `event body exceeds ${maxBytes} bytes` }, 413)
+    }
     let body: z.infer<typeof eventSchema>
     try {
-      body = eventSchema.parse(await c.req.json())
+      body = eventSchema.parse(JSON.parse(text))
     } catch (e) {
       return c.json({ error: 'invalid event payload', detail: String(e) }, 400)
     }
@@ -874,6 +892,31 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   return app
 }
 
+/**
+ * A request body as text, or undefined once it passes `maxBytes`. The declared
+ * length is checked first, then the bytes as they arrive, so an oversized or
+ * mislabelled body is dropped without being buffered whole.
+ */
+async function readCapped(request: Request, maxBytes: number): Promise<string | undefined> {
+  if (Number(request.headers.get('content-length') ?? 0) > maxBytes) return undefined
+  if (!request.body) return ''
+  const reader = request.body.getReader()
+  const decoder = new TextDecoder()
+  let text = ''
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > maxBytes) {
+      await reader.cancel()
+      return undefined
+    }
+    text += decoder.decode(value, { stream: true })
+  }
+  return text + decoder.decode()
+}
+
 let cachedClientJs: string | null = null
 
 async function bundleClient(): Promise<string> {
@@ -924,10 +967,10 @@ async function bundleInspector(): Promise<string> {
 function injectIntoDocument(html: string, parts: { head?: string; bodyEnd?: string }): string {
   let out = html
   if (parts.head && out.includes('</head>')) {
-    out = out.replace('</head>', `${parts.head}</head>`)
+    out = out.replace('</head>', () => `${parts.head}</head>`)
   }
   if (parts.bodyEnd && out.includes('</body>')) {
-    out = out.replace('</body>', `${parts.bodyEnd}</body>`)
+    out = out.replace('</body>', () => `${parts.bodyEnd}</body>`)
   }
   return out
 }
@@ -1047,6 +1090,7 @@ async function renderGetCandidate(
       commit: () => {
         applyRenderedEffects(c, result.response)
         if (deriveCacheControl) {
+          markDerivedCaching(c)
           c.header(
             'Cache-Control',
             `public, max-age=0, s-maxage=${caching!.sMaxAge}, stale-while-revalidate=${caching!.staleWhileRevalidate}`,

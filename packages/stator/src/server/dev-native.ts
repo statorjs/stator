@@ -475,6 +475,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       cors: resolved.cors,
       middleware,
       eventGate: config.events?.gate,
+      eventMaxBytes: config.events?.maxBytes,
       // Read from source on every event: files change under the dev server,
       // and each one is re-read only when its mtime moves.
       offeredEvents: (routeFile) => routeOfferedEvents(routeFile, root),

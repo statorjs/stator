@@ -16,7 +16,11 @@ export interface DevAppConfig {
   /** The `/__events` gate: an event is accepted only when the page it names
    *  offers it (see `build/offered-events.ts`). `enforce` (default) refuses
    *  one it does not; `warn` logs and lets it through; `off` skips the check. */
-  events?: { gate?: 'enforce' | 'warn' | 'off' }
+  events?: {
+    gate?: 'enforce' | 'warn' | 'off'
+    /** Largest `/__events` body accepted, in bytes. Default: 65536. */
+    maxBytes?: number
+  }
   /** The app directory (must reach node_modules for resolution). */
   root: string
   machinesDir: string

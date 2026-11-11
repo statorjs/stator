@@ -91,7 +91,7 @@ return c.redirect('/login')
 // routes/auth/login.ts — consume it, guard against open redirects
 const returnTo = cookies.get('returnTo')
 cookies.delete('returnTo', { path: '/' })
-const to = returnTo?.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/'
+const to = safeLocalPath(returnTo) // from '@statorjs/stator/server'
 ```
 
 `cookies.get` reads the *inbound* request cookie — a `set` this request isn't visible to a later `get` in the same request (standard cookie semantics).

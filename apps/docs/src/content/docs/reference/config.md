@@ -49,6 +49,7 @@ interface StatorConfig {
 
   events?: {
     gate?: 'enforce' | 'warn' | 'off' // /__events accepts only what the page offers. Default: enforce
+    maxBytes?: number                 // largest /__events body, in bytes. Default: 65536
   }
 
   caching?: false | {
@@ -88,7 +89,7 @@ interface StatorConfig {
 
 - **Persistence is grouped by concern.** `persistence.session` and `persistence.app` are the two swappable [store adapters](/guides/persistence/); the other bags hold policy, not adapters. See `RedisStore`/`CachedStore`/`RedisAppStore` in the [server reference](/reference/server/).
 - **Secrets belong in the environment.** Prefer `process.env.STATOR_SECRET` and a `REDIS_URL` over hard-coding — `.env.local` (gitignored) for local, real platform secrets in production. See [Production](/guides/production/).
-- **Derived caching is a proof, not a tag.** On a GET the framework can prove anonymous-identical — every declared read is an app machine, and the handler read no session, no claims that resolved to a value, no request header and no cookie — it emits `Cache-Control: public, s-maxage, stale-while-revalidate` itself. Any of those reads withdraws it, a hand-set `Cache-Control` always wins, and `request.raw` is outside the proof. The dev servers never emit it.
+- **Derived caching is a proof, not a tag.** On a GET the framework can prove anonymous-identical — every declared read is an app machine, and the handler read no session, no claims that resolved to a value, no request header and no cookie — it emits `Cache-Control: public, s-maxage, stale-while-revalidate` itself. Any of those reads withdraws it, a hand-set `Cache-Control` always wins, and a response that sets a cookie, from middleware or a handler, is never marked. `request.raw` is outside the proof, and so is the request's host: a page that builds absolute URLs from `request.url` needs a CDN that keys on host. The dev servers never emit it.
 - **Security options** (`trustedOrigins`, `sessions.cookie.sameSite`) pair with the [middleware guide](/guides/middleware/); CORS is opt-in per route/app via the `cors()` middleware.
 - **`build` is rarely needed.** What lands in `dist/` is derived from your module graph, so a new directory needs no configuration — see [what gets copied](/guides/production/#what-gets-copied). `include` is for a directory reached only through a path your code builds at runtime.
 - **`createApp`/`createDevApp`** accept this same shape directly (plus dir options) for hand-wired entries — see [dev & build](/reference/dev-and-build/). The flat keys of 2.x (`store`, `sessionTtlSeconds`, …) were removed in 3.0 in favor of the nested shape here.

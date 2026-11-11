@@ -120,7 +120,11 @@ export interface CreateAppConfig {
   /** The `/__events` gate: an event is accepted only when the page it names
    *  offers it (see `build/offered-events.ts`). `enforce` (default) refuses
    *  one it does not; `warn` logs and lets it through; `off` skips the check. */
-  events?: { gate?: 'enforce' | 'warn' | 'off' }
+  events?: {
+    gate?: 'enforce' | 'warn' | 'off'
+    /** Largest `/__events` body accepted, in bytes. Default: 65536. */
+    maxBytes?: number
+  }
   /** What each route's page offers, from the build manifest
    *  (`loadProductionHead(dist).events`), keyed by route file relative to
    *  `routesDir`. Omitted ⇒ read from source on first use. */
@@ -234,6 +238,7 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     cors: resolved.cors,
     middleware,
     eventGate: config.events?.gate,
+    eventMaxBytes: config.events?.maxBytes,
     offeredEvents: offeredEventsLookup(root, routesDir, config.offeredEvents),
     // Layer-3 derived Cache-Control: on by default with modest values; the
     // whole block set to `false` disables. (createDevApp never passes it —

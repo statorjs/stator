@@ -1,4 +1,4 @@
-import { defineApiRoute } from '@statorjs/stator/server'
+import { defineApiRoute, safeLocalPath } from '@statorjs/stator/server'
 import { findUserByEmail } from '../../lib/db.ts'
 import AuthMachine from '../../machines/auth.ts'
 
@@ -33,11 +33,11 @@ export const POST = defineApiRoute({
     if (user) setClaims({ userId: user.id, role: user.role })
     rotateSession()
 
-    // Return the visitor to the page that bounced them here, if any. Only
-    // same-origin relative paths — never an absolute/`//host` open redirect.
+    // Return the visitor to the page that bounced them here, if any, and only
+    // to a path on this site.
     const returnTo = cookies.get('returnTo')
     cookies.delete('returnTo', { path: '/' })
-    const to = returnTo?.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/'
+    const to = safeLocalPath(returnTo)
     return { directives: [{ type: 'navigate', to }] }
   },
 })

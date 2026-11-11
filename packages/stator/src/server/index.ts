@@ -13,6 +13,7 @@ export type {
   SlotTarget,
   WireEnvelope,
 } from '../wire/index.ts'
+export { safeLocalPath } from '../wire/safe-url.ts'
 export { dispatchToApp } from './app-dispatch.ts'
 export type { AppStore } from './app-store.ts'
 export { InMemoryAppStore } from './app-store.ts'
