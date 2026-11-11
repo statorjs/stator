@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <title>Stator</title>
   <style>
-    :root { color: #23262b }
-    @media (prefers-color-scheme: dark) { :root { color: #eae8e2 } }
+    :root { color: #141414 }
+    @media (prefers-color-scheme: dark) { :root { color: #e4e4e0 } }
   </style>
   <circle cx="16" cy="16" r="11.6" fill="none" stroke="currentColor" stroke-width="3.8"/>
   <g fill="currentColor">
