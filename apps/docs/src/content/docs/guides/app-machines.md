@@ -42,7 +42,7 @@ There is no direct *client*→app dispatch: browsers talk to their session machi
 
 When a page needs to command an app machine — an admin "restock" button, a "close poll" control — route it through a **gateway session machine**. The gateway's guards are the authorization boundary (they run against the session's own context); the app machine's `subscribes:` stays the complete audit of who can change it:
 
-```ts
+```ts title="machines/admin.ts"
 // machines/admin.ts — lifecycle: 'session'
 export default defineMachine({
   name: 'AdminMachine',
@@ -65,7 +65,7 @@ export default defineMachine({
 })
 ```
 
-```ts
+```ts title="machines/inventory.ts"
 // machines/inventory.ts — lifecycle: 'app'
 subscribes: [{ from: Admin, event: 'restockRequested', dispatch: 'REQUEST_RESTOCK' }],
 ```
@@ -129,7 +129,7 @@ Sometimes two machines relate in both directions: a session cart `reads:` the sh
 
 The pattern: **the importing end owns both halves.** The machine that already imports the other attaches the reverse subscription after definition:
 
-```ts
+```ts title="cart.ts"
 // cart.ts — already imports inventory for reads:
 const CartMachine = defineMachine({ reads: [InventoryMachine], /* … */ })
 

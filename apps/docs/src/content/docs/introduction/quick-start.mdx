@@ -17,7 +17,7 @@ A counter. One session-scoped machine with a `count`, a page that displays it, a
 
 Create `machines/counter.ts`:
 
-```ts
+```ts title="machines/counter.ts"
 import { defineMachine } from '@statorjs/stator/machine'
 
 type CounterEvents = { type: 'INCREMENT' } | { type: 'DECREMENT' }
@@ -50,7 +50,7 @@ export default defineMachine({
 
 Create `routes/index.stator`:
 
-```astro
+```astro title="routes/index.stator"
 ---
 import CounterMachine from '../machines/counter.ts'
 

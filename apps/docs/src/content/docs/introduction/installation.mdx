@@ -58,7 +58,7 @@ Files in `machines/` and `routes/` are **auto-discovered** — there's no centra
 
 The scaffold's `package.json` scripts are thin wrappers over the `stator` CLI, which owns the whole dev / build / serve loop:
 
-```json
+```json title="package.json"
 {
   "scripts": {
     "dev": "stator dev",
@@ -81,7 +81,7 @@ The compiler writes its declarations into a framework-managed `.stator/` directo
 
 Defaults — in-memory state, port 3000, dev inspector on — need no config file at all. To change them, add a `stator.config.ts` at the app root:
 
-```ts
+```ts title="stator.config.ts"
 import { defineConfig } from '@statorjs/stator/config'
 import { RedisStore } from '@statorjs/stator/server'
 

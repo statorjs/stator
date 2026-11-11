@@ -57,8 +57,7 @@ const [cart] = Stator.reads([CartMachine])
 
 Wrap pages in a layout component that exposes insertion points with `<children>`:
 
-```astro
-<!-- customer-layout.stator -->
+```astro title="customer-layout.stator"
 <header><children name="header" /></header>
 <main><children /></main>
 ```
@@ -115,7 +114,7 @@ A route's own 404 doesn't end the request. When a GET route answers 404 — `Sta
 
 `routes/404.stator` (or `routes/404.ts`) is the last resort: sugar for a `[...name]` catch-all at that position, forced below even a real catch-all you write yourself at the same depth. It renders once nothing else could serve the request, so a not-found page needs no bracket-rest trick and no branching inside the route that missed. Its response starts at status 404, so the page needs no status line of its own; set `Stator.response.status` only to answer with something else, such as 410:
 
-```astro
+```astro title="routes/404.stator"
 ---
 // routes/404.stator — reached only after every matching route returned 404
 ---

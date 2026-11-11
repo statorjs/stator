@@ -40,7 +40,7 @@ Stator ships the *primitives* an auth flow needs, not an auth system. What a cla
 
 **Claims** — opaque per-session identity, persisted for you. Set the minimum a coarse check needs, never the whole user record:
 
-```ts
+```ts title="routes/auth/login.ts"
 // routes/auth/login.ts — after verifying credentials against your own store
 handler: async (request, { setClaims, rotateSession }) => {
   const user = await verify(request)        // your logic; a guard drop on failure
@@ -51,7 +51,7 @@ handler: async (request, { setClaims, rotateSession }) => {
 }
 ```
 
-```ts
+```ts title="middleware.ts"
 // middleware.ts — coarse admission off the projection
 async (c, next) => {
   const s = stator(c)
@@ -64,7 +64,7 @@ Claims are a **projection**, not a second source of truth. Your machine still ow
 
 **Lifecycle** — `rotateSession()` moves the session to a fresh id (the fixation defense: call it on any privilege change, so an id captured while anonymous is worthless after login). `clearSession()` deletes the session outright (logout on a shared machine). In a **handler** both are *deferred* — applied after the handler returns, so state persists before the id changes, and claims set the same request follow to the new id. In **middleware** both are *immediate* (`await`), because there's no "after the handler" upstream:
 
-```ts
+```ts title="middleware.ts"
 // middleware.ts — kill a revoked session at the door
 if (s.claims() && (await isRevoked(s.claims()))) {
   await s.clearSession()
