@@ -125,7 +125,7 @@ This is the complete file — the only change from step 4 is the added `ThemeTog
 
 ## Avoiding a flash on load
 
-There's one rough edge: on a reload, the page paints in light mode for a frame before the component connects and re-applies the stored dark theme. Fix it by applying the stored theme *before* the first paint, with a small inline script in `base-layout.stator`'s `<head>`:
+There's one rough edge: on a reload, the page paints in light mode for a frame before the component connects and re-applies the stored dark theme. Fix it by applying the stored theme *before* the first paint, with a small inline script in `templates/base-layout.stator`'s `<head>`:
 
 ```astro title="templates/base-layout.stator" side="none"
 <script is:inline>

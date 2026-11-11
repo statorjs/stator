@@ -42,7 +42,7 @@ A command handler (`POST`/`PUT`/`PATCH`/`DELETE`) can **dispatch** but not read 
 `method: 'GET'` declares a read-only **data route**: the handler receives `machines` — read proxies keyed by machine name, the same shape a page's render context uses — and no `dispatch`.
 
 ```ts title="routes/api/collections/[name].ts"
-// routes/api/collections/[name].ts  →  GET /api/collections/:name
+// GET /api/collections/:name
 export const GET = defineApiRoute({
   method: 'GET',
   reads: [Collections],

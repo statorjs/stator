@@ -77,7 +77,7 @@ Bindings aren't only for text. `class:list` composes a class attribute reactivel
 
 `'add-btn'` is always on; `'in-cart'` toggles with the `contains` read. Click the button and the class flips in the same patch that updates the label and the header count.
 
-Give the two states some style — add these rules to `product-list.stator`'s `<style>` block (the one from step 4):
+Give the two states some style — add these rules to `templates/product-list.stator`'s `<style>` block (the one from step 4):
 
 ```css title="templates/product-list.stator" side="none"
 .add-btn {

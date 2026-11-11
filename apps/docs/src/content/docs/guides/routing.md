@@ -57,7 +57,7 @@ const [cart] = Stator.reads([CartMachine])
 
 Wrap pages in a layout component that exposes insertion points with `<children>`:
 
-```astro title="customer-layout.stator"
+```astro title="templates/customer-layout.stator"
 <header><children name="header" /></header>
 <main><children /></main>
 ```
