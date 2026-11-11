@@ -60,6 +60,8 @@ const cleanSaves = (rows: Row[]): Record<string, SaveState> =>
 export default defineMachine({
   name: 'InventoryMachine',
   lifecycle: 'session',
+  // The load and save effects report these; a browser may not.
+  serverOnly: ['LOADED', 'LOAD_FAILED', 'SAVE_OK', 'SAVE_CONFLICT', 'SAVE_FAILED'],
   events: {} as InventoryEvents,
   context: { rows: [], loadedAt: '', loadError: '', saves: {} } as InventoryContext,
 

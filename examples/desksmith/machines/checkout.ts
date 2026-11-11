@@ -32,6 +32,8 @@ const shippingValid = (ctx: CheckoutContext) =>
 export default defineMachine({
   name: 'CheckoutMachine',
   lifecycle: 'session',
+  // The charge effect and the timeout report these; a browser may not.
+  serverOnly: ['CHARGE_OK', 'CHARGE_FAILED', 'CHARGE_TIMEOUT'],
   events: {} as CheckoutEvents,
   emits: ['ORDER_PLACED'],
 

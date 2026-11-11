@@ -24,6 +24,8 @@ interface Ctx {
 export default defineMachine({
   name: 'SearchMachine',
   lifecycle: 'session',
+  // The geocoding effect reports this; a browser may not.
+  serverOnly: ['RESULTS'],
   events: {} as Events,
   subscribes: [{ from: WeatherMachine, event: 'PLACE_ADDED', dispatch: 'CLEAR' }],
   context: { query: '', results: [], searching: false } as Ctx,
