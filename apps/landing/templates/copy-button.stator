@@ -2,7 +2,7 @@
   <button
     type="button"
     on:click={copy}
-    hidden={read(state, (_s) => false, true)}
+    hidden={read(state, () => false, true)}
     aria-label={read(state, (s) => (s.copied ? 'Copied' : 'Copy to clipboard'), 'Copy to clipboard')}
   >
     {read(state, (s) => (s.copied ? 'Copied' : 'Copy'), 'Copy')}
