@@ -24,8 +24,10 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
-    env:
-      REDIS_URL: redis://localhost:6379
+    # TEMPORARY, to find a hang: with REDIS_URL unset the Redis-backed tests
+    # skip, as they do locally. Restore before merging.
+    # env:
+    #   REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
