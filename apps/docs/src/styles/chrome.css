@@ -19,7 +19,10 @@ body {
   outline-offset: 3px;
 }
 
-/* ---- Pressable controls ---- */
+/* ---- Pressable controls ----
+   A control rests `--st-depth` above the page on a hard shadow, lifts by
+   `--st-lift` on hover and lands flush when pressed. Depth follows size:
+   3px small, 4px standard, 6px large. */
 .sl-link-button,
 .pagination-links a,
 button[data-open-modal],
@@ -27,8 +30,15 @@ starlight-theme-select label,
 starlight-menu-button button,
 .sl-link-card,
 .st-press {
-  filter: drop-shadow(4px 4px 0 var(--st-line));
+  --st-depth: 4px;
+  --st-lift: calc(var(--st-depth) / 2);
+  filter: drop-shadow(var(--st-depth) var(--st-depth) 0 var(--st-line));
   transition: var(--st-press-ease);
+}
+.pagination-links a,
+.sl-link-card,
+.hero .sl-link-button {
+  --st-depth: 6px;
 }
 :is(
   .sl-link-button,
@@ -38,8 +48,10 @@ starlight-menu-button button,
   starlight-menu-button button,
   .sl-link-card
 ):hover {
-  transform: translate(-2px, -2px);
-  filter: drop-shadow(6px 6px 0 var(--st-line));
+  transform: translate(calc(-1 * var(--st-lift)), calc(-1 * var(--st-lift)));
+  filter: drop-shadow(
+    calc(var(--st-depth) + var(--st-lift)) calc(var(--st-depth) + var(--st-lift)) 0 var(--st-line)
+  );
 }
 :is(
   .sl-link-button,
@@ -49,8 +61,19 @@ starlight-menu-button button,
   starlight-menu-button button,
   .sl-link-card
 ):active {
-  transform: translate(4px, 4px);
+  transform: translate(var(--st-depth), var(--st-depth));
   filter: drop-shadow(0 0 0 var(--st-line));
+}
+/* A drop-shadow filter would shadow the focus outline too, drawing two rings. */
+:is(
+  .sl-link-button,
+  .pagination-links a,
+  button[data-open-modal],
+  starlight-theme-select label,
+  starlight-menu-button button,
+  .sl-link-card
+):focus-visible {
+  filter: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .sl-link-button,

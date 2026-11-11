@@ -69,7 +69,9 @@
   height: 30px;
   border: 2px solid var(--st-code-fg);
   border-radius: 6px;
-  filter: drop-shadow(3px 3px 0 var(--st-code-fg));
+  --st-depth: 3px;
+  --st-lift: 1px;
+  filter: drop-shadow(var(--st-depth) var(--st-depth) 0 var(--st-code-fg));
   transition:
     transform 0.08s ease,
     filter 0.08s ease,
@@ -82,11 +84,14 @@
   margin: 6px;
 }
 .expressive-code .copy button:hover {
-  transform: translate(-1px, -1px);
-  filter: drop-shadow(4px 4px 0 var(--st-code-fg));
+  transform: translate(calc(-1 * var(--st-lift)), calc(-1 * var(--st-lift)));
+  filter: drop-shadow(
+    calc(var(--st-depth) + var(--st-lift)) calc(var(--st-depth) + var(--st-lift)) 0
+      var(--st-code-fg)
+  );
 }
 .expressive-code .copy button:active {
-  transform: translate(3px, 3px);
+  transform: translate(var(--st-depth), var(--st-depth));
   filter: drop-shadow(0 0 0 var(--st-code-fg));
 }
 /* A drop-shadow filter would shadow the outline too, drawing two rings. */
