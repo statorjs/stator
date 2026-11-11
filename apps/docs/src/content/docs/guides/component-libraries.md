@@ -27,7 +27,7 @@ The same operation is `compileLibrary()` on `@statorjs/stator/build` for a scrip
 
 `check` writes the virtual TSX under `.stator/check/`, mirroring `src/`, and `tsc` reads it through your `tsconfig.json`. Include it, and add both generated trees to `rootDirs` so its relative imports (`./sibling.stator`, `../server/x.ts`) resolve against `src/`. List the generated trees before `.`:
 
-```json
+```json title="tsconfig.json"
 {
   "compilerOptions": {
     "allowImportingTsExtensions": true,

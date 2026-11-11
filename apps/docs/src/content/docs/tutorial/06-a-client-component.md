@@ -15,7 +15,7 @@ Adding to a cart is server state: it's authoritative, persisted, and shared with
 
 Create `templates/theme-toggle.stator`. Unlike a server component, its root is a custom element (a lowercase, hyphenated tag) and it carries a `<script>`:
 
-```astro
+```astro title="templates/theme-toggle.stator"
 <theme-toggle>
   <button class="theme-toggle-btn" type="button" on:click={toggle} aria-label="Toggle theme">
     <span>{read(theme, (t) => t.label)}</span>
@@ -89,7 +89,7 @@ Inside a client component, the directives mirror the server:
 
 Drop `<ThemeToggle />` into the layout header you built in [step 4](/tutorial/04-layouts/), so it appears on every page. In `templates/customer-layout.stator`:
 
-```astro
+```astro title="templates/customer-layout.stator"
 ---
 import type { InstanceOf } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
@@ -125,9 +125,9 @@ This is the complete file — the only change from step 4 is the added `ThemeTog
 
 ## Avoiding a flash on load
 
-There's one rough edge: on a reload, the page paints in light mode for a frame before the component connects and re-applies the stored dark theme. Fix it by applying the stored theme *before* the first paint, with a small inline script in `base-layout.stator`'s `<head>`:
+There's one rough edge: on a reload, the page paints in light mode for a frame before the component connects and re-applies the stored dark theme. Fix it by applying the stored theme *before* the first paint, with a small inline script in `templates/base-layout.stator`'s `<head>`:
 
-```astro
+```astro title="templates/base-layout.stator" side="none"
 <script is:inline>
   if (localStorage.getItem('stator-theme') === 'dark') {
     document.documentElement.dataset.theme = 'dark'

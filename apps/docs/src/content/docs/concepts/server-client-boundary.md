@@ -31,7 +31,7 @@ That's the entire mechanism. The import site *is* the declaration of where the c
 
 A `<script>` imports a machine for one of two reasons, and what you do with the import says which:
 
-```astro
+```astro title="templates/cart-form.stator"
 <script>
   import Draft from '../lib/draft.ts'        // passed to use() → runs in the browser
   import Cart from '../machines/cart.ts'     // only dispatched to → stays on the server

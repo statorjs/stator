@@ -11,7 +11,7 @@ Desksmith renders, reacts, persists, and broadcasts — but it can't take an ord
 
 This is the tutorial's first machine with **more than one state**. Every machine so far has lived in a single `idle` state; a checkout genuinely moves — shipping details, then payment, then done — so its transitions name a target with `to:`. Create `machines/checkout.ts`:
 
-```ts
+```ts title="machines/checkout.ts"
 import { defineMachine } from '@statorjs/stator/machine'
 
 type CheckoutContext = {
@@ -114,7 +114,7 @@ Two things are new here besides `to:`:
 
 Create `routes/checkout.stator`. The page `match`es on the machine's state — no step counter, no flags: the machine's states *are* the page's states.
 
-```astro
+```astro title="routes/checkout.stator"
 ---
 import CartMachine from '../machines/cart.ts'
 import CheckoutMachine from '../machines/checkout.ts'
@@ -178,7 +178,7 @@ So a transition that needs I/O splits into three declared pieces: the state you 
 
 First, a demo processor in `lib/payments.ts` (deterministic by card suffix, so every path below is walkable from the UI):
 
-```ts
+```ts title="lib/payments.ts"
 export async function chargeCard(
   last4: string,
   idempotencyKey: string,
@@ -192,7 +192,7 @@ export async function chargeCard(
 
 Add the three completion events to `CheckoutEvents`:
 
-```ts
+```ts title="machines/checkout.ts"
 type CheckoutEvents =
   | { type: 'SET_FIELD'; field: Field; value: string }
   | { type: 'SUBMIT_SHIPPING' }
@@ -206,7 +206,7 @@ type CheckoutEvents =
 
 Then `SUBMIT_PAYMENT` stops jumping straight to `complete`. It enters a new `placing` state and declares the charge as its effect (`import { chargeCard } from '../lib/payments.ts'` at the top of the machine file):
 
-```ts
+```ts title="machines/checkout.ts"
 SUBMIT_PAYMENT: {
   to: 'placing',
   when: (ctx) => /^\d{4}$/.test(ctx.paymentLast4),
@@ -226,7 +226,7 @@ SUBMIT_PAYMENT: {
 
 And a new `placing` state (between `payment` and `complete`) declares how each future resolves it:
 
-```ts
+```ts title="machines/checkout.ts"
 placing: {
   after: [{ delay: 8_000, send: { type: 'CHARGE_TIMEOUT' } }],
   on: {
@@ -272,7 +272,7 @@ Three details worth internalizing:
 
 Two additions to `routes/checkout.stator`: a `placing` arm, and a "declined card" button so the failure path is walkable:
 
-```astro
+```astro title="routes/checkout.stator"
 placing: () =>
   <div>
     <h2>2½. Placing your order…</h2>
@@ -281,7 +281,7 @@ placing: () =>
   </div>,
 ```
 
-```astro
+```astro title="routes/checkout.stator"
 <button on:click={() => checkout.send({ type: 'SET_FIELD', field: 'paymentLast4', value: '0000' })}>Set declined card</button>
 <button on:click={() => checkout.send({ type: 'SET_FIELD', field: 'paymentLast4', value: '9999' })}>Set silent card</button>
 ```
@@ -301,7 +301,7 @@ That's the `after` line at the top of `placing`: eight seconds without a complet
 
 The order is placed but the cart still shows its items. The checkout machine shouldn't reach over and clear it — it announced `ORDER_PLACED`; reacting is the cart's business. Add a subscription to `machines/cart.ts`:
 
-```ts
+```ts title="machines/cart.ts"
 import CheckoutMachine from './checkout.ts'
 
 // inside defineMachine({ ... })

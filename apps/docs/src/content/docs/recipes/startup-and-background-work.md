@@ -39,8 +39,8 @@ The `BootContext` is deliberately narrow — `dispatchToApp` and a read-only `co
 
 Concretely: don't debounce the poll in `boot.ts`. Emit a plain `TICK` on the timer and let the machine's **guard** decide:
 
-```ts
-// machines/fleet.ts — the guard owns the cadence policy
+```ts title="machines/fleet.ts"
+// the guard owns the cadence policy
 TICK: {
   when: (ctx) => ctx.status === 'active',   // ignore ticks while idle
   // ...

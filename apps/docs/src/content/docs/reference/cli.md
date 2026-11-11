@@ -7,7 +7,7 @@ sidebar:
 
 The `stator` CLI is the entry point for a Stator app — it replaces the hand-written `server.ts`/`build.ts`/`start.ts` earlier versions needed. A [`create-stator`](/introduction/installation/) project wires these as `package.json` scripts:
 
-```json
+```json title="package.json"
 {
   "scripts": {
     "dev": "stator dev",

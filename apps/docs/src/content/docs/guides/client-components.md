@@ -11,7 +11,7 @@ A client component is a whole `.stator` file that compiles to a custom element r
 
 The root is a custom element; the `<script>` exports a name-matched `StatorElement` subclass:
 
-```astro
+```astro title="templates/theme-toggle.stator"
 <theme-toggle>
   <button on:click={toggle}>{read(theme, (t) => t.label)}</button>
 </theme-toggle>
@@ -32,13 +32,13 @@ The root is a custom element; the `<script>` exports a name-matched `StatorEleme
 </script>
 ```
 
-`<theme-toggle>` ↔ `ThemeToggle` must match.
+`<theme-toggle>` ↔ `ThemeToggle` must match. Name the file for the tag too, one island per file: `templates/theme-toggle.stator` defines `<theme-toggle>`.
 
 ## The server fence
 
 An island file may open with a `---` fence, just like a server component — and it behaves exactly like one: it runs **on the server, per shell render**, and its bindings are in scope for the template. The `<script>` never sees it, in either direction — fence bindings are not client globals, and script members are not fence scope. Three regions, two worlds, one file:
 
-```astro
+```astro title="templates/reg-form.stator" side="none"
 ---
 // server: runs per shell render, never ships to the browser
 import { TICKETS } from '../lib/rules.ts'
@@ -66,7 +66,7 @@ Because the fence runs per shell render, an island placed three times runs its f
 
 An island's attributes are declared by `static attrs`. Everything else its use site passes is a prop of the shell: it renders on the server and never reaches the browser. Left undeclared, those props are open, so any prop is accepted and none is checked. Declare them in the fence with `Stator.props`, as a server component does:
 
-```astro
+```astro title="templates/variant-picker.stator" side="none"
 ---
 import type { Colorway } from '../lib/catalog.ts'
 
@@ -138,7 +138,7 @@ export default defineMachine({
 })
 ```
 
-```astro
+```astro title="templates/setup-wizard.stator"
 <script>
   import Wizard from '../lib/wizard.ts'
 
@@ -169,7 +169,7 @@ export const makeToggle = (name: string) =>
   })
 ```
 
-```astro
+```astro title="templates/nav-menu.stator"
 <script>
   import { makeToggle } from '../lib/toggle.ts'
   const Menu = makeToggle('Menu')
@@ -211,8 +211,8 @@ Machine [actors](/concepts/state-machines/#definition-actor-instance) start on `
 
 The shell is server HTML, and a client machine does not exist on the server, so a client `read()` renders nothing there: empty text, and no attribute. On a cached page that is the first paint, and with scripting off it is the only one. Give the read a third argument and the shell renders that until the island connects:
 
-```astro
-<cart-button count={props.count}>
+```astro title="templates/cart-button.stator" side="none"
+<cart-button>
   <button on:click={open}>Cart ({read(cart, (c) => c.count, props.count)})</button>
   <p hidden={read(cart, (c) => c.count > 0, props.count > 0)}>Your cart is empty.</p>
 </cart-button>

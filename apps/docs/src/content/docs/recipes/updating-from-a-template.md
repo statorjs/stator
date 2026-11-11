@@ -15,7 +15,7 @@ Every update needs to know which template version you started from.
 
 Apps scaffolded with a recent `create-stator` carry it in `package.json`:
 
-```json
+```json title="package.json"
 "stator": {
   "template": {
     "source": "gh:statorjs/stator/examples/weather",

@@ -11,7 +11,7 @@ The catalog renders inside a real document now, with a cart count in the header.
 
 The `on:` directive attaches an event handler. The handler sends a typed event to a machine. Add a button to each product card in `templates/product-list.stator`:
 
-```astro
+```astro title="templates/product-list.stator"
 <button on:click={() => cart.send({ type: 'ADD_ITEM', productId: product.id })}>
   Add to cart
 </button>
@@ -37,7 +37,7 @@ There's no fetch to write, no JSON endpoint to define, no client store to update
 
 On localhost that round trip is invisible. Everywhere else, the runtime is honest about it: while an event POST is in flight, the dispatching element carries `data-stator-pending` — set the instant you click, removed when the response applies. One rule in `static/app.css` turns that into feedback for every server-event button in the app:
 
-```css
+```css title="static/app.css"
 /* A RETRY of the same event is idempotent (the server replays it), but a
    second click is a second event — block it while one is in flight. */
 button[data-stator-pending] {
@@ -66,7 +66,7 @@ The `ADD_ITEM` transition mutates `ctx.items`. On recompute, every selector that
 
 Bindings aren't only for text. `class:list` composes a class attribute reactively. Update the button to also reflect whether the product is already in the cart:
 
-```astro
+```astro title="templates/product-list.stator"
 <button
   on:click={() => cart.send({ type: 'ADD_ITEM', productId: product.id })}
   class:list={{ 'add-btn': true, 'in-cart': read(cart, c => c.contains(product.id)) }}
@@ -77,9 +77,9 @@ Bindings aren't only for text. `class:list` composes a class attribute reactivel
 
 `'add-btn'` is always on; `'in-cart'` toggles with the `contains` read. Click the button and the class flips in the same patch that updates the label and the header count.
 
-Give the two states some style — add these rules to `product-list.stator`'s `<style>` block (the one from step 4):
+Give the two states some style — add these rules to `templates/product-list.stator`'s `<style>` block (the one from step 4):
 
-```css
+```css title="templates/product-list.stator" side="none"
 .add-btn {
   align-self: flex-start;
   margin-top: 0.75rem;
@@ -103,7 +103,7 @@ Now the button visibly fills in when the product is in the cart — the reactive
 
 The cart page from step 3 only *displays* line items. Now wire up the rest of the cart's events — `INCREMENT`, `DECREMENT`, `REMOVE_ITEM`, and `CLEAR` — each just another `on:click` sending the matching event. Here's the complete `routes/cart.stator`:
 
-```astro
+```astro title="routes/cart.stator"
 ---
 import CartMachine from '../machines/cart.ts'
 import CustomerLayout from '../templates/customer-layout.stator'

@@ -26,8 +26,8 @@ Calling a signed-cookie method with no secret configured throws a clear error �
 
 The OAuth `state` handshake is the canonical shape. Two handlers, one signed cookie:
 
-```ts
-// routes/auth/oauth-start.ts — mint state, seal it, redirect to the provider
+```ts title="routes/auth/oauth-start.ts"
+// mint state, seal it, redirect to the provider
 import { randomBytes } from 'node:crypto'
 import { defineApiRoute } from '@statorjs/stator/server'
 
@@ -42,8 +42,8 @@ export const POST = defineApiRoute({
 })
 ```
 
-```ts
-// routes/auth/oauth-callback.ts — the provider redirects back with ?state=…
+```ts title="routes/auth/oauth-callback.ts"
+// the provider redirects back with ?state=…
 import { defineApiRoute } from '@statorjs/stator/server'
 
 export const GET = defineApiRoute({
