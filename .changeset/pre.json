@@ -23,17 +23,24 @@
   "changesets": [
     "build-lib-islands",
     "check-libraries",
+    "client-machine-ergonomics",
+    "client-read-fallback",
     "consumer-library-islands",
+    "define-machine-one-entry",
     "dev-route-css",
     "editor-contract",
     "events-unknown-400",
     "flat-config-keys-removed",
+    "island-client-machines",
+    "island-script-copy-set",
     "island-shell-props",
     "island-source-maps",
+    "island-template-typecheck",
     "library-islands-ast",
     "ls-follows-project",
     "node-24-floor",
     "node-test-runner",
+    "not-found-page-status",
     "reachability-walk",
     "register-hooks",
     "stator-source-maps",
@@ -43,6 +50,7 @@
     "vscode-bundled-compiler-contract",
     "vscode-diagnostic-positions",
     "vscode-island-error-positions",
+    "vscode-island-templates",
     "vscode-typed-compiled-output"
   ]
 }
