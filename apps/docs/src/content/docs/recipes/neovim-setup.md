@@ -30,7 +30,7 @@ npm install -g typescript
 
 Neovim has no built-in filetype for `.stator`, so register it first. Drop this in `~/.config/nvim/lua/stator.lua` and `require("stator")` from your `init.lua`:
 
-```lua
+```lua title="~/.config/nvim/lua/stator.lua"
 vim.filetype.add({ extension = { stator = "stator" } })
 
 -- Prefer the project's own TypeScript; walk upward so a pnpm/monorepo layout

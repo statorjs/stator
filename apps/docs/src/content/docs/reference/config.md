@@ -7,7 +7,7 @@ sidebar:
 
 A `stator.config.ts` at the app root configures the `stator` CLI (and `createApp`/`createDevApp`). It's **optional** — with no config file an app runs on in-memory state, port 3000, dev inspector on. Export a `defineConfig(...)` default:
 
-```ts
+```ts title="stator.config.ts"
 import { defineConfig } from '@statorjs/stator/config'
 import { RedisStore } from '@statorjs/stator/server'
 
