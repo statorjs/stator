@@ -70,7 +70,11 @@ describe('examples: effect completions and timer events are server-only', () => 
   }
 
   it('desksmith: a declined card cannot be turned into an order', async () => {
-    const app = await createApp({ machinesDir: resolve(examples, 'desksmith/machines'), routesDir })
+    // Posted from a page that sends the checkout's own events, as its form does.
+    const app = await createApp({
+      machinesDir: resolve(examples, 'desksmith/machines'),
+      routesDir: resolve(here, 'fixtures/desksmith-checkout/routes'),
+    })
     const sid = crypto.randomUUID()
     const cookie = `stator_sid=${sid}`
     const ok = async (event: object): Promise<void> => {
