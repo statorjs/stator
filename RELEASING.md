@@ -52,7 +52,7 @@ That writes `.changeset/<name>.md`. Changesets accumulate on `main`; the version
 
    Leave the `(X.Y)` tags inside the `/// SHIPPED` list alone — that list is a per-release ledger, newest first, and those tags are history. Add a new entry at its top for the minor's headline.
 
-   Do this **after** publishing, not before: `netlify.toml` auto-deploys the landing page on every push to `main`, so a bump that merges ahead of `pnpm release` puts a version on the site that isn't on npm yet.
+   Do this **after** publishing, not before: the landing page deploys from `main`, so a bump that merges ahead of `pnpm release` puts a version on the site that isn't on npm yet.
 
 ## Preview releases (`next`)
 

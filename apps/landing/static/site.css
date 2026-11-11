@@ -1,20 +1,20 @@
 @font-face {
-  font-family: 'Space Grotesk Variable';
-  src: url('/static/fonts/space-grotesk-latin-wght-normal.woff2') format('woff2');
+  font-family: "Space Grotesk Variable";
+  src: url("/static/fonts/space-grotesk-latin-wght-normal.woff2") format("woff2");
   font-weight: 300 700;
   font-display: swap;
 }
 @font-face {
-  font-family: 'JetBrains Mono Variable';
-  src: url('/static/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2');
+  font-family: "JetBrains Mono Variable";
+  src: url("/static/fonts/jetbrains-mono-latin-wght-normal.woff2") format("woff2");
   font-weight: 100 800;
   font-display: swap;
 }
 
 /* ---- Tokens ---- */
 :root {
-  --sans: 'Space Grotesk Variable', system-ui, sans-serif;
-  --mono: 'JetBrains Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --sans: "Space Grotesk Variable", system-ui, sans-serif;
+  --mono: "JetBrains Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   --yellow: #ffd60a;
   --ink: #141414;
@@ -40,7 +40,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
     --field: #161616;
     --ground: #161616;
@@ -57,7 +57,7 @@
   }
 }
 
-:root[data-theme='dark'] {
+:root[data-theme="dark"] {
   color-scheme: dark;
   --field: #161616;
   --ground: #161616;
@@ -81,6 +81,7 @@
 }
 
 [hidden] {
+  /* biome-ignore lint/complexity/noImportantStyles: `hidden` has to beat any component's own `display` */
   display: none !important;
 }
 
