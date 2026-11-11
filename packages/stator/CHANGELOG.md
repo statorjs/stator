@@ -1,5 +1,57 @@
 # @statorjs/stator
 
+## 3.0.0-next.8
+
+### Minor Changes
+
+- 8760b11: The production app can be stopped, and `listen()` says which port it bound.
+
+  - **`app.close()`** on the app `createApp` returns. It does what `stator start` does on `SIGTERM`, without exiting the process: stops accepting, runs the `boot.ts` teardown, hangs up live streams, gives in-flight requests a bounded deadline, and resolves once the port is free. The signal handlers `listen()` installed are removed, and the app can `listen()` again. Until now a server started with `listen()` could only be stopped by a signal.
+  - **`listen()` resolves with `{ port }`** on both `createApp` and `createDevApp`, where it resolved with nothing. `listen(0)` takes a free port from the OS, so a test that needs a real server no longer has to pick a number and hope.
+
+- 7893959: `/__events` accepts an event only when the page it names offers it. The wire used to accept any event the target machine handled unless the machine listed it `serverOnly`, so an effect's completion or a timer's event could be posted from a browser: in the desksmith example a forged `CHARGE_OK` turned a declined card into an order.
+
+  What a page offers is read from source: every event type sent by `machine.send({ type })` in a template or fence, or by `dispatch(Machine, { type })` in an island's script, across everything the route can render. The list is static, so an event inside an inactive `when` arm, a `defer` section or an unrendered row counts, and a late click is never refused. An event no UI sends is refused with a 403. The dev server and `createApp` read the list from source; `stator build` writes it into `stator-manifest.json` for `stator start`.
+
+  What changes for an app:
+
+  - A test that posts to `/__events` must name a route whose page sends that event. Posting `ADD` under the cart page when only the product page sends it is now a 403.
+  - An event sent with a computed type (`{ type: kind }`) cannot be listed. The page stays open, accepting every handled event as before, and `stator check` warns with the line.
+  - `events: { gate: 'warn' }` in `stator.config.ts` logs what would be refused and accepts it; `'off'` disables the check.
+
+  The list is by event type and the same for every visitor. It is not authorization: guards still decide whether a visitor may commit an event their page offers. `serverOnly` remains, as the explicit list on top.
+
+### Patch Changes
+
+- 7893959: Fixes from the 3.0 security audit.
+
+  - **Text with `$` inside a `defer` arm.** The arm was spliced in with a string replacement, so `` $` ``, `$'` and `$&` in rendered text were read as replacement patterns: stored text could duplicate the page's own markup, and 2 KB of it multiplied the response a thousandfold. The text is now inserted as text.
+  - **Derived `Cache-Control` beside a cookie.** A response the framework marked `public` could also carry a `Set-Cookie` from middleware or a handler, which a cache that stores cookies would replay to other visitors. A response that sets a cookie is no longer marked.
+  - **Raw `Response` returns.** A handler-built `Response` from an API route, a data route or the image endpoint went out without what the context had gathered: `securityHeaders()` and `cors()` headers were missing, and `rotateSession()` followed by a raw redirect never sent the new session cookie. Those headers and cookies are now merged in; the handler's own headers win.
+  - **`/__events` body cap.** An event body is limited to 64 KiB, checked while it is read; a larger one is a 413. `events: { maxBytes }` in `stator.config.ts` changes the limit.
+  - **The anonymous placeholder lock.** A data route that reads no session machine no longer takes a session lock, so one slow request can no longer stall every anonymous visitor's data routes. A session cookie naming a framework scope (`@anonymous`, `@app`) is ignored.
+  - **`safeLocalPath`.** New export from `@statorjs/stator/server` for return-after-login redirects. The check the docs used to show, `next.startsWith('/')` without `//`, let through `/\host`, which browsers resolve to another site.
+
+- 7893959: An island that only dispatches to a machine no longer ships the machine's code when the import is written in certain ways. Each of these put the whole machine module, and everything it imports, into the browser bundle of a dispatch-only island:
+
+  - a tsconfig `paths` alias or a package `imports` entry (`import Cart from '@app/machines/cart.ts'`), which the stub rule never looked at;
+  - a `.js` specifier for a `.ts` machine outside `machines/`;
+  - a type imported beside the machine without the `type` keyword (`import Cart, { CartEvents } from …`), which was read as needing the module;
+  - a parameter or block-scoped local with the import's name, which was read as the import.
+
+  A literal secret in a module the machine imports went with it. The decision is now made on the file the bundler itself resolves, whatever the specifier; a named import counts only when it is read as a value; and a nested binding with an import's name is its own. A `.js` specifier for a machine in `machines/` also builds now, where it failed.
+
+  The first two predate 3.0. The last two came with the by-use-site rule in 3.0.0-next.6.
+
+- 7893959: A middleware guard on a page now covers that page's events and live updates. `/__events` and `/__sse` name the page they act on in a header and a query parameter, so a guard written against the request path (`c.req.path.startsWith('/members')`, as the middleware guide shows) only ever saw `/__events` or `/__sse`: a caller redirected from a gated live page could still connect to its stream and receive its content and every later update, and have the page rendered for an event. Before either endpoint touches a page, the framework now asks the app's middleware whether it would admit the caller to a `GET` of that page. A redirect becomes a `navigate` directive on the event response and a refusal is passed through; the stream is refused. The app's handlers run a second time for these requests, against the page's path; an app with no handlers of its own is unaffected.
+- 8760b11: `stator test` no longer passes `--test-force-exit`, and a dev app's `close()` shuts the server it listened on.
+
+  With `--test-force-exit`, Node ends each test file's process the moment its tests finish, before the results still in the pipe to the runner are written. The runner counts only what arrived, so tests at the end of a file could vanish from a run with no failure: the framework's own suite reported one test too few in one run out of four. Without the flag the count is the same on every run.
+
+  The flag was there so a test that left a server open could not hang the run. The framework's own cause of that is fixed: `DevApp.close()` left the HTTP server from `listen()`, and its open connections, running. It now closes them and runs the boot teardown. A test that leaves something else open makes the run wait; close it in `after()`, or pass `--test-force-exit` yourself.
+
+  `CachedStore` gains `close()`, which closes the store it wraps. A cached Redis session store (`sessionStore({ cache: true })`) had no way to release its connection, which also kept a test file that built one from exiting.
+
 ## 3.0.0-next.7
 
 ### Patch Changes
