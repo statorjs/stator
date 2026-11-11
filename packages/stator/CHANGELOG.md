@@ -1,5 +1,40 @@
 # @statorjs/stator
 
+## 3.0.0-next.6
+
+### Major Changes
+
+- d68ad3f: `defineMachine` is exported from `@statorjs/stator/machine` only. `@statorjs/stator/server` re-exported it, so a machine was written against one entry or the other, and the choice looked like it said where the machine ran. It never did: both were the same function. A machine now imports `defineMachine` from the one place, whether it is registered on the server, run in a client island with `use()`, or both, and nothing in the file marks it as server or client.
+
+  Migrating: change `import { defineMachine } from '@statorjs/stator/server'` to `import { defineMachine } from '@statorjs/stator/machine'`. An import that also takes server exports splits in two: `import { defineMachine } from '@statorjs/stator/machine'` and `import { sessionStore } from '@statorjs/stator/server'`. TypeScript reports each import left behind as a missing export. The machine types (`MachineDef`, `DefineMachineConfig`, `ActionHelpers` and the rest) are still exported from `/server`, and from `/machine`.
+
+  `@statorjs/stator/server` is server code and an island's bundle cannot import it. A module in an island bundle that does is refused by `stator dev`, `stator check` and `stator build`, naming the module and what it imported.
+
+### Minor Changes
+
+- d68ad3f: Client machines: three fixes.
+
+  - `@statorjs/stator/client` imports without a DOM, so a `machine()` definition can be handed to `createActor` in a Node test. Constructing a `StatorElement` without a DOM throws, naming `// @env happy-dom`.
+  - A `use()` handle has `state`, the current state's name, typed to the machine's state names. A context key or selector named `state` takes its place.
+  - A `machine()` context that uses `on`, `select`, `name` or `events` as a key gets a type error on that key naming it, in place of "No overload matches this call" against every key.
+
+- d68ad3f: A client-machine `read()` takes a fallback for the island's shell. The shell is server HTML and a client machine does not exist there, so `{read(cart, (c) => c.count)}` rendered empty text and `hidden={read(...)}` rendered no attribute until the island's script ran; on a cached page that was the first paint. `read(cart, (c) => c.count, props.count)` renders the third argument in the shell, as text or as the attribute's value, and the read replaces it when the island connects. The fallback is a shell expression (a literal, a prop, a fence value) and cannot read a client machine. A read without one renders as before.
+- d68ad3f: What an island's script does with a machine import decides what its bundle gets. Since 3.0.0-next.4 every module importing `defineMachine` became a `{ name }` stub in an island bundle, wherever it lived, so `cart = use(Cart)` with a `defineMachine` machine passed `stator check` and threw in the browser, and no machine with real states could run client-side. Now the bundle gets the machine's code when the script passes the import to `use()`, directly, through a `const` alias, or as what a machine factory returns (`const Menu = makeToggle('Menu')`), and the module's code when the script reads a named export or a property other than `name`. It gets the `{ name }` that `dispatch()` addresses, and none of the machine's code, when the script only dispatches to the import or reads its `name`. Nothing marks a file as client or server: one definition can be registered on the server, run in an island and tested in Node, in an app island and in a library island through `build:lib` alike, including a machine under `machines/`.
+
+  `build:lib`'s browser-safety check accepts `@statorjs/stator/machine`, the entry a machine is defined from, in a published client entry.
+
+  Three things now fail instead of shipping: a machine import the script uses in a way the build cannot place (handed to another function, put in an array, re-exported, reached through a barrel file), located at its line; a server-pinned machine passed to `use()`, naming what pins it (`reads machine "Prices"`), the gate the docs described and nothing enforced; and server code reached from an island's bundle. `stator dev` shows them in the overlay on save and keeps serving the last good build, `stator check` reports them without bundling, and `stator build` applies them when it bundles. `build:lib` keeps the type-only named imports of a machine import it stubs. `use()` given a stub throws a message naming the machine, and in dev the file it came from, instead of a `TypeError`.
+
+- d68ad3f: An island's template is typechecked as the server shell it is, in `stator check` and in the editor. The virtual TSX held only the island's `<script>`, so the shell side of the template was never checked: a fence binding misused in it, a misspelled `use()` field, a `read()` fallback of the wrong type. The template is now emitted with the fence's bindings and the element class's members in scope. The shell's `props` are open, since an island declares only its attrs, and a callback over them (`props.rows.map((row) => …)`) is not an implicit-any error.
+
+  A `use()` handle on a `machine()` with no selectors no longer accepts every property: `read(qty, (q) => q.nope)` is an error.
+
+- d68ad3f: A `routes/404.stator` (or `404.ts`) page answers 404 without setting the status. Its response used to start at 200 like any page, so a not-found page that forgot `Stator.response.status = 404` answered every unknown URL with a 200 and, when nothing else withdrew the proof, a derived `Cache-Control`. The response now starts at 404; setting `Stator.response.status` still overrides it.
+
+### Patch Changes
+
+- d68ad3f: `stator build` copies what only an island's `<script>` imports. The copy set was derived from the server module graph alone, so a top-level directory reached only from an island script was missing from `dist/` and the island bundle step failed with `Could not resolve`. The walk now follows each island's script. A package only a script imports is still left out of the artifact's dependencies: the island bundle already holds it.
+
 ## 3.0.0-next.5
 
 ### Patch Changes
