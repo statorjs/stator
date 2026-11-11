@@ -3,8 +3,10 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join, relative, resolve } from 'node:path'
 import ts from 'typescript'
 import { syncTypes } from '../../build/index.ts'
+import { walkFiles } from '../../build/islands.ts'
 import { contractErrors, reachIslands } from '../../build/library-islands.ts'
 import { islandMachineErrors } from '../../build/machines.ts'
+import { routeOfferedEvents } from '../../build/offered-events.ts'
 import { sourceId } from '../../build/source-id.ts'
 import type { VirtualSource } from '../../build/sync.ts'
 import { CompileError, compile, compileWarnings, regionResolverFor } from '../../compiler/index.ts'
@@ -50,6 +52,7 @@ export async function checkStack(root: string, opts: CheckOptions = {}): Promise
     await writeFile(target, c.code)
     origins.set(target.replace(/\\/g, '/'), clientOrigin(c))
   }
+  warnings.push(...(await openRouteWarnings(root, files, opts.routesDir ?? join(dir, 'routes'))))
   if (warnings.length > 0) {
     process.stderr.write(`${warnings.join('\n\n')}\n\n`)
   }
@@ -204,6 +207,37 @@ function lineAt(starts: number[], offset: number): number {
     else hi = mid - 1
   }
   return lo
+}
+
+/**
+ * A route whose page sends an event with a computed type cannot have its
+ * offered events listed, so `/__events` accepts everything its machines
+ * handle. Reported once per send, naming every route it leaves open.
+ */
+async function openRouteWarnings(
+  root: string,
+  files: string[],
+  routesDir: string,
+): Promise<string[]> {
+  const dir = resolve(root, routesDir)
+  if (!existsSync(dir)) return []
+  const routes = [
+    ...files.filter((f) => f.startsWith(dir)),
+    ...(await walkFiles(dir, (f) => /\.(ts|js)$/.test(f) && !/\.stator\.ts$/.test(f))),
+  ]
+  const bySend = new Map<string, string[]>()
+  for (const route of routes) {
+    for (const at of (await routeOfferedEvents(route, root)).open) {
+      bySend.set(at, [...(bySend.get(at) ?? []), relPath(root, route)])
+    }
+  }
+  return [...bySend].map(
+    ([at, opened]) =>
+      `${at} - warning: an event is sent with a type the build cannot read, so ` +
+      `${opened.join(', ')} accept${opened.length === 1 ? 's' : ''} every event ` +
+      `${opened.length === 1 ? 'its' : 'their'} machines handle. Write the type as a literal ` +
+      "(`{ type: 'ADD' }`), or branch to one send per type.",
+  )
 }
 
 /** A diagnostic inside a generated check file, moved onto the `.stator` file

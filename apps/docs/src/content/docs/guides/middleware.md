@@ -28,6 +28,15 @@ export default defineMiddleware([
 
 The **framework security defaults run first**, then your handlers, then the route. With no `middleware.ts` at all, the defaults still apply — safe by default, nothing to remember.
 
+### A page's guard covers its events and live updates
+
+A page keeps talking to the server after it loads: events post to `/__events` and live updates stream from `/__sse`, each naming the page it belongs to. A guard written against `c.req.path` would only ever see those two paths. So before either endpoint touches a page, Stator asks your middleware the question a navigation would: a `GET` for the page's own URL, with the caller's cookies and headers. A caller your guard turns away from `/members` is turned away from its events and its live stream too.
+
+- If the guard **redirects**, the event response tells the page to navigate there, so an expired session lands on the login page as it would on a reload. A cookie the guard set on the way out is kept.
+- If the guard **refuses**, the event and the stream are refused with the same status.
+
+Two consequences worth knowing. Your handlers run a second time for these requests, once for the endpoint's own path and once for the page's, so keep a guard cheap or cache what it looks up. And the question is asked as a `GET`: a guard that admits by method sees `GET`, never the event's `POST`. An app with no handlers of its own skips the extra pass.
+
 ## Middleware runs at the HTTP layer
 
 Middleware runs *before* the per-request machine pipeline, so it sees the request (cookies, headers, method, path) and resolved config via `stator(c)` — but **not your machines' state**. It can't ask `AuthMachine.isAuthenticated`, because the machine hasn't been touched yet. Fine-grained authorization that reads a machine stays in your routes as a guard.
@@ -82,7 +91,7 @@ return c.redirect('/login')
 // routes/auth/login.ts — consume it, guard against open redirects
 const returnTo = cookies.get('returnTo')
 cookies.delete('returnTo', { path: '/' })
-const to = returnTo?.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/'
+const to = safeLocalPath(returnTo) // from '@statorjs/stator/server'
 ```
 
 `cookies.get` reads the *inbound* request cookie — a `set` this request isn't visible to a later `get` in the same request (standard cookie semantics).

@@ -87,7 +87,7 @@ if (!auth.isAuthenticated) {
 ---
 ```
 
-The login form echoes `next` in a hidden field, and the login API route navigates to it on success — validating it's a same-site path first (`next.startsWith('/')`, no `//`), never a full URL, so the login flow can't be used as an open redirect.
+The login form echoes `next` in a hidden field, and the login API route navigates to it on success — validating it's a same-site path first with `safeLocalPath(next)` from `@statorjs/stator/server`, so the login flow can't be used as an open redirect. Don't hand-roll that check: `next.startsWith('/')` lets through `//host` and `/\host`, which browsers resolve to another site.
 
 ## Role-gating
 

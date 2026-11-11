@@ -192,6 +192,22 @@ describe('stator check: the compiler runs over every .stator file', () => {
     assert.equal(await checkStack(root), undefined)
   })
 
+  it('a computed event type warns that it leaves the route open, and still passes', async () => {
+    await scaffold(
+      "---\nconst kind = 'A' as string\nconst m = { send: (e: object) => e }\n---\n" +
+        '<button on:click={() => m.send({ type: kind })}>go</button>\n',
+    )
+    const stderr = mock.method(process.stderr, 'write', () => true)
+    mock.method(process.stdout, 'write', () => true)
+
+    assert.equal(await checkStack(root), undefined)
+    const err = stderr.mock.calls.map((c) => String(c.arguments[0])).join('')
+    assert.match(
+      err,
+      /routes\/index\.stator:1 - warning: an event is sent with a type the build cannot read, so routes\/index\.stator accepts every event its machines handle/,
+    )
+  })
+
   it('a raw() script string warns, located, and still passes', async () => {
     await scaffold(
       '---\nconst json = \'{}\'\n---\n<p>{raw(`<script type="speculationrules">${json}</script>`)}</p>\n',

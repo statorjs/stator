@@ -199,6 +199,8 @@ describe('engine effects: local default scheduling (client plane / unit tests)',
 describe('server effects: full HTTP loop', () => {
   async function boot() {
     const app = await createApp({
+      // These fixtures post events their pages do not render.
+      events: { gate: 'off' },
       machinesDir: resolve(fixtures, 'machines'),
       routesDir: resolve(fixtures, 'routes'),
     })

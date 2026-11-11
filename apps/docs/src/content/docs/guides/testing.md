@@ -85,6 +85,8 @@ const app = await createApp({
   routesDir: resolve(here, '../routes'),
 })
 
+// `X-Stator-Route` names the page the event comes from, and that page has to
+// offer the event: post an `ADD` from the page whose template sends `ADD`.
 it('adding to the cart patches the header count', async () => {
   const page = await app.fetch(new Request('http://test/'))
   const cookie = page.headers.get('set-cookie')!.split(';')[0]!

@@ -27,6 +27,9 @@ export interface DiscoveredRoute {
    *  Empty for static routes. */
   paramNames: string[]
   filePath: string
+  /** The file that contributes GET, when a page and a command file merged
+   *  into one route. What the page can render is read from this one. */
+  getFilePath?: string
   /** GET route: a page (defineRoute) or a data route (defineApiRoute with
    *  method: 'GET'), discriminated by brand. At most one. */
   GET?: RouteDefinition | QueryRouteDefinition
@@ -141,6 +144,7 @@ export async function discoverRoutes(
       urlPath,
       paramNames,
       filePath,
+      ...(get ? { getFilePath: filePath } : {}),
       ...(isNotFoundFallback ? { isNotFoundFallback } : {}),
       GET: get,
       POST: post,
@@ -175,6 +179,7 @@ function mergeByUrlPath(routes: DiscoveredRoute[]): DiscoveredRoute[] {
         )
       }
       ;(existing as unknown as Record<string, unknown>)[m] = r[m]
+      if (m === 'GET') existing.getFilePath = r.getFilePath
     }
   }
   return [...byPath.values()]

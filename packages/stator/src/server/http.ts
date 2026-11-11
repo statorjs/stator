@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { type Context, Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { z } from 'zod'
 import { type AnyMachineDef, describeMachine } from '../engine/index.ts'
 import { applyRenderedEffects, runApiRoute } from './api-route.ts'
@@ -18,6 +19,11 @@ import type { MiddlewareDefinition } from './middleware.ts'
 import { runQueryRoute } from './query-route.ts'
 import { initialSyncPatches, recompute } from './recompute.ts'
 import { renderRoute } from './render.ts'
+import {
+  markDerivedCaching,
+  withContextHeaders,
+  withdrawCachingForCookies,
+} from './response-context.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
 import { buildRouteRequest } from './route-request.ts'
 import { isStatorQueryRoute, type RouteDefinition } from './routing.ts'
@@ -58,6 +64,15 @@ export interface HttpConfig {
    *  route's file path. The dev server uses this to inline collected scoped CSS
    *  (SSR head injection). Inserted at the `</head>` boundary. */
   headExtras?: (filePath: string) => string | Promise<string>
+  /** What a route's page offers the browser, by the file that renders it.
+   *  Undefined (the lookup, or its answer) leaves that route ungated. */
+  offeredEvents?: (
+    routeFile: string,
+  ) => Promise<{ types: ReadonlySet<string>; open: readonly string[] } | undefined>
+  /** See `StatorConfig.events.gate`. Default `enforce`. */
+  eventGate?: 'enforce' | 'warn' | 'off'
+  /** See `StatorConfig.events.maxBytes`. Default 64 KiB. */
+  eventMaxBytes?: number
   /** Serve the dev inspector asset at `/@stator/inspector.js`. The dev server
    *  sets this and injects the script tag; production leaves it off. */
   inspector?: boolean
@@ -248,6 +263,17 @@ function parseRouteKey(
   return { method: routeKey.slice(0, space), path, query }
 }
 
+/**
+ * Admission probes. `/__events` and `/__sse` act on a page they name out of
+ * band, so the app's middleware, which guards by request path, never sees
+ * that page's path on them. Before either endpoint touches the page, the
+ * framework asks the whole middleware stack the question a navigation would:
+ * a GET for the page's own URL, with the caller's headers. The page dispatch
+ * recognises the probe and answers it without rendering.
+ */
+const admissionProbes = new WeakSet<Request>()
+const admittedProbes = new WeakSet<Request>()
+
 export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   const app = new Hono()
   // Render-side view of the images config: `<Image>`/`<Picture>` read this
@@ -260,8 +286,10 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   // Request logger: one line per request with method, path, status, duration.
   // SSE endpoints stay open indefinitely; we log on entry, not on close.
   app.use('*', async (c, next) => {
+    if (admissionProbes.has(c.req.raw)) return next()
     const start = performance.now()
     await next()
+    withdrawCachingForCookies(c)
     const ms = Math.round(performance.now() - start)
     const status = c.res.status
     const isLive = c.req.path === '/__sse'
@@ -330,6 +358,23 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   }
   for (const handler of mw?.handlers ?? []) {
     app.use('*', handler)
+  }
+
+  /**
+   * Would the app's middleware admit this caller to the page `target` (a path
+   * with its query)? Undefined when it would; otherwise the response the
+   * middleware gave instead. An app with no middleware of its own has nothing
+   * to ask.
+   */
+  const refusal = async (c: Context, target: string): Promise<Response | undefined> => {
+    if ((mw?.handlers.length ?? 0) === 0) return undefined
+    const headers = new Headers(c.req.raw.headers)
+    headers.delete('content-length')
+    headers.delete('content-type')
+    const probe = new Request(new URL(target, c.req.url), { method: 'GET', headers })
+    admissionProbes.add(probe)
+    const res = await app.fetch(probe, c.env)
+    return admittedProbes.has(probe) ? undefined : res
   }
 
   // Compile matchers for every route, in discovery's specificity order. Our own
@@ -432,19 +477,22 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
   if (config.images) {
     const images = config.images
-    app.get(`${images.path}/*`, (c) => {
+    app.get(`${images.path}/*`, async (c) => {
       let rel: string
       try {
         rel = decodeURIComponent(c.req.path.slice(images.path.length + 1))
       } catch {
         return c.text('not found', 404) // malformed percent-encoding is a 404, not a 500
       }
-      return serveImage(
-        images,
-        rel,
-        c.req.query('w'),
-        c.req.query('h'),
-        c.req.header('if-none-match') ?? null,
+      return withContextHeaders(
+        c,
+        await serveImage(
+          images,
+          rel,
+          c.req.query('w'),
+          c.req.query('h'),
+          c.req.header('if-none-match') ?? null,
+        ),
       )
     })
   }
@@ -466,6 +514,13 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     const route = matched.route.GET
     if (isStatorQueryRoute(route)) {
       return c.text(`route "${routeKey}" is a data route — data routes are not live`, 400)
+    }
+    const turnedAway = await refusal(c, routeKey.slice(routeKey.indexOf(' ') + 1))
+    if (turnedAway) {
+      return c.text(
+        'not admitted to this route',
+        (turnedAway.status >= 400 ? turnedAway.status : 403) as ContentfulStatusCode,
+      )
     }
     if (!route.live) {
       return c.text(`route "${routeKey}" is not declared live: true`, 400)
@@ -597,15 +652,40 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     if (isStatorQueryRoute(route)) {
       return c.json({ error: `route key "${routeKey}" targets a data route` }, 404)
     }
+    // The page's own admission applies to its events: a caller the middleware
+    // would redirect from the page is sent the same way, and one it would
+    // refuse is refused.
+    const turnedAway = await refusal(c, routeKey.slice(routeKey.indexOf(' ') + 1))
+    if (turnedAway) {
+      for (const cookie of turnedAway.headers.getSetCookie()) {
+        c.header('Set-Cookie', cookie, { append: true })
+      }
+      const to = turnedAway.headers.get('location')
+      if (turnedAway.status >= 300 && turnedAway.status < 400 && to) {
+        return c.json({ patches: [], directives: [{ type: 'navigate', to }], committed: false })
+      }
+      return c.json(
+        { error: 'not admitted to this route' },
+        (turnedAway.status >= 400 ? turnedAway.status : 403) as ContentfulStatusCode,
+      )
+    }
+
     const request = {
       ...buildRouteRequest(c, matched.route.paramNames),
       params: matched.params,
       query: parsed.query,
     }
 
+    // An event is a type and a few fields. A body past the cap is refused
+    // while it is read, before anything is parsed or stored.
+    const maxBytes = config.eventMaxBytes ?? 64 * 1024
+    const text = await readCapped(c.req.raw, maxBytes)
+    if (text === undefined) {
+      return c.json({ error: `event body exceeds ${maxBytes} bytes` }, 413)
+    }
     let body: z.infer<typeof eventSchema>
     try {
-      body = eventSchema.parse(await c.req.json())
+      body = eventSchema.parse(JSON.parse(text))
     } catch (e) {
       return c.json({ error: 'invalid event payload', detail: String(e) }, 400)
     }
@@ -645,6 +725,23 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         { error: `machine "${body.machine}" handles no event "${body.event.type}"` },
         400,
       )
+    }
+
+    // The page must offer the event: some template or island it can render
+    // sends this type. What no UI sends (an effect's completion, a timer's
+    // event) is refused here whether or not the machine lists it `serverOnly`.
+    // A route with a send the build could not read is open, and so is one
+    // with no list at all.
+    const gate = config.eventGate ?? 'enforce'
+    if (gate !== 'off' && config.offeredEvents) {
+      const offered = await config.offeredEvents(
+        matched.route.getFilePath ?? matched.route.filePath,
+      )
+      if (offered && offered.open.length === 0 && !offered.types.has(body.event.type)) {
+        const error = `route "${routeKey}" offers no event "${body.event.type}"`
+        if (gate === 'enforce') return c.json({ error }, 403)
+        httpLog.warn({ machine: body.machine }, `${error} (events.gate is "warn": accepted)`)
+      }
     }
 
     return withSessionLock(sessionId, async () => {
@@ -740,6 +837,11 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   // what narrows "the next matching route" to specifically mean a
   // catch-all — see its own doc comment for why that boundary matters.
   app.get('*', async (c, next) => {
+    // An admission probe got past the middleware: that is its whole answer.
+    if (admissionProbes.has(c.req.raw)) {
+      admittedProbes.add(c.req.raw)
+      return c.body(null, 204)
+    }
     const candidates = cascadeCandidates(
       matchAllPaths(matchers, c.req.path).filter(
         (
@@ -788,6 +890,31 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   })
 
   return app
+}
+
+/**
+ * A request body as text, or undefined once it passes `maxBytes`. The declared
+ * length is checked first, then the bytes as they arrive, so an oversized or
+ * mislabelled body is dropped without being buffered whole.
+ */
+async function readCapped(request: Request, maxBytes: number): Promise<string | undefined> {
+  if (Number(request.headers.get('content-length') ?? 0) > maxBytes) return undefined
+  if (!request.body) return ''
+  const reader = request.body.getReader()
+  const decoder = new TextDecoder()
+  let text = ''
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > maxBytes) {
+      await reader.cancel()
+      return undefined
+    }
+    text += decoder.decode(value, { stream: true })
+  }
+  return text + decoder.decode()
 }
 
 let cachedClientJs: string | null = null
@@ -840,10 +967,10 @@ async function bundleInspector(): Promise<string> {
 function injectIntoDocument(html: string, parts: { head?: string; bodyEnd?: string }): string {
   let out = html
   if (parts.head && out.includes('</head>')) {
-    out = out.replace('</head>', `${parts.head}</head>`)
+    out = out.replace('</head>', () => `${parts.head}</head>`)
   }
   if (parts.bodyEnd && out.includes('</body>')) {
-    out = out.replace('</body>', `${parts.bodyEnd}</body>`)
+    out = out.replace('</body>', () => `${parts.bodyEnd}</body>`)
   }
   return out
 }
@@ -963,6 +1090,7 @@ async function renderGetCandidate(
       commit: () => {
         applyRenderedEffects(c, result.response)
         if (deriveCacheControl) {
+          markDerivedCaching(c)
           c.header(
             'Cache-Control',
             `public, max-age=0, s-maxage=${caching!.sMaxAge}, stale-while-revalidate=${caching!.staleWhileRevalidate}`,

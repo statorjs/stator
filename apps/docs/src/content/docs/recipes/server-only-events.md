@@ -9,6 +9,16 @@ Every event a client sends arrives at the same place — a `POST /__events` with
 
 Most events are fine to expose — a guard-dropped `ADD` or a role-checked `MODERATE` fails harmlessly. The dangerous ones are the events your machine *handles* but no client should ever *send*: effect completions (`CHARGE_APPROVED`, `SAVE_OK`), `after:` timer events, and cross-machine internals. These are server truth. A machine handles `CHARGE_APPROVED` because its own charge effect returns it — so a client that POSTs `CHARGE_APPROVED` directly is claiming a settlement that never happened.
 
+## The page's own events are the first gate
+
+Stator already refuses most of these for you. `/__events` accepts an event only when [the page offers it](/guides/dispatching-events/#what-a-page-may-send), meaning a template or island on that page sends that type. A completion no template sends is refused with a 403 before it reaches the machine.
+
+`serverOnly` is the explicit statement on top, and it covers the cases that rule can't:
+
+- a page left **open** by a computed event type, where every handled event is accepted;
+- an event some page really does send that must never come from a browser on *this* machine;
+- intent you want a reader, and the type checker, to see in the machine itself.
+
 ## Declare them `serverOnly`
 
 List the event types no client may send. The declaration is typechecked against the machine's event union, so a name that isn't a real event is a compile error.

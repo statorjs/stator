@@ -54,7 +54,7 @@ The build reads this from the script, by following the import:
 |---|---|
 | passes the import to `use()`, directly or through a `const` alias | the machine's code |
 | calls the import, as with a machine factory (`const Menu = makeToggle('Menu')`) | the module's code |
-| reads a named export, or a property of the machine other than `name` | the module's code |
+| reads a named export as a value, or a property of the machine other than `name` | the module's code |
 | only passes the import to `dispatch()`, or reads its `name` | `{ name }` |
 | does anything else with it (hands it to another function, puts it in an array, re-exports it) | a build error |
 

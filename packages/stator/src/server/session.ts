@@ -69,7 +69,19 @@ export function readClaims<T = unknown>(c: Context): T | undefined {
 /** The session id this request WOULD have — established state or the arriving
  *  cookie — without creating anything. Null for a first-contact visitor. */
 export function peekSessionId(c: Context): string | null {
-  return getSessionState(c)?.sid ?? getCookie(c, SESSION_COOKIE) ?? null
+  return getSessionState(c)?.sid ?? cookieSessionId(c) ?? null
+}
+
+/**
+ * The session id the request's cookie presents, or undefined when it presents
+ * none the server could have issued. Ids beginning `@` name the framework's
+ * own scopes (`@anonymous`, `@app`); a client that claims one would share its
+ * lock and its storage key, so the cookie is treated as absent.
+ */
+function cookieSessionId(c: Context): string | undefined {
+  const sid = getCookie(c, SESSION_COOKIE)
+  if (!sid || sid.startsWith('@') || sid.length > 256) return undefined
+  return sid
 }
 
 /** Resume an EXISTING session from the arriving cookie (populate the shared
@@ -78,7 +90,7 @@ export function peekSessionId(c: Context): string | null {
 export function resumeSession(c: Context): SessionState | null {
   const established = getSessionState(c)
   if (established) return established
-  const cookieSid = getCookie(c, SESSION_COOKIE)
+  const cookieSid = cookieSessionId(c)
   if (cookieSid === undefined) return null
   const state: SessionState = {
     sid: cookieSid,
