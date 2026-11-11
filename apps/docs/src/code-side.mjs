@@ -2,10 +2,11 @@
 // block's title bar, saying where that file runs.
 //
 // `side="server"`, `side="browser"` or `side="none"` in the block's meta
-// decides. Without it the title does: routes, machines and the root hooks run
-// on the server; a `.stator` file is an island (browser) when it defines a
-// StatorElement, and a server component otherwise.
-const SERVER_PATH = /^(routes|machines)\/|^(middleware|boot)\.ts$|^stator\.config\.[cm]?[jt]s$/
+// decides. Without it the title does: routes and the root hooks run on the
+// server; a `.stator` file is an island (browser) when it defines a
+// StatorElement, and a server component otherwise. A machine gets no chip:
+// one definition runs on either side.
+const SERVER_PATH = /^routes\/|^(middleware|boot)\.ts$|^stator\.config\.[cm]?[jt]s$/
 
 function sideOf(codeBlock) {
   const explicit = codeBlock.metaOptions.getString('side')
