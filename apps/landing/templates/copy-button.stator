@@ -69,9 +69,11 @@
     filter: drop-shadow(0 0 0 var(--code-fg));
     transform: translate(3px, 3px);
   }
+  /* A drop-shadow filter would shadow the outline too, drawing two rings. */
   button:focus-visible {
     outline: 3px solid var(--code-fg);
     outline-offset: 3px;
+    filter: none;
   }
   @media (prefers-reduced-motion: reduce) {
     button {
