@@ -1,5 +1,11 @@
 # @statorjs/stator
 
+## 3.0.0-next.7
+
+### Patch Changes
+
+- 1c04cb2: A client-machine `read()` accepts a selector that takes no argument. `read(state, () => false, true)` compiled to a call that passed the instance to a function declaring no parameter, so `stator check` failed with "Expected 0 arguments, but got 1" at the read. The selector is still called with the instance, so the machine stays the binding's dependency.
+
 ## 3.0.0-next.6
 
 ### Major Changes
