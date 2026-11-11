@@ -13,8 +13,9 @@ apps/landing/
   templates/site-mark.stator   logo; its rotor turns once per demo event (client island)
   templates/theme-toggle.stator
   lib/cart-rules.ts            the demo cart's rules, as plain functions
-  lib/demo-cart.ts             the same cart as a session machine (tested, shown on the page)
+  lib/demo-cart.ts             the cart as a session machine: tested, shown on the page, run by the hero
   static/site.css              design tokens and global styles, light and dark
+  scripts/og-image.html        source of static/og-image.png (`pnpm --filter landing og`)
   tests/demo-cart.test.ts
 ```
 
