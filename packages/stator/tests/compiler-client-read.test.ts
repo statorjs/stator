@@ -195,6 +195,47 @@ const FALLBACK = `<fall-back>
   }
 </script>`
 
+describe('client read() with a selector that takes no argument', () => {
+  const SRC = `<gate-probe>
+  <button on:click={go} hidden={read(gate, () => false, true)}>{read(gate, () => 'ready')}</button>
+</gate-probe>
+
+<script>
+  const Gate = machine({ n: 0 }, { on: { GO: (s) => { s.n++ } } })
+  export class GateProbe extends StatorElement {
+    gate = use(Gate)
+    go() { this.gate.send('GO') }
+  }
+</script>`
+
+  it('is called with the instance through a cast, keeping the machine as the dependency', () => {
+    const { clientCode } = compile(SRC, { id: 'gate-probe.stator' })
+    assert.ok(
+      clientCode.includes(
+        'bindSlot(this, "s0", [this.gate], () => (((() => \'ready\') as (instance: unknown) => unknown)(this.gate)))',
+      ),
+    )
+    assert.ok(
+      clientCode.includes(
+        'bind([this.gate], () => (((() => false) as (instance: unknown) => unknown)(this.gate))',
+      ),
+    )
+  })
+
+  it('runs: the read replaces the shell fallback on connect', () => {
+    const { serverCode, clientCode } = compile(SRC, { id: 'gate-probe.stator' })
+    loadClient(clientCode)
+    const holder = document.createElement('div')
+    holder.innerHTML = renderShell(serverCode)
+    assert.equal(holder.querySelector('button')?.hasAttribute('hidden'), true)
+    document.body.appendChild(holder)
+    const btn = holder.querySelector('button') as HTMLButtonElement
+    assert.equal(btn.hidden, false)
+    assert.equal(btn.textContent, 'ready')
+    document.body.removeChild(holder)
+  })
+})
+
 describe('client read() fallback: what the shell shows before the island connects', () => {
   it('text position renders the fallback, escaped, between the slot comments', () => {
     const { serverCode, clientCode } = compile(FALLBACK, { id: 'fall-back.stator' })
