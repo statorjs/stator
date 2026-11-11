@@ -1,4 +1,6 @@
 ---
+import { highlight } from '../lib/highlight.ts'
+import CopyButton from '../templates/copy-button.stator'
 import Layout from '../templates/layout.stator'
 import RoundTrip from '../templates/round-trip.stator'
 
@@ -6,7 +8,9 @@ const TITLE = 'Stator · render HTML where your state lives'
 const DESCRIPTION =
   'A TypeScript framework where your app’s state lives in machines on the server. An event goes up, a patch comes down.'
 
-const TEST_HEAD = `import assert from 'node:assert/strict'
+const INSTALL = 'pnpm create stator'
+
+const TEST = highlight(`import assert from 'node:assert/strict'
 import { it } from 'node:test'
 import { createActor } from '@statorjs/stator/machine'
 import CartMachine from '../lib/demo-cart.ts'
@@ -14,9 +18,8 @@ import CartMachine from '../lib/demo-cart.ts'
 it('refuses to check out an empty cart', () => {
   const actor = createActor(CartMachine).start()
   actor.send({ type: 'CHECKOUT' })
-  `
-const TEST_TAIL = `.deepStrictEqual(actor.getSnapshot().value, ['idle'])
-})`
+  assert.deepStrictEqual(actor.getSnapshot().value, ['idle'])
+})`)
 ---
 <Layout title={TITLE} description={DESCRIPTION}>
   <div child="hero">
@@ -29,7 +32,11 @@ const TEST_TAIL = `.deepStrictEqual(actor.getSnapshot().value, ['idle'])
         </p>
         <div class="actions">
           <a class="btn btn--primary press" href="https://docs.statorjs.dev">Start the tutorial</a>
-          <span class="install"><span class="prompt">$</span> pnpm create stator</span>
+          <span class="install">
+            <span class="prompt">$</span>
+            <span>{INSTALL}</span>
+            <CopyButton text={INSTALL} />
+          </span>
         </div>
       </div>
     </section>
@@ -73,7 +80,7 @@ const TEST_TAIL = `.deepStrictEqual(actor.getSnapshot().value, ['idle'])
       </div>
       <figure class="code-window">
         <figcaption>tests/demo-cart.test.ts</figcaption>
-        <pre><code>{TEST_HEAD}<span class="hl">assert</span>{TEST_TAIL}</code></pre>
+        <pre><code>{TEST.map((t) => (t.kind ? <span class={`tok-${t.kind}`}>{t.text}</span> : t.text))}</code></pre>
       </figure>
     </div>
   </section>

@@ -282,7 +282,7 @@ code {
   align-items: center;
   gap: 12px;
   min-height: 52px;
-  padding: 0 18px;
+  padding: 0 12px 0 18px;
   background: var(--code-bg);
   color: var(--code-fg);
   border: 3px solid var(--line);
@@ -298,7 +298,7 @@ code {
 .slip {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   padding: 12px;
   background: var(--card);
   border: 2px solid var(--line);
@@ -312,12 +312,25 @@ code {
   align-items: flex-start;
   gap: 8px;
 }
+.slip-line + .slip-line {
+  padding-top: 10px;
+  border-top: 2px solid var(--surface);
+}
 .slip-tag {
   flex: none;
   font-weight: 700;
 }
 .slip-body {
+  min-width: 0;
   overflow-wrap: anywhere;
+}
+.slip-body span {
+  display: block;
+}
+/* One JSON key per row; a row that wraps hangs under its own start. */
+.slip-key {
+  padding-left: 4ch;
+  text-indent: -2ch;
 }
 .slip-line--patch {
   font-weight: 700;
@@ -511,8 +524,25 @@ code {
 .code-window code {
   font-size: inherit;
 }
-.code-window .hl {
+/* Code tokens (lib/highlight.ts), on the code background in both themes. */
+.tok-keyword {
+  color: var(--pink);
+}
+.tok-string {
   color: var(--yellow);
+}
+.tok-call {
+  color: #b9a5ff;
+}
+.tok-name {
+  color: #8fd6c4;
+}
+.tok-number {
+  color: #ff8a5c;
+}
+.tok-comment {
+  color: #8f8f8a;
+  font-style: italic;
 }
 
 .struck {

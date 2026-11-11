@@ -1,0 +1,71 @@
+<copy-button>
+  <button
+    class="press"
+    type="button"
+    on:click={copy}
+    hidden={read(state, (_s) => false, true)}
+    aria-label={read(state, (s) => (s.copied ? 'Copied' : 'Copy to clipboard'), 'Copy to clipboard')}
+  >
+    {read(state, (s) => (s.copied ? 'Copied' : 'Copy'), 'Copy')}
+  </button>
+</copy-button>
+
+<script>
+  const Copy = machine(
+    { copied: false },
+    {
+      on: {
+        COPIED: (s) => { s.copied = true },
+        RESET: (s) => { s.copied = false },
+      },
+    },
+  )
+
+  // The button is in the shell but hidden until this runs: without the
+  // script it could not copy anything.
+  export class CopyButton extends StatorElement {
+    static attrs = { text: String }
+    state = use(Copy)
+
+    async copy() {
+      try {
+        await navigator.clipboard.writeText(this.attrs.text ?? '')
+      } catch {
+        return
+      }
+      this.state.send('COPIED')
+      setTimeout(() => this.state.send('RESET'), 1600)
+    }
+  }
+</script>
+
+<style>
+  copy-button {
+    display: inline-flex;
+  }
+  button {
+    min-width: 68px;
+    min-height: 30px;
+    padding: 0 10px;
+    background: var(--yellow);
+    color: var(--ink);
+    border: 2px solid var(--code-fg);
+    border-radius: 6px;
+    box-shadow: 3px 3px 0 var(--code-fg);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  button:hover {
+    box-shadow: 4px 4px 0 var(--code-fg);
+    transform: translate(-1px, -1px);
+  }
+  button:active {
+    box-shadow: 0 0 0 var(--code-fg);
+    transform: translate(3px, 3px);
+  }
+  button:focus-visible {
+    outline-color: var(--code-fg);
+  }
+</style>

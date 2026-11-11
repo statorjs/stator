@@ -154,9 +154,9 @@
       if (quiet) quiet.hidden = true
 
       const slip = el('div', 'slip')
-      slip.append(line('event →', JSON.stringify({ machine: 'CartMachine', event }), 'slip-line'))
+      slip.append(line('event →', pretty({ machine: 'CartMachine', event }), 'slip-line'))
       for (const patch of patches) {
-        slip.append(line('← patch', JSON.stringify(patch), 'slip-line slip-line--patch'))
+        slip.append(line('← patch', pretty(patch), 'slip-line slip-line--patch'))
       }
       if (patches.length === 0) {
         slip.append(line('← nothing', 'the guard said no, so there is nothing to patch', 'slip-line slip-line--blocked'))
@@ -184,6 +184,17 @@
     return patches
   }
 
+  // One line per top-level key, so a slip wraps at keys and not mid-string.
+  function pretty(value: Record<string, unknown>) {
+    const inline = (v: unknown) =>
+      JSON.stringify(v, null, 1).replace(/\n\s*/g, ' ').replace(/([[{]) | (?=[\]}])/g, '$1')
+    const entries = Object.entries(value)
+    const rows = entries.map(
+      ([key, v], i) => `${JSON.stringify(key)}: ${inline(v)}${i < entries.length - 1 ? ',' : ''}`,
+    )
+    return ['{', ...rows, '}']
+  }
+
   function el(tag: string, className: string, text?: string) {
     const node = document.createElement(tag)
     node.className = className
@@ -191,9 +202,12 @@
     return node
   }
 
-  function line(tag: string, body: string, className: string) {
+  function line(tag: string, body: string | string[], className: string) {
     const row = el('div', className)
-    row.append(el('span', 'slip-tag', tag), el('span', 'slip-body', body))
+    const content = el('span', 'slip-body')
+    if (typeof body === 'string') content.textContent = body
+    else content.append(...body.map((text, i) => el('span', i > 0 && i < body.length - 1 ? 'slip-key' : '', text)))
+    row.append(el('span', 'slip-tag', tag), content)
     return row
   }
 </script>
