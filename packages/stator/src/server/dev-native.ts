@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { realpathSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { getRequestListener } from '@hono/node-server'
@@ -41,6 +42,7 @@ import { resolveAppConfig } from './resolve-config.ts'
 import type { DiscoveredRoute } from './route-discovery.ts'
 import { discoverRoutes } from './route-discovery.ts'
 import { isStatorQueryRoute } from './routing.ts'
+import { drainAndClose } from './shutdown.ts'
 import { broadcastEnvelope } from './sse.ts'
 import { InMemoryStore } from './store.ts'
 
@@ -72,7 +74,7 @@ export interface NativeDevApp {
     machine: D,
     event: EventOf<D>,
   ): Promise<{ committed: boolean }>
-  listen: (port: number) => Promise<void>
+  listen: (port: number) => Promise<{ port: number }>
   close: () => Promise<void>
 }
 
@@ -600,6 +602,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
 
   let listening: ReturnType<typeof createHttpServer> | undefined
   let bootTeardown: BootTeardown | undefined
+  let unhook: (() => void) | undefined
   const runBootTeardown = async (): Promise<void> => {
     const teardown = bootTeardown
     bootTeardown = undefined
@@ -612,7 +615,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       return app
     },
     dispatchToApp: (machine, event) => dispatchToApp(store, machine, event),
-    listen(port: number): Promise<void> {
+    listen(port: number): Promise<{ port: number }> {
       const listener = getRequestListener(handle)
       const server = createHttpServer(listener)
       listening = server
@@ -620,8 +623,10 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
         (freePort) =>
           new Promise((resolveFn) => {
             server.listen(freePort, async () => {
+              // `listen(0)` asks the OS for a port; report the one it gave.
+              const bound = (server.address() as AddressInfo).port
               printDevBanner({
-                port: freePort,
+                port: bound,
                 requestedPort: port,
                 machines: machineCount,
                 routes: routes.length,
@@ -637,29 +642,31 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
                 },
               })
               bootTeardown = teardown
-              installGracefulShutdown(server, {
+              unhook = installGracefulShutdown(server, {
                 teardown: async () => {
                   await runBootTeardown()
                   await watcher.close()
                 },
               })
-              resolveFn()
+              resolveFn({ port: bound })
             })
           }),
       )
     },
     close: async () => {
-      await runBootTeardown()
-      await watcher.close()
-      loader.deregister()
-      // The listening server and its open connections (a live page's SSE
-      // stream, a keep-alive socket) would otherwise hold the process open.
       const server = listening
       listening = undefined
-      if (server) {
-        server.closeAllConnections()
-        await new Promise<void>((done) => server.close(() => done()))
+      unhook?.()
+      unhook = undefined
+      // The listening server and its open connections (a live page's SSE
+      // stream, a keep-alive socket) would otherwise hold the process open.
+      const teardown = async (): Promise<void> => {
+        await runBootTeardown()
+        await watcher.close()
       }
+      if (server) await drainAndClose(server, { teardown })
+      else await teardown()
+      loader.deregister()
     },
   }
 }

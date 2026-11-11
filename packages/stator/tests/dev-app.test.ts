@@ -29,10 +29,10 @@ describe('close()', () => {
     // A test that starts a dev app and closes it in `after()` must leave
     // nothing holding the process open: the runner waits for each file to exit.
     const app = await boot()
-    const port = 4690 + Math.floor(Math.random() * 200)
-    const log = mock.method(console, 'log', () => {})
-    await app.listen(port)
-    log.mock.restore()
+    const out = mock.method(process.stdout, 'write', () => true)
+    const { port } = await app.listen(0)
+    out.mock.restore()
+    assert.ok(port > 0)
     const res = await fetch(`http://localhost:${port}/tally`)
     assert.equal(res.status, 200)
     await res.text()

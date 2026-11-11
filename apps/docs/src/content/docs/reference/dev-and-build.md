@@ -29,8 +29,8 @@ interface DevAppConfig {
 interface DevApp {
   fetch(request: Request): Response | Promise<Response>
   dispatchToApp(machine: MachineDef, event: EventOf<typeof machine>): Promise<{ committed: boolean }>
-  listen(port: number): Promise<void>
-  close(): Promise<void>
+  listen(port: number): Promise<{ port: number }> // the first free port at or above `port`; listen(0) takes any
+  close(): Promise<void>                          // stops the watcher and the server it listened on
 }
 ```
 

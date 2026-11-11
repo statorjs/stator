@@ -41,7 +41,8 @@ interface CreateAppConfig {
 }
 
 interface StatorApp {
-  listen(port: number): Promise<void>
+  listen(port: number): Promise<{ port: number }> // resolves with the port bound; listen(0) takes a free one
+  close(): Promise<void>                // stop serving and free the port; the app can listen() again
   hono: Hono                            // break-glass: the raw Hono app
   fetch(request: Request): Response | Promise<Response>
   store: MachineStore
@@ -49,7 +50,7 @@ interface StatorApp {
 }
 ```
 
-The production entry point. Discovers machines and routes from the given directories, boots app-lifecycle machines, wires cross-machine effects, and serves over Hono. `fetch` is the raw handler for tests; `store` is what you hand to [`dispatchToApp`](#dispatchtoapp) for server-originated events. In production, pass [`loadProductionHead`](/reference/dev-and-build/#loadproductionhead)'s result into the config (`headExtras`, `buildId`, and `machines` as `machineHashes` — a machine missing from the supplied hashes is a boot error; omit `machineHashes` and machines are hashed live at boot). The dev server serves the wire inspector toolbar by default; `dev: { inspector: true }` opts a production app in (demo sites want the wire visible).
+The production entry point. Discovers machines and routes from the given directories, boots app-lifecycle machines, wires cross-machine effects, and serves over Hono. `fetch` is the raw handler for tests. `close()` stops what `listen()` started: no new connections, the `boot.ts` teardown, live streams hung up, in-flight requests given a bounded deadline, and it resolves once the port is free. It does not exit the process, which `stator start` does on `SIGTERM` after the same steps. `store` is what you hand to [`dispatchToApp`](#dispatchtoapp) for server-originated events. In production, pass [`loadProductionHead`](/reference/dev-and-build/#loadproductionhead)'s result into the config (`headExtras`, `buildId`, and `machines` as `machineHashes` — a machine missing from the supplied hashes is a boot error; omit `machineHashes` and machines are hashed live at boot). The dev server serves the wire inspector toolbar by default; `dev: { inspector: true }` opts a production app in (demo sites want the wire visible).
 
 ## defineMachine
 
