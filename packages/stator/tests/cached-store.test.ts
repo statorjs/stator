@@ -181,3 +181,26 @@ describe('CachedStore', () => {
     assert.equal(cache.size, 3)
   })
 })
+
+describe('CachedStore.close()', () => {
+  it('closes the store it wraps, and is safe when that store has no close()', async () => {
+    let closed = 0
+    const backing = {
+      get: async () => null,
+      set: async () => {},
+      delete: async () => {},
+      close: async () => {
+        closed++
+      },
+    } as unknown as Store
+    const cached = new CachedStore(backing)
+    await cached.set('s1', 'M', { n: 1 })
+    assert.equal(cached.size, 1)
+    await cached.close()
+    assert.equal(closed, 1)
+    assert.equal(cached.size, 0)
+
+    const bare = { get: async () => null, set: async () => {}, delete: async () => {} }
+    await assert.doesNotReject(new CachedStore(bare as unknown as Store).close())
+  })
+})

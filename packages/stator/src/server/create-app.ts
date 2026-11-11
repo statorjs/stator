@@ -19,6 +19,7 @@ import { discoverMiddleware } from './middleware.ts'
 import { resolveAppConfig } from './resolve-config.ts'
 import { discoverRoutes } from './route-discovery.ts'
 import { setSessionSameSite } from './session.ts'
+import { drainAndClose } from './shutdown.ts'
 import { InMemoryStore, type Store } from './store.ts'
 import { persistencePosture } from './store-intent.ts'
 
@@ -161,7 +162,14 @@ function offeredEventsLookup(
 }
 
 export interface StatorApp {
-  listen(port: number): Promise<void>
+  /** Start serving. Resolves with the port bound: the one asked for, or the
+   *  one the OS chose for `listen(0)`. */
+  listen(port: number): Promise<{ port: number }>
+  /** Stop serving: no new connections, boot teardown, live streams hung up,
+   *  in-flight requests given a bounded deadline. Resolves once the port is
+   *  free; a no-op on an app that is not listening. The process is not
+   *  exited, so the app can `listen()` again. */
+  close(): Promise<void>
   /** For tests — get the underlying Hono fetch handler. */
   fetch: (request: Request) => Response | Promise<Response>
   /** The machine registry + app actors. Kept exposed for advanced use;
@@ -252,59 +260,75 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
           },
   })
 
+  let running:
+    | { server: ReturnType<typeof serve>; teardown?: BootTeardown; unhook: () => void }
+    | undefined
+
   return {
-    listen(port: number): Promise<void> {
+    listen(requested: number): Promise<{ port: number }> {
       return new Promise((resolveFn) => {
-        const server = serve({ fetch: app.fetch, port, hostname: resolved.host }, async () => {
-          // Always-on (level-independent) so `warn` prod still confirms boot.
-          // Persistence posture in the notice, and a warning for anything
-          // actually at risk. Silence about in-memory storage is the defect
-          // this closes: the app runs, looks healthy, and loses every session
-          // on restart.
-          const posture = persistencePosture({
-            session: sessionStore,
-            app: store.appStore,
-            machines: defs,
-            production: process.env.NODE_ENV === 'production',
-          })
-          printStartupNotice({
-            port,
-            machines: defs.length,
-            routes: routes.length,
-            persistence: posture.label,
-          })
-          for (const warning of posture.warnings) logger.warn({}, `stator: ${warning}`)
-          // Run boot.ts once the server is up — its long-lived work (a poll, a
-          // subscription) starts here, not during createApp, so tests that only
-          // `app.fetch` never trigger it.
-          const teardown: BootTeardown | undefined = await runBoot(bootDef, {
-            dispatchToApp: (machine, event) => dispatchToApp(store, machine, event),
-            config: {
-              origin: resolved.origin,
-              trustedOrigins: resolved.trustedOrigins ?? [],
-              sameSite: resolved.sameSite ?? 'Lax',
-              cors: resolved.cors,
-            },
-          })
-          // Ctrl+C / SIGTERM (deploy rollover) exits 0, not 130 — quiet in prod.
-          // The server stops accepting before boot teardown runs, so nothing
-          // new arrives while its sources are being unsubscribed.
-          installGracefulShutdown(server, { teardown, quiet: true })
-          resolveFn()
-        })
+        const server = serve(
+          { fetch: app.fetch, port: requested, hostname: resolved.host },
+          async (info) => {
+            const port = info.port
+            // Always-on (level-independent) so `warn` prod still confirms boot.
+            // Persistence posture in the notice, and a warning for anything
+            // actually at risk. Silence about in-memory storage is the defect
+            // this closes: the app runs, looks healthy, and loses every session
+            // on restart.
+            const posture = persistencePosture({
+              session: sessionStore,
+              app: store.appStore,
+              machines: defs,
+              production: process.env.NODE_ENV === 'production',
+            })
+            printStartupNotice({
+              port,
+              machines: defs.length,
+              routes: routes.length,
+              persistence: posture.label,
+            })
+            for (const warning of posture.warnings) logger.warn({}, `stator: ${warning}`)
+            // Run boot.ts once the server is up — its long-lived work (a poll, a
+            // subscription) starts here, not during createApp, so tests that only
+            // `app.fetch` never trigger it.
+            const teardown: BootTeardown | undefined = await runBoot(bootDef, {
+              dispatchToApp: (machine, event) => dispatchToApp(store, machine, event),
+              config: {
+                origin: resolved.origin,
+                trustedOrigins: resolved.trustedOrigins ?? [],
+                sameSite: resolved.sameSite ?? 'Lax',
+                cors: resolved.cors,
+              },
+            })
+            // Ctrl+C / SIGTERM (deploy rollover) exits 0, not 130 — quiet in prod.
+            // The server stops accepting before boot teardown runs, so nothing
+            // new arrives while its sources are being unsubscribed.
+            const unhook = installGracefulShutdown(server, { teardown, quiet: true })
+            running = { server, teardown, unhook }
+            resolveFn({ port })
+          },
+        )
         // Production is strict about its port (a collision is a deploy
         // error) — but says so in one line, not a stack trace.
         server.on('error', (err: NodeJS.ErrnoException) => {
           if (err.code === 'EADDRINUSE') {
             logger.error(
-              { port },
-              `port ${port} is already in use — is another instance running? (set PORT to change it)`,
+              { port: requested },
+              `port ${requested} is already in use — is another instance running? (set PORT to change it)`,
             )
             process.exit(1)
           }
           throw err
         })
       })
+    },
+    close: async () => {
+      const was = running
+      running = undefined
+      if (!was) return
+      was.unhook()
+      await drainAndClose(was.server, { teardown: was.teardown })
     },
     fetch: (request: Request) => app.fetch(request),
     store,

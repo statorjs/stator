@@ -44,7 +44,7 @@ const sse = (app: StatorApp, route: string, cookie = '', signal?: AbortSignal) =
     ),
   )
 
-/** Read an SSE body until `done` holds or 3 s pass, then abort it. */
+/** Read an SSE body until `done` holds or 3 s pass, then end it. */
 async function readUntil(res: Response, abort: AbortController, done: (t: string) => boolean) {
   const reader = res.body!.getReader()
   const decoder = new TextDecoder()
@@ -58,6 +58,9 @@ async function readUntil(res: Response, abort: AbortController, done: (t: string
     }
   } finally {
     abort.abort()
+    // Cancelling the body is what ends the stream on the server: aborting an
+    // in-process request alone leaves its keep-alive timer running.
+    await reader.cancel().catch(() => {})
   }
   return text
 }

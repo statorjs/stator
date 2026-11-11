@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
-import { after, describe, it } from 'node:test'
+import { after, describe, it, mock } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { createDevApp, type DevApp } from '../src/server/dev.ts'
 import { isPrunedDevPath } from '../src/server/dev-watch.ts'
@@ -23,6 +23,28 @@ const boot = (extra: Record<string, unknown> = {}) =>
     routesDir: resolve(root, 'routes'),
     ...extra,
   })
+
+describe('close()', () => {
+  it('shuts the server it listened on, open connections included', async () => {
+    // A test that starts a dev app and closes it in `after()` must leave
+    // nothing holding the process open: the runner waits for each file to exit.
+    const app = await boot()
+    const out = mock.method(process.stdout, 'write', () => true)
+    const { port } = await app.listen(0)
+    out.mock.restore()
+    assert.ok(port > 0)
+    const res = await fetch(`http://localhost:${port}/tally`)
+    assert.equal(res.status, 200)
+    await res.text()
+
+    await app.close()
+    await assert.rejects(fetch(`http://localhost:${port}/tally`))
+    const servers = (process as unknown as { _getActiveHandles(): object[] })
+      ._getActiveHandles()
+      .filter((h) => h.constructor.name === 'Server')
+    assert.deepStrictEqual(servers, [])
+  })
+})
 
 describe('the native dev app in-process', () => {
   let app: DevApp | undefined

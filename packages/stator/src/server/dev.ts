@@ -92,7 +92,9 @@ export interface DevApp {
   /** Break-glass: the current raw Hono app (a getter — the dev server rebuilds
    *  it on edits, so mount inside the pipeline, not post-hoc). */
   readonly hono: Hono
-  listen: (port: number) => Promise<void>
+  /** Start serving. Resolves with the port bound: the first free one at or
+   *  above `port`, or the one the OS chose for `listen(0)`. */
+  listen: (port: number) => Promise<{ port: number }>
   close: () => Promise<void>
 }
 

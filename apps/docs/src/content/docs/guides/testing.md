@@ -118,6 +118,8 @@ Island state is built from `machine()` and the same actor engine, so its logic t
 
 `stator test` runs every `*.test.ts` and `*.spec.ts` under the app with Node's test runner, each file in its own process. Arguments pass through: name files to run only those (`stator test tests/cart.test.ts`), or add Node's flags (`stator test --watch`, `--test-name-pattern`, `--experimental-test-coverage`). Framework logging is silent during tests; export `LOG_LEVEL` to bring it back while debugging. Spies and fake timers come from `node:test`'s `mock` (`mock.fn`, `mock.method`, `mock.timers`).
 
+A test file's process ends when nothing in it is still open, so close what a test starts: `await app.close()` in `after()` for an app you called `listen()` on, and the same for a database handle or a timer of your own. A test that needs a real port (a browser-driven one) can take a free one: `const { port } = await app.listen(0)`. A file that leaves something open makes the run wait. `stator test --test-force-exit` ends each file as soon as its tests finish, but Node can then drop the last results of a file before the runner has read them, and the run reports fewer tests with no failure. Prefer closing things.
+
 Stator ships its source as TypeScript and loads it with its own loader. Packages built on Stator (component libraries, runtime packages) ship JS that imports that source. Node won't strip types inside `node_modules`, so any process that imports such a package needs Stator's loader registered first. `stator dev`, `start`, `build` and `test` register it themselves.
 
 Anything else that runs your code (an editor's test runner, a maintenance script) registers it with one flag:

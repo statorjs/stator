@@ -128,4 +128,11 @@ export class CachedStore implements Store {
   get size(): number {
     return this.cache.size
   }
+
+  /** Close the backing store's connection, when it has one, and drop the
+   *  cache. The store it wraps is this one's to close: nothing else holds it. */
+  async close(): Promise<void> {
+    this.cache.clear()
+    await (this.backing as { close?: () => Promise<void> }).close?.()
+  }
 }

@@ -96,7 +96,7 @@ export function printStartupNotice(info: {
 export function installGracefulShutdown(
   server: ClosableServer,
   opts: { teardown?: () => Promise<void> | void; quiet?: boolean } = {},
-): void {
+): () => void {
   let closing = false
   const handler = () => {
     if (closing) process.exit(130)
@@ -113,6 +113,11 @@ export function installGracefulShutdown(
   }
   process.on('SIGINT', handler)
   process.on('SIGTERM', handler)
+  // For a server closed by hand: its handlers go with it.
+  return () => {
+    process.off('SIGINT', handler)
+    process.off('SIGTERM', handler)
+  }
 }
 
 /** First free TCP port at or above `start` (bounded probe). The dev plane

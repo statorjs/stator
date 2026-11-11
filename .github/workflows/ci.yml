@@ -12,6 +12,8 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    # A test file that never exits would otherwise hold the job for GitHub's six-hour default.
+    timeout-minutes: 15
     services:
       redis:
         image: redis:7-alpine
@@ -48,6 +50,7 @@ jobs:
       matrix:
         node: [26]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -76,6 +79,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

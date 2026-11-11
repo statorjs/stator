@@ -73,7 +73,7 @@ describe('sessionStore: choosing from the environment', () => {
 describe('sessionStore: with a URL set', { skip: !REDIS_URL }, () => {
   const built: Array<{ close?: () => Promise<void> }> = []
   after(async () => {
-    // CachedStore has no connection of its own; only the Redis adapters do.
+    // Each holds a Redis connection, the cached one through what it wraps.
     for (const store of built) await store.close?.()
   })
 
