@@ -143,6 +143,16 @@ describe('stator check: an island template is typechecked', () => {
     await writeFile(join(root, 'tsconfig.json'), JSON.stringify(config))
   }
 
+  it('passes a client read whose selector takes no argument', async () => {
+    await app('1')
+    const file = join(root, 'templates/qty-badge.stator')
+    const { readFile } = await import('node:fs/promises')
+    const source = await readFile(file, 'utf8')
+    await writeFile(file, source.replace('(q) => q.count', '() => 1'))
+    mock.method(process.stdout, 'write', () => true)
+    assert.equal(await checkStack(root), undefined)
+  })
+
   it('passes a sound template, callbacks over untyped props included', async () => {
     await app('1')
     mock.method(process.stdout, 'write', () => true)

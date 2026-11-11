@@ -216,8 +216,18 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
   /** A client read as a plain expression: `(selector)(field)`. Client-emit's
    *  member rewriting turns `field` (and any use-field the selector closes
    *  over) into `this.field`. */
-  const clientReadExpr = (call: ts.CallExpression): string =>
-    `(${call.arguments[1]!.getText(sf)})(${(call.arguments[0] as ts.Identifier).text})`
+  const clientReadExpr = (call: ts.CallExpression): string => {
+    const selector = call.arguments[1]!
+    const field = (call.arguments[0] as ts.Identifier).text
+    // A selector written with no parameter (`() => false`) is still called
+    // with the instance, which keeps the machine as the binding's dependency.
+    const ignoresInstance =
+      (ts.isArrowFunction(selector) || ts.isFunctionExpression(selector)) &&
+      selector.parameters.length === 0
+    return ignoresInstance
+      ? `((${selector.getText(sf)}) as (instance: unknown) => unknown)(${field})`
+      : `(${selector.getText(sf)})(${field})`
+  }
 
   /** Slot markers live in their own `s<N>` namespace (element markers are
    *  `b<N>`); the shell renders `<!--s0-->` and the client materializes one
