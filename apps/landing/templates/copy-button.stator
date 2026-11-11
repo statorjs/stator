@@ -1,6 +1,5 @@
 <copy-button>
   <button
-    class="press"
     type="button"
     on:click={copy}
     hidden={read(state, (_s) => false, true)}
@@ -43,6 +42,8 @@
   copy-button {
     display: inline-flex;
   }
+  /* The hard shadow is a drop-shadow filter: a box-shadow is clipped under
+     the button, which leaves a dark seam along the rounded corners. */
   button {
     min-width: 68px;
     min-height: 30px;
@@ -51,21 +52,30 @@
     color: var(--ink);
     border: 2px solid var(--code-fg);
     border-radius: 6px;
-    box-shadow: 3px 3px 0 var(--code-fg);
+    filter: drop-shadow(3px 3px 0 var(--code-fg));
     font-family: var(--mono);
     font-size: 12.5px;
     font-weight: 700;
     cursor: pointer;
+    transition:
+      transform 0.08s ease,
+      filter 0.08s ease;
   }
   button:hover {
-    box-shadow: 4px 4px 0 var(--code-fg);
+    filter: drop-shadow(4px 4px 0 var(--code-fg));
     transform: translate(-1px, -1px);
   }
   button:active {
-    box-shadow: 0 0 0 var(--code-fg);
+    filter: drop-shadow(0 0 0 var(--code-fg));
     transform: translate(3px, 3px);
   }
   button:focus-visible {
-    outline-color: var(--code-fg);
+    outline: 3px solid var(--code-fg);
+    outline-offset: 3px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    button {
+      transition: none;
+    }
   }
 </style>
