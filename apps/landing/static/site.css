@@ -336,6 +336,13 @@ code {
   background: var(--vermilion);
   color: var(--ink);
 }
+/* On a phone the tag sits above its JSON, which then gets the card's full width. */
+@media (max-width: 600px) {
+  .slip-line {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
 
 /* ---- Header ---- */
 .site-header {
