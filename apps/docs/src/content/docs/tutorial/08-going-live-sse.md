@@ -43,7 +43,7 @@ Picture an `inventory` app-machine with a `remaining` count, displayed via `read
 
 Live routes carry one more runtime-owned signal: `data-stator-connection` on `<html>`, one of `connected`, `disconnected`, `stale`, or `idle`. A zero-markup banner in `static/app.css` is all it takes to surface a dropped channel:
 
-```css
+```css title="static/app.css"
 /* Bottom edge, so it never fights a sticky header. z-index high on purpose:
    body::before is the first box in <body>, so any later sibling with an
    equal z-index would paint right over it. */

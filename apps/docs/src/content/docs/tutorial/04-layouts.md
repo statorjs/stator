@@ -18,7 +18,7 @@ Two reasons every page needs a real document:
 
 A layout is just a `.stator` component. Create `templates/base-layout.stator` — the document shell, with a stylesheet link and two **slots** for content:
 
-```astro
+```astro title="templates/base-layout.stator"
 <!doctype html>
 <html lang="en">
   <head>
@@ -48,7 +48,7 @@ This is a compile-time composition feature — not the browser's `<slot>` elemen
 
 Some CSS is app-wide: the color palette, a font, a CSS reset, and the **dark theme** (which the theme toggle in step 6 will switch on). That belongs in a plain stylesheet, not scoped to any one component. Create `static/app.css`:
 
-```css
+```css title="static/app.css"
 :root {
   --bg: #faf9f7;
   --surface: #ffffff;
@@ -88,7 +88,7 @@ The `[data-theme='dark']` block redefines the same variables; flipping `data-the
 
 Now a layout that fills the header once — with the shop brand and a live cart count — passes the page through, and carries its **own** scoped styles. Create `templates/customer-layout.stator`:
 
-```astro
+```astro title="templates/customer-layout.stator"
 ---
 import type { InstanceOf } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
@@ -129,7 +129,7 @@ And the `<style>` block is the key styling idea: **it's scoped to this component
 
 Give the product grid from step 3 a scoped `<style>` too. Add this to the bottom of `templates/product-list.stator`:
 
-```astro
+```astro title="templates/product-list.stator"
 <style>
   .product-grid {
     list-style: none;
@@ -158,7 +158,7 @@ Because the cards use `var(--surface)` / `var(--text)` (inherited), they'll foll
 
 Update the routes to render through the layout. `routes/index.stator`:
 
-```astro
+```astro title="routes/index.stator"
 ---
 import ProductsMachine from '../machines/products.ts'
 import CartMachine from '../machines/cart.ts'

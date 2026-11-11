@@ -11,7 +11,7 @@ Now we put the machines on screen. A `.stator` file is a server-rendered compone
 
 A `.stator` file has up to four regions. For a page you need two: the **frontmatter** (between `---` fences) for imports and machine access, and the **body** for markup. Create `routes/index.stator`:
 
-```astro
+```astro title="routes/index.stator"
 ---
 import ProductsMachine from '../machines/products.ts'
 import CartMachine from '../machines/cart.ts'
@@ -42,7 +42,7 @@ That `<p>`'s count is now bound to the cart's `itemCount`. When the cart changes
 
 Let's render the actual catalog. Pull the product grid into a reusable component, `templates/product-list.stator`, which takes the machines as props:
 
-```astro
+```astro title="templates/product-list.stator"
 ---
 import type { InstanceOf } from '@statorjs/stator/template'
 import type ProductsMachine from '../machines/products.ts'
@@ -68,7 +68,7 @@ Note the imports are **type-only** (`import type`): a template references a mach
 
 Wire it into the page:
 
-```astro
+```astro title="routes/index.stator"
 ---
 import ProductsMachine from '../machines/products.ts'
 import CartMachine from '../machines/cart.ts'
@@ -88,7 +88,7 @@ A capitalized tag (`<ProductList>`) invokes a component; lowercase tags are plai
 
 Now the cart. Create `routes/cart.stator` — here's the **whole file**; we'll unpack the new pieces right after:
 
-```astro
+```astro title="routes/cart.stator"
 ---
 import CartMachine from '../machines/cart.ts'
 
