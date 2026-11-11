@@ -52,6 +52,19 @@
   },
   "overrides": [
     {
+      // Biome reads an Astro component's frontmatter but not its markup, so
+      // everything the markup uses looks unused.
+      "includes": ["**/*.astro"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off",
+            "noUnusedImports": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["**/tests/**", "**/*.test.ts"],
       "linter": {
         "rules": {

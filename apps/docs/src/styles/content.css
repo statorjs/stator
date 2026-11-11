@@ -345,6 +345,10 @@ starlight-tabs .tablist-wrapper ~ [role="tabpanel"] {
   border: 2px solid var(--st-line);
   border-radius: 6px;
 }
+.sl-link-card .icon,
+.sl-link-card:hover .icon {
+  color: var(--st-text);
+}
 .card:nth-child(4n + 2) .icon {
   background: var(--st-pink);
 }
@@ -379,10 +383,6 @@ starlight-tabs .tablist-wrapper ~ [role="tabpanel"] {
 }
 .sl-link-card .description {
   color: var(--st-text-2);
-}
-.sl-link-card .icon,
-.sl-link-card:hover .icon {
-  color: var(--st-text);
 }
 .sl-link-card:focus-within {
   outline: 3px solid var(--st-text);

@@ -187,6 +187,10 @@ a[rel="me"]:hover {
   text-decoration-thickness: 3px;
   text-underline-offset: 4px;
 }
+starlight-menu-button button svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
 a[rel="me"] svg {
   display: none;
 }
@@ -260,10 +264,6 @@ starlight-menu-button[aria-expanded="true"] button {
   background: var(--st-ink);
   color: var(--st-paper);
 }
-starlight-menu-button button svg {
-  width: 1.5rem;
-  height: 1.5rem;
-}
 
 .sidebar-pane {
   background: var(--st-ground);
@@ -289,8 +289,22 @@ starlight-menu-button button svg {
   padding-inline: 1.25rem;
   gap: 1.375rem;
 }
+.sidebar-content li + li {
+  margin-top: 0.25rem;
+}
+.sidebar-content ul ul li {
+  margin-inline-start: 0;
+  padding-inline-start: 0;
+  border-inline-start: 0;
+}
 .sidebar-content ul.top-level > li + li {
   margin-top: 1.375rem;
+}
+mobile-starlight-toc summary {
+  height: var(--sl-mobile-toc-height);
+  border-bottom: 4px solid var(--st-line);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
 }
 .sidebar-content summary {
   padding: 0.25rem 0.625rem 0.25rem 0;
@@ -311,14 +325,6 @@ starlight-menu-button button svg {
   color: var(--st-text-2);
 }
 .sidebar-content ul ul {
-  margin-top: 0.25rem;
-}
-.sidebar-content ul ul li {
-  margin-inline-start: 0;
-  padding-inline-start: 0;
-  border-inline-start: 0;
-}
-.sidebar-content li + li {
   margin-top: 0.25rem;
 }
 .sidebar-content a {
@@ -389,6 +395,22 @@ starlight-menu-button button svg {
 .right-sidebar-panel starlight-toc ul ul {
   margin: 0;
 }
+.pagination-links a {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 14px 18px;
+  background: var(--st-card);
+  color: var(--st-text);
+  border: 3px solid var(--st-line);
+  border-radius: 8px;
+  font-family: var(--st-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
 .right-sidebar-panel starlight-toc a {
   padding-block: 0.3125rem;
   padding-inline: calc(0.875rem + 0.75rem * var(--depth)) 0;
@@ -397,6 +419,9 @@ starlight-menu-button button svg {
   font-size: 0.9375rem;
   line-height: 1.3;
   color: var(--st-text-2);
+}
+.pagination-links a:hover {
+  border-color: var(--st-line);
 }
 .right-sidebar-panel starlight-toc a:hover {
   color: var(--st-text);
@@ -415,12 +440,6 @@ mobile-starlight-toc nav {
   top: calc(var(--sl-nav-height) - 4px);
   border-top: 0;
   background: var(--st-ground);
-}
-mobile-starlight-toc summary {
-  height: var(--sl-mobile-toc-height);
-  border-bottom: 4px solid var(--st-line);
-  padding: 0.625rem 1rem;
-  font-size: 0.875rem;
 }
 mobile-starlight-toc .toggle {
   min-height: 40px;
@@ -481,25 +500,6 @@ mobile-starlight-toc .dropdown a[aria-current="true"]::after {
 }
 .pagination-links:not(:has(a)) {
   display: none;
-}
-.pagination-links a {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 14px 18px;
-  background: var(--st-card);
-  color: var(--st-text);
-  border: 3px solid var(--st-line);
-  border-radius: 8px;
-  font-family: var(--st-mono);
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.5;
-}
-.pagination-links a:hover {
-  border-color: var(--st-line);
 }
 .pagination-links a > svg,
 .pagination-links br {
@@ -664,6 +664,16 @@ button[data-close-modal] {
   --pagefind-ui-text: var(--st-ink);
   color: var(--st-ink);
 }
+#starlight__search .pagefind-ui__result-excerpt {
+  color: var(--st-text-2);
+}
+#starlight__search mark {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: var(--st-yellow);
+  color: var(--st-ink);
+  font-weight: 700;
+}
 #starlight__search .pagefind-ui__result-nested:focus-within .pagefind-ui__result-excerpt,
 #starlight__search .pagefind-ui__result-nested:focus-within mark {
   color: var(--st-ink);
@@ -675,19 +685,9 @@ button[data-close-modal] {
 #starlight__search .pagefind-ui__result-link:focus-visible {
   outline: none;
 }
-#starlight__search .pagefind-ui__result-excerpt {
-  color: var(--st-text-2);
-}
 #starlight__search .pagefind-ui__result-inner > .pagefind-ui__result-title::before,
 #starlight__search .pagefind-ui__result-nested::before {
   background: var(--st-text-2);
-}
-#starlight__search mark {
-  padding: 0 2px;
-  border-radius: 3px;
-  background: var(--st-yellow);
-  color: var(--st-ink);
-  font-weight: 700;
 }
 #starlight__search .pagefind-ui__button {
   min-height: 44px;

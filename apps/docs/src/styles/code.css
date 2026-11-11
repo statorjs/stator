@@ -7,10 +7,19 @@
 .expressive-code .frame {
   filter: drop-shadow(6px 6px 0 var(--st-line));
 }
+.expressive-code .frame.is-terminal .header {
+  padding-block: 8px 12px;
+  background: var(--st-card);
+  color: var(--st-text);
+}
 .expressive-code .frame.has-title:not(.is-terminal) .header {
   padding: 0;
   background: var(--st-card);
   border: 4px solid var(--st-line);
+}
+.expressive-code .frame.is-terminal .header::before {
+  box-shadow: none;
+  background-color: var(--st-text-2);
 }
 .expressive-code .frame.has-title:not(.is-terminal) .header::before {
   display: none;
@@ -21,15 +30,6 @@
   background: transparent;
   color: var(--st-text);
   border: 0;
-}
-.expressive-code .frame.is-terminal .header {
-  padding-block: 8px 12px;
-  background: var(--st-card);
-  color: var(--st-text);
-}
-.expressive-code .frame.is-terminal .header::before {
-  box-shadow: none;
-  background-color: var(--st-text-2);
 }
 
 .expressive-code .copy button {
