@@ -7,34 +7,34 @@
     <section class="pane pane--browser" aria-label="Browser">
       <header>
         <span class="chip chip--pink">BROWSER</span>
-        <span class="cart">Cart (<span ref:count>0</span>)</span>
+        <span class="cart">Cart ({read(cart, (c) => c.count, 0)})</span>
       </header>
 
-      <div class="view" ref:shop>
+      <div class="view" hidden={read(cart, (c) => c.state !== 'idle', false)}>
         <div class="row">
           <div class="product"><strong>Pocket Notebook</strong><span>$12.00</span></div>
-          <button class="btn btn--secondary press" type="button" data-id="p1" ref:p1 on:click={add}>
-            Add to cart
+          <button class="btn btn--secondary press" type="button" data-id="p1" on:click={add}>
+            {read(cart, (c) => c.labelP1, 'Add to cart')}
           </button>
         </div>
         <div class="row">
           <div class="product"><strong>Fountain Pen</strong><span>$28.00</span></div>
-          <button class="btn btn--secondary press" type="button" data-id="p2" ref:p2 on:click={add}>
-            Add to cart
+          <button class="btn btn--secondary press" type="button" data-id="p2" on:click={add}>
+            {read(cart, (c) => c.labelP2, 'Add to cart')}
           </button>
         </div>
         <div class="row">
           <div class="product"><strong>Sticky Notes</strong><span>$8.50</span></div>
-          <button class="btn btn--secondary press" type="button" data-id="p3" ref:p3 on:click={add}>
-            Add to cart
+          <button class="btn btn--secondary press" type="button" data-id="p3" on:click={add}>
+            {read(cart, (c) => c.labelP3, 'Add to cart')}
           </button>
         </div>
         <button class="btn btn--invert btn--block press" type="button" on:click={checkout}>Checkout</button>
       </div>
 
-      <div class="view" ref:checkout hidden>
+      <div class="view" hidden={read(cart, (c) => c.state === 'idle', true)}>
         <div class="row row--stack">
-          <h3 class="h3">Checking out <span ref:checkoutCount>0</span> items</h3>
+          <h3 class="h3">Checking out {read(cart, (c) => c.count, 0)} items</h3>
           <p class="muted">The product list is gone from the page. One patch swapped this branch in.</p>
           <button class="btn btn--tertiary press" type="button" on:click={back}>Back to cart</button>
         </div>
@@ -54,22 +54,22 @@
       </header>
       <div class="field-group">
         <span class="label">state</span>
-        <span class="badge" ref:state>idle</span>
+        <span class="badge">{read(cart, (c) => c.state, 'idle')}</span>
       </div>
       <div class="field-group">
         <span class="label">context.items</span>
-        <pre class="mono" ref:items>[]</pre>
+        <pre class="mono">{read(cart, (c) => c.itemsText, '[]')}</pre>
       </div>
       <div class="field-group">
         <span class="label">last transition</span>
-        <span class="mono" ref:last>none yet</span>
+        <span class="mono">{read(trip, (t) => t.last, 'none yet')}</span>
       </div>
     </section>
   </div>
 
   <div class="counters">
-    <span class="counter"><span ref:sent>0</span> events sent</span>
-    <span class="counter"><span ref:bytes>0</span> bytes of patches</span>
+    <span class="counter">{read(trip, (t) => t.sent, 0)} events sent</span>
+    <span class="counter">{read(trip, (t) => t.bytes, 0)} bytes of patches</span>
   </div>
   <p class="note">
     On this page the machine runs in your browser, so the page can sit on a CDN. In your app it runs on the
@@ -78,58 +78,19 @@
 </round-trip>
 
 <script>
-  import {
-    addItem,
-    type CartEvents,
-    type CartItem,
-    canCheckout,
-    countOf,
-    itemsText,
-    labelFor,
-    type ProductId,
-  } from '../lib/cart-rules.ts'
+  import { type CartEvents, type ProductId } from '../lib/cart-rules.ts'
+  import Cart from '../lib/demo-cart.ts'
 
   const PRODUCTS: ProductId[] = ['p1', 'p2', 'p3']
   const MAX_SLIPS = 3
 
-  // The cart, run in the browser. A client machine has one implicit state,
-  // so the step lives in context and the guards read it.
-  const Cart = machine(
-    { step: 'idle', items: [] as CartItem[] },
-    {
-      events: {} as CartEvents,
-      on: {
-        ADD: {
-          when: (s) => s.step === 'idle',
-          do: (s, e) => addItem(s.items, e.productId),
-        },
-        CHECKOUT: {
-          when: (s) => s.step === 'idle' && canCheckout(s.items),
-          do: (s) => { s.step = 'checking-out' },
-        },
-        BACK: {
-          when: (s) => s.step === 'checking-out',
-          do: (s) => { s.step = 'idle' },
-        },
-      },
-      select: {
-        count: (s) => countOf(s.items),
-        labelP1: (s) => labelFor(s.items, 'p1'),
-        labelP2: (s) => labelFor(s.items, 'p2'),
-        labelP3: (s) => labelFor(s.items, 'p3'),
-        itemsText: (s) => itemsText(s.items),
-      },
-    },
-  )
-
   // What the wire and server panes report about the last event.
   const Trip = machine(
-    { state: 'idle', last: 'none yet', sent: 0, bytes: 0 },
+    { last: 'none yet', sent: 0, bytes: 0 },
     {
-      events: {} as { type: 'RECORD'; state: string; last: string; bytes: number },
+      events: {} as { type: 'RECORD'; last: string; bytes: number },
       on: {
         RECORD: (s, e) => {
-          s.state = e.state
           s.last = e.last
           s.sent += 1
           s.bytes += e.bytes
@@ -142,33 +103,10 @@
   type Patch = { target: { kind: 'slot'; id: string }; op: 'text' | 'html'; value: string }
 
   export class RoundTrip extends StatorElement {
+    // The machine an app would register on the server, run in the browser.
     cart = use(Cart)
     trip = use(Trip)
 
-    connectedCallback() {
-      super.connectedCallback()
-      this.track(effect([this.cart, this.trip], () => this.paint()))
-    }
-
-    // The shell ships the initial state as plain HTML, so the cached page is
-    // complete before this script loads; from here on the machines drive it.
-    paint() {
-      const r = this.refs
-      const idle = this.trip.state === 'idle'
-      const count = String(this.cart.count)
-      write(r.count, count)
-      write(r.checkoutCount, count)
-      write(r.p1, this.cart.labelP1)
-      write(r.p2, this.cart.labelP2)
-      write(r.p3, this.cart.labelP3)
-      write(r.state, this.trip.state)
-      write(r.items, this.cart.itemsText)
-      write(r.last, this.trip.last)
-      write(r.sent, String(this.trip.sent))
-      write(r.bytes, String(this.trip.bytes))
-      if (r.shop) r.shop.hidden = !idle
-      if (r.checkout) r.checkout.hidden = idle
-    }
 
     add(e: Event) {
       const id = (e.currentTarget as HTMLElement).dataset.id as ProductId
@@ -195,7 +133,6 @@
 
       this.trip.send({
         type: 'RECORD',
-        state: after.state,
         last,
         bytes: patches.length ? JSON.stringify({ patches }).length : 0,
       })
@@ -205,7 +142,7 @@
 
     view(): View {
       return {
-        state: this.cart.step,
+        state: this.cart.state,
         count: this.cart.count,
         labels: { p1: this.cart.labelP1, p2: this.cart.labelP2, p3: this.cart.labelP3 },
       }
@@ -245,10 +182,6 @@
       }
     }
     return patches
-  }
-
-  function write(node: HTMLElement | undefined, text: string) {
-    if (node && node.textContent !== text) node.textContent = text
   }
 
   function el(tag: string, className: string, text?: string) {

@@ -1,7 +1,5 @@
 ---
 import Layout from '../templates/layout.stator'
-
-Stator.response.status = 404
 ---
 <Layout title="Not found · Stator" description="That page does not exist.">
   <div child="hero">

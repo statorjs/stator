@@ -1,5 +1,4 @@
-// The demo cart's rules as plain functions, shared by the server-shaped
-// machine in demo-cart.ts and the hero island's client machine.
+// The demo cart's catalog, types and rules, as plain functions.
 
 export const CATALOG = [
   { id: 'p1', name: 'Pocket Notebook', price: 12 },
