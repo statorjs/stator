@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { type Context, Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { z } from 'zod'
 import { type AnyMachineDef, describeMachine } from '../engine/index.ts'
 import { applyRenderedEffects, runApiRoute } from './api-route.ts'
@@ -248,6 +249,17 @@ function parseRouteKey(
   return { method: routeKey.slice(0, space), path, query }
 }
 
+/**
+ * Admission probes. `/__events` and `/__sse` act on a page they name out of
+ * band, so the app's middleware, which guards by request path, never sees
+ * that page's path on them. Before either endpoint touches the page, the
+ * framework asks the whole middleware stack the question a navigation would:
+ * a GET for the page's own URL, with the caller's headers. The page dispatch
+ * recognises the probe and answers it without rendering.
+ */
+const admissionProbes = new WeakSet<Request>()
+const admittedProbes = new WeakSet<Request>()
+
 export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   const app = new Hono()
   // Render-side view of the images config: `<Image>`/`<Picture>` read this
@@ -260,6 +272,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   // Request logger: one line per request with method, path, status, duration.
   // SSE endpoints stay open indefinitely; we log on entry, not on close.
   app.use('*', async (c, next) => {
+    if (admissionProbes.has(c.req.raw)) return next()
     const start = performance.now()
     await next()
     const ms = Math.round(performance.now() - start)
@@ -330,6 +343,23 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   }
   for (const handler of mw?.handlers ?? []) {
     app.use('*', handler)
+  }
+
+  /**
+   * Would the app's middleware admit this caller to the page `target` (a path
+   * with its query)? Undefined when it would; otherwise the response the
+   * middleware gave instead. An app with no middleware of its own has nothing
+   * to ask.
+   */
+  const refusal = async (c: Context, target: string): Promise<Response | undefined> => {
+    if ((mw?.handlers.length ?? 0) === 0) return undefined
+    const headers = new Headers(c.req.raw.headers)
+    headers.delete('content-length')
+    headers.delete('content-type')
+    const probe = new Request(new URL(target, c.req.url), { method: 'GET', headers })
+    admissionProbes.add(probe)
+    const res = await app.fetch(probe, c.env)
+    return admittedProbes.has(probe) ? undefined : res
   }
 
   // Compile matchers for every route, in discovery's specificity order. Our own
@@ -467,6 +497,13 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     if (isStatorQueryRoute(route)) {
       return c.text(`route "${routeKey}" is a data route — data routes are not live`, 400)
     }
+    const turnedAway = await refusal(c, routeKey.slice(routeKey.indexOf(' ') + 1))
+    if (turnedAway) {
+      return c.text(
+        'not admitted to this route',
+        (turnedAway.status >= 400 ? turnedAway.status : 403) as ContentfulStatusCode,
+      )
+    }
     if (!route.live) {
       return c.text(`route "${routeKey}" is not declared live: true`, 400)
     }
@@ -597,6 +634,24 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     if (isStatorQueryRoute(route)) {
       return c.json({ error: `route key "${routeKey}" targets a data route` }, 404)
     }
+    // The page's own admission applies to its events: a caller the middleware
+    // would redirect from the page is sent the same way, and one it would
+    // refuse is refused.
+    const turnedAway = await refusal(c, routeKey.slice(routeKey.indexOf(' ') + 1))
+    if (turnedAway) {
+      for (const cookie of turnedAway.headers.getSetCookie()) {
+        c.header('Set-Cookie', cookie, { append: true })
+      }
+      const to = turnedAway.headers.get('location')
+      if (turnedAway.status >= 300 && turnedAway.status < 400 && to) {
+        return c.json({ patches: [], directives: [{ type: 'navigate', to }], committed: false })
+      }
+      return c.json(
+        { error: 'not admitted to this route' },
+        (turnedAway.status >= 400 ? turnedAway.status : 403) as ContentfulStatusCode,
+      )
+    }
+
     const request = {
       ...buildRouteRequest(c, matched.route.paramNames),
       params: matched.params,
@@ -740,6 +795,11 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   // what narrows "the next matching route" to specifically mean a
   // catch-all — see its own doc comment for why that boundary matters.
   app.get('*', async (c, next) => {
+    // An admission probe got past the middleware: that is its whole answer.
+    if (admissionProbes.has(c.req.raw)) {
+      admittedProbes.add(c.req.raw)
+      return c.body(null, 204)
+    }
     const candidates = cascadeCandidates(
       matchAllPaths(matchers, c.req.path).filter(
         (
