@@ -36,10 +36,16 @@ const TEST_ENV = new URL('../../test-env.ts', import.meta.url).href
  *  also run every file inside a `test/` directory, fixtures included. */
 export const DEFAULT_PATTERNS = ['**/*.test.ts', '**/*.spec.ts']
 
-/** The runner's arguments: the loader and the preload, Node's runner, a
- *  force-exit so a test that leaves a server or watcher open cannot hang the
- *  run, then the caller's flags and patterns (or the defaults when the
- *  caller named no files). */
+/** The runner's arguments: the loader and the preload, Node's runner, then
+ *  the caller's flags and patterns (or the defaults when the caller named no
+ *  files).
+ *
+ *  No `--test-force-exit`: it ends each test file's process the moment its
+ *  tests finish, before the results still in the pipe to the runner have been
+ *  written, and the runner counts only what arrived. Tests at the end of a
+ *  file then vanish from the run with no failure. A test that leaves a
+ *  server or a watcher open makes the run wait instead, which is visible;
+ *  close it in `after()`, or pass `--test-force-exit` yourself. */
 export function testArgs(rest: string[]): string[] {
   const named = rest.some((a) => !a.startsWith('-'))
   return [
@@ -48,7 +54,6 @@ export function testArgs(rest: string[]): string[] {
     '--import',
     TEST_ENV,
     '--test',
-    '--test-force-exit',
     ...rest,
     ...(named ? [] : DEFAULT_PATTERNS),
   ]

@@ -598,6 +598,14 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
   watcher.on('change', (p) => onEvent('change', p))
   watcher.on('unlink', (p) => onEvent('unlink', p))
 
+  let listening: ReturnType<typeof createHttpServer> | undefined
+  let bootTeardown: BootTeardown | undefined
+  const runBootTeardown = async (): Promise<void> => {
+    const teardown = bootTeardown
+    bootTeardown = undefined
+    if (teardown) await teardown()
+  }
+
   return {
     fetch: handle,
     get hono() {
@@ -607,6 +615,7 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
     listen(port: number): Promise<void> {
       const listener = getRequestListener(handle)
       const server = createHttpServer(listener)
+      listening = server
       return findFreePort(port).then(
         (freePort) =>
           new Promise((resolveFn) => {
@@ -627,9 +636,10 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
                   cors: resolved.cors,
                 },
               })
+              bootTeardown = teardown
               installGracefulShutdown(server, {
                 teardown: async () => {
-                  if (teardown) await teardown()
+                  await runBootTeardown()
                   await watcher.close()
                 },
               })
@@ -639,8 +649,17 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       )
     },
     close: async () => {
+      await runBootTeardown()
       await watcher.close()
       loader.deregister()
+      // The listening server and its open connections (a live page's SSE
+      // stream, a keep-alive socket) would otherwise hold the process open.
+      const server = listening
+      listening = undefined
+      if (server) {
+        server.closeAllConnections()
+        await new Promise<void>((done) => server.close(() => done()))
+      }
     },
   }
 }

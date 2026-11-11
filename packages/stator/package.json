@@ -81,7 +81,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --import @statorjs/stator/register --import @statorjs/stator/test-env --test --test-force-exit --test-timeout=60000 'tests/**/*.test.ts'",
+    "test": "node --import @statorjs/stator/register --import @statorjs/stator/test-env --test --test-timeout=60000 'tests/**/*.test.ts'",
     "test:watch": "node --import @statorjs/stator/register --import @statorjs/stator/test-env --test --watch 'tests/**/*.test.ts'",
     "test:browser": "node browser-tests/tables.mjs",
     "build:client": "esbuild src/client/runtime.ts --bundle --format=iife --target=es2020 --outfile=dist/client.js",
