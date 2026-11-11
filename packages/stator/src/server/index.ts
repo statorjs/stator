@@ -1,7 +1,8 @@
 /**
  * `/server` is the STABLE app surface (see the docs' stability policy):
- * createApp, defineMachine, the route definers, the stores, logger,
- * dispatchToApp, middleware and security, images. The TOOLCHAIN plumbing the
+ * createApp, the route definers, the stores, logger, dispatchToApp,
+ * middleware and security, images. `defineMachine` is not here: a machine is
+ * defined from `/machine`, the engine, wherever it runs. The TOOLCHAIN plumbing the
  * compiled output, dev server and build run on lives on `/server/runtime`,
  * where the import path itself carries the tier.
  */
@@ -35,7 +36,6 @@ export type {
   SubscribeEntry,
   SubscribeEvent,
 } from './define-machine.ts'
-export { defineMachine } from './define-machine.ts'
 export type { ImageTransformer } from './images.ts'
 export { probeImage, sharpTransformer } from './images.ts'
 export { logger, scopedLogger, setLogLevel } from './logger.ts'

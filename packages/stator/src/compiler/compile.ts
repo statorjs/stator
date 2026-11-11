@@ -155,6 +155,7 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
         styles,
         file: opts.id,
         fm,
+        frontmatter,
         source,
         templateOffset,
         marks,
@@ -245,6 +246,8 @@ function compileClient(
     file?: string
     /** The island's processed server fence — empty parts when absent. */
     fm?: FrontmatterParts
+    /** The fence as written. */
+    frontmatter?: string
     /** Original source, for located collision diagnostics. */
     source?: string
     /** Offset of the template body in `source`. */
@@ -265,6 +268,8 @@ function compileClient(
   analyzeClient(script, tags, { file: ctx.file })
 
   const cls = classes.find((c) => pascalToKebab(c.name) === root.tag)
+
+  if (ctx.fm) assertNoFenceValueInScript(ctx.fm, script, ctx)
 
   // A fence binding sharing a name with a `use()` field is ambiguous by
   // construction (client wiring keys template identifiers on the use-field
@@ -327,7 +332,8 @@ function compileClient(
     ...(ctx.props.needsReadResult ? [READ_RESULT_TYPE_IMPORT] : []),
     ...(ctx.fm?.hoisted ? [ctx.fm.hoisted] : []),
     '',
-    `export default function (props: ${ctx.props.propsT} = {}) {`,
+    // Declared shell props may be required, so only an open shell defaults.
+    `export default function (props: ${ctx.props.propsT}${ctx.fm?.propsType ? '' : ' = {}'}) {`,
     // The fence body runs here — per shell render, server only, ahead of
     // the template so its bindings are in scope for the interpolations.
     ...(ctx.fm?.body ? [ctx.fm.body] : []),
@@ -344,6 +350,8 @@ function compileClient(
     directives,
     members: cls.members,
     scriptAt: ctx.scriptAt,
+    typedAttrs: cls.staticAttrs.size > 0,
+    fenceTypes: ctx.frontmatter ? fenceTypesFor(ctx.frontmatter, script) : [],
   })
 
   return {
@@ -480,8 +488,9 @@ const VALID_PRAGMAS = new Set(['live'])
  * statements, rewriting the `Stator.*` markers per file kind and enforcing the
  * capability matrix.
  *
- * Component: `Stator.props<P>()` → `props`. Route/request/response/pragmas are
- * errors. Route: `Stator.reads([A,B])` RHS → `[__ctx[A.name] as …, __ctx[B.name] as …]`
+ * Component and island: `Stator.props<P>()` → `props` (an island's `P` is its
+ * shell's props, on top of its `static attrs`). Route/request/response/pragmas
+ * are errors. Route: `Stator.reads([A,B])` RHS → `[__ctx[A.name] as …, __ctx[B.name] as …]`
  * (and `[A,B]` captured for the `reads:` config); `Stator.request` → `__req`;
  * `Stator.response` → `__ctx.response`. `Stator.props` is an error.
  */
@@ -543,14 +552,6 @@ function processFrontmatter(
     const repls: Array<[start: number, end: number, replacement: string]> = []
     const visit = (n: ts.Node): void => {
       if (ts.isCallExpression(n) && isStatorCall(n, 'props')) {
-        if (kind === 'island') {
-          throw new CompileError(
-            "stator: Stator.props() is not available in an island's fence — island props are " +
-              'declared by `static attrs` on the element class, and richer values arrive ' +
-              'through the hydrate pattern (the shell renders with the props of its use site).',
-            locInFm(n),
-          )
-        }
         if (kind === 'route') {
           throw new CompileError(
             'stator: Stator.props() is not available in a route page (a route has no parent props). ' +
@@ -643,7 +644,175 @@ function processFrontmatter(
 /** Top-level names a fence declares — imports (default/named/namespace),
  *  consts/lets, functions, classes — for the fence-vs-use()-field collision
  *  check. Parsed from the processed parts (hoisted + body). */
-function fenceBindingNames(fm: FrontmatterParts): Set<string> {
+const wordIn = (name: string, text: string): boolean =>
+  new RegExp(`(?<![\\w$.])${name.replace(/\$/g, '\\$')}(?![\\w$])`).test(text)
+
+/**
+ * The fence's type declarations an island's `<script>` refers to, as source
+ * text for the client module: type aliases, interfaces, and `import type`
+ * names (narrowed to the ones used). Types erase, so the browser never loads
+ * what they name. Followed to a fixpoint, since a copied alias may name
+ * another fence type; a name the script declares itself is the script's.
+ */
+export function fenceTypesFor(frontmatter: string, script: string): string[] {
+  if (!frontmatter.trim()) return []
+  const sf = ts.createSourceFile(
+    'fm.ts',
+    frontmatter,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  )
+  interface Decl {
+    names: string[]
+    emit(used: string[]): string
+  }
+  const decls: Decl[] = []
+  for (const stmt of sf.statements) {
+    if (ts.isTypeAliasDeclaration(stmt) || ts.isInterfaceDeclaration(stmt)) {
+      decls.push({ names: [stmt.name.text], emit: () => stmt.getText(sf) })
+    } else if (ts.isImportDeclaration(stmt) && stmt.importClause) {
+      const c = stmt.importClause
+      const from = stmt.moduleSpecifier.getText(sf)
+      if (c.isTypeOnly && c.name) {
+        const name = c.name.text
+        decls.push({ names: [name], emit: () => `import type ${name} from ${from}` })
+      }
+      if (c.namedBindings && ts.isNamespaceImport(c.namedBindings)) {
+        if (!c.isTypeOnly) continue
+        const name = c.namedBindings.name.text
+        decls.push({ names: [name], emit: () => `import type * as ${name} from ${from}` })
+      } else if (c.namedBindings) {
+        const specs = c.namedBindings.elements.filter((s) => c.isTypeOnly || s.isTypeOnly)
+        if (specs.length === 0) continue
+        decls.push({
+          names: specs.map((s) => s.name.text),
+          emit: (used) =>
+            `import type { ${specs
+              .filter((s) => used.includes(s.name.text))
+              .map((s) =>
+                s.propertyName ? `${s.propertyName.text} as ${s.name.text}` : s.name.text,
+              )
+              .join(', ')} } from ${from}`,
+        })
+      }
+    }
+  }
+  if (decls.length === 0) return []
+  const own = declaredNames(
+    ts.createSourceFile('script.ts', script, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS),
+  )
+  const used = new Map<Decl, Set<string>>()
+  let text = script
+  for (let grew = true; grew; ) {
+    grew = false
+    for (const d of decls) {
+      for (const name of d.names) {
+        if (own.has(name) || used.get(d)?.has(name) || !wordIn(name, text)) continue
+        if (!used.has(d)) used.set(d, new Set())
+        used.get(d)!.add(name)
+        grew = true
+      }
+    }
+    text = script + [...used].map(([d, names]) => d.emit([...names])).join('\n')
+  }
+  return decls.filter((d) => used.has(d)).map((d) => d.emit([...used.get(d)!]))
+}
+
+/** Every name a module binds, at any depth: imports, declarations, parameters. */
+function declaredNames(sf: ts.SourceFile): Set<string> {
+  const names = new Set<string>()
+  const bind = (n: ts.BindingName): void => {
+    if (ts.isIdentifier(n)) names.add(n.text)
+    else for (const el of n.elements) if (ts.isBindingElement(el)) bind(el.name)
+  }
+  const visit = (n: ts.Node): void => {
+    if (ts.isVariableDeclaration(n) || ts.isParameter(n)) bind(n.name)
+    else if (
+      (ts.isFunctionDeclaration(n) ||
+        ts.isFunctionExpression(n) ||
+        ts.isClassDeclaration(n) ||
+        ts.isClassExpression(n) ||
+        ts.isTypeAliasDeclaration(n) ||
+        ts.isInterfaceDeclaration(n) ||
+        ts.isEnumDeclaration(n) ||
+        ts.isImportClause(n) ||
+        ts.isImportSpecifier(n) ||
+        ts.isNamespaceImport(n) ||
+        ts.isTypeParameterDeclaration(n)) &&
+      n.name
+    ) {
+      names.add(n.name.text)
+    }
+    ts.forEachChild(n, visit)
+  }
+  visit(sf)
+  return names
+}
+
+/**
+ * The fence runs on the server and the `<script>` in the browser: a value the
+ * fence binds does not exist in the script. Without this the script fails in
+ * the browser with a bare ReferenceError, or in `stator check` with "Cannot
+ * find name" pointing at nothing that explains it.
+ */
+function assertNoFenceValueInScript(
+  fm: FrontmatterParts,
+  script: string,
+  ctx: { source?: string; file?: string; scriptAt?: number },
+): void {
+  const values = fenceBindingNames(fm, { values: true })
+  if (values.size === 0) return
+  const sf = ts.createSourceFile(
+    'script.ts',
+    script,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  )
+  const own = declaredNames(sf)
+  const visit = (n: ts.Node): void => {
+    if (ts.isTypeNode(n) && !ts.isTypeQueryNode(n)) return
+    if (ts.isIdentifier(n) && values.has(n.text) && !own.has(n.text) && isValueUse(n)) {
+      const base = ctx.scriptAt ?? ctx.source?.indexOf(script) ?? -1
+      throw new CompileError(
+        `stator: "${n.text}" is bound in this island's fence, which runs on the server. The ` +
+          '<script> runs in the browser and cannot see it: import or declare it in the <script> ' +
+          'as well, or hand the value over as an attribute (`static attrs`).',
+        ctx.source && base >= 0 ? locAt(ctx.source, base + n.getStart(sf), ctx.file) : undefined,
+      )
+    }
+    ts.forEachChild(n, visit)
+  }
+  visit(sf)
+}
+
+/** An identifier read as a value, not a property or member name. */
+function isValueUse(id: ts.Identifier): boolean {
+  const p = id.parent
+  if (ts.isPropertyAccessExpression(p) || ts.isQualifiedName(p)) return p.getChildAt(0) === id
+  if (ts.isPropertyAssignment(p)) return p.name !== id
+  if (ts.isBindingElement(p)) return p.name !== id && p.propertyName !== id
+  if (
+    ts.isPropertyDeclaration(p) ||
+    ts.isMethodDeclaration(p) ||
+    ts.isGetAccessorDeclaration(p) ||
+    ts.isSetAccessorDeclaration(p) ||
+    ts.isPropertySignature(p) ||
+    ts.isMethodSignature(p) ||
+    ts.isLabeledStatement(p) ||
+    ts.isBreakOrContinueStatement(p) ||
+    ts.isImportSpecifier(p) ||
+    ts.isExportSpecifier(p) ||
+    ts.isEnumMember(p) ||
+    ts.isJsxAttribute(p)
+  ) {
+    return false
+  }
+  return true
+}
+
+function fenceBindingNames(fm: FrontmatterParts, opts: { values?: boolean } = {}): Set<string> {
   const names = new Set<string>()
   const sf = ts.createSourceFile(
     'fence.ts',
@@ -659,10 +828,15 @@ function fenceBindingNames(fm: FrontmatterParts): Set<string> {
   for (const stmt of sf.statements) {
     if (ts.isImportDeclaration(stmt) && stmt.importClause) {
       const c = stmt.importClause
+      // `values`: a type-only import binds nothing at runtime.
+      if (opts.values && c.isTypeOnly) continue
       if (c.name) names.add(c.name.text)
       if (c.namedBindings) {
         if (ts.isNamespaceImport(c.namedBindings)) names.add(c.namedBindings.name.text)
-        else for (const s of c.namedBindings.elements) names.add(s.name.text)
+        else
+          for (const s of c.namedBindings.elements) {
+            if (!(opts.values && s.isTypeOnly)) names.add(s.name.text)
+          }
       }
     } else if (ts.isVariableStatement(stmt)) {
       for (const d of stmt.declarationList.declarations) bind(d.name)

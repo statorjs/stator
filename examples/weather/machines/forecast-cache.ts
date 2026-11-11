@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import { type AirQuality, fetchAirQuality, fetchForecast, type Forecast } from '../lib/open-meteo.ts'
 import WeatherMachine from './weather.ts'
 

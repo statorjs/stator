@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 
 type VoterContext = {
   /** Polls this session has voted in, mapped to the chosen optionId.

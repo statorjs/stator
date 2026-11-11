@@ -62,11 +62,20 @@ export interface ClientBehavior<C> {
   select?: Record<string, (ctx: C) => unknown>
 }
 
+type ReservedKey = 'on' | 'select' | 'name' | 'events'
+
+/** Rejects a context that uses a behavior key, and names the key in the error. */
+type NoReservedKeys<C> = {
+  [K in Extract<keyof C, ReservedKey>]: {
+    error: `"${K}" is reserved in a machine() context: rename the key, or move behavior to the second argument`
+  }
+}
+
 // Data-only: no behavior, no events. A machine with no `on` map accepts
 // NOTHING — its state is set at construction (a seed)
 // and read for display; `send` is a type error by construction.
 export function machine<C extends Record<string, unknown>>(
-  context: C & { on?: never; select?: never; name?: never; events?: never },
+  context: C & NoReservedKeys<C>,
 ): MachineDef<C, never, 'active', Record<string, never>>
 // Derived union — no `events:` declared: event NAMES come from the `on` keys
 // (typo-safe send), payloads stay open. Zero authoring change. Ordered BEFORE
@@ -76,7 +85,7 @@ export function machine<
   O extends Record<string, ClientTransition<C>>,
   S extends Record<string, (ctx: C) => unknown>,
 >(
-  context: C & { on?: never; select?: never; name?: never; events?: never },
+  context: C & NoReservedKeys<C>,
   behavior: { name?: string; events?: never; on: O; select?: S },
 ): MachineDef<C, DerivedEvents<O>, 'active', S>
 // Declared union (`events: {} as E`) — mirrors defineMachine: full payload
@@ -86,7 +95,7 @@ export function machine<
   E extends { type: string },
   S extends Record<string, (ctx: C) => unknown>,
 >(
-  context: C & { on?: never; select?: never; name?: never; events?: never },
+  context: C & NoReservedKeys<C>,
   behavior: { name?: string; events: E; on?: TypedClientOnMap<C, E>; select?: S },
 ): MachineDef<C, E, 'active', S>
 // Behavior without `on` (selectors only): derived state, still nothing to
@@ -95,7 +104,7 @@ export function machine<
   C extends Record<string, unknown>,
   S extends Record<string, (ctx: C) => unknown>,
 >(
-  context: C & { on?: never; select?: never; name?: never; events?: never },
+  context: C & NoReservedKeys<C>,
   behavior: { name?: string; events?: never; on?: never; select?: S },
 ): MachineDef<C, never, 'active', S>
 export function machine(

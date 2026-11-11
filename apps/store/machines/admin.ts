@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 
 /**
  * The gateway machine — the documented pattern from the app-machines guide,

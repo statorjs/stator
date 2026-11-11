@@ -2,7 +2,14 @@ import { readFile } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { probeModule } from './imports.ts'
 import type { BundleIslandsOptions, IslandAsset, IslandBundler } from './islands.ts'
-import { isServerMachineModule, machineName } from './machines.ts'
+import {
+  assertRunsInBrowser,
+  isMachineModule,
+  machineImportUse,
+  machineName,
+  serverImportError,
+  serverImports,
+} from './machines.ts'
 
 /**
  * The island bundler behind the `bundleIslands` seam: one esbuild build over
@@ -108,16 +115,31 @@ export const bundleIslandsEsbuild: IslandBundler = async (opts: BundleIslandsOpt
   const machineStubPlugin = {
     name: 'stator-machine-stub',
     setup(b: import('esbuild').PluginBuild) {
-      b.onResolve({ filter: /^[./]/ }, (args) => {
+      const isMachine = (file: string): boolean => inMachinesDir(file) || isMachineModule(file)
+      b.onResolve({ filter: /^[./]/ }, async (args) => {
         if (args.namespace === STUB_NS) return null
         const base = isAbsolute(args.path) ? args.path : resolve(args.resolveDir, args.path)
         const file = probeModule(base)
         const abs = file
-          ? inMachinesDir(file) || isServerMachineModule(file)
+          ? isMachine(file)
             ? file
             : undefined
           : [base, `${base}.ts`, `${base}.js`].find(inMachinesDir)
         if (!abs) return null
+        // What the importing script does with the machine decides: its code
+        // when the script runs it, its { name } when it only addresses it.
+        const use =
+          file && args.importer
+            ? machineImportUse(args.importer, args.path, {
+                lenient: isMachine(args.importer),
+                root,
+              })
+            : undefined
+        if (use?.kind === 'error') return { errors: [{ text: `stator: ${use.message}` }] }
+        if (use?.kind === 'real' && file) {
+          await assertRunsInBrowser(file, args.importer, use.runs, root)
+          return null
+        }
         return { path: abs, namespace: STUB_NS }
       })
       b.onLoad({ filter: /.*/, namespace: STUB_NS }, async (args) => {
@@ -125,7 +147,15 @@ export const bundleIslandsEsbuild: IslandBundler = async (opts: BundleIslandsOpt
           args.path,
           'stator: cannot stub a server-machine import for the client bundle',
         )
-        return { contents: `export default { name: ${JSON.stringify(name)} }\n`, loader: 'js' }
+        // In dev the stub says where it came from, for use()'s error.
+        const stub = opts.sourcemap ? { name, __stub: norm(relative(root, args.path)) } : { name }
+        return { contents: `export default ${JSON.stringify(stub)}\n`, loader: 'js' }
+      })
+      // The server entry is server code. Named here, with what was imported,
+      // before the bundler fails on a Node built-in somewhere inside it.
+      b.onResolve({ filter: /^@statorjs\/stator\/server$/ }, async (args) => {
+        const names = args.importer ? await serverImports(args.importer) : []
+        return { errors: [{ text: serverImportError(args.importer, names, root) }] }
       })
     },
   }

@@ -1,4 +1,5 @@
-import { activeConnectionCount, defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
+import { activeConnectionCount } from '@statorjs/stator/server'
 import CartMachine from './cart.ts'
 
 type CartItem = { productId: string; quantity: number; unitPrice: number }

@@ -3,6 +3,7 @@ import {
   type AnyMachineDef,
   createActor,
   type EventOf,
+  isStatorMachine,
   type MachineDef,
   type Snapshot,
 } from '../engine/index.ts'
@@ -31,6 +32,7 @@ export type BareEventTypes<E extends { type: string }> = E extends { type: infer
 /**
  * The client-side reactive handle for a machine. Returned by `use()`, held as a
  * class field (`qty = use(Qty)`). Exposes:
+ *   - `state`, the current state's name, for a machine with real states.
  *   - each selector / context key as a live property (read through the actor's
  *     current snapshot on every access — the client mirror of the server
  *     instance proxy). This is what `bind:text={qty.count}` reads.
@@ -46,13 +48,27 @@ export interface ClientInstanceBase<
   readonly __actor: AnyActor
 }
 
+type DeclaredKeys<T> = keyof { [K in keyof T as string extends K ? never : K]: T[K] }
+
 /** Context keys + selector results as readonly live properties — the typed
  *  mirror of what the runtime proxy exposes. */
 type ClientView<D> =
-  D extends MachineDef<infer C, infer _E, infer _S, infer Sel, infer _N>
+  D extends MachineDef<infer C, infer _E, infer S, infer Sel, infer _N>
     ? { readonly [K in keyof C]: C[K] } & {
-        readonly [K in keyof Sel]: Sel[K] extends (...args: never[]) => infer R ? R : never
-      }
+        // A machine with no declared selectors has an index-signature selector
+        // type; mapping it would make every property access legal.
+        readonly [K in keyof Sel as string extends K ? never : K]: Sel[K] extends (
+          ...args: never[]
+        ) => infer R
+          ? R
+          : never
+      } & ('state' extends keyof C | DeclaredKeys<Sel>
+          ? unknown
+          : {
+              /** The current state's name. A context key or selector named
+               *  `state` takes its place. */
+              readonly state: S
+            })
     : unknown
 
 export type ClientInstance<D extends MachineDef = MachineDef> = ClientInstanceBase<EventOf<D>> &
@@ -94,10 +110,26 @@ export function popCollector(): void {
  * connect — required when the seed reads `this.attrs`, since attributes aren't
  * available at construction (the custom-element upgrade-timing rule).
  */
+/** What `use()` says when it is handed the `{ name }` an island's bundle
+ *  carries for a machine it only addresses, or something else entirely. */
+function notAMachine(value: unknown): string {
+  const stub = (value ?? {}) as { name?: unknown; __stub?: unknown }
+  const what =
+    typeof stub.name === 'string'
+      ? `the "${stub.name}" identity stub${typeof stub.__stub === 'string' ? ` (${stub.__stub})` : ''}`
+      : 'a value that is not a machine'
+  return (
+    `stator: use() was given ${what}, not a machine definition. An island's bundle carries a ` +
+    "machine's code when its script passes the import to use(), as in `cart = use(Cart)`; an " +
+    'import the script only dispatches to is the { name } that dispatch() addresses.'
+  )
+}
+
 export function use<D extends MachineDef>(
   def: D,
   seed?: Partial<D['__context']> | (() => Partial<D['__context']>),
 ): ClientInstance<D> {
+  if (!isStatorMachine(def)) throw new Error(notAMachine(def))
   // The live properties are defined dynamically below; the mapped view type
   // is the static mirror of that runtime work.
   const eager = typeof seed === 'object' ? seed : undefined
@@ -131,6 +163,16 @@ export function use<D extends MachineDef>(
         // Client machines have no cross-machine reads; pass a stub so the
         // shared SelectorMap signature holds.
         return sel ? sel(ctx, CLIENT_HELPERS) : (ctx as Record<string, unknown>)[key]
+      },
+    })
+  }
+
+  if (!('state' in inst)) {
+    Object.defineProperty(inst, 'state', {
+      enumerable: true,
+      get: () => {
+        const v = actor.getSnapshot().value
+        return v[v.length - 1]
       },
     })
   }

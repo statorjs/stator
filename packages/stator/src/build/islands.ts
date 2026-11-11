@@ -14,8 +14,9 @@ import { probeModule, scanImports } from './imports.ts'
  *
  * The entry contract is deliberately tiny: an entry is either the island's
  * `.stator` SOURCE (the bundler compiles its `<script>` to the client module)
- * or a prebuilt client entry module. Server-machine imports inside an island
- * collapse to `{ name }` identity stubs; the machine body never ships.
+ * or a prebuilt client entry module. A machine import inside an island
+ * collapses to a `{ name }` identity stub and its body never ships, unless the
+ * island passes the import to `use()`: that machine runs in the browser.
  */
 
 export interface IslandEntry {

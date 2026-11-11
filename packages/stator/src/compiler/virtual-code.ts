@@ -20,9 +20,10 @@
 
 import ts from 'typescript'
 import { VOID_ELEMENTS } from '../template/void-elements.ts'
-import { analyzeScriptClasses } from './client-script.ts'
+import { attrsInterface } from './client-emit.ts'
+import { analyzeScriptClasses, pascalToKebab } from './client-script.ts'
 import { parseDiagnosticsOf } from './diagnostics.ts'
-import { statorPropsType } from './dts.ts'
+import { extractFrontmatterTypes, statorPropsType } from './dts.ts'
 import { CLIENT_AUTHOR_GLOBALS, TEMPLATE_AUTHOR_GLOBALS } from './emit-names.ts'
 import { type ScannedRegions, scanRegions } from './split.ts'
 
@@ -228,6 +229,7 @@ function appendTemplateTsx(
   mappings: VirtualMapping[],
   tpl: string,
   tplOffset: number,
+  untypedProps = false,
 ): string {
   let out = code
   let i = 0
@@ -237,6 +239,17 @@ function appendTemplateTsx(
     if (end > runStart) {
       push(mappings, tplOffset + runStart, out.length, end - runStart)
       out += tpl.slice(runStart, end)
+    }
+  }
+
+  // Type the callback parameters `props` leaves untyped, in the `{…}` at
+  // [start, end). Each insertion sits between two verbatim runs.
+  const annotate = (start: number, end: number): void => {
+    if (!untypedProps) return
+    for (const edit of untypedParamEdits(tpl.slice(start, end))) {
+      flush(start + edit.at)
+      out += edit.text
+      runStart = start + edit.at
     }
   }
 
@@ -257,7 +270,9 @@ function appendTemplateTsx(
       continue
     }
     if (tpl[i] === '{') {
-      i = expressionEnd(tpl, i)
+      const end = expressionEnd(tpl, i)
+      annotate(i, end)
+      i = end
       continue
     }
     if (tpl[i] === '<' && /[a-zA-Z]/.test(tpl[i + 1] ?? '')) {
@@ -271,7 +286,9 @@ function appendTemplateTsx(
           continue
         }
         if (ch === '{') {
-          j = expressionEnd(tpl, j)
+          const end = expressionEnd(tpl, j)
+          annotate(j, end)
+          j = end
           continue
         }
         if (ch === '>') break
@@ -294,6 +311,47 @@ function appendTemplateTsx(
   }
   flush(tpl.length)
   return out
+}
+
+/**
+ * An island shell's `props` are open (`any`), so a callback handed to a call
+ * on them, `props.rows.map((r) => …)`, has parameters nothing can type, which
+ * `noImplicitAny` reports. This finds those parameters in a `{…}` expression
+ * and returns the `: any` to insert after each, in source order. A parameter
+ * typed this way is untyped in turn, so a nested `r.cells.map((c) => …)` is
+ * covered. Callbacks over anything else are left for TypeScript to type.
+ */
+function untypedParamEdits(expr: string): Array<{ at: number; text: string }> {
+  if (!expr.includes('props') || !expr.includes('=>')) return []
+  // `{…}` parses as a block holding the expression; offsets stay the source's.
+  const sf = ts.createSourceFile('e.tsx', expr, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const untyped = new Set(['props'])
+  const edits: Array<{ at: number; text: string }> = []
+  const mentionsUntyped = (node: ts.Node): boolean =>
+    (ts.isIdentifier(node) && untyped.has(node.text)) ||
+    ts.forEachChild(node, mentionsUntyped) === true
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && mentionsUntyped(node.expression)) {
+      for (const arg of node.arguments) {
+        if (!ts.isArrowFunction(arg) && !ts.isFunctionExpression(arg)) continue
+        const bare = !arg.getChildren(sf).some((c) => c.kind === ts.SyntaxKind.OpenParenToken)
+        for (const param of arg.parameters) {
+          if (param.type || param.dotDotDotToken) continue
+          const paren = ts.isArrowFunction(arg) && bare && arg.parameters.length === 1
+          if (paren) edits.push({ at: param.getStart(sf), text: '(' })
+          edits.push({ at: param.name.getEnd(), text: paren ? ': any)' : ': any' })
+          const bind = (name: ts.BindingName): void => {
+            if (ts.isIdentifier(name)) untyped.add(name.text)
+            else for (const el of name.elements) if (ts.isBindingElement(el)) bind(el.name)
+          }
+          bind(param.name)
+        }
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  return edits.sort((a, b) => a.at - b.at)
 }
 
 /** Index just past the `}` closing the expression opened at `start` (which
@@ -377,11 +435,22 @@ function splitFrontmatter(
 }
 
 /** Client component: the `<script>` is the module. Emit it as TS so the class,
- *  `use()`/`machine()`, and imports get full intelligence. (Template-member
- *  resolution — `bind:text={theme.label}` → the class field — is a later phase.) */
+ *  `use()`/`machine()`, and imports get full intelligence.
+ *
+ *  The template is the island's server shell, and sees three scopes: the
+ *  fence's bindings, the shell's `props`, and the element class's members
+ *  (a `use()` field in a client `read()`, a method in `on:`). It is emitted
+ *  inside the fence function, as a method of a subclass of the element, the
+ *  shape the compiled client module gives the same expressions. `props` is
+ *  open there: an island declares only its attrs, and its shell may consume
+ *  any prop its use site passes. */
 function buildClientTsx(regions: ScannedRegions, ambient: string): VirtualFile {
   const mappings: VirtualMapping[] = []
   const userScript = regions.scripts.map((s) => s.content).join('\n')
+  const tpl = regions.template.content
+  const rootTag = /^\s*<([a-z][\w-]*)/.exec(tpl)?.[1]
+  const classes = analyzeScriptClasses(userScript)
+  const element = classes.find((c) => pascalToKebab(c.name) === rootTag)
   let code =
     injectImports(TEMPLATE_GLOBALS, '@statorjs/stator/template', userScript) +
     injectImports(CLIENT_GLOBALS, '@statorjs/stator/client', userScript) +
@@ -392,7 +461,7 @@ function buildClientTsx(regions: ScannedRegions, ambient: string): VirtualFile {
   // the two never meet). Hoisted imports that also appear verbatim in the
   // script are skipped — same module, one binding.
   const fm = regions.frontmatter?.content ?? ''
-  if (fm.trim()) {
+  if (fm.trim() || element) {
     const fmOffset = regions.frontmatter?.contentOffset ?? 0
     const { hoisted, body } = splitFrontmatter(fm, fmOffset)
     for (const seg of hoisted) {
@@ -401,12 +470,36 @@ function buildClientTsx(regions: ScannedRegions, ambient: string): VirtualFile {
     }
     code += 'function __statorFence(props: Record<string, unknown>) {\n'
     for (const seg of body) code = emitSegment(mappings, `${code}  `, seg)
+    if (element) {
+      const members = [...element.members].filter((m) => m !== 'props')
+      // Declared with `Stator.props<P>()`, the shell's props are P plus the
+      // attrs; undeclared, they are open.
+      const { propsType } = extractFrontmatterTypes(fm)
+      const declared = propsType
+        ? statorPropsType(fm, tpl, [userScript]).propsT.replaceAll(
+            '__SReadResult<',
+            "import('@statorjs/stator/template').ReadResult<",
+          )
+        : undefined
+      code += `  class __StatorShell extends ${element.name} {\n`
+      code += `    __shell(props: ${declared ?? 'Record<string, any>'}) {\n`
+      if (members.length > 0) {
+        code += `      const { ${members.join(', ')} } = this; void [${members.join(', ')}];\n`
+      }
+      code += '      void props;\n      return (<>'
+      code = appendTemplateTsx(code, mappings, tpl, regions.template.contentOffset, !declared)
+      code += '</>);\n    }\n  }\n  void __StatorShell\n'
+    }
     code += '}\nvoid __statorFence\n'
   }
 
   for (const script of regions.scripts) {
     push(mappings, script.contentOffset, code.length, script.content.length)
     code += `${script.content}\n`
+  }
+
+  for (const cls of classes) {
+    if (cls.staticAttrs.size > 0) code += `${attrsInterface(cls.name)}\n`
   }
 
   // A client component is also used as `<Tag/>` elsewhere, so its importers need

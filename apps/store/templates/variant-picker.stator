@@ -1,9 +1,18 @@
+---
+import type { HtmlFragment } from '@statorjs/stator/template'
+
+const { plate, colorways, sizes } = Stator.props<{
+  plate: HtmlFragment
+  colorways: Array<{ value: string; label: string; swatch: string }>
+  sizes: readonly string[]
+}>()
+---
 <variant-picker>
-  <div class="vp-stage" ref:stage>{props.plate}</div>
+  <div class="vp-stage" ref:stage>{plate}</div>
   <div class="vp-row">
     <span class="vp-caption">Color · <span>{read(sel, (s) => s.colorLabel)}</span></span>
     <div class="vp-swatches" role="radiogroup" aria-label="Colorway" on:change={pickColor}>
-      {props.colorways.map((c) => (
+      {colorways.map((c) => (
         <label class="vp-swatch" title={c.label} style={`background:${c.swatch}`}>
           <input
             type="radio"
@@ -19,7 +28,7 @@
   <div class="vp-row">
     <span class="vp-caption">Size · <span>{read(sel, (s) => s.sizeLabel)}</span></span>
     <div class="vp-sizes" role="radiogroup" aria-label="Size" on:change={pickSize}>
-      {props.sizes.map((sz) => (
+      {sizes.map((sz) => (
         <label class="vp-size">
           <input type="radio" name="vp-size" value={sz} checked={sz === props.initialSize} />
           {sz === 'one-size' ? 'One size' : sz}

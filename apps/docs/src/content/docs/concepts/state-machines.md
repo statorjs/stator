@@ -118,7 +118,7 @@ Purity is over the machine's **declared dependency graph**, not just its own con
 
 ## Capabilities
 
-Some machines can only run on the server. A machine that **reads** another machine is **server-pinned**, because cross-machine reads resolve server-side; a machine with no such dependency is **portable** and can run in a client island. The classification is computed from the definition (`computeCapabilities` in `engine/define-machine.ts`) and carries the *reasons*, so when you place a server-pinned machine on the client, the [compile error](/concepts/server-client-boundary/#the-enforcing-compile-errors) can name exactly why.
+Some machines can only run on the server. A machine that **reads** another machine is **server-pinned**, because cross-machine reads resolve server-side; a machine with no such dependency is **portable** and can run in a client island. The classification is computed from the definition (`computeCapabilities` in `engine/define-machine.ts`) and carries the *reasons*, so when an island passes a server-pinned machine to `use()`, the [build error](/concepts/server-client-boundary/#the-enforcing-build-errors) can name exactly why.
 
 :::note[Deferred]
 Secret access and cross-session emit are intended future inputs to capability classification; today it keys off cross-machine reads. The mechanism is in place; the additional inputs are deferred.

@@ -42,7 +42,7 @@ if (result.committed) {
 }
 ```
 
-A server machine imported in client code collapses to an identity stub (`{ name }`) in the browser bundle — the event types travel, the machine's body never does.
+A machine an island imports only to dispatch to collapses to an identity stub (`{ name }`) in the browser bundle — the event types travel, the machine's body never does. (A machine the island passes to `use()` is the other case: it [runs in the browser](/concepts/server-client-boundary/#running-a-machine-or-addressing-one).)
 
 `dispatch` resolves — it never throws — with a `DispatchResult` reporting three separate facts:
 

@@ -1,4 +1,4 @@
-FROM node:22-slim AS base
+FROM node:24-slim AS base
 
 # Enable Corepack for the pinned pnpm version declared in package.json.
 RUN corepack enable

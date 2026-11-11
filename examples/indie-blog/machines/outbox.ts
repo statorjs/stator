@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import { discoverEndpoint, sendMention } from '../lib/webmention.ts'
 import OwnerMachine from './owner.ts'
 

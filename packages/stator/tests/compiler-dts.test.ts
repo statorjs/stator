@@ -59,4 +59,25 @@ const { title } = Stator.props<{ title: string }>()
     assert.ok(dts.includes('(props: { [prop: string]: unknown }) => HtmlFragment'))
     assert.ok(!dts.includes('Record<string, never>'))
   })
+
+  it('an island declaring Stator.props is closed: its props plus its attrs', () => {
+    const src = `---
+import type { Row } from './rows.ts'
+const { rows } = Stator.props<{ rows: Row[] }>()
+---
+<row-list><ul>{rows.map((r) => <li>{r.name}</li>)}</ul></row-list>
+<script>
+  export class RowList extends StatorElement {
+    static attrs = { unitPrice: Number, open: Boolean }
+  }
+</script>`
+    const dts = generateDts(src)!
+    assert.ok(dts.includes("import type { Row } from './rows.ts'"))
+    assert.ok(
+      dts.includes(
+        '(props: ({ rows: Row[] }) & { unitPrice?: number | __SReadResult<number>; open?: boolean | __SReadResult<boolean> }) => HtmlFragment',
+      ),
+    )
+    assert.ok(!dts.includes('[prop: string]'))
+  })
 })

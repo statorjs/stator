@@ -41,12 +41,12 @@ export interface RenderedResponseEffects {
  * mutates this; the HTTP layer reads back the effects and applies them
  * to the outgoing Response.
  */
-function createResponseContext(): {
+function createResponseContext(status = 200): {
   ctx: RouteResponseContext
   effects: RenderedResponseEffects
 } {
   const effects: RenderedResponseEffects = {
-    status: 200,
+    status,
     headers: new Headers(),
     cookies: [],
   }
@@ -97,6 +97,8 @@ export interface RenderRouteOptions {
   resolveDeferred?: boolean
   /** Endpoint widths/aspects for `<Image>`/`<Picture>` (see RenderState.images). */
   images?: import('./images.ts').ImagesRenderInfo
+  /** The status the response starts at (default 200); the route may still set its own. */
+  status?: number
 }
 
 export async function renderRoute(
@@ -110,7 +112,7 @@ export async function renderRoute(
   const state = createRenderState(sessionId, routeKey)
   state.resolveDeferred = opts.resolveDeferred ?? true
   state.images = opts.images
-  const { ctx: responseCtx, effects } = createResponseContext()
+  const { ctx: responseCtx, effects } = createResponseContext(opts.status)
   const renderCtx: RouteRenderContext = {
     response: responseCtx,
   } as RouteRenderContext

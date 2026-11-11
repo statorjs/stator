@@ -158,3 +158,30 @@ void _color
 void _label
 void _big
 void _double
+
+// ---------------------------------------------------------------------------
+// Behavior keys are reserved in a context; the error names the key.
+// ---------------------------------------------------------------------------
+// @ts-expect-error "events" is reserved in a machine() context
+machine({ state: 'idle', events: 0 }, { on: { GO: () => {} } })
+// @ts-expect-error "on" is reserved: behavior belongs in the second argument
+machine({ count: 1, on: { INC: () => {} } })
+machine({ state: 'idle', sent: 0 }, { on: { GO: () => {} } })
+
+// ---------------------------------------------------------------------------
+// `state` is the machine's state-name union; a context `state` key replaces it.
+// ---------------------------------------------------------------------------
+const _active: 'active' = sel.state
+const ownState = use(machine({ state: 'idle', n: 0 }))
+const _own: string = ownState.state
+// @ts-expect-error a context `state` is its own type, not the state-name union
+const _notName: 'active' = ownState.state
+
+// ---------------------------------------------------------------------------
+// read() with a shell fallback: the fallback has the selector's type.
+// ---------------------------------------------------------------------------
+import { read } from '../src/template/index.ts'
+
+read(sel, (s) => s.count, 0)
+// @ts-expect-error the fallback must match what the selector returns
+read(sel, (s) => s.count, 'none')

@@ -247,6 +247,88 @@ describe('copy set: dependencies', () => {
   })
 })
 
+describe('copy set: island scripts', () => {
+  it('copies what only an island <script> imports', { timeout: 30_000 }, async () => {
+    // The island bundle is built from dist/, so a directory reached only from
+    // a script has to be there. A package reached only from a script is
+    // bundled into the island and is not a runtime dependency.
+    const base = await mkdtemp(join(tmpdir(), 'stator-island-copy-'))
+    const app = join(base, 'app')
+    const { mkdir } = await import('node:fs/promises')
+    for (const dir of ['routes', 'templates', 'rules', 'shared', 'node_modules/clientonly']) {
+      await mkdir(join(app, dir), { recursive: true })
+    }
+    await writeFile(
+      join(app, 'node_modules/clientonly/package.json'),
+      JSON.stringify({ name: 'clientonly', version: '1.0.0', main: 'index.js' }),
+    )
+    await writeFile(join(app, 'node_modules/clientonly/index.js'), 'export const c = 1\n')
+    await writeFile(join(app, 'rules/limit.ts'), "export { cap } from './cap.ts'\n")
+    await writeFile(join(app, 'rules/cap.ts'), 'export const cap = 3\n')
+    await writeFile(
+      join(app, 'shared/both.ts'),
+      "import { c } from 'clientonly'\nexport const both = c\n",
+    )
+    await writeFile(
+      join(app, 'templates/x-panel.stator'),
+      [
+        '<x-panel><button on:click={bump}>+</button></x-panel>',
+        '',
+        '<script>',
+        "  import { cap } from '../rules/limit.ts'",
+        "  import { c } from 'clientonly'",
+        '  export class XPanel extends StatorElement {',
+        '    bump() { console.log(cap, c) }',
+        '  }',
+        '</script>',
+        '',
+      ].join('\n'),
+    )
+    await writeFile(
+      join(app, 'routes/index.ts'),
+      `import { defineRoute } from '${resolve(here, '../src/server/index.ts')}'\n` +
+        `import { html } from '${resolve(here, '../src/template/index.ts')}'\n` +
+        `import XPanel from '../templates/x-panel.stator'\n` +
+        `export const GET = defineRoute({ reads: [], render: () => html\`\${XPanel({})}\` })\n`,
+    )
+
+    const result = await resolveCopySet({ root: app })
+    assert.ok(result.dirs.includes('rules'))
+    assert.ok(result.reached.includes('rules/limit.ts'))
+    assert.ok(result.reached.includes('rules/cap.ts')) // followed past the first hop
+    assert.ok(!result.packages.includes('clientonly'))
+    assert.deepStrictEqual(
+      result.unresolved.filter((u) => u.includes('rules')),
+      [],
+    )
+
+    // The same module reached from the server too keeps its packages.
+    await writeFile(
+      join(app, 'templates/x-panel.stator'),
+      [
+        '<x-panel><button on:click={bump}>+</button></x-panel>',
+        '',
+        '<script>',
+        "  import { both } from '../shared/both.ts'",
+        '  export class XPanel extends StatorElement {',
+        '    bump() { console.log(both) }',
+        '  }',
+        '</script>',
+        '',
+      ].join('\n'),
+    )
+    assert.ok(!(await resolveCopySet({ root: app })).packages.includes('clientonly'))
+    await writeFile(
+      join(app, 'routes/other.ts'),
+      `import { both } from '../shared/both.ts'\nexport const n = both\n`,
+    )
+    const shared = await resolveCopySet({ root: app })
+    assert.ok(shared.packages.includes('clientonly'))
+    assert.ok(shared.dirs.includes('shared'))
+    await rm(base, { recursive: true, force: true })
+  })
+})
+
 describe('copy set: untraceable dynamic imports', () => {
   let tmp: string
 

@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import { type Place, placeId } from '../lib/open-meteo.ts'
 import SettingsMachine, { DEFAULT_CLOCK, DEFAULT_UNITS, type Clock, type Units } from './settings.ts'
 

@@ -891,7 +891,10 @@ async function renderGetCandidate(
   const runtime = new SessionRuntime(sessionId, store)
   try {
     await runtime.loadGraph(route.reads)
-    const result = await renderRoute(route, routeKey, sessionId, runtime, request, { images })
+    const result = await renderRoute(route, routeKey, sessionId, runtime, request, {
+      images,
+      status: discovered.isNotFoundFallback ? 404 : undefined,
+    })
     let html = result.html
 
     const headHtml: string[] = []

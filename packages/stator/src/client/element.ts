@@ -14,6 +14,31 @@ function kebabToCamel(name: string): string {
 }
 
 /**
+ * What `this.attrs` reads for a `static attrs` declaration: `Boolean` is a
+ * presence flag, any other coercer's result is `undefined` while the attribute
+ * is absent. The compiler types each island's `attrs` with this.
+ */
+export type AttrsOf<A> = {
+  readonly [K in keyof A]: A[K] extends BooleanConstructor
+    ? boolean
+    : A[K] extends (raw: string) => infer R
+      ? R | undefined
+      : unknown
+}
+
+// Without a DOM (a Node test of a client machine) the module still loads;
+// only constructing an element needs one.
+const Base: typeof HTMLElement =
+  globalThis.HTMLElement ??
+  (class {
+    constructor() {
+      throw new Error(
+        'stator: StatorElement needs a DOM. In a test, start the file with `// @env happy-dom`.',
+      )
+    }
+  } as unknown as typeof HTMLElement)
+
+/**
  * Base class for a client island. The author writes
  * `export class QuantityStepper extends StatorElement { ... }`; the compiler
  * registers it (via `defineElement`) against the kebab-case tag.
@@ -24,7 +49,7 @@ function kebabToCamel(name: string): string {
  * Element lifetime owns actor lifetime — full-page navigation resets client
  * state, which is the intended default for ephemeral UI.
  */
-export class StatorElement extends HTMLElement {
+export class StatorElement extends Base {
   /** @internal — actors (+ deferred seed thunks) collected during construction
    *  (set by `defineElement`). */
   [ACTORS]: CollectedActor[] = [];

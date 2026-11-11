@@ -176,3 +176,75 @@ describe('client read() lowering: end-to-end (happy-dom)', () => {
     document.body.removeChild(holder)
   })
 })
+
+const FALLBACK = `<fall-back>
+  <p class="line">Cart ({read(cart, (c) => c.count, props.start)} items)</p>
+  <p class="empty" hidden={read(cart, (c) => c.count > 0, props.start > 0)}>Nothing yet</p>
+  <button on:click={add} aria-label={read(cart, (c) => c.label, 'Add <one>')}>+</button>
+</fall-back>
+
+<script>
+  const Cart = machine({ count: 5 }, {
+    on: { ADD: (s) => { s.count++ } },
+    select: { label: (s) => 'Add (' + s.count + ')' },
+  })
+  export class FallBack extends StatorElement {
+    static attrs = { start: Number }
+    cart = use(Cart)
+    add() { this.cart.send('ADD') }
+  }
+</script>`
+
+describe('client read() fallback: what the shell shows before the island connects', () => {
+  it('text position renders the fallback, escaped, between the slot comments', () => {
+    const { serverCode, clientCode } = compile(FALLBACK, { id: 'fall-back.stator' })
+    const shell = renderShell(serverCode, { start: 2 })
+    assert.ok(shell.includes('Cart (<!--s0-->2<!--/s0--> items)'))
+    // The fallback is shell-only: the client thunk is the selector alone.
+    assert.ok(clientCode.includes('() => (((c) => c.count)(this.cart))'))
+    assert.ok(!clientCode.includes('props.start'))
+  })
+
+  it('attribute position renders the fallback as the attribute, under the attr contract', () => {
+    const { serverCode } = compile(FALLBACK, { id: 'fall-back.stator' })
+    const some = renderShell(serverCode, { start: 2 })
+    assert.match(some, /<p [^>]*class="empty" hidden="" data-b="b0">/)
+    assert.ok(some.includes('aria-label="Add &lt;one&gt;"'))
+    const none = renderShell(serverCode, { start: 0 })
+    assert.match(none, /<p [^>]*class="empty" +data-b="b0">/) // false → attribute absent
+  })
+
+  it('a read without a fallback is unchanged', () => {
+    const { serverCode } = compile(ISLAND, { id: 'count-badge.stator' })
+    assert.ok(!renderShell(serverCode).includes('<!--/s0-->'))
+  })
+
+  it('on connect the read replaces the fallback, then tracks state', () => {
+    const { serverCode, clientCode } = compile(FALLBACK, { id: 'fall-back.stator' })
+    const html = renderShell(serverCode, { start: 0 })
+    const before = document.createElement('div')
+    before.innerHTML = html.replaceAll('fall-back', 'not-upgraded')
+    assert.equal(before.querySelector('.line')?.textContent, 'Cart (0 items)')
+
+    loadClient(clientCode)
+    const holder = document.createElement('div')
+    holder.innerHTML = html
+    document.body.appendChild(holder)
+    const line = holder.querySelector('.line') as HTMLElement
+    const empty = holder.querySelector('.empty') as HTMLElement
+    const btn = holder.querySelector('button') as HTMLButtonElement
+
+    assert.equal(line.textContent, 'Cart (5 items)')
+    assert.equal(empty.hidden, true)
+    assert.equal(btn.getAttribute('aria-label'), 'Add (5)')
+    btn.click()
+    assert.equal(line.textContent, 'Cart (6 items)')
+    assert.equal(btn.getAttribute('aria-label'), 'Add (6)')
+    document.body.removeChild(holder)
+  })
+
+  it('a fallback cannot itself read a client machine', () => {
+    const src = FALLBACK.replace("'Add <one>'", 'read(cart, (c) => c.label)')
+    assert.throws(() => compile(src, { id: 'fall-back.stator' }), /entire expression/)
+  })
+})

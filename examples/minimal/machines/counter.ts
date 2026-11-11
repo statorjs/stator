@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 
 type Events = { type: 'INCREMENT' } | { type: 'RESET' }
 

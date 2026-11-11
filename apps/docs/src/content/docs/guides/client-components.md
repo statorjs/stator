@@ -62,9 +62,35 @@ The rule of thumb: **fences are for server work the island owns; per-use data st
 
 Because the fence runs per shell render, an island placed three times runs its fence three times, and a server re-render containing the island re-runs it — identical to a server component's frontmatter.
 
-Two guardrails, both compile errors:
+### Typing the shell's props
 
-- **No `Stator.*` markers.** Island props are declared by `static attrs` (plus the open use-site tail), so `Stator.props` is rejected; `Stator.reads`, `Stator.request`, and `Stator.response` are route-only, as everywhere else.
+An island's attributes are declared by `static attrs`. Everything else its use site passes is a prop of the shell: it renders on the server and never reaches the browser. Left undeclared, those props are open, so any prop is accepted and none is checked. Declare them in the fence with `Stator.props`, as a server component does:
+
+```astro
+---
+import type { Colorway } from '../lib/catalog.ts'
+
+const { colorways } = Stator.props<{ colorways: Colorway[] }>()
+---
+<variant-picker>
+  {colorways.map((c) => <label title={c.label}>{c.value}</label>)}
+</variant-picker>
+
+<script>
+  export class VariantPicker extends StatorElement {
+    static attrs = { unitPrice: Number }
+  }
+</script>
+```
+
+The island's props are then that type plus its attrs, and closed: `<VariantPicker colorwys={…} />` is a type error, and so is a missing `colorways`. The two declarations stay separate on purpose. `static attrs` is what crosses to the browser; the fence type is what only the shell needs. To destructure an attr in the fence, name it in the type as well.
+
+A type the fence declares or imports with `import type` can be used in the `<script>`: types erase, so nothing follows them into the bundle. A fence *value* cannot, and the compiler says so, naming it.
+
+Three guardrails, all compile errors:
+
+- **Route-only markers stay route-only.** `Stator.reads`, `Stator.request`, and `Stator.response` are rejected in an island's fence, as in any component.
+- **No fence values in the `<script>`.** The fence runs on the server and the script in the browser. Import the module in the script too, or hand the value over as an attribute.
 - **No name collisions with `use()` fields.** A fence `const theme = …` alongside a `theme = use(Theme)` field is ambiguous by construction — the template couldn't tell the server value from the client machine — so the compiler makes you rename one.
 
 ## machine() and use()
@@ -90,6 +116,70 @@ const Checks = machine(
 )
 ```
 
+### Machines with real states
+
+`machine()` has one implicit state. When an island needs a real chart (named states, `to` transitions), define it with `defineMachine` in its own module and pass the import to `use()`:
+
+```ts
+// lib/wizard.ts
+import { defineMachine } from '@statorjs/stator/machine'
+
+export default defineMachine({
+  name: 'Wizard',
+  lifecycle: 'session',
+  events: {} as { type: 'NEXT' } | { type: 'BACK' },
+  context: { answers: [] as string[] },
+  initial: 'intro',
+  states: {
+    intro: { on: { NEXT: { to: 'details' } } },
+    details: { on: { BACK: { to: 'intro' } } },
+  },
+  selectors: { answered: (ctx) => ctx.answers.length },
+})
+```
+
+```astro
+<script>
+  import Wizard from '../lib/wizard.ts'
+
+  export class SetupWizard extends StatorElement {
+    wizard = use(Wizard)
+    next() { this.wizard.send({ type: 'NEXT' }) }
+  }
+</script>
+```
+
+Passing the import to `use()` is what puts the machine's code in the island's bundle; see [running a machine, or addressing one](/concepts/server-client-boundary/#running-a-machine-or-addressing-one). It is an ordinary machine module, written like any other, and the same file tests in Node with `createActor`. Keep it [portable](/concepts/state-machines/#capabilities): a machine that reads another machine fails the build when an island runs it.
+
+The handle carries the current state's name as `state`, typed to the machine's state names: `read(wizard, (w) => w.state === 'details')`. A `machine()` handle has it too (always `'active'`), unless the context or a selector is itself named `state`.
+
+A reusable machine is a function that returns one. Each call gives a machine its own name, which is what lets the server register several:
+
+```ts
+// lib/toggle.ts
+export const makeToggle = (name: string) =>
+  defineMachine({
+    name,
+    lifecycle: 'session',
+    events: {} as { type: 'TOGGLE' },
+    context: { on: false },
+    initial: 'idle',
+    states: { idle: { on: { TOGGLE: (ctx) => { ctx.on = !ctx.on } } } },
+    selectors: {},
+  })
+```
+
+```astro
+<script>
+  import { makeToggle } from '../lib/toggle.ts'
+  const Menu = makeToggle('Menu')
+
+  export class NavMenu extends StatorElement {
+    menu = use(Menu)
+  }
+</script>
+```
+
 ### Eager vs deferred seeds
 
 The optional seed sets initial context. Pass a **plain object** for static values, or a **thunk** when the seed reads `this.attrs` or the browser (these aren't available at field-construction; a thunk defers to connect):
@@ -107,6 +197,8 @@ static attrs = { unitPrice: Number, selected: Boolean }
 // reads <… unit-price="12" selected>
 ```
 
+`this.attrs` is typed from that map, with nothing else to write: `this.attrs.unitPrice` is `number | undefined` (an absent attribute reads as `undefined`), `this.attrs.selected` is `boolean`, a custom coercer gives its return type, and an attribute you did not declare is a type error.
+
 ## this.refs
 
 Elements marked [`ref:name`](/guides/directives/#ref--element-handles) are reachable as `this.refs.name`.
@@ -114,6 +206,19 @@ Elements marked [`ref:name`](/guides/directives/#ref--element-handles) are reach
 ## Lifecycle
 
 Machine [actors](/concepts/state-machines/#definition-actor-instance) start on `connectedCallback` and stop on disconnect. Client-machine `read()`s and `effect()` subscribe to state and write the DOM natively — no client re-render.
+
+### Before the island connects
+
+The shell is server HTML, and a client machine does not exist on the server, so a client `read()` renders nothing there: empty text, and no attribute. On a cached page that is the first paint, and with scripting off it is the only one. Give the read a third argument and the shell renders that until the island connects:
+
+```astro
+<cart-button count={props.count}>
+  <button on:click={open}>Cart ({read(cart, (c) => c.count, props.count)})</button>
+  <p hidden={read(cart, (c) => c.count > 0, props.count > 0)}>Your cart is empty.</p>
+</cart-button>
+```
+
+The fallback is an ordinary shell expression, evaluated once on the server: a literal, a prop, a fence value. It cannot read a client machine. On connect the read replaces it with the machine's value, so make the two agree, usually by seeding the machine from the same prop the fallback uses.
 
 ## Islands are leaves
 

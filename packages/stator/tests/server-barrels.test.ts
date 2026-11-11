@@ -32,7 +32,6 @@ describe('/server and /server/runtime', () => {
   it('the app surface is on /server', () => {
     for (const name of [
       'createApp',
-      'defineMachine',
       'defineRoute',
       'defineApiRoute',
       'dispatchToApp',
@@ -42,5 +41,9 @@ describe('/server and /server/runtime', () => {
     ]) {
       assert.equal(name in server, true, name)
     }
+  })
+
+  it('defineMachine is not: a machine is defined from /machine, wherever it runs', () => {
+    assert.equal('defineMachine' in server, false)
   })
 })

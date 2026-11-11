@@ -31,7 +31,16 @@ export interface EmitClientInput {
    *  source-mapped: the script and each wiring line are marked to their source
    *  positions (see `source-map.ts`). */
   scriptAt?: number
+  /** The class declares `static attrs`: type `this.attrs` from it. */
+  typedAttrs?: boolean
+  /** Fence type declarations the script refers to (see `fenceTypesFor`). */
+  fenceTypes?: string[]
 }
+
+/** Types an island's `this.attrs` from the value of its `static attrs`: an
+ *  interface merged onto the class, so the author's own methods see it. */
+export const attrsInterface = (className: string): string =>
+  `export interface ${className} { get attrs(): import('@statorjs/stator/client').AttrsOf<typeof ${className}.attrs> }`
 
 export function emitClientModule(input: EmitClientInput): string {
   const { script, element, directives, members, scriptAt } = input
@@ -82,6 +91,10 @@ export function emitClientModule(input: EmitClientInput): string {
     '  }',
     '}',
     `defineElement(${impl}, ${JSON.stringify(element.tag)})`,
+    // Type-only, and after the code: declarations hoist, and nothing above
+    // moves off its source line.
+    ...(input.typedAttrs ? [attrsInterface(element.className)] : []),
+    ...(input.fenceTypes ?? []),
     '',
   ].join('\n')
 }

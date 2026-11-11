@@ -27,6 +27,54 @@ describe('client runtime (3b stage 0)', () => {
     assert.ok(Object.keys(Qty.selectors).includes('atMax'))
   })
 
+  it('use() names the identity stub it was handed, since only a definition can run', () => {
+    assert.throws(
+      () => use({ name: 'CartMachine' } as never),
+      /use\(\) was given the "CartMachine" identity stub, not a machine definition/,
+    )
+    assert.throws(
+      () => use({ name: 'CartMachine', __stub: 'machines/cart.ts' } as never),
+      /the "CartMachine" identity stub \(machines\/cart\.ts\)/,
+    )
+    assert.throws(() => use(undefined as never), /use\(\) was given a value that is not a machine/)
+  })
+
+  it('use() exposes the current state name, unless the context has its own `state`', async () => {
+    const { defineMachine } = await import('../src/engine/index.ts')
+    const Door = defineMachine({
+      name: 'Door',
+      lifecycle: 'session',
+      events: {} as { type: 'OPEN' } | { type: 'CLOSE' },
+      context: { opened: 0 },
+      initial: 'closed',
+      states: {
+        closed: {
+          on: {
+            OPEN: {
+              to: 'open',
+              do: (s) => {
+                s.opened += 1
+              },
+            },
+          },
+        },
+        open: { on: { CLOSE: { to: 'closed' } } },
+      },
+      selectors: {},
+    })
+    const door = use(Door)
+    door.__actor.start()
+    assert.equal(door.state, 'closed')
+    door.send('OPEN')
+    assert.equal(door.state, 'open')
+    assert.equal(door.opened, 1)
+
+    const own = use(machine({ state: 'idle' }))
+    own.__actor.start()
+    assert.equal(own.state, 'idle')
+    assert.equal(use(machine({ n: 1 })).state, 'active')
+  })
+
   it('use() exposes live context + selectors and send() drives them', () => {
     const Qty = machine(
       { count: 1 },

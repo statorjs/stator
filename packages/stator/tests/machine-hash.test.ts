@@ -25,7 +25,7 @@ export function within(n: number): boolean { return n < MAX }
 export function unused(): string { return 'nobody imports me' }
 `
 const CART = (guard = 'within(ctx.items.length)', defaultItems = '[]') => `
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import { within } from '../lib/rules.ts'
 // A comment the hash must ignore.
 export default defineMachine({
@@ -38,7 +38,7 @@ export default defineMachine({
 })
 `
 const AUDIT = (marker = 'a') => `
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import Cart from './cart.ts'
 export default defineMachine({
   name: 'AuditMachine',
@@ -142,7 +142,7 @@ describe('machine code hash', () => {
     await write('lib/step.ts', 'export const STEP = 1\n')
     await write(
       'machines/stepper.ts',
-      `import { defineMachine } from '@statorjs/stator/server'
+      `import { defineMachine } from '@statorjs/stator/machine'
 import { STEP } from '../lib/step.ts'
 export default defineMachine({ name: 'Stepper', context: { n: 0 }, initial: 'idle', states: { idle: { on: { ADD: (ctx: { n: number }) => { ctx.n += STEP } } } } })
 `,
@@ -190,7 +190,7 @@ describe('machine code hash: packages', () => {
     await write(`node_modules/${name}/index.js`, body)
   }
   const PKG_MACHINE = `
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import { LIMIT } from '@acme/rules'
 export default defineMachine({ name: 'Pkg', context: { n: 0 }, initial: 'idle', states: { idle: { on: { ADD: { when: (ctx: { n: number }) => ctx.n < LIMIT, do: (ctx: { n: number }) => { ctx.n++ } } } } } })
 `
@@ -254,7 +254,7 @@ export default defineMachine({ name: 'Pkg', context: { n: 0 }, initial: 'idle', 
     )
     await write(
       'machines/aliased.ts',
-      `import { defineMachine } from '@statorjs/stator/server'
+      `import { defineMachine } from '@statorjs/stator/machine'
 import { within } from '#rules'
 export default defineMachine({ name: 'Aliased', context: { n: 0 }, initial: 'idle', states: { idle: { on: { ADD: { when: (ctx: { n: number }) => within(ctx.n) } } } } })
 `,
@@ -275,7 +275,7 @@ export default defineMachine({ name: 'Aliased', context: { n: 0 }, initial: 'idl
   it('externalizes a package that is not installed without failing the hash', async () => {
     await write(
       'machines/missing-pkg.ts',
-      `import { defineMachine } from '@statorjs/stator/server'
+      `import { defineMachine } from '@statorjs/stator/machine'
 import { x } from 'not-installed-anywhere'
 export default defineMachine({ name: 'Missing', context: { x }, initial: 'idle', states: { idle: {} } })
 `,

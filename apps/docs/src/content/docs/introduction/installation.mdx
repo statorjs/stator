@@ -31,7 +31,8 @@ The scaffold is a complete working app — a counter machine, a `.stator` page, 
 
 Stator publishes several entry points; you import from the one that matches the layer you're in:
 
-- `@statorjs/stator/server` — `defineMachine`, stores, `logger`, `createApp`.
+- `@statorjs/stator/machine` — `defineMachine` and `createActor`. The one place a machine is defined from, wherever it runs.
+- `@statorjs/stator/server` — stores, `logger`, `createApp`, the route definers.
 - `@statorjs/stator/config` — `defineConfig` for `stator.config.ts`.
 - `@statorjs/stator/template` — `read`, `each`, `when`, `raw`, …
 - `@statorjs/stator/client` — `StatorElement`, `use`, `machine` (client islands).

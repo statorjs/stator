@@ -1,4 +1,4 @@
-import { defineMachine } from '@statorjs/stator/server'
+import { defineMachine } from '@statorjs/stator/machine'
 import { STEP } from '../lib/counter-step.ts'
 
 type Events = { type: 'INCREMENT' }
