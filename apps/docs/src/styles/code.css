@@ -1,0 +1,70 @@
+/* Expressive Code frames. Colours and borders come from `styleOverrides`
+   in astro.config.mjs; this adds the hard shadow and the controls. */
+
+.expressive-code {
+  margin-inline-end: 6px;
+}
+.expressive-code .frame {
+  filter: drop-shadow(6px 6px 0 var(--st-line));
+}
+.expressive-code .frame.has-title:not(.is-terminal) .header {
+  padding: 0;
+  background: var(--st-card);
+  border: 4px solid var(--st-line);
+}
+.expressive-code .frame.has-title:not(.is-terminal) .header::before {
+  display: none;
+}
+.expressive-code .frame.has-title:not(.is-terminal) .title {
+  margin: 0;
+  padding: 8px 16px;
+  background: transparent;
+  color: var(--st-text);
+  border: 0;
+}
+.expressive-code .frame.is-terminal .header {
+  padding-block: 8px 12px;
+  background: var(--st-card);
+  color: var(--st-text);
+}
+.expressive-code .frame.is-terminal .header::before {
+  box-shadow: none;
+  background-color: var(--st-text-2);
+}
+
+.expressive-code .copy button {
+  opacity: 1;
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--st-code-fg);
+  border-radius: 6px;
+  filter: drop-shadow(3px 3px 0 var(--st-code-fg));
+  transition:
+    transform 0.08s ease,
+    filter 0.08s ease,
+    opacity 0.2s;
+}
+.expressive-code .copy button::before {
+  border: 0;
+}
+.expressive-code .copy button::after {
+  margin: 6px;
+}
+.expressive-code .copy button:hover {
+  transform: translate(-1px, -1px);
+  filter: drop-shadow(4px 4px 0 var(--st-code-fg));
+}
+.expressive-code .copy button:active {
+  transform: translate(3px, 3px);
+  filter: drop-shadow(0 0 0 var(--st-code-fg));
+}
+.expressive-code .copy button:focus-visible {
+  outline: 3px solid var(--st-code-fg);
+  outline-offset: 3px;
+}
+.expressive-code .copy .feedback {
+  font-family: var(--st-mono);
+  font-weight: 700;
+  border: 2px solid var(--st-code-fg);
+  border-radius: 6px;
+}
