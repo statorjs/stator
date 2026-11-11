@@ -30,6 +30,17 @@ export default defineConfig({
         dark: './src/assets/logo-dark.svg',
       },
       favicon: '/favicon.svg',
+      customCss: [
+        '@fontsource-variable/space-grotesk',
+        '@fontsource-variable/jetbrains-mono',
+        './src/styles/tokens.css',
+        './src/styles/chrome.css',
+        './src/styles/content.css',
+        './src/styles/code.css',
+      ],
+      components: {
+        PageTitle: './src/components/PageTitle.astro',
+      },
       social: [
         {
           icon: 'github',

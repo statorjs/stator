@@ -1,0 +1,114 @@
+/* Stator tokens mapped onto Starlight. Starlight's base theme is dark and
+   `[data-theme='light']` switches to light, so the same order is kept here. */
+:root {
+  --st-yellow: #ffd60a;
+  --st-ink: #141414;
+  --st-paper: #f6f6f3;
+  --st-pink: #ff4fa3;
+  --st-violet: #6b3bf5;
+  --st-violet-tint: #b9a5ff;
+  --st-vermilion: #ff5a1f;
+
+  --st-sans: "Space Grotesk Variable", system-ui, sans-serif;
+  --st-mono: "JetBrains Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --st-ground: #161616;
+  --st-card: #202020;
+  --st-surface: #2b2b2b;
+  --st-text: #e4e4e0;
+  --st-text-2: #a8a8a4;
+  --st-line: #cfcfca;
+  --st-field: #161616;
+  --st-field-text: #e4e4e0;
+  --st-code-bg: #0c0c0c;
+  --st-code-fg: #e4e4e0;
+  --st-backdrop: rgb(12 12 12 / 0.72);
+
+  --st-press-ease: transform 0.08s ease, filter 0.08s ease, box-shadow 0.08s ease;
+
+  --sl-font: var(--st-sans);
+  --sl-font-mono: var(--st-mono);
+
+  --sl-color-white: var(--st-text);
+  --sl-color-gray-1: var(--st-text);
+  --sl-color-gray-2: #cfcfca;
+  --sl-color-gray-3: var(--st-text-2);
+  --sl-color-gray-4: #73736f;
+  --sl-color-gray-5: #4a4a47;
+  --sl-color-gray-6: var(--st-card);
+  --sl-color-gray-7: var(--st-surface);
+  --sl-color-black: var(--st-ground);
+
+  --sl-color-accent-low: #3a1530;
+  --sl-color-accent: var(--st-pink);
+  --sl-color-accent-high: #ffb3d6;
+
+  --sl-color-text: var(--st-text);
+  --sl-color-text-accent: var(--st-text);
+  --sl-color-text-invert: var(--st-ink);
+  --sl-color-bg: var(--st-ground);
+  --sl-color-bg-nav: var(--st-field);
+  --sl-color-bg-sidebar: var(--st-ground);
+  --sl-color-bg-inline-code: var(--st-surface);
+  --sl-color-bg-accent: var(--st-yellow);
+  --sl-color-hairline-light: var(--st-line);
+  --sl-color-hairline: var(--st-line);
+  --sl-color-hairline-shade: var(--st-line);
+  --sl-color-backdrop-overlay: var(--st-backdrop);
+
+  --sl-shadow-sm: none;
+  --sl-shadow-md: none;
+  --sl-shadow-lg: none;
+
+  --sl-text-body: 1.0625rem;
+  --sl-text-code: 0.84375rem;
+  --sl-text-code-sm: 0.86em;
+  --sl-line-height: 1.6;
+  --sl-line-height-headings: 1;
+
+  --sl-text-h1: 2.5rem;
+  --sl-text-h2: 1.875rem;
+  --sl-text-h3: 1.375rem;
+  --sl-text-h4: 1.1875rem;
+  --sl-text-h5: 1.0625rem;
+  --sl-text-h6: 1rem;
+
+  --sl-nav-height: 4.25rem;
+  --sl-menu-button-size: 2.75rem;
+  --sl-mobile-toc-height: 3.75rem;
+}
+
+:root[data-theme="light"] {
+  --st-ground: var(--st-paper);
+  --st-card: var(--st-paper);
+  --st-surface: #e6e6e2;
+  --st-text: var(--st-ink);
+  --st-text-2: #454545;
+  --st-line: var(--st-ink);
+  --st-field: var(--st-yellow);
+  --st-field-text: var(--st-ink);
+  --st-code-bg: var(--st-ink);
+  --st-backdrop: rgb(20 20 20 / 0.55);
+
+  --sl-color-gray-2: #2e2e2e;
+  --sl-color-gray-4: #6e6e6a;
+  --sl-color-gray-5: #b8b8b3;
+  --sl-color-accent-low: #ffd1e7;
+  --sl-color-accent-high: #a3135a;
+}
+
+@media (min-width: 50em) {
+  :root {
+    --sl-nav-height: 4.75rem;
+    --sl-text-h1: 3.75rem;
+    --sl-text-h2: 2.25rem;
+    --sl-text-h3: 1.5rem;
+    --sl-text-h4: 1.25rem;
+  }
+}
+
+@media (min-width: 72rem) {
+  :root {
+    --sl-mobile-toc-height: 0rem;
+  }
+}
