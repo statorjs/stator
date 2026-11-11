@@ -59,6 +59,13 @@ export interface HttpConfig {
    *  route's file path. The dev server uses this to inline collected scoped CSS
    *  (SSR head injection). Inserted at the `</head>` boundary. */
   headExtras?: (filePath: string) => string | Promise<string>
+  /** What a route's page offers the browser, by the file that renders it.
+   *  Undefined (the lookup, or its answer) leaves that route ungated. */
+  offeredEvents?: (
+    routeFile: string,
+  ) => Promise<{ types: ReadonlySet<string>; open: readonly string[] } | undefined>
+  /** See `StatorConfig.events.gate`. Default `enforce`. */
+  eventGate?: 'enforce' | 'warn' | 'off'
   /** Serve the dev inspector asset at `/@stator/inspector.js`. The dev server
    *  sets this and injects the script tag; production leaves it off. */
   inspector?: boolean
@@ -700,6 +707,23 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         { error: `machine "${body.machine}" handles no event "${body.event.type}"` },
         400,
       )
+    }
+
+    // The page must offer the event: some template or island it can render
+    // sends this type. What no UI sends (an effect's completion, a timer's
+    // event) is refused here whether or not the machine lists it `serverOnly`.
+    // A route with a send the build could not read is open, and so is one
+    // with no list at all.
+    const gate = config.eventGate ?? 'enforce'
+    if (gate !== 'off' && config.offeredEvents) {
+      const offered = await config.offeredEvents(
+        matched.route.getFilePath ?? matched.route.filePath,
+      )
+      if (offered && offered.open.length === 0 && !offered.types.has(body.event.type)) {
+        const error = `route "${routeKey}" offers no event "${body.event.type}"`
+        if (gate === 'enforce') return c.json({ error }, 403)
+        httpLog.warn({ machine: body.machine }, `${error} (events.gate is "warn": accepted)`)
+      }
     }
 
     return withSessionLock(sessionId, async () => {

@@ -10,6 +10,8 @@ const fixtures = resolve(here, 'fixtures')
 
 async function boot(): Promise<StatorApp> {
   return createApp({
+    // These fixtures post events their pages do not render.
+    events: { gate: 'off' },
     machinesDir: resolve(fixtures, 'machines'),
     routesDir: resolve(fixtures, 'routes'),
   })

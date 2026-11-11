@@ -1,0 +1,7 @@
+---
+import Cart from '../machines/cart.ts'
+
+const [cart] = Stator.reads([Cart])
+const kind = 'CLEAR' as 'CLEAR' | 'CHECKOUT'
+---
+<button on:click={() => cart.send({ type: kind })}>go</button>

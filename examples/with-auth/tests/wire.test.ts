@@ -110,17 +110,22 @@ describe('the auth arc', () => {
     assert.ok(html.includes('Mooring fees'))
     assert.ok(html.includes('— Wendell'))
 
-    // devtools forgery attempts, all uncommitted:
+    // devtools forgery attempts, none committed. The page offers neither
+    // POST_NOTICE nor LOGIN (both go through forms), so the wire refuses them.
     const fresh = sidOf(await app.fetch(new Request('http://test/')))!
     for (const event of [
-      { type: 'POST_NOTICE', title: 'spam', body: 'spam' }, // anonymous: no such transition
-      { type: 'LOGIN', email: 'w@quay.test', password: 'guess' }, // guard drop
-      { type: 'MODERATE', noticeId: 'n1', action: 'remove' }, // anonymous
+      { type: 'POST_NOTICE', title: 'spam', body: 'spam' },
+      { type: 'LOGIN', email: 'w@quay.test', password: 'guess' },
     ]) {
-      const res = await postEvent(fresh, 'AuthMachine', event)
-      const out = (await res.json()) as { committed: boolean }
-      assert.equal(out.committed, false)
+      assert.equal((await postEvent(fresh, 'AuthMachine', event)).status, 403)
     }
+    // MODERATE is on the page for members, so the guard is what drops it.
+    const res = await postEvent(fresh, 'AuthMachine', {
+      type: 'MODERATE',
+      noticeId: 'n1',
+      action: 'remove',
+    })
+    assert.equal(((await res.json()) as { committed: boolean }).committed, false)
   })
 
   it('logout clears the session outright', async () => {

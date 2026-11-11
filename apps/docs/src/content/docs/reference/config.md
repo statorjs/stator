@@ -47,6 +47,10 @@ interface StatorConfig {
     inspector?: boolean // dev inspector toolbar. Default: on in dev
   }
 
+  events?: {
+    gate?: 'enforce' | 'warn' | 'off' // /__events accepts only what the page offers. Default: enforce
+  }
+
   caching?: false | {
     sMaxAge?: number              // derived Cache-Control shared-cache lifetime (seconds). Default: 60
     staleWhileRevalidate?: number // serve-stale window (seconds). Default: 300. `false` never emits

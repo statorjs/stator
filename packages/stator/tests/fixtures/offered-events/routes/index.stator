@@ -1,0 +1,11 @@
+---
+import Cart from '../machines/cart.ts'
+import AddButton from '../templates/add-button.stator'
+import CartList from '../templates/cart-list.stator'
+
+const [cart] = Stator.reads([Cart])
+---
+<main>
+  <AddButton />
+  <CartList cart={cart} />
+</main>

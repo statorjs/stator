@@ -32,6 +32,8 @@ const fixtures = resolve(here, 'fixtures')
 
 async function boot(): Promise<StatorApp> {
   return createApp({
+    // These fixtures post events their pages do not render.
+    events: { gate: 'off' },
     machinesDir: resolve(fixtures, 'machines'),
     routesDir: resolve(fixtures, 'routes'),
   })
@@ -842,6 +844,8 @@ describe('SSE heartbeat', () => {
     // A comment keepalive holds proxies open but is invisible to EventSource —
     // the ping must be a data frame so clients can detect zombie connections.
     const app = await createApp({
+      // These fixtures post events their pages do not render.
+      events: { gate: 'off' },
       machinesDir: resolve(fixtures, 'machines'),
       routesDir: resolve(fixtures, 'routes'),
       realtime: { pingMs: 40 },

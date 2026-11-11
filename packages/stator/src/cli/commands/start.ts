@@ -51,6 +51,7 @@ export async function run(ctx: CliContext): Promise<void> {
     headExtras,
     buildId,
     machines,
+    events,
     config: configFile,
     statorVersion: builtWith,
   } = await loadProductionHead(dist)
@@ -101,6 +102,8 @@ export async function run(ctx: CliContext): Promise<void> {
     headExtras,
     buildId,
     machineHashes: machines,
+    offeredEvents: events,
+    events: config.events,
     middlewareFile: resolve(dist, 'middleware.ts'),
     bootFile: resolve(dist, 'boot.ts'),
   })

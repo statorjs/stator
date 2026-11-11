@@ -57,18 +57,29 @@ describe('the wire contract', () => {
     assert.ok(html.includes('--plate-upper:'))
   })
 
-  it('ADD patches the cart page: keyed insert + header count + committed', async () => {
-    const cookie = await session('/cart')
-    const res = await post(cookie, 'GET /cart', 'CartMachine', {
+  it('ADD from the product page commits and patches it; the cart page then lists the item', async () => {
+    const cookie = await session('/p/ketch')
+    const res = await post(cookie, 'GET /p/ketch', 'CartMachine', {
       type: 'ADD',
       sku: 'ketch--squid-ink--43',
     })
     const body = (await res.json()) as { committed: boolean; patches: Array<{ op: string }> }
     assert.equal(body.committed, true)
-    assert.equal(
-      body.patches.some((p) => p.op === 'insert'),
-      true,
-    )
+    assert.ok(body.patches.length > 0) // the header's cart count
+    const cart = await (
+      await app.fetch(new Request('http://test/cart', { headers: { Cookie: cookie } }))
+    ).text()
+    assert.ok(cart.includes('ketch--squid-ink--43'))
+  })
+
+  it('ADD is refused from a page that does not offer it', async () => {
+    const cookie = await session('/cart')
+    const res = await post(cookie, 'GET /cart', 'CartMachine', {
+      type: 'ADD',
+      sku: 'ketch--squid-ink--43',
+    })
+    assert.equal(res.status, 403)
+    assert.match(((await res.json()) as { error: string }).error, /offers no event "ADD"/)
   })
 
   it('a forged admin restock is gated: HTTP 200, committed false, zero patches', async () => {
@@ -101,8 +112,8 @@ describe('the wire contract', () => {
 
   it('checkout form values travel as forms, guards decide the state', async () => {
     const cookie = await session('/cart')
-    await post(cookie, 'GET /cart', 'CartMachine', { type: 'ADD', sku: 'mudlark--kelp--40' })
-    await post(cookie, 'GET /cart', 'CartMachine', { type: 'BEGIN_CHECKOUT' })
+    await post(cookie, 'GET /p/mudlark', 'CartMachine', { type: 'ADD', sku: 'mudlark--kelp--40' })
+    await post(cookie, 'GET /checkout', 'CartMachine', { type: 'BEGIN_CHECKOUT' })
     const form = new URLSearchParams({ name: 'W', email: 'not-an-email' })
     const submit = await app.fetch(
       new Request('http://test/checkout/contact', {

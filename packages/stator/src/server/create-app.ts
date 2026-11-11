@@ -1,4 +1,5 @@
-import { resolve } from 'node:path'
+import { existsSync } from 'node:fs'
+import { relative, resolve } from 'node:path'
 import { serve } from '@hono/node-server'
 import type { Hono } from 'hono'
 import type { LogLevel } from '../config.ts'
@@ -116,6 +117,43 @@ export interface CreateAppConfig {
   /** Derived Cache-Control (cacheable read path, layer 3). Defaults on with
    *  modest values (60s / 300s); `false` disables emission. */
   caching?: { sMaxAge?: number; staleWhileRevalidate?: number } | false
+  /** The `/__events` gate: an event is accepted only when the page it names
+   *  offers it (see `build/offered-events.ts`). `enforce` (default) refuses
+   *  one it does not; `warn` logs and lets it through; `off` skips the check. */
+  events?: { gate?: 'enforce' | 'warn' | 'off' }
+  /** What each route's page offers, from the build manifest
+   *  (`loadProductionHead(dist).events`), keyed by route file relative to
+   *  `routesDir`. Omitted ⇒ read from source on first use. */
+  offeredEvents?: Readonly<Record<string, { types: readonly string[]; open: readonly string[] }>>
+}
+
+type Offered = { types: ReadonlySet<string>; open: readonly string[] }
+
+/**
+ * What a route's page offers: from the build manifest when there is one,
+ * otherwise read from source once per route. The source reader loads the
+ * compiler, so it is imported only when first needed.
+ */
+function offeredEventsLookup(
+  root: string,
+  routesDir: string,
+  built: CreateAppConfig['offeredEvents'],
+): (routeFile: string) => Promise<Offered | undefined> {
+  const live = new Map<string, Promise<Offered | undefined>>()
+  return (routeFile) => {
+    if (built) {
+      const hit = built[relative(routesDir, routeFile).replace(/\\/g, '/')]
+      return Promise.resolve(hit && { types: new Set(hit.types), open: hit.open })
+    }
+    let pending = live.get(routeFile)
+    if (!pending) {
+      pending = existsSync(routeFile)
+        ? import('../build/offered-events.ts').then((m) => m.routeOfferedEvents(routeFile, root))
+        : Promise.resolve(undefined)
+      live.set(routeFile, pending)
+    }
+    return pending
+  }
 }
 
 export interface StatorApp {
@@ -195,6 +233,8 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     buildId: config.buildId,
     cors: resolved.cors,
     middleware,
+    eventGate: config.events?.gate,
+    offeredEvents: offeredEventsLookup(root, routesDir, config.offeredEvents),
     // Layer-3 derived Cache-Control: on by default with modest values; the
     // whole block set to `false` disables. (createDevApp never passes it —
     // dev pages must always re-render while editing.)

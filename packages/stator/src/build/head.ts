@@ -22,6 +22,10 @@ export async function loadProductionHead(distDir: string): Promise<{
    *  `machineHashes` so hydration compares against what was built. Absent on
    *  a dist built before hashes existed — `createApp` then hashes live. */
   machines?: Record<string, string>
+  /** Route file → the events its page offers; pass to `createApp` as
+   *  `offeredEvents`. Absent on a dist built before the gate existed —
+   *  `createApp` then reads them from the artifact's own modules. */
+  events?: StatorManifest['events']
   /** The config file the artifact carries, `null` when the app has none, and
    *  `undefined` when the manifest predates the field — which `stator start`
    *  reads as "rebuild", since it cannot otherwise tell a config-less app from
@@ -36,6 +40,7 @@ export async function loadProductionHead(distDir: string): Promise<{
   let routeCss: StatorManifest['routeCss'] = {}
   let buildId: string | undefined
   let machines: Record<string, string> | undefined
+  let events: StatorManifest['events'] | undefined
   let config: string | null | undefined
   let statorVersion: string | undefined
   try {
@@ -46,6 +51,7 @@ export async function loadProductionHead(distDir: string): Promise<{
     routeCss = manifest.routeCss ?? {}
     buildId = manifest.buildId
     machines = manifest.machines
+    events = manifest.events
     config = manifest.config
     statorVersion = manifest.statorVersion
   } catch {
@@ -65,6 +71,7 @@ export async function loadProductionHead(distDir: string): Promise<{
     headExtras,
     buildId,
     ...(machines ? { machines } : {}),
+    ...(events ? { events } : {}),
     ...(config !== undefined ? { config } : {}),
     ...(statorVersion ? { statorVersion } : {}),
   }
