@@ -84,8 +84,8 @@ export default defineMachine({
     placing: {
       // The rescue: a completion that never arrives (crashed processor, lost
       // response) must not strand the user in `placing` forever. One `after`
-      // bounds the wait — and since 1.5.0 the countdown re-arms across
-      // hydration, so even a server restart can't kill it.
+      // bounds the wait, and the countdown re-arms across hydration, so even
+      // a server restart can't kill it.
       after: [{ delay: 8_000, send: { type: 'CHARGE_TIMEOUT' } }],
       on: {
         CHARGE_OK: {

@@ -3,7 +3,8 @@
 ```sh
 pnpm install
 pnpm dev        # dev server with live reload + the wire inspector
-pnpm typecheck  # sync generated component types, then tsc
+pnpm check      # compile every .stator file and typecheck the app
+pnpm test       # node's test runner, no browser needed
 pnpm build      # production build into dist/
 pnpm start      # serve the production build
 ```

@@ -99,14 +99,11 @@ importers:
         version: link:../../packages/stator
     devDependencies:
       '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
+        specifier: ^24.0.0
+        version: 24.19.2
       pino-pretty:
         specifier: ^13.2.0
         version: 13.2.0
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -118,14 +115,11 @@ importers:
         version: link:../../packages/stator
     devDependencies:
       '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
+        specifier: ^24.0.0
+        version: 24.19.2
       pino-pretty:
         specifier: ^13.2.0
         version: 13.2.0
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -140,8 +134,8 @@ importers:
         specifier: ^5.3.0
         version: 5.3.0
       '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
+        specifier: ^24.0.0
+        version: 24.19.2
       pino-pretty:
         specifier: ^13.2.0
         version: 13.2.0
@@ -159,14 +153,11 @@ importers:
         version: link:../../packages/stator
     devDependencies:
       '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
+        specifier: ^24.0.0
+        version: 24.19.2
       pino-pretty:
         specifier: ^13.2.0
         version: 13.2.0
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -178,14 +169,11 @@ importers:
         version: link:../../packages/stator
     devDependencies:
       '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
+        specifier: ^24.0.0
+        version: 24.19.2
       pino-pretty:
         specifier: ^13.2.0
         version: 13.2.0
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -197,14 +185,11 @@ importers:
         version: link:../../packages/stator
     devDependencies:
       '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
+        specifier: ^24.0.0
+        version: 24.19.2
       pino-pretty:
         specifier: ^13.2.0
         version: 13.2.0
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -216,14 +201,11 @@ importers:
         version: link:../../packages/stator
     devDependencies:
       '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
+        specifier: ^24.0.0
+        version: 24.19.2
       pino-pretty:
         specifier: ^13.2.0
         version: 13.2.0
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -235,14 +217,11 @@ importers:
         version: link:../../packages/stator
     devDependencies:
       '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
+        specifier: ^24.0.0
+        version: 24.19.2
       pino-pretty:
         specifier: ^13.2.0
         version: 13.2.0
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -254,14 +233,11 @@ importers:
         version: link:../../packages/stator
     devDependencies:
       '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
+        specifier: ^24.0.0
+        version: 24.19.2
       pino-pretty:
         specifier: ^13.2.0
         version: 13.2.0
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -273,14 +249,11 @@ importers:
         version: link:../../packages/stator
     devDependencies:
       '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
+        specifier: ^24.0.0
+        version: 24.19.2
       pino-pretty:
         specifier: ^13.2.0
         version: 13.2.0
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -5965,7 +5938,7 @@ snapshots:
 
   '@types/ws@8.18.2':
     dependencies:
-      '@types/node': 22.20.5
+      '@types/node': 24.19.2
 
   '@typespec/ts-http-runtime@0.3.6':
     dependencies:
@@ -6302,7 +6275,7 @@ snapshots:
 
   buffer-image-size@0.6.4:
     dependencies:
-      '@types/node': 22.20.5
+      '@types/node': 24.19.2
 
   bundle-name@4.1.0:
     dependencies:
@@ -6846,7 +6819,7 @@ snapshots:
 
   happy-dom@21.0.4:
     dependencies:
-      '@types/node': 22.20.5
+      '@types/node': 24.19.2
       '@types/whatwg-mimetype': 3.0.2
       '@types/ws': 8.18.2
       buffer-image-size: 0.6.4

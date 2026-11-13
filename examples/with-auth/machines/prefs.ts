@@ -3,7 +3,7 @@ import AuthMachine from './auth.ts'
 
 /**
  * Per-USER durable state — TEACHING MOMENT #4. Stator has session and app
- * lifecycles; "user" isn't one (yet — see the roadmap). The pattern: an app
+ * lifecycles; "user" isn't one. The pattern: an app
  * machine holding userId-keyed slices. It survives logout and follows the
  * user to any browser, because the key is the user, not the session.
  *
