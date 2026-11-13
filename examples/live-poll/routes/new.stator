@@ -1,7 +1,9 @@
 ---
 import Layout from '../templates/layout.stator'
 import NewPollPage from '../templates/new-poll-page.stator'
+
+const missing = Stator.request.query.error === 'missing'
 ---
 <Layout>
-  <NewPollPage />
+  <NewPollPage missing={missing} />
 </Layout>

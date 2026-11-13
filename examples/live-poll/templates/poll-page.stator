@@ -2,7 +2,6 @@
 import type { InstanceOf } from '@statorjs/stator/template'
 import type PollsMachine from '../machines/polls.ts'
 import type VoterMachine from '../machines/voter.ts'
-import { pollOf } from '../lib/poll.ts'
 import VotePanel from './vote-panel.stator'
 import ResultsPanel from './results-panel.stator'
 
@@ -13,42 +12,28 @@ const { polls, voter, pollId } = Stator.props<{
 }>()
 ---
 <section>
-  {when(read(polls, (p) => !pollOf(p, pollId)), () => (
-    <header class="page-header">
-      <h1>Poll not found</h1>
-      <p class="page-lede">No poll with that id exists.</p>
-      <p><a href="/" class="link">Back to all polls</a></p>
-    </header>
-  ))}
+  <header class="page-header">
+    <h1>{polls.byId(pollId)?.question}</h1>
+    <p class="page-lede">
+      {read(polls, (p) => {
+        const total = p.votes(pollId)
+        return `${total} vote${total === 1 ? '' : 's'}`
+      })}
+    </p>
+  </header>
 
-  {when(read(polls, (p) => !!pollOf(p, pollId)), () => (
-    <div>
-      <header class="page-header">
-        <h1>{read(polls, (p) => pollOf(p, pollId)?.question ?? '')}</h1>
-        <p class="page-lede">
-          {read(polls, (p) => {
-            const poll = pollOf(p, pollId)
-            if (!poll) return ''
-            const total = poll.options.reduce((s, o) => s + o.count, 0)
-            return `${total} vote${total === 1 ? '' : 's'}`
-          })}
-        </p>
-      </header>
+  {match(
+    read(voter, (v) => (v.votedFor(pollId) ? 'voted' : 'voting')),
+    {
+      voting: () => <VotePanel polls={polls} voter={voter} pollId={pollId} />,
+      voted: () => <ResultsPanel polls={polls} voter={voter} pollId={pollId} />,
+    },
+  )}
 
-      {match(
-        read(voter, (v) => ((v.votedFor as (id: string) => string | null)(pollId) ? 'voted' : 'voting')),
-        {
-          voting: () => <VotePanel polls={polls} voter={voter} pollId={pollId} />,
-          voted: () => <ResultsPanel polls={polls} voter={voter} pollId={pollId} />,
-        },
-      )}
-
-      <div class="share">
-        <p>Share this poll:</p>
-        <code>{pollId}</code>
-      </div>
-    </div>
-  ))}
+  <div class="share">
+    <p>Share this poll:</p>
+    <code>{pollId}</code>
+  </div>
 </section>
 
 <style>

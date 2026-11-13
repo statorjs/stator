@@ -3,7 +3,9 @@ import VoterMachine from '../machines/voter.ts'
 
 /** POST half of /new — merges with new.stator's GET at the same URL.
  *  Parses the form, dispatches CREATE_POLL (VoterMachine emits POLL_CREATED,
- *  which PollsMachine subscribes to), returns a navigate directive. */
+ *  which PollsMachine subscribes to), returns a navigate directive. A form
+ *  the browser's own validation would have stopped goes back to the page,
+ *  which says what was missing. */
 export const POST = defineApiRoute({
   reads: [VoterMachine],
   handler: async (request, { dispatch }) => {
