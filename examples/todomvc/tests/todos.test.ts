@@ -5,7 +5,7 @@ import TodosMachine from '../machines/todos.ts'
 
 /**
  * Every rule of the app, tested without a browser — events in, state out.
- * This file is the testing guide's pyramid in miniature:
+ * With wire.test.ts above it, this is the testing guide's pyramid in miniature:
  * https://docs.statorjs.dev/guides/testing/
  */
 
