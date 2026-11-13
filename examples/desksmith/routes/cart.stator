@@ -1,11 +1,10 @@
 ---
 import CartMachine from '../machines/cart.ts'
-import ProductsMachine from '../machines/products.ts'
 import CustomerLayout from '../templates/customer-layout.stator'
 import CartPage from '../templates/cart-page.stator'
 
-const [cart, products] = Stator.reads([CartMachine, ProductsMachine])
+const [cart] = Stator.reads([CartMachine])
 ---
 <CustomerLayout cart={cart}>
-  <CartPage cart={cart} products={products} />
+  <CartPage cart={cart} />
 </CustomerLayout>

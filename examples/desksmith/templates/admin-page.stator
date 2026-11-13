@@ -4,18 +4,11 @@ import type AdminMachine from '../machines/admin.ts'
 import type ProductsMachine from '../machines/products.ts'
 import AdminSession from './admin-session.stator'
 
-type SessionRow = {
-  sid: string
-  items: Array<{ productId: string; quantity: number; unitPrice: number }>
-  itemCount: number
-  total: number
-}
-
 const { admin, products } = Stator.props<{
   admin: InstanceOf<typeof AdminMachine>
   products: InstanceOf<typeof ProductsMachine>
 }>()
-const nameOf = (id: string) => (products.byId as any)(id)?.name ?? id
+const nameOf = (id: string) => products.byId(id)?.name ?? id
 ---
 <section>
   <div class="admin-banner">
@@ -30,7 +23,7 @@ const nameOf = (id: string) => (products.byId as any)(id)?.name ?? id
     tabs in other windows and watch this page update.</p>
 
   <div class="metrics">
-    <span class="metrics-label">Runtime</span>
+    <span class="metrics-label">Runtime, at the last cart change</span>
     <span class="metric">
       <span class="metric-label">heap</span>
       <span class="metric-value">{read(admin, a => a.runtimeMetrics.heapUsedMB)} / {read(admin, a => a.runtimeMetrics.heapTotalMB)} MB</span>
@@ -71,7 +64,7 @@ const nameOf = (id: string) => (products.byId as any)(id)?.name ?? id
   <h2>Per-product totals</h2>
   {when(read(admin, a => a.totalItemsInCarts > 0), () =>
     <ul class="totals">
-      {each(read(admin, a => a.inCartProducts as Array<{ productId: string; count: number }>), (row) =>
+      {each(read(admin, a => a.inCartProducts), (row) =>
         <li>
           <span>{nameOf(row.productId)}</span>
           <span>{row.count}</span>
@@ -85,7 +78,7 @@ const nameOf = (id: string) => (products.byId as any)(id)?.name ?? id
     <p class="empty">No active carts. Add an item from the products page.</p>
   )}
   <ul class="sessions">
-    {each(read(admin, a => a.sessionList as SessionRow[]), (session) =>
+    {each(read(admin, a => a.sessionList), (session) =>
       <AdminSession session={session} products={products} />
     )}
   </ul>

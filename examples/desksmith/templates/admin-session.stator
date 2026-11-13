@@ -1,20 +1,14 @@
 ---
 import type { InstanceOf } from '@statorjs/stator/template'
+import type { SessionRow } from '../machines/admin.ts'
 import type ProductsMachine from '../machines/products.ts'
 import AdminSessionItem from './admin-session-item.stator'
-
-type SessionRow = {
-  sid: string
-  items: Array<{ productId: string; quantity: number; unitPrice: number }>
-  itemCount: number
-  total: number
-}
 
 const { session, products } = Stator.props<{
   session: SessionRow
   products: InstanceOf<typeof ProductsMachine>
 }>()
-const nameOf = (id: string) => (products.byId as any)(id)?.name ?? id
+const nameOf = (id: string) => products.byId(id)?.name ?? id
 ---
 <li>
   <div class="head">

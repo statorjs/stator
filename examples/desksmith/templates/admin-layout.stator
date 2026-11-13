@@ -4,7 +4,7 @@ import ThemeToggle from './theme-toggle.stator'
 ---
 <BaseLayout>
   <header class="site-header site-header--admin" child="header">
-    <a href="/admin" class="brand">stator demo · admin</a>
+    <a href="/admin" class="brand">Desksmith · admin</a>
     <ThemeToggle />
     <nav>
       <a href="/">← Back to shop</a>

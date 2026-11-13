@@ -11,6 +11,9 @@ type CheckoutContext = {
 
 type Field = 'shippingName' | 'shippingAddress' | 'paymentLast4'
 
+const SHIPPING_FIELDS: readonly string[] = ['shippingName', 'shippingAddress']
+const PAYMENT_FIELDS: readonly string[] = ['paymentLast4']
+
 type CheckoutEvents =
   | { type: 'SET_FIELD'; field: Field; value: string }
   | { type: 'SUBMIT_SHIPPING' }
@@ -21,9 +24,14 @@ type CheckoutEvents =
   | { type: 'BACK' }
   | { type: 'RESET' }
 
-// Shared by both the shipping and payment SET_FIELD transitions.
+// The event arrives as JSON from the browser, so each step accepts only its
+// own fields, and only string values.
+const setsOneOf =
+  (fields: readonly string[]) => (_ctx: CheckoutContext, ev: { field: unknown; value: unknown }) =>
+    typeof ev.field === 'string' && fields.includes(ev.field) && typeof ev.value === 'string'
+
 const setField = (ctx: CheckoutContext, ev: { field: Field; value: string }) => {
-  ctx[ev.field] = String(ev.value)
+  ctx[ev.field] = ev.value.slice(0, 200)
 }
 
 const shippingValid = (ctx: CheckoutContext) =>
@@ -49,17 +57,13 @@ export default defineMachine({
   states: {
     shipping: {
       on: {
-        SET_FIELD: (ctx, ev) => {
-          setField(ctx, ev)
-        },
+        SET_FIELD: { when: setsOneOf(SHIPPING_FIELDS), do: setField },
         SUBMIT_SHIPPING: { to: 'payment', when: shippingValid },
       },
     },
     payment: {
       on: {
-        SET_FIELD: (ctx, ev) => {
-          setField(ctx, ev)
-        },
+        SET_FIELD: { when: setsOneOf(PAYMENT_FIELDS), do: setField },
         BACK: { to: 'shipping' },
         SUBMIT_PAYMENT: {
           // Pending state now, completion event later — the one pattern for
@@ -131,8 +135,5 @@ export default defineMachine({
     paymentLast4: (ctx) => ctx.paymentLast4 || '(not set)',
     orderNumber: (ctx) => ctx.orderNumber ?? '',
     error: (ctx) => ctx.error,
-    canSubmitShipping: (ctx) =>
-      ctx.shippingName.trim().length > 0 && ctx.shippingAddress.trim().length > 0,
-    canSubmitPayment: (ctx) => /^\d{4}$/.test(ctx.paymentLast4),
   },
 })

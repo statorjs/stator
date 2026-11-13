@@ -2,21 +2,13 @@
 import type { InstanceOf } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
 import type ProductsMachine from '../machines/products.ts'
+import type { Category } from '../machines/products.ts'
 import ProductCard from './product-card.stator'
-
-type Product = {
-  id: string
-  name: string
-  description: string
-  price: number
-  category: 'stationery' | 'office' | 'lifestyle'
-  initials: string
-}
 
 const { title, blurb, cat, products, cart } = Stator.props<{
   title: string
   blurb: string
-  cat: Product['category']
+  cat: Category
   products: InstanceOf<typeof ProductsMachine>
   cart: InstanceOf<typeof CartMachine>
 }>()
@@ -27,7 +19,7 @@ const { title, blurb, cat, products, cart } = Stator.props<{
     <p>{blurb}</p>
   </header>
   <ul>
-    {each(read(products, p => (p.byCategory as (c: string) => Product[])(cat)), (product: Product) =>
+    {each(read(products, p => p.byCategory(cat)), (product) =>
       <ProductCard product={product} cart={cart} />
     )}
   </ul>
