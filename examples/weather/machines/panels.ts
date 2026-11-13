@@ -13,20 +13,21 @@ import {
   weatherIconSvg,
 } from '../lib/open-meteo.ts'
 import ForecastCache, { type PlaceData } from './forecast-cache.ts'
-import type { Clock, Units } from './settings.ts'
+import SettingsMachine, { type Clock, type Units } from './settings.ts'
 import WeatherMachine, { type SavedPlace } from './weather.ts'
 
 /**
- * The DISPLAY machine: every tile view-model, computed by READING two other
- * machines — the session's WeatherMachine (places, active, mirrored prefs)
- * and the shared ForecastCache (the data). It holds no state of its own; its
- * selectors receive `{ reads }` and join the two sources per place id.
+ * The DISPLAY machine: every tile view-model, computed by READING three other
+ * machines — the session's WeatherMachine (places, active), its
+ * SettingsMachine (units, clock) and the shared ForecastCache (the data). It
+ * holds no state of its own; its selectors receive `{ reads }` and join the
+ * sources per place id.
  *
  * The split is what keeps the machine module graph acyclic (weather emits to
  * the cache; the cache never has to know about display), and it's the reason
  * a cache update pushes to every open tab of every interested session: fan-out
  * expands touched machines through the reverse-reads graph, so bindings on
- * this machine re-diff whenever either source moves.
+ * this machine re-diff whenever any source moves.
  */
 
 // ---- Formatting (unit/clock aware) --------------------------------------
@@ -204,8 +205,7 @@ export default defineMachine({
   lifecycle: 'session',
   // Display-only: no events, no transitions — this machine exists for its
   // reads-joining selectors.
-  events: {} as { type: 'NOOP' },
-  reads: [WeatherMachine, ForecastCache],
+  reads: [WeatherMachine, SettingsMachine, ForecastCache],
   context: {},
   initial: 'ready',
   states: { ready: {} },
@@ -213,14 +213,14 @@ export default defineMachine({
     /** Everything a single city panel renders — joined per place id from the
      *  session's WeatherMachine and the shared ForecastCache. */
     panelForId: (_ctx, { reads }) => (id: string): PanelVM =>
-      panelVM(reads.WeatherMachine.units, reads.WeatherMachine.clock, reads.ForecastCache.byId(id)),
+      panelVM(reads.SettingsMachine.units, reads.SettingsMachine.clock, reads.ForecastCache.byId(id)),
     /** Forecast rows, kept off the scalar VM so a scalar tile read doesn't
      *  rebuild them. Bound with a NON-keyed `each` so a units toggle reformats
      *  the whole strip (the rows are static text — no islands to churn). */
     hourlyForId: (_ctx, { reads }) => (id: string): HourRow[] =>
-      hourlyVM(reads.WeatherMachine.units, reads.WeatherMachine.clock, reads.ForecastCache.byId(id)),
+      hourlyVM(reads.SettingsMachine.units, reads.SettingsMachine.clock, reads.ForecastCache.byId(id)),
     dailyForId: (_ctx, { reads }) => (id: string): DayRow[] =>
-      dailyVM(reads.WeatherMachine.units, reads.ForecastCache.byId(id)),
+      dailyVM(reads.SettingsMachine.units, reads.ForecastCache.byId(id)),
     /** True while the cache is fetching any of THIS session's places — drives
      *  the app bar spinner in every tab (cache changes fan out everywhere). */
     refreshing: (_ctx, { reads }) => {

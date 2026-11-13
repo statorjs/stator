@@ -40,10 +40,7 @@
       let clouds: Cloud[] = []
       let stars: Star[] = []
       let parts: Particle[] = []
-      // `this.attrs.scene` is typed `unknown` (StatorElement's attrs getter is
-      // Record<string, unknown>); the `scene: String` declaration coerces it to
-      // a string, so the cast is safe.
-      let scene = sceneOf(this.attrs.scene as string)
+      let scene = sceneOf(this.attrs.scene ?? '')
 
       const seed = () => {
         clouds = seedClouds(scene, W, H)
