@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { type ChildProcess, spawn } from 'node:child_process'
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -67,11 +67,24 @@ const write = (root: string, files: Record<string, string>) => {
 }
 
 let n = 0
-/** A fresh app with `@acme/blocks` compiled into its node_modules. */
-async function scaffold(app: Record<string, string> = {}): Promise<string> {
+/** A fresh app with `@acme/blocks` compiled into its node_modules. `linked`
+ *  installs it the way pnpm does: the package lives in a store directory and
+ *  `node_modules/@acme/blocks` is a symlink to it. */
+async function scaffold(
+  app: Record<string, string> = {},
+  opts: { linked?: boolean } = {},
+): Promise<string> {
   const root = join(base, `app-${n++}`)
   rmSync(root, { recursive: true, force: true })
-  const pkg = join(root, 'node_modules/@acme/blocks')
+  const visible = join(root, 'node_modules/@acme/blocks')
+  const pkg = opts.linked
+    ? join(root, 'node_modules/.pnpm/@acme+blocks@1.0.0/node_modules/@acme/blocks')
+    : visible
+  if (opts.linked) {
+    mkdirSync(pkg, { recursive: true })
+    mkdirSync(dirname(visible), { recursive: true })
+    symlinkSync(pkg, visible, 'junction')
+  }
   write(pkg, {
     'package.json': JSON.stringify({
       name: '@acme/blocks',
@@ -115,6 +128,27 @@ describe('an app consuming a package island', () => {
     assert.ok(bundle.includes('CounterMachine'), 'dispatches by name')
     assert.ok(!bundle.includes('lifecycle'), 'the machine body is not')
 
+    const sheet = manifest.routeCss['routes/index.stator.ts']
+    assert.ok(sheet)
+    assert.match(readFileSync(join(outDir, sheet.replace(/^\//, '')), 'utf8'), /rebeccapurple/)
+  })
+
+  it('bundles it when the package is a symlink into a store, as pnpm installs it', async () => {
+    // The bundler reports the store's real path. The walk has to name the
+    // island by that same path, or the bundle's output is never matched to it.
+    const root = await scaffold({}, { linked: true })
+    const outDir = join(root, 'dist')
+    const result = await buildApp({ root, outDir })
+    assert.equal(result.islands, 1)
+    const manifest = JSON.parse(
+      readFileSync(join(outDir, 'stator-manifest.json'), 'utf8'),
+    ) as StatorManifest
+    const url = manifest.islands[REL]
+    assert.ok(url, JSON.stringify(manifest.islands))
+    assert.deepStrictEqual(manifest.routes['routes/index.stator.ts'], [url])
+    const bundle = readFileSync(join(outDir, url.replace(/^\//, '')), 'utf8')
+    assert.ok(bundle.includes('count-stepper'))
+    assert.ok(!bundle.includes('lifecycle'), 'the machine is still a stub')
     const sheet = manifest.routeCss['routes/index.stator.ts']
     assert.ok(sheet)
     assert.match(readFileSync(join(outDir, sheet.replace(/^\//, '')), 'utf8'), /rebeccapurple/)
@@ -292,6 +326,24 @@ describe('stator dev with a package island', () => {
   it('injects its script and serves the bundle', async () => {
     const root = await scaffold()
     const dev = await startDev(root, 54000 + (process.pid % 3000))
+    children.push(dev.child)
+    const page = await (await fetch(`${dev.url}/`)).text()
+    const src =
+      /<script type="module" src="(\/static\/assets\/acme_blocks_src_stepper-[^"]+)"/.exec(
+        page,
+      )?.[1]
+    assert.ok(src, page)
+    const res = await fetch(`${dev.url}${src}`)
+    assert.equal(res.status, 200)
+    assert.ok((await res.text()).includes('count-stepper'))
+    const css = /<link rel="stylesheet" href="([^"]+)"/.exec(page)?.[1]
+    assert.ok(css, page)
+    assert.match(await (await fetch(`${dev.url}${css}`)).text(), /rebeccapurple/)
+  })
+
+  it('does the same when the package is a symlink into a store', async () => {
+    const root = await scaffold({}, { linked: true })
+    const dev = await startDev(root, 57000 + (process.pid % 3000))
     children.push(dev.child)
     const page = await (await fetch(`${dev.url}/`)).text()
     const src =
