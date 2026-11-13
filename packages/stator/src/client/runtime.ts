@@ -19,10 +19,9 @@
 
 import { applyDirectives, applyPatches } from '../wire/apply.ts'
 import type { WireEnvelope } from '../wire/index.ts'
+import { TEMPLATE_EVENTS } from '../wire/template-events.ts'
 import { clientId, newEventId } from './client-id.ts'
 import { emitDispatchError, fetchWithTimeout, postEvent, TimeoutError } from './transport.ts'
-
-const EVENT_TYPES = ['click', 'submit', 'change', 'input'] as const
 
 /* ------------------------------------------------------------------ */
 /* In-flight affordance                                                */
@@ -61,7 +60,7 @@ function emit(name: string, detail: unknown): void {
 /* ------------------------------------------------------------------ */
 
 function init(): void {
-  for (const type of EVENT_TYPES) {
+  for (const type of TEMPLATE_EVENTS) {
     document.body.addEventListener(type, handleEvent)
   }
   initLiveChannel()

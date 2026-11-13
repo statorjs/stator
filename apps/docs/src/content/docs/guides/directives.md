@@ -15,6 +15,8 @@ The handler must be a single `machine.send(...)`:
 <button on:click={() => cart.send({ type: 'ADD_ITEM', productId: id })}>Add</button>
 ```
 
+A server template binds `on:click`, `on:dblclick`, `on:submit`, `on:change` and `on:input`. The event it sends was fixed when the page rendered and carries nothing from the browser, so an event whose meaning is in its details (which key, where the pointer is) is not among them: binding any other is a render error. Handle those in a [client island](/guides/client-components/), where `on:` binds a method and takes any DOM event.
+
 ## class:list
 
 Strings, conditional records, or `read()` entries compose into one class attribute:

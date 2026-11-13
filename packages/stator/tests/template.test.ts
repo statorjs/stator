@@ -128,6 +128,29 @@ describe('html templating', () => {
     }
   })
 
+  it('refuses an on() event the page runtime does not deliver, naming the ones it does', async () => {
+    const { cart, state, runtime } = await buildRuntime()
+    try {
+      assert.throws(
+        () =>
+          runInRender(
+            state,
+            () =>
+              html`<input ${on('keydown', () => cart.send({ type: 'ADD', productId: 'p1', unitPrice: 5 }))} />`,
+          ),
+        /on:keydown is not an event a server template can bind.*on:click, on:dblclick.*client island/s,
+      )
+      const out = runInRender(
+        state,
+        () =>
+          html`<label ${on('dblclick', () => cart.send({ type: 'ADD', productId: 'p1', unitPrice: 5 }))}>x</label>`,
+      )
+      assert.ok(out.html.includes('data-event-dblclick="'))
+    } finally {
+      runtime.dispose()
+    }
+  })
+
   it('attaches an on() directive to its parent as data-event-click', async () => {
     const { cart, state, runtime } = await buildRuntime()
     try {

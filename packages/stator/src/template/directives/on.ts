@@ -1,4 +1,5 @@
 import { type EventDescriptor, isEventDescriptor } from '../../server/render-context.ts'
+import { TEMPLATE_EVENTS } from '../../wire/template-events.ts'
 import { type DirectiveInvocation, defineDirective, invoke } from './core.ts'
 
 type Handler = () => EventDescriptor | undefined
@@ -10,6 +11,13 @@ const onDirective = defineDirective<Handler | null | undefined>({
     // caller passed no handler (Stator.forwarded returns undefined). Emit no
     // binding rather than crash on `arg()`.
     if (arg == null) return
+    if (!(TEMPLATE_EVENTS as readonly string[]).includes(modifier)) {
+      throw new Error(
+        `stator: on:${modifier} is not an event a server template can bind. ` +
+          `Supported: ${TEMPLATE_EVENTS.map((e) => `on:${e}`).join(', ')}. ` +
+          `Handle any other event in a client island.`,
+      )
+    }
     const result = arg()
     if (!isEventDescriptor(result)) {
       throw new Error(
