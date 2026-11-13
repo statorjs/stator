@@ -2,25 +2,18 @@
 import type { InstanceOf } from '@statorjs/stator/template'
 import type PollsMachine from '../machines/polls.ts'
 import type VoterMachine from '../machines/voter.ts'
-import { pollOf } from '../lib/poll.ts'
 
 const { polls, voter, pollId } = Stator.props<{
   polls: InstanceOf<typeof PollsMachine>
   voter: InstanceOf<typeof VoterMachine>
   pollId: string
 }>()
+
+const choice = polls.byId(pollId)?.options.find((o) => o.id === voter.votedFor(pollId))
 ---
 <div class="results">
   <p>
-    You voted for{' '}
-    <strong>
-      {read(voter, (v) => {
-        const optId = (v.votedFor as (id: string) => string | null)(pollId)
-        const poll = pollOf(polls, pollId)
-        return poll?.options.find((o) => o.id === optId)?.text ?? ''
-      })}
-    </strong>
-    . Live results below.
+    You voted for <strong>{choice?.text}</strong>. Live results below.
   </p>
 
   <ul>
@@ -29,15 +22,7 @@ const { polls, voter, pollId } = Stator.props<{
         row can't be its own component). A vote for ANY option moves every row's
         pct; the per-row value diff patches exactly the bars that changed. */}
     {each(
-      read(polls, (p) => {
-        const poll = pollOf(p, pollId)
-        if (!poll) return []
-        const total = poll.options.reduce((s, o) => s + o.count, 0)
-        return poll.options.map((o) => ({
-          ...o,
-          pct: total === 0 ? '0.0' : ((o.count / total) * 100).toFixed(1),
-        }))
-      }),
+      read(polls, (p) => p.results(pollId)),
       (option) => (
         <li>
           <div class="head">
@@ -49,6 +34,7 @@ const { polls, voter, pollId } = Stator.props<{
           </div>
         </li>
       ),
+      { key: (option) => option.id },
     )}
   </ul>
 </div>

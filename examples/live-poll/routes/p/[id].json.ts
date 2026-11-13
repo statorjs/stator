@@ -1,5 +1,5 @@
 import { defineApiRoute } from '@statorjs/stator/server'
-import Polls, { type Poll } from '../../machines/polls.ts'
+import Polls from '../../machines/polls.ts'
 
 /** The poll's results as JSON — the data twin of the /p/[id] page. The
  *  [id].json.ts filename routes /p/:id.json beside the page's bare :id, so
@@ -9,8 +9,8 @@ import Polls, { type Poll } from '../../machines/polls.ts'
 export const GET = defineApiRoute({
   method: 'GET',
   reads: [Polls],
-  handler: (request, { machines }: any) => {
-    const poll: Poll | undefined = machines.PollsMachine.byId(request.params.id)
+  handler: (request, { machines }) => {
+    const poll = machines.PollsMachine.byId(request.params.id ?? '')
     if (!poll) {
       return Response.json({ error: 'no such poll' }, { status: 404 })
     }

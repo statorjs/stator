@@ -14,9 +14,10 @@ pnpm dev
 - `machines/voter.ts` is a **session** machine: the visitor's side of a vote. It forwards the vote to the polls machine and remembers the choice so the page can show it.
 - `routes/p/[id].stator` is the poll page, marked `live`. `routes/p/[id].json.ts` is a **data route** for the same poll, as JSON.
 - `routes/new.ts` handles the create form as a plain POST; the form works with scripting off.
-- `lib/poll.ts` holds the tallying rules as plain functions, tested in `tests/results.test.ts`.
+- The machine's selectors shape what each page needs: the ballot reads `choices`, which has no counts, so other people's votes send a voting page nothing.
+- `tests/polls.test.ts` tests the one-vote rule on the machine alone; `tests/results.test.ts` drives the real app through the form and the JSON route.
 
-The polls themselves live in memory and are lost on restart. Each visitor's session state is in memory too, unless you copy `.env.example` to `.env.local` and set `REDIS_URL`.
+Everything is in memory by default. Copy `.env.example` to `.env.local` and set `REDIS_URL`, and both the polls (`persist: true` on the app machine) and each visitor's session survive a restart.
 
 ## Learn more
 

@@ -2,7 +2,6 @@
 import type { InstanceOf } from '@statorjs/stator/template'
 import type PollsMachine from '../machines/polls.ts'
 import type VoterMachine from '../machines/voter.ts'
-import { pollOf } from '../lib/poll.ts'
 
 const { polls, voter, pollId } = Stator.props<{
   polls: InstanceOf<typeof PollsMachine>
@@ -11,15 +10,18 @@ const { polls, voter, pollId } = Stator.props<{
 }>()
 ---
 <ul>
+  {/* The ballot reads `choices`, which carries no counts, so other people's
+      votes change nothing here and send this page nothing. */}
   {each(
-    read(polls, (p) => pollOf(p, pollId)?.options ?? []),
+    read(polls, (p) => p.choices(pollId)),
     (option) => (
       <li>
-        <button on:click={() => voter.send({ type: 'VOTE', pollId: pollId, optionId: option.id })}>
+        <button on:click={() => voter.send({ type: 'VOTE', pollId, optionId: option.id })}>
           {option.text}
         </button>
       </li>
     ),
+    { key: (option) => option.id },
   )}
 </ul>
 

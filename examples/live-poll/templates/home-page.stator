@@ -1,14 +1,6 @@
 ---
 import type { InstanceOf } from '@statorjs/stator/template'
 import type PollsMachine from '../machines/polls.ts'
-import PollCard from './poll-card.stator'
-
-type Poll = {
-  id: string
-  question: string
-  options: Array<{ id: string; text: string; count: number }>
-  createdAt: number
-}
 
 const { polls } = Stator.props<{ polls: InstanceOf<typeof PollsMachine> }>()
 ---
@@ -35,7 +27,20 @@ const { polls } = Stator.props<{ polls: InstanceOf<typeof PollsMachine> }>()
     )}
 
     <ul>
-      {each(read(polls, (p) => p.all as Poll[]), (poll) => <PollCard poll={poll} />)}
+      {/* Keyed, so a new poll is one inserted row and a vote is one patched
+          number: the count is the row's only live field, read from the row. */}
+      {each(
+        read(polls, (p) => p.summaries),
+        (poll) => (
+          <li>
+            <a href={`/p/${poll.id}`}>
+              <strong>{poll.question}</strong>
+              <small>{poll.options} options · {read(poll, (p) => p.votes)} votes</small>
+            </a>
+          </li>
+        ),
+        { key: (poll) => poll.id },
+      )}
     </ul>
   </section>
 </section>
