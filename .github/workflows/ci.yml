@@ -13,7 +13,7 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     # A test file that never exits would otherwise hold the job for GitHub's six-hour default.
-    timeout-minutes: 15
+    timeout-minutes: 20
     services:
       redis:
         image: redis:7-alpine
@@ -39,6 +39,9 @@ jobs:
       - run: node scripts/check-scaffold-range.mjs
       - run: pnpm typecheck
       - run: pnpm test
+      # What `pnpm create stator` hands a new user, scaffolded and run outside
+      # the workspace, against the framework as it would be published.
+      - run: node scripts/starter-smoke.mjs
 
   # The same typecheck and tests on the Node release after the floor, so a
   # deprecation or behaviour change lands here before a user on that release

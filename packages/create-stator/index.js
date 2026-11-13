@@ -10,7 +10,7 @@
 //   pnpm create stator my-app --template todomvc      → no prompts
 //   pnpm create stator my-app -t github:you/your-template
 import { spawn, spawnSync } from 'node:child_process'
-import { readdir, readFile, writeFile } from 'node:fs/promises'
+import { access, cp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import * as p from '@clack/prompts'
@@ -40,7 +40,7 @@ const TEMPLATES = [
   {
     value: 'with-auth',
     label: 'With auth',
-    hint: 'accounts, guarded login, roles, session rotation (Node 24+)',
+    hint: 'accounts, guarded login, roles, session rotation',
   },
   {
     value: 'weather',
@@ -112,6 +112,18 @@ if (flags.help) {
 
 p.intro('create-stator')
 
+// The framework needs this Node, and says so only at install time or first
+// run. Better to hear it before a directory exists.
+const MIN_NODE = 24
+const nodeMajor = Number(process.versions.node.split('.')[0])
+if (nodeMajor < MIN_NODE) {
+  p.cancel(
+    `Stator needs Node ${MIN_NODE} or newer; this is Node ${process.versions.node}. ` +
+      'Switch versions and run this again.',
+  )
+  process.exit(1)
+}
+
 // --- target directory ---
 let target = positionals[0]
 if (!target) {
@@ -164,16 +176,36 @@ const refName = isRemoteSource(template)
     : null
   : (flags.ref ?? null)
 const source = refName ? `${sourceBase}#${refName}` : sourceBase
+// The repository's own smoke test scaffolds from its working tree, so a
+// template is proven before the change that breaks it is pushed.
+const localTemplates = isRemoteSource(template) ? undefined : process.env.STATOR_TEMPLATES_DIR
 const s = p.spinner()
 s.start(`Fetching ${template}`)
 try {
-  await downloadTemplate(source, { dir: dest, force: true })
+  if (localTemplates) {
+    const skip = new Set(['node_modules', 'dist', '.stator'])
+    await cp(join(localTemplates, template), dest, {
+      recursive: true,
+      filter: (file) => !skip.has(basename(file)),
+    })
+  } else {
+    await downloadTemplate(source, { dir: dest, force: true })
+  }
 } catch (err) {
   s.stop('Fetch failed')
   p.cancel(
     `Could not download "${source}" — scaffolding needs network access.\n   ${String(err?.message ?? err)}`,
   )
   process.exit(1)
+}
+
+// --- tidy ---
+// A first-party template is an example in the framework's repository, and
+// carries files that belong to the repository, not to a new app.
+if (!isRemoteSource(template)) {
+  for (const leftover of ['CHANGELOG.md', 'design']) {
+    await rm(join(dest, leftover), { recursive: true, force: true })
+  }
 }
 
 // --- stamp ---
@@ -184,6 +216,7 @@ const pkgPath = join(dest, 'package.json')
 try {
   const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
   pkg.name = name
+  pkg.version = '0.0.0'
   // In-repo examples link the framework via the workspace; a scaffolded
   // app pins the published release instead.
   if (pkg.dependencies?.['@statorjs/stator'] === 'workspace:*') {
@@ -198,7 +231,7 @@ try {
       v: 1,
       source: sourceBase,
       ref: refName,
-      commit: resolveTemplateCommit(sourceBase, refName),
+      commit: localTemplates ? null : resolveTemplateCommit(sourceBase, refName),
       scaffoldedAt: new Date().toISOString(),
     },
   }
@@ -251,8 +284,17 @@ if (wantGit) {
   }
 }
 
+const hasEnvExample = await access(join(dest, '.env.example')).then(
+  () => true,
+  () => false,
+)
 p.note(
-  [`cd ${target}`, ...(installed ? [] : [`${pm} install`]), runCmd('dev')].join('\n'),
+  [
+    `cd ${target}`,
+    ...(installed ? [] : [`${pm} install`]),
+    runCmd('dev'),
+    ...(hasEnvExample ? ['', 'Optional settings are listed in .env.example.'] : []),
+  ].join('\n'),
   'Next steps',
 )
 p.outro('Docs: https://docs.statorjs.dev · Demo: https://demo.statorjs.dev')

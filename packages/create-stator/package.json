@@ -8,7 +8,8 @@
     "create-stator": "./index.js"
   },
   "files": [
-    "index.js"
+    "index.js",
+    "README.md"
   ],
   "repository": {
     "type": "git",

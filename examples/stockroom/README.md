@@ -6,7 +6,8 @@ A table of stock records. Each row has its own async save with optimistic concur
 pnpm install
 pnpm dev        # dev server with live reload + the wire inspector
 pnpm test       # the machine's rules, no browser
-pnpm typecheck  # sync generated component types, then tsc
+pnpm check      # compile every .stator file and typecheck the app
+pnpm test       # node's test runner, no browser needed
 ```
 
 ## The mental model

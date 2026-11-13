@@ -8,8 +8,6 @@ pnpm dev
 # sign in as the seeded harbormaster: harbormaster@quay.test / let-me-in
 ```
 
-Requires **Node 24+** (`node:sqlite`).
-
 ## The six ideas, in the order they'll surprise you
 
 1. **Identity is addressing.** No event carries a userId — the HttpOnly session cookie routes every request into *that browser's* machines, and `AuthMachine` simply *is* the sender's identity. There's no field to forge. (`machines/auth.ts`)
