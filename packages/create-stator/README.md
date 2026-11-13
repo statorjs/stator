@@ -17,7 +17,7 @@ It asks which template to start from, fetches it, names the app after the direct
 | `desksmith` | The tutorial's finished app: catalog, cart, checkout, a theme island |
 | `live-poll` | Shared state pushed to every visitor over SSE |
 | `with-auth` | Accounts, guarded login, roles, session rotation |
-| `weather` | Live forecasts, data loaded by effects, a canvas island |
+| `weather` | Live forecasts over SSE, a shared cache filled by effects, a canvas island |
 | `registration` | The forms pattern: two-tier validation, a live roster, pre-filled editing |
 
 ## Options

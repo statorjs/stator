@@ -50,9 +50,9 @@ const { weather, settings, panels } = Stator.props<{
       <span class="ab-label">edit</span>
     </div>
     <div class="ab-item">
-      {/* Pressing this while already revalidating is guard-dropped by the
-          machine (REVALIDATE is only handled in `ready`) — idempotent by
-          state design, no client debounce needed. */}
+      {/* Pressing this while a refresh is in flight costs nothing: the cache's
+          guard drops a request for places it is already fetching or that are
+          still fresh. No client debounce needed. */}
       <button
         class:list={['ab-btn', 'ab-refresh', { spinning: read(panels, (p) => p.refreshing) }]}
         type="button"
@@ -77,9 +77,9 @@ const { weather, settings, panels } = Stator.props<{
 
 <style>
   /* The bar is fixed at the bottom, so it must reserve its own height on the
-     page. `main` is the LAYOUT's element, not ours — the one place in the sweep
-     that needs :global(), because the SUBJECT of the rule is a foreign element
-     (subject-only scoping would otherwise stamp it and it'd never match). */
+     page. `main` is the LAYOUT's element, not ours, so the rule needs
+     :global(): the SUBJECT is a foreign element (subject-only scoping would
+     otherwise stamp it and it'd never match). */
   :global(main) {
     padding-bottom: calc(104px + env(safe-area-inset-bottom));
   }
@@ -238,7 +238,7 @@ const { weather, settings, panels } = Stator.props<{
   }
   /* The spinner has two layers. [data-stator-pending] is THIS tab's request in
      flight — runtime-owned, spinning the instant you tap. .spinning is SERVER
-     state (weather.refreshing over SSE) — every open tab sees a refresh in
+     state (panels.refreshing over SSE) — every open tab sees a refresh in
      flight, whoever started it. Patches apply before the pending attribute
      clears, so the handoff never gaps. */
   .ab-refresh[data-stator-pending] svg,

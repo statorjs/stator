@@ -30,7 +30,8 @@ type Clock = '12h' | '24h'
 const readsFor = (units: Units = 'metric', clock: Clock = '24h', data: PlaceData | null = placeData) =>
   ({
     reads: {
-      WeatherMachine: { units, clock, places: [{ id: 'p1' }], activeId: 'p1' },
+      WeatherMachine: { places: [{ id: 'p1' }], activeId: 'p1' },
+      SettingsMachine: { units, clock },
       ForecastCache: { byId: (id: string) => (id === 'p1' ? data : null), fetchingIds: [] as string[] },
     },
   }) as never
@@ -92,7 +93,7 @@ describe('panels — cross-machine flags', () => {
   it('refreshing is true when the cache is fetching one of my places', () => {
     const reads = {
       reads: {
-        WeatherMachine: { units: 'metric', clock: '24h', places: [{ id: 'p1' }], activeId: 'p1' },
+        WeatherMachine: { places: [{ id: 'p1' }], activeId: 'p1' },
         ForecastCache: { byId: () => null, fetchingIds: ['p1'] },
       },
     } as never

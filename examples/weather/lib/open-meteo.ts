@@ -1,6 +1,6 @@
 /**
  * Open-Meteo data layer — keyless, global. Every fetch here runs SERVER-SIDE
- * (from a machine's entry effect or a `defer` thunk), so there is no CORS to
+ * (from a machine's effect), so there is no CORS to
  * fight and no API key to leak. Endpoints:
  *   - forecast:      https://api.open-meteo.com/v1/forecast
  *   - air quality:   https://air-quality-api.open-meteo.com/v1/air-quality

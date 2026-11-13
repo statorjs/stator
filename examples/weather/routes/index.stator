@@ -26,7 +26,7 @@ const [weather, settings, search, panels] = Stator.reads([WeatherMachine, Settin
         )}
       </div>
 
-      <SearchBar weather={weather} search={search} />
+      <SearchBar search={search} />
     </header>
 
     {/* Pivot headers — native scroll-snap strip; PivotCtl highlights the centred

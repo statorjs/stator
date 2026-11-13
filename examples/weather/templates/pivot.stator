@@ -120,7 +120,7 @@ const { weather, panels } = Stator.props<{
     width: 11px;
     height: 11px;
   }
-  /* REMOVE_PLACE round-trip in flight → the ✕ becomes a spinner (from PR #78).
+  /* REMOVE_PLACE round-trip in flight → the ✕ becomes a spinner.
      The same runtime-owned affordance as the app bar's refresh:
      [data-stator-pending] appears the instant you tap and clears when the
      server's authoritative frame lands — the pill removed, or the ✕ restored if

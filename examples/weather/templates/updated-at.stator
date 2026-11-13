@@ -26,12 +26,12 @@
     render() {
       const out = this.refs.out as HTMLElement | undefined
       if (!out) return
-      const at = Number(this.getAttribute('at') ?? 0)
+      const at = this.attrs.at ?? 0
       if (!at) {
         out.textContent = ''
         return
       }
-      const hour12 = this.getAttribute('clock') === '12h'
+      const hour12 = this.attrs.clock === '12h'
       const time = new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12 })
       out.textContent = `updated ${time}`
     }

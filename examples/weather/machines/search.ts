@@ -1,24 +1,28 @@
 import { defineMachine } from '@statorjs/stator/machine'
-import WeatherMachine from './weather.ts'
 import { geocode, type Place } from '../lib/open-meteo.ts'
 
 /**
  * Location search. The input island dispatches `SEARCH` (debounced); a
  * transition effect geocodes the query server-side (keyless Open-Meteo, no CORS)
- * and feeds the results back as `RESULTS`. It `subscribes` to
- * `WeatherMachine.PLACE_ADDED` so picking a result — which adds it to the
- * Weather machine — also clears the search here, server-mediated.
+ * and feeds the results back as `RESULTS`.
+ *
+ * Picking a result is `PICK` with the result's position. The machine looks
+ * the place up in its own results, clears the search, and emits `PICKED`
+ * carrying it; `WeatherMachine` subscribes and adds it. The browser names a
+ * row, and the server supplies what the row means.
  */
 
 type Events =
   | { type: 'SEARCH'; query: string }
   | { type: 'RESULTS'; query: string; results: Place[] }
-  | { type: 'CLEAR' }
+  | { type: 'PICK'; index: number }
 
 interface Ctx {
   query: string
   results: Place[]
   searching: boolean
+  /** The place the last `PICK` chose, for the `PICKED` payload. */
+  picked: Place | null
 }
 
 export default defineMachine({
@@ -27,8 +31,12 @@ export default defineMachine({
   // The geocoding effect reports this; a browser may not.
   serverOnly: ['RESULTS'],
   events: {} as Events,
-  subscribes: [{ from: WeatherMachine, event: 'PLACE_ADDED', dispatch: 'CLEAR' }],
-  context: { query: '', results: [], searching: false } as Ctx,
+  emits: {
+    // An emit's payload is computed after the handler ran, from the context
+    // it left behind.
+    PICKED: { payload: (ctx: Ctx) => ({ place: ctx.picked }) },
+  },
+  context: { query: '', results: [], searching: false, picked: null } as Ctx,
   initial: 'idle',
   states: {
     idle: {
@@ -57,12 +65,15 @@ export default defineMachine({
             ctx.searching = false
           },
         },
-        CLEAR: {
-          do: (ctx) => {
+        PICK: {
+          when: (ctx, ev) => Number.isInteger(ev.index) && ev.index >= 0 && ev.index < ctx.results.length,
+          do: (ctx, ev) => {
+            ctx.picked = ctx.results[ev.index]!
             ctx.query = ''
             ctx.results = []
             ctx.searching = false
           },
+          emit: 'PICKED',
         },
       },
     },

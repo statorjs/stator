@@ -16,8 +16,8 @@
       const TICK_MS = 15 * 60_000
       const tick = () => dispatch(WeatherMachine, { type: 'REVALIDATE' })
 
-      // First data load: the session machine no longer fetches on entry, so
-      // the mount tick is what fills a fresh page (over SSE, once it lands).
+      // First data load: nothing fetches until a viewer asks, so the mount
+      // tick is what fills a fresh page (over SSE, once it lands).
       tick()
       // Jitter the cadence per client so a fleet of tabs doesn't tick in sync.
       const timer = window.setInterval(

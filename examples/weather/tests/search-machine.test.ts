@@ -45,12 +45,23 @@ describe('search', () => {
     assert.equal(sel.empty(ctx(s)), true)
   })
 
-  it('CLEAR resets query and results', () => {
+  it('PICK emits the chosen result and clears the search', () => {
+    const s = start()
+    const picked: unknown[] = []
+    s.on('PICKED', (e) => picked.push(e))
+    s.send({ type: 'SEARCH', query: 'lon' })
+    s.send({ type: 'RESULTS', query: 'lon', results: [london] })
+    s.send({ type: 'PICK', index: 0 })
+    assert.deepEqual(picked, [{ type: 'PICKED', place: london }])
+    assert.equal(sel.query(ctx(s)), '')
+    assert.equal(sel.hasResults(ctx(s)), false)
+  })
+
+  it('PICK of a row that is not there does nothing', () => {
     const s = start()
     s.send({ type: 'SEARCH', query: 'lon' })
     s.send({ type: 'RESULTS', query: 'lon', results: [london] })
-    s.send({ type: 'CLEAR' })
-    assert.equal(sel.query(ctx(s)), '')
-    assert.equal(sel.hasResults(ctx(s)), false)
+    for (const index of [1, -1, 0.5, '0' as never]) s.send({ type: 'PICK', index })
+    assert.equal(sel.hasResults(ctx(s)), true)
   })
 })

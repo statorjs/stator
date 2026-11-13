@@ -102,7 +102,7 @@ describe('open-meteo — sun arc geometry', () => {
   it('places the sun mid-arc at solar noon', () => {
     const arc = sunArc('2026-07-17T06:00', '2026-07-17T18:00', '2026-07-17T12:00')
     assert.equal(arc.polar, false)
-    assert.ok(Math.abs(arc.sx - 64) < 10 ** -0 / 2)
+    assert.ok(Math.abs(arc.sx - 64) < 0.5)
     assert.match(arc.progressPath, /^M /)
   })
 })

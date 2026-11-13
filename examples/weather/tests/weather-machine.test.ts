@@ -2,10 +2,9 @@ import { createActor } from '@statorjs/stator/machine'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Place } from '../lib/open-meteo.ts'
-import { DEFAULT_CLOCK, DEFAULT_UNITS } from '../machines/settings.ts'
-import WeatherMachine, { DEFAULT_PLACES } from '../machines/weather.ts'
+import WeatherMachine, { DEFAULT_PLACES, MAX_PLACES } from '../machines/weather.ts'
 
-// Asserts against DEFAULT_PLACES + the exported preference defaults, not the
+// Asserts against DEFAULT_PLACES, not the
 // specific seed cities — so they keep passing when you change which locations
 // the app ships with.
 const start = () => createActor(WeatherMachine).start()
@@ -64,12 +63,11 @@ describe('weather — places', () => {
     assert.ok((sel.places(ctx(w)).length) >= 1)
   })
 
-  it('SETTINGS_CHANGED mirrors units + clock for local re-render', () => {
+  it('ADD_PLACE stops at the cap', () => {
     const w = start()
-    const units = DEFAULT_UNITS === 'metric' ? 'imperial' : 'metric'
-    const clock = DEFAULT_CLOCK === '24h' ? '12h' : '24h'
-    w.send({ type: 'SETTINGS_CHANGED', units, clock })
-    assert.equal(sel.units(ctx(w)), units)
-    assert.equal(sel.clock(ctx(w)), clock)
+    for (let i = 0; i < MAX_PLACES + 3; i++) {
+      w.send({ type: 'ADD_PLACE', place: { ...berlin, name: `Place ${i}`, lat: i } })
+    }
+    assert.equal(sel.places(ctx(w)).length, MAX_PLACES)
   })
 })

@@ -45,7 +45,7 @@ const TEMPLATES = [
   {
     value: 'weather',
     label: 'Weather',
-    hint: 'live forecasts over SSE, entry-effect data loading, a canvas island',
+    hint: 'live forecasts over SSE, a shared cache filled by effects, a canvas island',
   },
   {
     value: 'registration',

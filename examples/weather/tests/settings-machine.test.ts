@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import SettingsMachine, { DEFAULT_CLOCK, DEFAULT_UNITS } from '../machines/settings.ts'
 
-// These assert against the exported defaults + the toggle invariants, not the
+// These assert against the exported defaults, not the
 // literal 'metric'/'24h' — so they keep passing when you change the app's
 // starting preferences in settings.ts.
 const start = () => createActor(SettingsMachine).start()
@@ -16,14 +16,6 @@ describe('settings', () => {
     assert.equal(ctx(s).clock, DEFAULT_CLOCK)
   })
 
-  it('TOGGLE_UNITS inverts, and a second toggle round-trips', () => {
-    const s = start()
-    const first = ctx(s).units
-    s.send({ type: 'TOGGLE_UNITS' })
-    assert.notEqual(ctx(s).units, first)
-    s.send({ type: 'TOGGLE_UNITS' })
-    assert.equal(ctx(s).units, first)
-  })
 
   it('SET_UNITS changes to a valid value and rejects an invalid one', () => {
     const s = start()
@@ -34,12 +26,4 @@ describe('settings', () => {
     assert.equal(ctx(s).units, other) // rejected, unchanged
   })
 
-  it('TOGGLE_CLOCK inverts, and a second toggle round-trips', () => {
-    const s = start()
-    const first = ctx(s).clock
-    s.send({ type: 'TOGGLE_CLOCK' })
-    assert.notEqual(ctx(s).clock, first)
-    s.send({ type: 'TOGGLE_CLOCK' })
-    assert.equal(ctx(s).clock, first)
-  })
 })

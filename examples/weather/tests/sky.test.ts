@@ -62,8 +62,8 @@ describe('sky — geometry math', () => {
   })
 
   it('cloudAlpha fades clouds at night', () => {
-    assert.ok(Math.abs((cloudAlpha(SCENES['cloudy-day']!, 1)) - 0.55) < 10 ** -2 / 2)
-    assert.ok(Math.abs((cloudAlpha(SCENES['cloudy-night']!, 1)) - 0.22) < 10 ** -2 / 2)
+    assert.ok(Math.abs(cloudAlpha(SCENES['cloudy-day']!, 1) - 0.55) < 0.005)
+    assert.ok(Math.abs(cloudAlpha(SCENES['cloudy-night']!, 1) - 0.22) < 0.005)
   })
 })
 
