@@ -102,3 +102,24 @@ describe('checkout — reset', () => {
     assert.equal(ctx.error, '')
   })
 })
+
+describe('checkout — SET_FIELD takes only the current step’s fields', () => {
+  // The event arrives as JSON from a browser, so these bypass the event type.
+  const send = (a: ReturnType<typeof newCheckout>, ev: object) => a.send(ev as never)
+
+  it('refuses a context key that is not a form field', () => {
+    const co = newCheckout()
+    send(co, { type: 'SET_FIELD', field: 'orderNumber', value: 'FORGED' })
+    send(co, { type: 'SET_FIELD', field: 'error', value: 'FORGED' })
+    assert.equal(ctxOf(co).orderNumber, null)
+    assert.equal(ctxOf(co).error, '')
+  })
+
+  it("refuses the other step's field and a non-string value", () => {
+    const co = newCheckout()
+    send(co, { type: 'SET_FIELD', field: 'paymentLast4', value: '4242' })
+    send(co, { type: 'SET_FIELD', field: 'shippingName', value: { not: 'a string' } })
+    assert.equal(ctxOf(co).paymentLast4, '')
+    assert.equal(ctxOf(co).shippingName, '')
+  })
+})

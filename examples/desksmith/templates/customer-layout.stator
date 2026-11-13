@@ -8,7 +8,7 @@ const { cart } = Stator.props<{ cart: InstanceOf<typeof CartMachine> }>()
 ---
 <BaseLayout>
   <header class="site-header" child="header">
-    <a href="/" class="brand">stator demo</a>
+    <a href="/" class="brand">Desksmith</a>
     <ThemeToggle />
     <button
       class="nav-toggle"

@@ -2,7 +2,7 @@ import { defineMachine } from '@statorjs/stator/machine'
 import CheckoutMachine from './checkout.ts'
 import ProductsMachine from './products.ts'
 
-type CartItem = {
+export type CartItem = {
   productId: string
   quantity: number
   unitPrice: number
@@ -120,6 +120,20 @@ export default defineMachine({
 
   selectors: {
     items: (ctx) => ctx.items,
+    /** One row per line, with the catalog fields the cart page shows. */
+    lines: (ctx, { reads }) =>
+      ctx.items.map((i) => {
+        const product = reads.ProductsMachine.byId(i.productId)
+        return {
+          productId: i.productId,
+          name: product?.name ?? i.productId,
+          category: product?.category ?? 'stationery',
+          initials: product?.initials ?? '··',
+          unitPrice: i.unitPrice,
+          quantity: i.quantity,
+          lineTotal: i.unitPrice * i.quantity,
+        }
+      }),
     itemCount: (ctx) => ctx.items.reduce((s, i) => s + i.quantity, 0),
     total: (ctx) => ctx.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0),
     contains: (ctx) => (productId: string) => ctx.items.some((i) => i.productId === productId),

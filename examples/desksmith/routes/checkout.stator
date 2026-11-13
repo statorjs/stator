@@ -8,5 +8,5 @@ import CheckoutPage from '../templates/checkout-page.stator'
 const [cart, checkout] = Stator.reads([CartMachine, CheckoutMachine])
 ---
 <CustomerLayout cart={cart}>
-  <CheckoutPage checkout={checkout} cart={cart} />
+  <CheckoutPage checkout={checkout} />
 </CustomerLayout>
