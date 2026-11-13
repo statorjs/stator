@@ -34,13 +34,17 @@ const visible = (list: Todo[]) =>
 
       {when(read(todos, (t) => t.total > 0), () => (
         <section class="main">
-          <input
+          {/* The toggles are buttons, not checkboxes: a clicked checkbox keeps its
+              own checked state, so a patch could not correct it. A button's
+              aria-checked is a plain attribute the server always sets. */}
+          <button
             id="toggle-all"
             class="toggle-all"
-            type="checkbox"
-            checked={read(todos, (t) => t.allDone)}
+            type="button"
+            role="checkbox"
+            aria-checked={read(todos, (t) => String(t.allDone))}
             on:click={() => todos.send({ type: 'TOGGLE_ALL' })}
-          />
+          ></button>
           <label for="toggle-all">Mark all as complete</label>
 
           <ul class="todo-list">
@@ -58,12 +62,14 @@ const visible = (list: Todo[]) =>
                       read(todo, …) is owned by its each() row and is only legal at the
                       row's top level, never inside a when()/match() arm. */}
                   <div class="view">
-                    <input
+                    <button
                       class="toggle"
-                      type="checkbox"
-                      checked={read(todo, (t) => t.done)}
+                      type="button"
+                      role="checkbox"
+                      aria-label="Done"
+                      aria-checked={read(todo, (t) => String(t.done))}
                       on:click={() => todos.send({ type: 'TOGGLE', id: todo.id })}
-                    />
+                    ></button>
                     <label on:dblclick={() => todos.send({ type: 'EDIT_START', id: todo.id })}>
                       {read(todo, (t) => t.title)}
                     </label>
