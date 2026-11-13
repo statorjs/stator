@@ -1,5 +1,6 @@
 ---
 import TodosMachine, { type Todo } from '../machines/todos.ts'
+import TodoEdit from '../templates/todo-edit.stator'
 import TodoInput from '../templates/todo-input.stator'
 
 const [todos] = Stator.reads([TodosMachine])
@@ -72,20 +73,16 @@ const visible = (list: Todo[]) =>
                       on:click={() => todos.send({ type: 'DESTROY', id: todo.id })}
                     ></button>
                   </div>
-                  {/* The edit form stays a when() arm — a fresh render on EDIT_START is
-                      what makes autofocus fire. Inside an arm only MACHINE reads are
-                      legal (an arm re-renders without its row), so value= reads through
-                      the machine. */}
+                  {/* The edit form is a when() arm, rendered fresh each time the row
+                      enters edit mode, so it starts from the title as it is now. An
+                      arm re-renders without its row, so it asks the machine, not the
+                      row, for that title. */}
                   {when(read(todos, (t) => t.editingId === todo.id), () => (
-                    <form class="edit-form" method="post" action="/todos/save">
-                      <input type="hidden" name="id" value={todo.id} />
-                      <input
-                        class="edit"
-                        name="title"
-                        value={read(todos, (t) => t.all.find((x) => x.id === todo.id)?.title ?? '')}
-                        autofocus
-                      />
-                    </form>
+                    <TodoEdit
+                      id={todo.id}
+                      title={todos.all.find((x) => x.id === todo.id)?.title ?? ''}
+                      filter={filter}
+                    />
                   ))}
                 </li>
               ),
