@@ -103,4 +103,4 @@ The page guard controls what renders; it is not the permission model. Enforcemen
 
 ## Section-wide gating
 
-There is no route middleware yet — gating `/admin/**` in one place is on the radar, but today each page in a section carries its own guard line. The repetition is one line per page, and the enforcement doesn't live there anyway (see the caution above), so the cost is cosmetic. If you're building a large gated section, a shared layout component can own the signed-out arm so each page only repeats the status line.
+To gate a whole section in one place, put the guard in [`middleware.ts`](/guides/middleware/): a handler that checks `c.req.path` against `/admin` and redirects a signed-out caller covers every page under it, including pages added later. It also covers those pages' events and live updates, since Stator asks the middleware about the page's own URL before either endpoint runs. The per-page guard line above is still the right tool for a single page, and enforcement still belongs on the machines (see the caution above). The [with-auth starter](https://github.com/statorjs/stator/tree/main/examples/with-auth) gates `/profile` this way.

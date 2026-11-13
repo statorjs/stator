@@ -25,7 +25,7 @@ const TEMPLATES = [
   {
     value: 'todomvc',
     label: 'TodoMVC',
-    hint: 'the classic, with server-owned todos and zero-JS editing',
+    hint: 'the classic, with server-owned todos and in-place editing as server state',
   },
   {
     value: 'desksmith',
