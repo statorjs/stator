@@ -1,0 +1,31 @@
+---
+const { id, title, filter } = Stator.props<{ id: string; title: string; filter: string }>()
+---
+<todo-edit>
+  <form class="edit-form" method="post" action="/todos/save" on:keydown={maybeCancel}>
+    <input type="hidden" name="id" value={id} />
+    <input type="hidden" name="filter" value={filter} />
+    <input class="edit" name="title" value={title} maxlength="200" ref:title />
+  </form>
+</todo-edit>
+
+<script>
+  import TodosMachine from '../machines/todos.ts'
+
+  // The form works with no script: Enter posts it, and the server saves.
+  // This island adds the two things only a browser can do. It puts the
+  // cursor in the field when the row enters edit mode, and it lets Escape
+  // leave edit mode without saving.
+  export class TodoEdit extends StatorElement {
+    connectedCallback() {
+      super.connectedCallback()
+      const input = this.refs.title as HTMLInputElement
+      input.focus()
+      input.setSelectionRange(input.value.length, input.value.length)
+    }
+
+    maybeCancel(e: KeyboardEvent) {
+      if (e.key === 'Escape') void dispatch(TodosMachine, { type: 'EDIT_CANCEL' })
+    }
+  }
+</script>

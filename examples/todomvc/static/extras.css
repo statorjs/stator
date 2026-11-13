@@ -26,10 +26,10 @@ todo-input .new-todo::placeholder {
   margin: 0;
   display: contents;
 }
-.todo-list li .edit {
-  display: none;
-}
-.todo-list li.editing .edit {
+/* The edit field exists only while its row is being edited, so it is shown
+   whenever it exists. It must be visible the moment it is inserted, or it
+   cannot take focus. */
+.todo-list li todo-edit .edit {
   display: block;
   width: calc(100% - 43px);
   margin-left: 43px;
