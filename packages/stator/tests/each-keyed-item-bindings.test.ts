@@ -78,6 +78,20 @@ function update(
 }
 
 describe('keyed each: item-value bindings (SPIKE option C)', () => {
+  it('patches a row inserted after a render that had no rows', async () => {
+    const { runtime, list, state } = await buildRuntime([])
+    renderList(state, list)
+    const inserted = update(runtime, state, rows('a'))
+    assert.deepStrictEqual(
+      inserted.map((p) => p.op),
+      ['insert'],
+    )
+    const patches = update(runtime, state, [{ id: 'a', label: 'CHANGED-a' }])
+    assert.equal(patches.length, 1)
+    assert.equal(patches[0]!.op, 'text')
+    assert.equal((patches[0] as { value: string }).value, 'CHANGED-a')
+  })
+
   it('patches a retained row in place — one text patch, no move/insert/remove/html', async () => {
     const { runtime, list, state } = await buildRuntime(rows('a', 'b'))
     renderList(state, list)

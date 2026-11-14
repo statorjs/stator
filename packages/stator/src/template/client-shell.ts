@@ -1,4 +1,5 @@
 import { allocElementId, getCurrentRenderState, registerBinding } from '../server/render-context.ts'
+import { isItemReadResult } from './each.ts'
 import { escapeAttribute } from './parser.ts'
 import { isReadResult, type ReadResult } from './read.ts'
 
@@ -50,6 +51,13 @@ export function clientShellAttrs(
     if (v == null) continue
     const name = key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
 
+    if (isItemReadResult(v)) {
+      throw new Error(
+        `stator: read(item, …) passed as island prop "${key}" — an item read binds only ` +
+          `where its each() row renders it, and an island receives the value once. Pass a ` +
+          `machine read, which the island takes as a live attribute.`,
+      )
+    }
     if (isReadResult(v)) {
       const state = getCurrentRenderState()
       if (!state) {

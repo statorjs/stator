@@ -83,8 +83,9 @@ export interface KeyedListBinding extends BindingBase {
   /** Per-row item-value bindings keyed by identity key
    *  — stable across moves (a row's slot ids live under its key scope). On
    *  recompute, retained keys re-evaluate these for field-level patches instead
-   *  of relying on nested read()s. `undefined` when the rows have no itemBind(). */
-  rowsByKey?: Map<string, ItemBinding[]>
+   *  of relying on nested read()s. Kept for every keyed list, so a row inserted
+   *  by a later recompute is tracked even when the first render had none. */
+  rowsByKey: Map<string, ItemBinding[]>
 }
 
 export interface BranchBinding extends BindingBase {

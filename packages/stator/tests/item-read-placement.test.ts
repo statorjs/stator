@@ -66,6 +66,17 @@ describe('lower: item-read placement gate', () => {
     )
   })
 
+  it('rejects an item read passed as a component prop, naming the component and prop', () => {
+    assert.throws(
+      () => lowerTemplate(row('<RowSeats seats={read(r, (x) => x.seats)} />')),
+      /read\(r, …\) cannot be passed as <RowSeats>'s seats prop/,
+    )
+  })
+
+  it('allows a machine read and a plain item value as component props in a row', () => {
+    lowerTemplate(row('<RowSeats seats={read(m, (s) => s.count)} rid={r.id} />'))
+  })
+
   it('allows an item read bound to an each() nested inside an arm (the arm re-establishes row context)', () => {
     // live-poll's shape: the each is INSIDE the arm, so every arm render
     // re-creates the rows — and their item bindings — from scratch.

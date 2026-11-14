@@ -104,7 +104,6 @@ export function each<T>(
     const body = renderKeyedListBody(state, slotId, array, keys, fn)
     innerHtml = body.html
     if (machineName && selector) {
-      const hasItemBindings = [...body.rowsByKey.values()].some((b) => b.length > 0)
       registerBinding(state, {
         slotId,
         machineName,
@@ -114,8 +113,7 @@ export function each<T>(
         itemRenderer: fn as ErasedItemRenderer,
         keyFn: keyFn as ErasedKeyFn,
         lastKeys: keys,
-        // Same opt-in as non-keyed: only track rows when there ARE item bindings.
-        rowsByKey: hasItemBindings ? body.rowsByKey : undefined,
+        rowsByKey: body.rowsByKey,
       })
     }
   } else {

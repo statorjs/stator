@@ -420,7 +420,9 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
   //   2. reading an OUTER each's item from inside a nested each() row — the
   //      inner row would evaluate the selector against the wrong item;
   //   3. inside a class:list / style:list spec — the compound directive
-  //      recomposes per machine, not per row (deferred surface).
+  //      recomposes per machine, not per row (deferred surface);
+  //   4. as a component's prop — the component renders the value once, so the
+  //      read is never bound.
   // A nested each() INSIDE an arm is fine: it re-establishes row context for
   // its own items on every arm render. The runtime itemBind guard is the
   // backstop for hand-written templates that bypass the compiler.
@@ -428,6 +430,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     | { kind: 'each'; param: string }
     | { kind: 'branch'; callee: string; position: 'head' | 'arm' }
     | { kind: 'list-attr'; attr: string }
+    | { kind: 'component-prop'; tag: string; prop: string }
   const checkItemReadPlacement = (node: ts.Node, frames: PlacementFrame[]): void => {
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
       const callee = node.expression.text
@@ -475,6 +478,16 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
               loc(node),
             )
           }
+          const prop = between.find((b) => b.kind === 'component-prop')
+          if (prop && prop.kind === 'component-prop') {
+            throw new CompileError(
+              `stator: read(${param}, …) cannot be passed as <${prop.tag}>'s ${prop.prop} prop — ` +
+                `an item read binds only where the row renders it, and a component receives ` +
+                `the value once. Pass a machine read (read(machine, (m) => …)), which an ` +
+                `island takes as a live attribute, or render the field inline in the row.`,
+              loc(node),
+            )
+          }
           break
         }
       }
@@ -514,6 +527,20 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       ts.forEachChild(node, (c) =>
         checkItemReadPlacement(c, [...frames, { kind: 'list-attr', attr }]),
       )
+      return
+    }
+    if (
+      ts.isJsxAttribute(node) &&
+      (ts.isJsxOpeningElement(node.parent.parent) ||
+        ts.isJsxSelfClosingElement(node.parent.parent)) &&
+      isComponentTag(node.parent.parent.tagName.getText(sf))
+    ) {
+      const frame: PlacementFrame = {
+        kind: 'component-prop',
+        tag: node.parent.parent.tagName.getText(sf),
+        prop: node.name.getText(sf),
+      }
+      ts.forEachChild(node, (c) => checkItemReadPlacement(c, [...frames, frame]))
       return
     }
     ts.forEachChild(node, (c) => checkItemReadPlacement(c, frames))

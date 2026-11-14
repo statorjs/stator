@@ -82,6 +82,14 @@ describe('island live attrs', () => {
     assert.partialDeepStrictEqual(patches[0], { op: 'attr', name: 'stock', value: '9' })
   })
 
+  it('refuses an item read() as an island prop, naming the prop', () => {
+    const itemRead = { __isItemRead: true, selector: () => 1, value: 1 }
+    assert.throws(
+      () => clientShellAttrs({ seats: itemRead }, { seats: 'number' }),
+      /read\(item, …\) passed as island prop "seats".*machine read/s,
+    )
+  })
+
   it('an island rendered inside a when-arm: arm-scoped shell id, attr patches target it after the arm renders, the element upgrades and reacts', async () => {
     // The shape the registration starter's inline edit form had: the island
     // exists only while an arm is open, so it is rendered by a branch flip over

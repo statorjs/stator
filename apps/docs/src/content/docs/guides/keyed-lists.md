@@ -68,6 +68,7 @@ An item read is **owned by its row** — the row render supplies the item, and t
 - **Inside an `each()` that's nested in an arm** — legal, as long as the read binds *that* each's item. The nested each re-establishes row context on every arm render.
 - **Reading an *outer* each's item inside a nested each's row** — error. The inner row would evaluate the selector against the wrong item. Derive the field onto the inner item, or use a machine read.
 - **Inside a `class:list`/`style:list` spec** — error for now. The compound directive recomposes per machine, not per row.
+- **As a component's prop** — error. A component receives its props once, so the read would never be bound. Pass a machine read instead (an island takes it as a live attribute), or render the field inline in the row.
 
 The same ownership rule is why a machine read can't appear inside a `defer()` arm — see [Every read has an owner](/concepts/reactivity-and-reads/).
 
