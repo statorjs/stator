@@ -1,5 +1,7 @@
 node_modules
 **/node_modules
+# Claude Code's worktrees and session files: whole checkouts, gigabytes.
+.claude
 dist
 **/dist
 .git

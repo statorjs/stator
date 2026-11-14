@@ -10,6 +10,9 @@ FROM base AS deps
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY packages/stator/package.json ./packages/stator/
+# The CLI's bin target, so the install can link `stator` into node_modules/.bin;
+# the rest of the source arrives in the runtime stage.
+COPY packages/stator/src/cli/stator.js ./packages/stator/src/cli/
 COPY apps/landing/package.json ./apps/landing/
 
 RUN CI=true pnpm install --frozen-lockfile
@@ -30,4 +33,7 @@ ENV PORT=3000
 
 EXPOSE 3000
 
-CMD ["pnpm", "--filter=landing", "start"]
+# Node runs the CLI directly: a pnpm wrapper process would cost ~75 MB of a
+# small machine for nothing.
+WORKDIR /app/apps/landing
+CMD ["node", "/app/packages/stator/src/cli/stator.js", "start"]

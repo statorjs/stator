@@ -42,7 +42,7 @@ That writes `.changeset/<name>.md`. Changesets accumulate on `main`; the version
 4. **Redeploy the landing page** (`apps/landing`), for a stable release. It is a Stator app that builds against the workspace's `@statorjs/stator`, and it carries no version strings, so there is nothing to hand-edit: a deploy picks up the released framework. Check its copy and code samples against the release first; they describe the framework, and nothing updates them for you. From the repo root:
 
    ```sh
-   fly deploy --config apps/landing/fly.toml --dockerfile apps/landing/Dockerfile
+   fly deploy . --config apps/landing/fly.toml --dockerfile apps/landing/Dockerfile
    ```
 
    Do this **after** publishing, not before, so the site never describes a version that isn't on npm yet. See [`apps/landing/README.md`](apps/landing/README.md).

@@ -1,5 +1,5 @@
 # statorjs.dev. Deploy from the repo root:
-#   fly deploy --config apps/landing/fly.toml --dockerfile apps/landing/Dockerfile
+#   fly deploy . --config apps/landing/fly.toml --dockerfile apps/landing/Dockerfile
 
 app = 'statorjs-landing'
 primary_region = 'ord'
@@ -19,4 +19,8 @@ primary_region = 'ord'
 
 [[vm]]
   size = 'shared-cpu-1x'
-  memory = '256mb'
+  # Boot peaks near 400 MB (Node, plus the esbuild service its TypeScript
+  # loader starts); 256 MB is killed before the server listens.
+  memory = '512mb'
+
+swap_size_mb = 512
