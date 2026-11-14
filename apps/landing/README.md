@@ -43,5 +43,5 @@ that would cross the wire in a server-rendered app.
 From the repo root:
 
 ```bash
-fly deploy --config apps/landing/fly.toml --dockerfile apps/landing/Dockerfile
+fly deploy . --config apps/landing/fly.toml --dockerfile apps/landing/Dockerfile
 ```

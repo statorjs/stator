@@ -1,5 +1,5 @@
 # statorjs.dev. Deploy from the repo root:
-#   fly deploy --config apps/landing/fly.toml --dockerfile apps/landing/Dockerfile
+#   fly deploy . --config apps/landing/fly.toml --dockerfile apps/landing/Dockerfile
 
 app = 'statorjs-landing'
 primary_region = 'ord'
