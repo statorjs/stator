@@ -33,4 +33,7 @@ ENV PORT=3000
 
 EXPOSE 3000
 
-CMD ["pnpm", "--filter=landing", "start"]
+# Node runs the CLI directly: a pnpm wrapper process would cost ~75 MB of a
+# small machine for nothing.
+WORKDIR /app/apps/landing
+CMD ["node", "/app/packages/stator/src/cli/stator.js", "start"]
