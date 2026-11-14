@@ -3,25 +3,36 @@
 // in the island's fence — not smuggled through a prop at every use site.
 // Per-visitor pre-fill (name, ticket, updates) stays props: that's per-use
 // data, and the boundary between the two is exactly fence vs props.
-import { TICKETS } from '../lib/rules.ts'
+import { MAX_SEATS_PER_PARTY, TICKETS, type Ticket } from '../lib/rules.ts'
+
+const { mode, name, email, seats, ticket, updates } = Stator.props<{
+  mode?: 'update'
+  rid?: string
+  done?: string
+  name?: string
+  email?: string
+  seats?: number
+  ticket?: Ticket
+  updates?: boolean
+}>()
 ---
 <reg-form>
   <form ref:form on:submit={submit} aria-label="Registration form">
     <label>
       name
-      <input name="name" type="text" required maxlength="60" autocomplete="name" value={props.name ?? ''} on:blur={checkName} />
+      <input name="name" type="text" required maxlength="60" autocomplete="name" value={name ?? ''} on:blur={checkName} />
     </label>
     <p role="alert">{read(checks, (c) => c.nameError)}</p>
 
     <label>
       email
-      <input name="email" type="email" required autocomplete="email" value={props.email ?? ''} on:blur={checkEmail} />
+      <input name="email" type="email" required autocomplete="email" value={email ?? ''} on:blur={checkEmail} />
     </label>
     <p role="alert">{read(checks, (c) => c.emailError)}</p>
 
     <label>
       seats
-      <input name="seats" type="number" required min="1" max="6" value={props.seats ?? 1} on:change={checkSeats} />
+      <input name="seats" type="number" required min="1" max={MAX_SEATS_PER_PARTY} value={seats ?? 1} on:change={checkSeats} />
     </label>
     <p role="alert">{read(checks, (c) => c.seatsError)}</p>
 
@@ -29,27 +40,27 @@ import { TICKETS } from '../lib/rules.ts'
       ticket
       <select name="ticket">
         {TICKETS.map((t) => (
-          <option value={t} selected={props.ticket === t}>{t}</option>
+          <option value={t} selected={ticket === t}>{t}</option>
         ))}
       </select>
     </label>
 
-    {props.mode === 'update' ? null : (
+    {mode === 'update' ? null : (
       <label data-consent>
         <input name="terms" type="checkbox" required />
         I agree to the event terms — required, and the platform enforces it
       </label>
     )}
     <label data-consent>
-      <input name="updates" type="checkbox" checked={props.updates ?? false} />
+      <input name="updates" type="checkbox" checked={updates ?? false} />
       email me about schedule changes (optional)
     </label>
 
     <p role="alert" data-refusal>{read(checks, (c) => c.refusal)}</p>
     <p role="status">{read(checks, (c) => c.confirmed)}</p>
     <div>
-      <button type="submit">{props.mode === 'update' ? 'save changes' : 'register'}</button>
-      {props.mode === 'update' ? <a href="/">cancel</a> : null}
+      <button type="submit">{mode === 'update' ? 'save changes' : 'register'}</button>
+      {mode === 'update' ? <a href="/">cancel</a> : null}
     </div>
   </form>
 </reg-form>
@@ -62,7 +73,7 @@ import { TICKETS } from '../lib/rules.ts'
   // per-field for instant feedback. The input elements own the draft — this
   // machine only ever holds the answers. The confirmation lives here too:
   // an acknowledgement of YOUR recent action is view state, and dying with
-  // the page is its correct lifetime (in session state it outlived refresh).
+  // the page is its correct lifetime.
   const Checks = machine(
     {
       nameError: null as string | null,
@@ -78,6 +89,7 @@ import { TICKETS } from '../lib/rules.ts'
         | { type: 'CHECK_SEATS'; value: number }
         | { type: 'CONFIRMED'; name: string }
         | { type: 'REFUSED' }
+        | { type: 'UNSENT' }
         | { type: 'RESET' },
       on: {
         CHECK_NAME: (s, e) => {
@@ -98,6 +110,9 @@ import { TICKETS } from '../lib/rules.ts'
         REFUSED: (s) => {
           s.refusal =
             'The desk refused this registration — the event may be sold out, or this email is already on the roster.'
+        },
+        UNSENT: (s) => {
+          s.refusal = "The desk couldn't be reached, so nothing was saved. Try again."
         },
         RESET: (s) => {
           s.nameError = s.emailError = s.seatsError = s.refusal = null
@@ -148,11 +163,15 @@ import { TICKETS } from '../lib/rules.ts'
         ticket: this.field('ticket').value,
         updates: this.field('updates').checked,
       }
+      const { mode, rid, done } = this.attrs
+      if (mode === 'update' && !rid) return
       const result =
-        this.attrs.mode === 'update'
-          ? await dispatch(DeskMachine, { type: 'UPDATE', id: String(this.attrs.rid), ...fields })
+        mode === 'update' && rid
+          ? await dispatch(DeskMachine, { type: 'UPDATE', id: rid, ...fields })
           : await dispatch(DeskMachine, { type: 'REGISTER', ...fields })
-      if (result.committed) {
+      if (!result.ok) {
+        this.checks.send('UNSENT')
+      } else if (result.committed) {
         // The safe writeback moment: the commit landed. A register resets to
         // the server-rendered defaults; a save on the edit page navigates
         // home (`done`). The visitor's typing is only ever cleared by their
@@ -160,7 +179,7 @@ import { TICKETS } from '../lib/rules.ts'
         ;(this.refs.form as HTMLFormElement).reset()
         this.checks.send('RESET')
         this.checks.send({ type: 'CONFIRMED', name: name.trim() })
-        if (this.attrs.done) location.assign(String(this.attrs.done))
+        if (done) location.assign(done)
       } else {
         this.checks.send('REFUSED')
       }

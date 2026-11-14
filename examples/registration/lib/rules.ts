@@ -10,14 +10,18 @@ export type Ticket = (typeof TICKETS)[number]
 
 export const MAX_SEATS_PER_PARTY = 6
 
-export function nameError(value: string): string | null {
+// Each rule takes `unknown`: on the server, its input is JSON from a browser.
+
+export function nameError(value: unknown): string | null {
+  if (typeof value !== 'string') return 'A name needs at least two characters.'
   const name = value.trim()
   if (name.length < 2) return 'A name needs at least two characters.'
   if (name.length > 60) return 'Names fit in 60 characters.'
   return null
 }
 
-export function emailError(value: string): string | null {
+export function emailError(value: unknown): string | null {
+  if (typeof value !== 'string') return "That doesn't look like an email address."
   // Deliberately simple: something@something.tld. Real deliverability is a
   // send-a-mail problem, not a regex problem.
   const email = value.trim()
@@ -25,14 +29,14 @@ export function emailError(value: string): string | null {
   return null
 }
 
-export function seatsError(value: number): string | null {
-  if (!Number.isInteger(value) || value < 1) return 'A party has at least one seat.'
+export function seatsError(value: unknown): string | null {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) return 'A party has at least one seat.'
   if (value > MAX_SEATS_PER_PARTY) return `Parties top out at ${MAX_SEATS_PER_PARTY} seats.`
   return null
 }
 
-export function ticketError(value: string): string | null {
-  if (!(TICKETS as readonly string[]).includes(value)) return 'Pick a ticket type.'
+export function ticketError(value: unknown): string | null {
+  if (typeof value !== 'string' || !(TICKETS as readonly string[]).includes(value)) return 'Pick a ticket type.'
   return null
 }
 
@@ -50,19 +54,20 @@ export type Registration = {
  *  every shape rule passed. One function, called by the island, the desk
  *  guard, and the roster's arrival re-check. */
 export function cleanRegistration(raw: {
-  name: string
-  email: string
-  seats: number
-  ticket: string
-  updates?: boolean
+  name: unknown
+  email: unknown
+  seats: unknown
+  ticket: unknown
+  updates?: unknown
 }): Registration | null {
-  if (nameError(raw.name) || emailError(raw.email) || seatsError(raw.seats)) return null
-  if (ticketError(raw.ticket)) return null
+  const { name, email, seats, ticket } = raw
+  if (nameError(name) || emailError(email) || seatsError(seats) || ticketError(ticket)) return null
+  if (typeof name !== 'string' || typeof email !== 'string' || typeof seats !== 'number') return null
   return {
-    name: raw.name.trim(),
-    email: raw.email.trim().toLowerCase(),
-    seats: raw.seats,
-    ticket: raw.ticket as Ticket,
+    name: name.trim(),
+    email: email.trim().toLowerCase(),
+    seats,
+    ticket: ticket as Ticket,
     updates: raw.updates === true,
   }
 }

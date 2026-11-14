@@ -1,9 +1,16 @@
+---
+import type { ReadResult } from '@statorjs/stator/template'
+import { MAX_SEATS_PER_PARTY } from '../lib/rules.ts'
+
+const { seats } = Stator.props<{ rid: string; seats: number | ReadResult<number> }>()
+---
 <row-seats>
   <input
     type="number"
     min="1"
-    max="6"
-    value={props.seats}
+    max={MAX_SEATS_PER_PARTY}
+    value={seats}
+    ref:seats
     aria-label="Seats for this party"
     on:change={commit}
   />
@@ -15,19 +22,24 @@
   // Inline seats editor for one roster row. The input owns its draft
   // (uncontrolled, server-rendered pre-fill); `change` is the commit
   // boundary — one typed dispatch, guarded server-side against capacity.
+  // `seats` is a live attr: another desk's change arrives in seatsChanged.
   export class RowSeats extends StatorElement {
     static attrs = { rid: String, seats: Number }
 
+    seatsChanged(next: number | undefined) {
+      const input = this.refs.seats as HTMLInputElement
+      // Never write into a control the visitor is using.
+      if (next !== undefined && document.activeElement !== input) input.value = String(next)
+    }
+
     async commit(e: Event) {
+      const rid = this.attrs.rid
+      if (!rid) return
       const input = e.currentTarget as HTMLInputElement
-      const result = await dispatch(DeskMachine, {
-        type: 'SET_SEATS',
-        id: String(this.attrs.rid),
-        seats: input.valueAsNumber,
-      })
-      // Refused (over capacity, bad size): snap back to the render-time
-      // truth — the safe writeback moment, since the change already blurred.
-      if (!result.committed) input.value = String(this.attrs.seats)
+      const result = await dispatch(DeskMachine, { type: 'SET_SEATS', id: rid, seats: input.valueAsNumber })
+      // Refused (over capacity, bad size): snap back to the roster's value —
+      // the safe writeback moment, since the change already blurred.
+      if (!result.committed && this.attrs.seats !== undefined) input.value = String(this.attrs.seats)
     }
   }
 </script>

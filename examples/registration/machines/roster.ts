@@ -1,12 +1,12 @@
 import { defineMachine } from '@statorjs/stator/machine'
-import { cleanRegistration, seatsError } from '../lib/rules.ts'
+import { cleanRegistration, seatsError, type Ticket } from '../lib/rules.ts'
 
 export type Attendee = {
   id: string
   name: string
   email: string
   seats: number
-  ticket: string
+  ticket: Ticket
   /** Marketing opt-in — optional, carried through the typed commit path. */
   updates: boolean
 }
@@ -44,9 +44,9 @@ export default defineMachine({
   events: {} as RosterEvents,
 
   // The desk→roster subscriptions live in desk.ts: declaring them here would
-  // import desk.ts while desk.ts imports this file for `reads:` — a module
-  // cycle the loader silently resolves to `undefined`. The importing end owns
-  // the wiring (the cart↔inventory precedent in apps/store).
+  // import desk.ts while desk.ts imports this file for `reads:`, a module
+  // cycle. The importing end owns both halves of the relationship (the app
+  // machines guide, "Mutual machine relationships").
 
   context: { attendees: [], capacity: CAPACITY } as RosterContext,
   initial: 'open',

@@ -67,6 +67,22 @@ async function send(sid: string, event: object): Promise<{ committed: boolean }>
   return (await res.json()) as { committed: boolean }
 }
 
+async function sendForPatches(sid: string, event: object): Promise<{ committed: boolean; patches: unknown[] }> {
+  const res = await app.fetch(
+    new Request('http://test/__events', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Stator-Route': 'GET /',
+        Cookie: `stator_sid=${sid}`,
+      },
+      body: JSON.stringify({ machine: 'DeskMachine', event }),
+    }),
+  )
+  assert.equal(res.status, 200)
+  return (await res.json()) as { committed: boolean; patches: unknown[] }
+}
+
 async function page(sid: string): Promise<string> {
   const res = await app.fetch(
     new Request('http://test/', { headers: { Cookie: `stator_sid=${sid}` } }),
@@ -197,7 +213,7 @@ describe('the desk over the wire', () => {
     assert.equal(bad.committed, false)
   })
 
-  it('the edit ROUTE renders the form pre-filled — the other door, no patches involved', async () => {
+  it('the edit route renders the form pre-filled by a full server render', async () => {
     const html = await page(sid)
     const rid = html.match(/rid="([a-z0-9]+)"/)?.[1]!
     const res = await app.fetch(
@@ -245,6 +261,37 @@ describe('the desk over the wire', () => {
     )
     assert.equal(((await res.json()) as { committed: boolean }).committed, true)
     assert.ok((await page(sid)).includes('Edited By Route'))
+  })
+
+  it('an UPDATE patches the row itself: name, ticket and seats', async () => {
+    const html = await page(sid)
+    const rid = html.match(/rid="([a-z0-9]+)"/)?.[1]!
+    const r = await sendForPatches(sid, {
+      type: 'UPDATE',
+      id: rid,
+      name: 'Live Row',
+      email: 'live-row@x.dev',
+      seats: 2,
+      ticket: 'vip',
+    })
+    assert.equal(r.committed, true)
+    const wire = JSON.stringify(r.patches)
+    assert.ok(wire.includes('Live Row'), wire)
+    assert.ok(wire.includes('Edit Live Row'), wire)
+    assert.ok(wire.includes('live-row@x.dev'), wire)
+    assert.ok(wire.includes('vip'), wire)
+    assert.match(wire, /"seats"[^}]*"2"|"2"[^}]*"seats"/, wire)
+  })
+
+  it('refuses fields of the wrong type without an error', async () => {
+    for (const event of [
+      { type: 'REGISTER', name: 1, email: 'typed@x.dev', seats: 1, ticket: 'general' },
+      { type: 'REGISTER', name: 'Typed', email: {}, seats: 1, ticket: 'general' },
+      { type: 'REGISTER', name: 'Typed', email: 'typed@x.dev', seats: '1', ticket: 'general' },
+      { type: 'SET_SEATS', id: {}, seats: 2 },
+    ]) {
+      assert.equal((await sendForPatches(sid, event)).committed, false, JSON.stringify(event))
+    }
   })
 
   it('the roster row shows the id — the visible mapping to the edit URL', async () => {
