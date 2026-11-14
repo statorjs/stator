@@ -4,22 +4,10 @@ import RosterMachine from './roster.ts'
 
 type DeskContext = Record<string, never>
 
-// The desk holds NO context — it is guards + emits, a pure routing layer.
-// Two earlier cuts put state here and both were reclassified by use:
-//
-// `lastRegistered` (the "you're on the list" line) was a FLASH — an
-// acknowledgement of a recent action. Session state survives refresh, so the
-// message outlived its moment; and read-once flash semantics would need
-// mutate-on-render, which the model forbids. An acknowledgement is view
-// state: it lives in the form island's client machine and dies with the
-// page, which is correct.
-//
-// Editing is NOT desk state — it's an address. An earlier cut held an
-// `editing` snapshot here so an in-page arm flip could pre-fill the form; it
-// meant the MODE survived refresh while the typing (uncontrolled inputs)
-// didn't. The rule this taught: a mode earns machine residence only when
-// guards or domain logic act on it (a checkout's states do); a mode with one
-// render-region consumer belongs to the URL — /edit/:id owns it now.
+// The desk holds no context: it is guards + emits, a routing layer. The
+// "you're on the list" acknowledgement is view state in the form island's
+// client machine, and which attendee is being edited is an address
+// (/edit/:id), not machine state.
 
 type DeskEvents =
   | { type: 'REGISTER'; name: string; email: string; seats: number; ticket: string; updates?: boolean }

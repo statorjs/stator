@@ -3,11 +3,9 @@ import RosterMachine from '../../machines/roster.ts'
 import Layout from '../../templates/layout.stator'
 import RegForm from '../../templates/reg-form.stator'
 
-// The OTHER edit door: a plain navigable page. The in-page ✎ flip delivers
-// the pre-filled form through the patch pipeline; this route delivers it
-// through a full server render — URL-addressable, refresh- and back-button-
-// native, and deliberately NOT live: pre-fill is an attribute at render
-// either way, and the starter should prove both paths.
+// A plain navigable page: the form arrives pre-filled through a full server
+// render. Pre-fill is an attribute at render, so the page is deliberately not
+// live.
 const [roster] = Stator.reads([RosterMachine])
 const { params } = Stator.request
 
