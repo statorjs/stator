@@ -69,7 +69,9 @@ export const bundleIslandsEsbuild: IslandBundler = async (opts: BundleIslandsOpt
       .replace(/^@/, '')
       .replace(/[\\/]/g, '_'),
   }))
-  const byFile = new Map(opts.entries.map((e) => [norm(resolve(e.file)), e]))
+  // Keyed by real path: that is how the bundler names an entry, however the
+  // caller spelled it.
+  const byFile = new Map(opts.entries.map((e) => [norm(realPath(resolve(e.file))), e]))
 
   // esbuild does not rewrite `new URL('./x', import.meta.url)` to an emitted
   // asset, so the seam does it here: each URL-referenced relative
@@ -222,7 +224,7 @@ export const bundleIslandsEsbuild: IslandBundler = async (opts: BundleIslandsOpt
   const islandUrls: Record<string, string> = {}
   for (const [outPath, meta] of Object.entries(result.metafile.outputs)) {
     if (!meta.entryPoint) continue
-    const entry = byFile.get(norm(resolve(root, meta.entryPoint)))
+    const entry = byFile.get(norm(realPath(resolve(root, meta.entryPoint))))
     if (entry) islandUrls[entry.rel] = publicPath + norm(relative(outDir, resolve(root, outPath)))
   }
   for (const entry of opts.entries) {

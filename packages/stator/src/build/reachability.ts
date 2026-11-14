@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createRequire, findPackageJSON } from 'node:module'
 import { dirname, join, relative, resolve, sep } from 'node:path'
@@ -90,7 +90,7 @@ const within = (dir: string, file: string): boolean => file === dir || file.star
  * undefined when it does not resolve (a type-only package, a typo). A package
  * with an `exports` map is resolved through it under the `import`, `node` and
  * `default` conditions; anything else, or an `exports` map with no match, goes
- * through Node's `require` resolution.
+ * through Node's `require` resolution. Either way the result is a real path.
  */
 export function resolveBare(spec: string, importer: string): string | undefined {
   const viaExports = resolveExports(spec, importer)
@@ -121,11 +121,21 @@ function resolveExports(spec: string, importer: string): string | undefined {
   if (json.exports === undefined || json.exports === null) return undefined
   const name = spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0]!
   const subpath = `.${spec.slice(name.length)}`
-  const root = dirname(pkgJson)
   const hit = exportsTarget(json.exports, subpath)
   if (!hit?.startsWith('./')) return undefined
-  const file = resolve(root, hit)
-  return within(root, file) && existsSync(file) ? file : undefined
+  // The real path, as `require.resolve` and the bundler both report it. A
+  // package manager that links packages in (pnpm) makes the path under
+  // `node_modules/<name>` a symlink, and a module named by it would not match
+  // the same module named by anything else.
+  let root: string
+  let file: string
+  try {
+    root = realpathSync(dirname(pkgJson))
+    file = realpathSync(resolve(root, hit))
+  } catch {
+    return undefined
+  }
+  return within(root, file) ? file : undefined
 }
 
 /** The target `exports` maps `subpath` to, `*` patterns substituted. */
