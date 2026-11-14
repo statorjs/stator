@@ -31,9 +31,16 @@ type CheckoutEvents =
   | { type: 'BACK' }
   | { type: 'RESET' }
 
-// Shared by both the shipping and payment SET_FIELD transitions.
+const SHIPPING_FIELDS: readonly string[] = ['shippingName', 'shippingAddress']
+const PAYMENT_FIELDS: readonly string[] = ['paymentLast4']
+
+// Each step accepts only its own fields, and only string values.
+const setsOneOf =
+  (fields: readonly string[]) => (_ctx: CheckoutContext, ev: { field: unknown; value: unknown }) =>
+    typeof ev.field === 'string' && fields.includes(ev.field) && typeof ev.value === 'string'
+
 const setField = (ctx: CheckoutContext, ev: { field: Field; value: string }) => {
-  ctx[ev.field] = String(ev.value)
+  ctx[ev.field] = ev.value.slice(0, 200)
 }
 
 const shippingValid = (ctx: CheckoutContext) =>
@@ -57,17 +64,13 @@ export default defineMachine({
   states: {
     shipping: {
       on: {
-        SET_FIELD: (ctx, ev) => {
-          setField(ctx, ev)
-        },
+        SET_FIELD: { when: setsOneOf(SHIPPING_FIELDS), do: setField },
         SUBMIT_SHIPPING: { to: 'payment', when: shippingValid },
       },
     },
     payment: {
       on: {
-        SET_FIELD: (ctx, ev) => {
-          setField(ctx, ev)
-        },
+        SET_FIELD: { when: setsOneOf(PAYMENT_FIELDS), do: setField },
         BACK: { to: 'shipping' },
         SUBMIT_PAYMENT: {
           to: 'complete',
@@ -105,7 +108,9 @@ export default defineMachine({
 })
 ```
 
-Two things are new here besides `to:`:
+Three things are new here besides `to:`:
+
+- **`SET_FIELD`'s guard** — the event names which field to set, and it arrives as JSON from a browser, so its type is a hope, not a fact. `setsOneOf` lets each step accept only its own fields with string values. Without it, a visitor could post `field: 'orderNumber'` and write any context key. See [Dispatching events](/guides/dispatching-events/).
 
 - **`emits: ['ORDER_PLACED']` + `emit: 'ORDER_PLACED'`** — the machine *announces a fact* when the order lands. Nothing listens yet; we'll wire the cart to it at the end of this chapter. Declared emits are how machines compose without importing each other's internals — see [Composition](/concepts/composition/).
 - **`error` in context** — empty for now. The async upgrade below is what puts something in it.

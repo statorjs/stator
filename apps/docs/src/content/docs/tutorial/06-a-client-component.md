@@ -18,7 +18,7 @@ Create `templates/theme-toggle.stator`. Unlike a server component, its root is a
 ```astro title="templates/theme-toggle.stator"
 <theme-toggle>
   <button class="theme-toggle-btn" type="button" on:click={toggle} aria-label="Toggle theme">
-    <span>{read(theme, (t) => t.label)}</span>
+    <span>{read(theme, (t) => t.label, '☀ Light')}</span>
   </button>
 </theme-toggle>
 
@@ -85,7 +85,7 @@ The second argument to `use()` is the **seed** — the machine's initial context
 Inside a client component, the directives mirror the server:
 
 - `on:click={toggle}` calls the component's `toggle()` method on click.
-- `{read(theme, (t) => t.label)}` keeps the `<span>`'s text in sync with the `label` selector — the same `read()` you used on server machines, now against a client machine. When `mode` flips, `label` recomputes and the span updates, with no server involvement.
+- `{read(theme, (t) => t.label, '☀ Light')}` keeps the `<span>`'s text in sync with the `label` selector — the same `read()` you used on server machines, now against a client machine. When `mode` flips, `label` recomputes and the span updates, with no server involvement. The third argument is what the server renders before the island connects, so the button isn't empty on first paint.
 
 Drop `<ThemeToggle />` into the layout header you built in [step 4](/tutorial/04-layouts/), so it appears on every page. In `templates/customer-layout.stator`:
 
