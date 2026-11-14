@@ -11,7 +11,7 @@
  *
  * GETs are read-only and do not acquire the lock.
  */
-import { scopedLogger } from './logger.ts'
+import { logSid, scopedLogger } from './logger.ts'
 
 const lockLog = scopedLogger('session-lock')
 const sessionLocks = new Map<string, Promise<unknown>>()
@@ -30,8 +30,13 @@ function withTimeout<T>(sid: string, fn: () => Promise<T>): Promise<T> {
     const timer = setTimeout(() => {
       if (done) return
       done = true
-      lockLog.error({ sid, ms: LOCK_TIMEOUT_MS }, 'session lock timed out — mutation abandoned')
-      reject(new Error(`stator: session "${sid}" lock held > ${LOCK_TIMEOUT_MS}ms — abandoned`))
+      lockLog.error(
+        { sid: logSid(sid), ms: LOCK_TIMEOUT_MS },
+        'session lock timed out — mutation abandoned',
+      )
+      reject(
+        new Error(`stator: session ${logSid(sid)} lock held > ${LOCK_TIMEOUT_MS}ms — abandoned`),
+      )
     }, LOCK_TIMEOUT_MS)
     ;(timer as unknown as { unref?: () => void }).unref?.()
     Promise.resolve()

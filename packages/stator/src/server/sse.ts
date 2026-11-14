@@ -1,5 +1,5 @@
 import type { Patch } from '../wire/index.ts'
-import { scopedLogger } from './logger.ts'
+import { logSid, scopedLogger } from './logger.ts'
 import { recompute } from './recompute.ts'
 import type { RenderState } from './render-context.ts'
 import type { RouteDefinition, RouteRequest } from './routing.ts'
@@ -83,7 +83,7 @@ export function registerConnection(init: ConnectionInit): Connection {
         prior.sessionId === init.sessionId
       ) {
         sseLog.debug(
-          { id: prior.id, sid: prior.sessionId, route: prior.routeKey, replacedBy: id },
+          { id: prior.id, sid: logSid(prior.sessionId), route: prior.routeKey, replacedBy: id },
           'evicting superseded connection',
         )
         unregisterConnection(prior.id)
@@ -93,7 +93,7 @@ export function registerConnection(init: ConnectionInit): Connection {
   }
   connections.set(id, conn)
   sseLog.debug(
-    { id, sid: conn.sessionId, route: conn.routeKey, total: connections.size },
+    { id, sid: logSid(conn.sessionId), route: conn.routeKey, total: connections.size },
     'connection opened',
   )
   return conn
@@ -124,7 +124,7 @@ export function unregisterConnection(id: string): void {
   conn.runtime.dispose()
   connections.delete(id)
   sseLog.debug(
-    { id, sid: conn.sessionId, route: conn.routeKey, total: connections.size },
+    { id, sid: logSid(conn.sessionId), route: conn.routeKey, total: connections.size },
     'connection closed',
   )
 }
@@ -177,7 +177,7 @@ export function enqueue(conn: Connection, data: string): void {
     sseLog.warn(
       {
         id: conn.id,
-        sid: conn.sessionId,
+        sid: logSid(conn.sessionId),
         route: conn.routeKey,
         waiting: conn.queue.length,
         bytes: conn.queuedBytes,
@@ -241,7 +241,7 @@ export async function pushToConnection(conn: Connection, data: string): Promise<
     ])
     if (outcome === 'timeout') {
       sseLog.warn(
-        { id: conn.id, sid: conn.sessionId, route: conn.routeKey, ms: writeTimeoutMs() },
+        { id: conn.id, sid: logSid(conn.sessionId), route: conn.routeKey, ms: writeTimeoutMs() },
         'sse write timed out — dropping the connection',
       )
       unregisterConnection(conn.id)
@@ -251,7 +251,7 @@ export async function pushToConnection(conn: Connection, data: string): Promise<
   } catch (err) {
     // Bumped from debug to warn — silent push failures were why "30-50%
     // delivery" was invisible in production logs.
-    sseLog.warn({ id: conn.id, sid: conn.sessionId, err: String(err) }, 'sse push failed')
+    sseLog.warn({ id: conn.id, sid: logSid(conn.sessionId), err: String(err) }, 'sse push failed')
     return 'failed'
   } finally {
     clearTimeout(timer)

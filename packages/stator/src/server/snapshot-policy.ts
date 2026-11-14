@@ -1,5 +1,5 @@
 import type { AnyMachineDef, Snapshot } from '../engine/index.ts'
-import { scopedLogger } from './logger.ts'
+import { logSid, scopedLogger } from './logger.ts'
 import { codeHashOf } from './machine-hash.ts'
 
 /**
@@ -87,7 +87,7 @@ function logReset(
   log.warn(
     {
       machine: def.name,
-      scope,
+      scope: logSid(scope),
       reason,
       resets: n,
       ...(reason === 'code-changed' ? { from: snap.code ?? null, to: codeHashOf(def) } : {}),
