@@ -122,10 +122,14 @@ function processValue(builder: HtmlBuilder, state: RenderState, value: unknown):
     // The shared attr contract (wire/attr-value.ts): null → attribute ABSENT.
     const av = attrValue(value)
     if (av === null) builder.omitCurrentAttribute()
-    else builder.pushRaw(escapeAttribute(sanitizeAttr(pos.attrName, av)))
+    else pushAttr(builder, sanitizeAttr(pos.attrName, av))
     return
   }
   throw new Error(`stator: cannot interpolate a plain value at ${pos.kind} position`)
+}
+
+function pushAttr(builder: HtmlBuilder, value: string): void {
+  builder.pushAttrValue(value, escapeAttribute(value))
 }
 
 function invokeDirective(builder: HtmlBuilder, inv: DirectiveInvocation, elementId: string): void {
@@ -183,7 +187,7 @@ function handleRead(
     {
       const av = attrValue(r.value)
       if (av === null) builder.omitCurrentAttribute()
-      else builder.pushRaw(escapeAttribute(sanitizeAttr(pos.attrName, av)))
+      else pushAttr(builder, sanitizeAttr(pos.attrName, av))
     }
     return
   }
@@ -230,7 +234,7 @@ function handleItemRead(
     {
       const av = attrValue(r.value)
       if (av === null) builder.omitCurrentAttribute()
-      else builder.pushRaw(escapeAttribute(sanitizeAttr(pos.attrName, av)))
+      else pushAttr(builder, sanitizeAttr(pos.attrName, av))
     }
     return
   }
