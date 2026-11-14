@@ -169,6 +169,21 @@ interface PathMatch {
   params: Record<string, string>
 }
 
+function decodeParams(
+  names: readonly string[],
+  result: RegExpExecArray,
+): Record<string, string> | null {
+  const params: Record<string, string> = {}
+  try {
+    names.forEach((name, i) => {
+      params[name] = decodeURIComponent(result[i + 1] ?? '')
+    })
+  } catch {
+    return null
+  }
+  return params
+}
+
 /**
  * Match a literal URL path against every compiled matcher that matches it,
  * in `matchers`' own (priority-sorted) order — every candidate a 404-
@@ -179,11 +194,9 @@ function matchAllPaths(matchers: RouteMatcher[], literalPath: string): PathMatch
   for (const m of matchers) {
     const result = m.regex.exec(literalPath)
     if (!result) continue
-    const params: Record<string, string> = {}
-    m.route.paramNames.forEach((name, i) => {
-      params[name] = decodeURIComponent(result[i + 1] ?? '')
-    })
-    matches.push({ route: m.route, params })
+    const params = decodeParams(m.route.paramNames, result)
+    // A malformed percent-escape names no resource, so it is no match (a 404).
+    if (params) matches.push({ route: m.route, params })
   }
   return matches
 }
