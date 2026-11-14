@@ -1,5 +1,61 @@
 # @statorjs/language-server
 
+## 0.2.0
+
+### Minor Changes
+
+- d43dda6: The editor follows the Stator release installed in the project, not the one bundled in the extension. The language server finds the project's `@statorjs/stator`, and when it exports the editor contract (`@statorjs/stator/editor`, 3.0 and later) the `Stator.*` macros are typed from it, so each project sees its own release's API and the extension can update without moving it. Projects on earlier releases keep the macro types those releases had. An upgrade is picked up on the next edit.
+
+### Patch Changes
+
+- Updated dependencies [8760b11]
+- Updated dependencies [7893959]
+- Updated dependencies [b624aa2]
+- Updated dependencies [a3822f2]
+- Updated dependencies [d68ad3f]
+- Updated dependencies [d68ad3f]
+- Updated dependencies [1c04cb2]
+- Updated dependencies [cfdff68]
+- Updated dependencies [d68ad3f]
+- Updated dependencies [97c5967]
+- Updated dependencies [4222c45]
+- Updated dependencies [d43dda6]
+- Updated dependencies [2ad3987]
+- Updated dependencies [2ad3987]
+- Updated dependencies [d68ad3f]
+- Updated dependencies [d68ad3f]
+- Updated dependencies [26e0918]
+- Updated dependencies [61e79b3]
+- Updated dependencies [d68ad3f]
+- Updated dependencies [59c71da]
+- Updated dependencies [59c71da]
+- Updated dependencies [05efa99]
+- Updated dependencies [6d5ab95]
+- Updated dependencies [7893959]
+- Updated dependencies [6d5ab95]
+- Updated dependencies [2ad3987]
+- Updated dependencies [97c5967]
+- Updated dependencies [7ee7692]
+- Updated dependencies [d68ad3f]
+- Updated dependencies [7893959]
+- Updated dependencies [edbff51]
+- Updated dependencies [231c47d]
+- Updated dependencies [ac95682]
+- Updated dependencies [70f204d]
+- Updated dependencies [6d5ab95]
+- Updated dependencies [7893959]
+- Updated dependencies [97c5967]
+- Updated dependencies [6d5ab95]
+- Updated dependencies [4913c40]
+- Updated dependencies [b08a1cb]
+- Updated dependencies [6d5ab95]
+- Updated dependencies [8760b11]
+- Updated dependencies [2ad3987]
+- Updated dependencies [703594d]
+- Updated dependencies [6d5ab95]
+- Updated dependencies [7ee7692]
+  - @statorjs/stator@3.0.0
+
 ## 0.2.0-next.9
 
 ### Patch Changes

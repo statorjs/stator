@@ -1,5 +1,19 @@
 # stator-vscode
 
+## 1.4.0
+
+### Minor Changes
+
+- d43dda6: The editor follows the Stator release installed in the project, not the one bundled in the extension. The language server finds the project's `@statorjs/stator`, and when it exports the editor contract (`@statorjs/stator/editor`, 3.0 and later) the `Stator.*` macros are typed from it, so each project sees its own release's API and the extension can update without moving it. Projects on earlier releases keep the macro types those releases had. An upgrade is picked up on the next edit.
+- d68ad3f: An island's template is checked in the editor as the server shell it is: a fence binding misused in it, a misspelled `use()` field, and a `read()` fallback of the wrong type are underlined where they are written. `this.attrs` is typed from `static attrs`, and an island that declares its shell's props with `Stator.props<P>()` in the fence has them typed in the template.
+
+### Patch Changes
+
+- b624aa2: The bundled compiler now knows the compiled-shape contract stamp that published components carry. Nothing changes in the editor.
+- 4913c40: Compile errors in `.stator` files are underlined in the right place in two cases that were off before: a template error that follows a `<script is:inline>` (it used to land on the script's line), and a frontmatter error in a fence that opens with blank lines (its column was shifted). The bundled compiler also gained source-map support for the runtime, which the extension does not use.
+- 61e79b3: Compile errors inside an island's markup (an `on:click` with no handler, a misplaced directive) are underlined where they are written; before, they had no position and landed at the top of the file.
+- 703594d: The bundled compiler emits typed `Stator.reads` handles and an optional props parameter for components without props. Editor behavior is unchanged.
+
 ## 1.4.0-next.3
 
 ### Minor Changes
