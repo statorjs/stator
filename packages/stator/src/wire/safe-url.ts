@@ -78,6 +78,9 @@ const URL_ATTRS = new Set([
   'background',
   'cite',
   'ping',
+  'data',
+  'manifest',
+  'srcset',
 ])
 
 export function isUrlAttribute(name: string): boolean {

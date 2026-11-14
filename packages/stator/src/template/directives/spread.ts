@@ -25,12 +25,17 @@ import { type DirectiveInvocation, defineDirective, invoke, isDirectiveInvocatio
  */
 export type SpreadAttrs = Record<string, unknown>
 
+const ATTRIBUTE_NAME = /^[a-zA-Z_:][a-zA-Z0-9_.:-]*$/
+
 const spreadDirective = defineDirective<SpreadAttrs>({
   name: 'spread',
   apply({ elementId, arg, addAttribute }) {
     if (arg == null) return
     const state = requireCurrentRenderState()
     for (const [name, value] of Object.entries(arg)) {
+      // A spread bag can be data (a query string, stored JSON), so its keys
+      // are checked: only valid attribute names, and never an event handler.
+      if (!ATTRIBUTE_NAME.test(name) || /^on/i.test(name)) continue
       if (isItemReadResult(value)) {
         throw new Error(
           `stator: read(item, …) can't be forwarded through {...spread} (attribute "${name}") — ` +

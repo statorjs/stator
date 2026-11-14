@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import pino, { type Logger } from 'pino'
 
@@ -70,4 +71,11 @@ export function scopedLogger(scope: string): Logger {
 export function setLogLevel(level: string): void {
   logger.level = level
   for (const child of scopedChildren) child.level = level
+}
+
+/** A session id as logs show it: a short hash, since the id itself is the
+ *  credential. The framework's own scopes (`@app`, `@anonymous`) pass through. */
+export function logSid(sid: string): string {
+  if (sid.startsWith('@')) return sid
+  return `#${createHash('sha256').update(sid).digest('hex').slice(0, 12)}`
 }

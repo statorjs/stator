@@ -1,7 +1,7 @@
 import type { AnyMachineDef } from '../engine/index.ts'
 import { dispatchToApp } from './app-dispatch.ts'
 import { reenterSessionEvent } from './effects.ts'
-import { scopedLogger } from './logger.ts'
+import { logSid, scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 
 const timerLog = scopedLogger('timers')
@@ -84,7 +84,7 @@ export function armAfterTimers(
           : reenterSessionEvent(store, scope, def.name, entry.send)
       void fire.catch((err) => {
         timerLog.error(
-          { scope, machine: def.name, state: stateKey, err: String(err) },
+          { scope: logSid(scope), machine: def.name, state: stateKey, err: String(err) },
           'after-timer dispatch failed',
         )
       })

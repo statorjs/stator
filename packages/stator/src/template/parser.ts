@@ -1,4 +1,5 @@
 import { allocElementId, type ElementId, type RenderState } from '../server/render-context.ts'
+import { isUrlAttribute, safeAttrUrl } from '../wire/safe-url.ts'
 
 type Mode =
   | 'text'
@@ -54,6 +55,12 @@ export class HtmlBuilder {
   private attrStartIdx: number | null = null
   // Set by omitCurrentAttribute(); consumed at the closing quote.
   private omitPending = false
+  // The current attribute value as the browser will read it: literal text plus
+  // every interpolated value, unescaped. A URL attribute is checked whole at its
+  // closing quote, since a scheme can be split across interpolations.
+  private attrValueRaw = ''
+  // Chunk index just past the opening quote, where the value starts.
+  private attrValueStartIdx: number | null = null
 
   constructor(private readonly state: RenderState) {}
 
@@ -69,6 +76,19 @@ export class HtmlBuilder {
       throw new Error(`stator: cannot insert content at this position (parser mode: ${this.mode})`)
     }
     this.chunks.push(s)
+  }
+
+  /** Append an interpolated attribute value: `raw` as the browser will read
+   *  it, `escaped` as it is written. */
+  pushAttrValue(raw: string, escaped: string): void {
+    this.pushRaw(escaped)
+    this.attrValueRaw += raw
+  }
+
+  /** Blank a URL attribute whose assembled value carries a script scheme. */
+  private guardUrlValue(): void {
+    if (this.attrValueStartIdx === null || !isUrlAttribute(this.attrNameBuf)) return
+    if (safeAttrUrl(this.attrValueRaw) === '') this.chunks.splice(this.attrValueStartIdx)
   }
 
   /** Classify the next interpolation's position based on current parser state. */
@@ -114,6 +134,7 @@ export class HtmlBuilder {
     this.chunks.splice(this.tagOpenInsertIdx, 0, ` ${name}="${escapeAttribute(value)}"`)
     this.tagOpenInsertIdx += 1
     if (this.attrStartIdx !== null) this.attrStartIdx += 1
+    if (this.attrValueStartIdx !== null) this.attrValueStartIdx += 1
     return id
   }
 
@@ -147,6 +168,7 @@ export class HtmlBuilder {
       this.chunks.splice(this.tagOpenInsertIdx, 0, ` data-stator-id="${this.currentElementId}"`)
       this.tagOpenInsertIdx += 1
       if (this.attrStartIdx !== null) this.attrStartIdx += 1
+      if (this.attrValueStartIdx !== null) this.attrValueStartIdx += 1
     }
     return this.currentElementId
   }
@@ -218,12 +240,16 @@ export class HtmlBuilder {
         if (c === '"') {
           this.chunks.push(c)
           this.attrValueLiteralHasText = false
+          this.attrValueRaw = ''
+          this.attrValueStartIdx = this.chunks.length
           this.mode = 'attr_value_dq'
           return
         }
         if (c === "'") {
           this.chunks.push(c)
           this.attrValueLiteralHasText = false
+          this.attrValueRaw = ''
+          this.attrValueStartIdx = this.chunks.length
           this.mode = 'attr_value_sq'
           return
         }
@@ -250,14 +276,18 @@ export class HtmlBuilder {
           this.spliceOutCurrentAttribute()
           return
         }
-        this.chunks.push(c)
         if (c === '"') {
+          this.guardUrlValue()
+          this.chunks.push(c)
           this.attrNameBuf = ''
           this.attrStartIdx = null
+          this.attrValueStartIdx = null
           this.mode = 'in_tag'
-        } else if (!isWhitespace(c)) {
-          this.attrValueLiteralHasText = true
+          return
         }
+        this.chunks.push(c)
+        this.attrValueRaw += c
+        if (!isWhitespace(c)) this.attrValueLiteralHasText = true
         return
 
       case 'attr_value_sq':
@@ -265,14 +295,18 @@ export class HtmlBuilder {
           this.spliceOutCurrentAttribute()
           return
         }
-        this.chunks.push(c)
         if (c === "'") {
+          this.guardUrlValue()
+          this.chunks.push(c)
           this.attrNameBuf = ''
           this.attrStartIdx = null
+          this.attrValueStartIdx = null
           this.mode = 'in_tag'
-        } else if (!isWhitespace(c)) {
-          this.attrValueLiteralHasText = true
+          return
         }
+        this.chunks.push(c)
+        this.attrValueRaw += c
+        if (!isWhitespace(c)) this.attrValueLiteralHasText = true
         return
 
       case 'closing_tag':
@@ -314,6 +348,7 @@ export class HtmlBuilder {
     this.omitPending = false
     this.attrNameBuf = ''
     this.attrStartIdx = null
+    this.attrValueStartIdx = null
     this.mode = 'in_tag'
   }
 }

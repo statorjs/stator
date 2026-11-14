@@ -1,6 +1,6 @@
 import type { AnyMachineDef, EffectInvocation, EventObject } from '../engine/index.ts'
 import { dispatchToApp } from './app-dispatch.ts'
-import { scopedLogger } from './logger.ts'
+import { logSid, scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import { CLAIMS_KEY } from './session.ts'
 import { withSessionLock } from './session-lock.ts'
@@ -254,7 +254,7 @@ export async function reenterSessionEvent(
     // a zombie). No snapshot ⇒ the session is gone ⇒ drop.
     if ((await store.persistence.get(sessionId, machineName)) === null) {
       effectLog.debug(
-        { sid: sessionId, machine: machineName, event: event.type },
+        { sid: logSid(sessionId), machine: machineName, event: event.type },
         'out-of-band event for expired session dropped',
       )
       return

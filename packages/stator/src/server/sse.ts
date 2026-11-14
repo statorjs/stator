@@ -1,5 +1,5 @@
 import type { Patch } from '../wire/index.ts'
-import { scopedLogger } from './logger.ts'
+import { logSid, scopedLogger } from './logger.ts'
 import { recompute } from './recompute.ts'
 import type { RenderState } from './render-context.ts'
 import type { RouteDefinition, RouteRequest } from './routing.ts'
@@ -71,15 +71,19 @@ export function registerConnection(init: ConnectionInit): Connection {
     draining: false,
   }
   // A page-load holds at most one channel per route, so an existing
-  // connection with the same (clientId, routeKey) is a corpse whose abort we
+  // connection with the same (sessionId, clientId, routeKey) is a corpse whose abort we
   // never observed — a half-open socket, or a reconnect that raced its own
   // teardown. Left registered it would pin a SessionRuntime forever and take
   // a slice of every fan-out. Evict it before the new one lands.
   if (init.clientId !== undefined) {
     for (const prior of connections.values()) {
-      if (prior.clientId === init.clientId && prior.routeKey === init.routeKey) {
+      if (
+        prior.clientId === init.clientId &&
+        prior.routeKey === init.routeKey &&
+        prior.sessionId === init.sessionId
+      ) {
         sseLog.debug(
-          { id: prior.id, sid: prior.sessionId, route: prior.routeKey, replacedBy: id },
+          { id: prior.id, sid: logSid(prior.sessionId), route: prior.routeKey, replacedBy: id },
           'evicting superseded connection',
         )
         unregisterConnection(prior.id)
@@ -89,7 +93,7 @@ export function registerConnection(init: ConnectionInit): Connection {
   }
   connections.set(id, conn)
   sseLog.debug(
-    { id, sid: conn.sessionId, route: conn.routeKey, total: connections.size },
+    { id, sid: logSid(conn.sessionId), route: conn.routeKey, total: connections.size },
     'connection opened',
   )
   return conn
@@ -109,6 +113,20 @@ export function broadcastEnvelope(payload: unknown): void {
   }
 }
 
+/**
+ * Hang up every live connection opened under `sessionId`. A rotated or
+ * cleared session's connections would otherwise keep receiving its page's
+ * updates under the old identity; each browser reconnects with its new cookie
+ * and is authorised afresh.
+ */
+export function closeSessionConnections(sessionId: string): void {
+  for (const conn of [...connections.values()]) {
+    if (conn.sessionId !== sessionId) continue
+    unregisterConnection(conn.id)
+    conn.close?.()
+  }
+}
+
 export function unregisterConnection(id: string): void {
   const conn = connections.get(id)
   if (!conn) return
@@ -120,7 +138,7 @@ export function unregisterConnection(id: string): void {
   conn.runtime.dispose()
   connections.delete(id)
   sseLog.debug(
-    { id, sid: conn.sessionId, route: conn.routeKey, total: connections.size },
+    { id, sid: logSid(conn.sessionId), route: conn.routeKey, total: connections.size },
     'connection closed',
   )
 }
@@ -173,7 +191,7 @@ export function enqueue(conn: Connection, data: string): void {
     sseLog.warn(
       {
         id: conn.id,
-        sid: conn.sessionId,
+        sid: logSid(conn.sessionId),
         route: conn.routeKey,
         waiting: conn.queue.length,
         bytes: conn.queuedBytes,
@@ -237,7 +255,7 @@ export async function pushToConnection(conn: Connection, data: string): Promise<
     ])
     if (outcome === 'timeout') {
       sseLog.warn(
-        { id: conn.id, sid: conn.sessionId, route: conn.routeKey, ms: writeTimeoutMs() },
+        { id: conn.id, sid: logSid(conn.sessionId), route: conn.routeKey, ms: writeTimeoutMs() },
         'sse write timed out — dropping the connection',
       )
       unregisterConnection(conn.id)
@@ -247,7 +265,7 @@ export async function pushToConnection(conn: Connection, data: string): Promise<
   } catch (err) {
     // Bumped from debug to warn — silent push failures were why "30-50%
     // delivery" was invisible in production logs.
-    sseLog.warn({ id: conn.id, sid: conn.sessionId, err: String(err) }, 'sse push failed')
+    sseLog.warn({ id: conn.id, sid: logSid(conn.sessionId), err: String(err) }, 'sse push failed')
     return 'failed'
   } finally {
     clearTimeout(timer)
@@ -351,10 +369,13 @@ export async function fanOut(
     // backlog, the response would overtake what is still queued, and a
     // positional op applied out of order corrupts a list rather than merely
     // staling it — so the diff rides the queue and the response carries none.
+    // Matched within the dispatching session, so another visitor naming this
+    // page's client id cannot make it skip a diff.
     const isOriginator =
       source?.originClientId !== undefined &&
       conn.clientId !== undefined &&
-      conn.clientId === source.originClientId
+      conn.clientId === source.originClientId &&
+      conn.sessionId === source.sessionId
     if (isOriginator) {
       if (!hasBacklog(conn)) {
         skippedOriginator++

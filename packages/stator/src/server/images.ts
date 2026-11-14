@@ -290,9 +290,12 @@ export async function serveImage(
   heightParam: string | undefined,
   ifNoneMatch: string | null,
 ): Promise<Response> {
+  // Only the canonical spelling (`400`, not `400.0`, `4e2` or `0x190`), so each
+  // variant has one URL and one cache key at a CDN.
+  const canonical = (v: string): number => (/^[1-9]\d*$/.test(v) ? Number(v) : Number.NaN)
   let width: number | undefined
   if (widthParam !== undefined) {
-    width = Number(widthParam)
+    width = canonical(widthParam)
     if (!config.widths.includes(width)) {
       return new Response(`w must be one of ${config.widths.join(', ')}`, { status: 400 })
     }
@@ -301,7 +304,7 @@ export async function serveImage(
   if (heightParam !== undefined) {
     // A crop needs both axes: `w` from the width allowlist, `h` derived from
     // an allowlisted aspect — the finite-variant DoS bound, |widths|x|aspects|.
-    height = Number(heightParam)
+    height = canonical(heightParam)
     const w = width
     if (w === undefined || !config.aspectRatios.some((a) => height === Math.round(w / a))) {
       return new Response('h requires w, and w/h must match an allowlisted aspect', { status: 400 })

@@ -71,6 +71,11 @@ describe('image endpoint', () => {
       (await app.fetch(new Request('http://localhost/media/2026/08/probe.png?w=999'))).status,
       400,
     )
+    // One spelling per width, so a CDN holds one copy of each variant.
+    for (const w of ['400.0', '4e2', '0x190', '0400', ' 400']) {
+      const res = await app.fetch(new Request(`http://localhost/media/2026/08/probe.png?w=${w}`))
+      assert.equal(res.status, 400, w)
+    }
     assert.equal(
       (await app.fetch(new Request('http://localhost/media/../etc/passwd.png'))).status,
       404,

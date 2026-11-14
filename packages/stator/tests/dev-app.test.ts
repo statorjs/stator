@@ -74,6 +74,22 @@ describe('listen()', () => {
   }
 })
 
+describe('path parameters', () => {
+  it('a malformed percent-escape is a 404, not a 500', async () => {
+    const app = await boot()
+    try {
+      const ok = await app.fetch(new Request('http://localhost/pp/abc.json'))
+      assert.equal(ok.status, 200)
+      await ok.text()
+      const bad = await app.fetch(new Request('http://localhost/pp/%E0%A4%A.json'))
+      assert.equal(bad.status, 404)
+      await bad.text()
+    } finally {
+      await app.close()
+    }
+  })
+})
+
 describe('the native dev app in-process', () => {
   let app: DevApp | undefined
   after(async () => {
