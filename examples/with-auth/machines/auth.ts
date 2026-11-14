@@ -9,14 +9,14 @@ import { verifyPasswordConstantTime } from '../lib/passwords.ts'
  * context says who you are, every later event from this session carries
  * that identity implicitly.
  *
- * LOGIN is a guarded transition — authentication IS authorization's little
+ * TEACHING MOMENT #2: LOGIN is a guarded transition — authentication IS authorization's little
  * sibling here. The guard verifies credentials against the database
  * (sync SQLite + scrypt, both fine in a guard); a wrong password is a
  * guard drop: `committed: false`, no state change, nothing to forge.
  *
  * ANTI-PATTERN WARNING: never give a session machine a bare
- * "SET_IDENTITY {userId, role}" event. Anything dispatchable is
- * dispatchable from browser devtools via /__events — an event must either
+ * "SET_IDENTITY {userId, role}" event. The wire accepts any event a page
+ * sends, with whatever payload the browser chooses, so an event must either
  * prove itself (LOGIN carries the password) or grant nothing.
  */
 
@@ -35,7 +35,7 @@ export default defineMachine({
   lifecycle: 'session',
   events: {} as Events,
   emits: {
-    // TEACHING MOMENT #3: identity in emit payloads comes from THIS
+    // TEACHING MOMENT #4: identity in emit payloads comes from THIS
     // machine's own context — never from the client's event. The payload
     // selector runs server-side after the guard passed; it is the trust
     // boundary between "a browser said" and "the server knows".
@@ -70,7 +70,7 @@ export default defineMachine({
   },
   context: { userId: '', name: '', role: '' },
   initial: 'anonymous',
-  // TEACHING MOMENT #5: a fresh start is not a sign-out. Machine state is
+  // TEACHING MOMENT #7: a fresh start is not a sign-out. Machine state is
   // working state — a deploy that changes this file, or the session TTL, or a
   // flushed store, discards the snapshot — but the session's CLAIMS survive
   // (they are what middleware gates on). `seed` runs on every fresh start,
@@ -136,7 +136,7 @@ export default defineMachine({
             return null
           },
         },
-        // TEACHING MOMENT #2 (half one): posting requires being logged in —
+        // TEACHING MOMENT #3 (half one): posting requires being logged in —
         // the state chart itself is the authorization (these transitions
         // don't exist in `anonymous`).
         POST_NOTICE: {
@@ -147,12 +147,14 @@ export default defineMachine({
           emit: 'withdrawRequested',
         },
         MODERATE: {
-          // TEACHING MOMENT #2 (half two): role checks are plain guards.
+          // TEACHING MOMENT #3 (half two): role checks are plain guards.
           when: (ctx) => ctx.role === 'harbormaster',
           emit: 'moderationRequested',
         },
-        WATCH: { emit: 'watchToggled' },
-        UNWATCH: { emit: 'watchToggled' },
+        // What arrives is JSON from a browser, not the declared event type:
+        // check the id before it is stored.
+        WATCH: { when: (_ctx, ev) => typeof ev.noticeId === 'string', emit: 'watchToggled' },
+        UNWATCH: { when: (_ctx, ev) => typeof ev.noticeId === 'string', emit: 'watchToggled' },
       },
     },
   },

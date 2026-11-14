@@ -6,8 +6,6 @@ import { DatabaseSync } from 'node:sqlite'
  * REFERENCE data that nothing re-renders against. node:sqlite's synchronous
  * API is a perfect fit: guards and route frontmatter are synchronous by
  * contract, and can call these helpers directly.
- *
- * (Requires Node 24+. Swap for better-sqlite3 on older Node.)
  */
 
 export interface UserRow {
@@ -19,7 +17,9 @@ export interface UserRow {
   pass_hash: string
 }
 
-const dbPath = process.env.WITH_AUTH_DB ?? new URL('../harbor.db', import.meta.url).pathname
+// Relative to the working directory, so `stator start` (which runs the app
+// from `dist/`, rebuilt on every build) still opens the file beside the app.
+const dbPath = process.env.WITH_AUTH_DB ?? 'harbor.db'
 const db = new DatabaseSync(dbPath)
 
 db.exec(`

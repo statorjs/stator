@@ -1,6 +1,6 @@
 import { defineApiRoute } from '@statorjs/stator/server'
 import AuthMachine from '../../machines/auth.ts'
-import BoardMachine, { type Notice } from '../../machines/board.ts'
+import BoardMachine from '../../machines/board.ts'
 
 /** The board as JSON — the API twin of the home page. The viewer's session
  *  decides what the one URL returns: identity comes from the cookie's own
@@ -12,11 +12,11 @@ import BoardMachine, { type Notice } from '../../machines/board.ts'
 export const GET = defineApiRoute({
   method: 'GET',
   reads: [AuthMachine, BoardMachine],
-  handler: (_request, { machines }: any) => {
-    const member: boolean = machines.AuthMachine.isAuthenticated
+  handler: (_request, { machines }) => {
+    const member = machines.AuthMachine.isAuthenticated
     return {
       viewer: member ? 'member' : 'visitor',
-      notices: machines.BoardMachine.visibleTo(member).map((n: Notice) => ({
+      notices: machines.BoardMachine.visibleTo(member).map((n) => ({
         id: n.id,
         author: n.authorName,
         title: n.title,
