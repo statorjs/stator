@@ -34,6 +34,8 @@ describe('cors()', () => {
       new Request('http://localhost/', { headers: { Origin: 'https://evil.com' } }),
     )
     assert.equal(res.headers.get('access-control-allow-origin'), null)
+    // Still Vary: Origin, so a cache can't serve this answer to an allowed origin.
+    assert.ok(res.headers.get('vary')?.includes('Origin'))
   })
 
   it('answers a preflight OPTIONS with 204 + advertised methods', async () => {

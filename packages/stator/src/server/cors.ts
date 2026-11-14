@@ -31,9 +31,11 @@ export function cors(opts: CorsOptions = {}): MiddlewareHandler {
     const credentials = opts.credentials ?? ctx.cors?.credentials ?? false
     const reqOrigin = c.req.header('origin')
 
+    // The response depends on Origin whether or not this one matched, so a
+    // cache must never serve one origin's answer to another.
+    c.header('Vary', 'Origin', { append: true })
     if (reqOrigin && matchOrigin(reqOrigin, origins)) {
       c.header('Access-Control-Allow-Origin', reqOrigin)
-      c.header('Vary', 'Origin')
       if (credentials) c.header('Access-Control-Allow-Credentials', 'true')
     }
 
