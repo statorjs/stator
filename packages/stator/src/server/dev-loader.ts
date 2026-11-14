@@ -40,6 +40,10 @@ import { sourceId } from '../build/source-id.ts'
 import { CompileError, compile, formatCompileError, regionResolverFor } from '../compiler/index.ts'
 
 const TS = /\.(?:ts|tsx|mts|cts)$/
+/** The transform runs on the Node that executes its output, so it lowers
+ *  nothing: an older target strips syntax this runtime supports, such as the
+ *  import attribute a JSON import needs. */
+const TARGET = `node${process.versions.node}`
 const STATOR = /\.stator$/
 /** Extensions whose app-local imports carry the build version. */
 const VERSIONED = /\.(?:stator|ts|tsx|mts|cts|js|mjs)$/
@@ -106,7 +110,7 @@ export function devLoaderHooks({ appDir, versions = new Map() }: DevLoaderOption
       const { code } = transformSync(result.serverCode, {
         loader: 'ts',
         format: 'esm',
-        target: 'node20',
+        target: TARGET,
         sourcemap: 'inline',
         sourcefile: path,
       })
@@ -117,7 +121,7 @@ export function devLoaderHooks({ appDir, versions = new Map() }: DevLoaderOption
       const { code } = transformSync(readFileSync(path, 'utf8'), {
         loader: path.endsWith('x') ? 'tsx' : 'ts',
         format: 'esm',
-        target: 'node20',
+        target: TARGET,
         sourcemap: 'inline',
         sourcefile: path,
       })
