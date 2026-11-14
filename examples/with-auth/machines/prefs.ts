@@ -2,7 +2,7 @@ import { defineMachine } from '@statorjs/stator/machine'
 import AuthMachine from './auth.ts'
 
 /**
- * Per-USER durable state — TEACHING MOMENT #4. Stator has session and app
+ * Per-USER durable state — TEACHING MOMENT #8. Stator has session and app
  * lifecycles; "user" isn't one. The pattern: an app
  * machine holding userId-keyed slices. It survives logout and follows the
  * user to any browser, because the key is the user, not the session.
@@ -25,7 +25,7 @@ export default defineMachine({
     ready: {
       on: {
         TOGGLE: {
-          when: (_ctx, ev) => ev.userId !== '',
+          when: (_ctx, ev) => ev.userId !== '' && typeof ev.noticeId === 'string',
           do: (ctx, ev) => {
             const list = ctx.watches[ev.userId] ?? []
             const has = list.includes(ev.noticeId)

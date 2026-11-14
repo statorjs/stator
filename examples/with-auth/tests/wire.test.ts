@@ -18,8 +18,9 @@ let app: import('@statorjs/stator/dev').DevApp
 
 before(async () => {
   const { createDevApp } = await import('@statorjs/stator/dev')
-  const { seedHarbormaster } = await import('../lib/seed.ts')
-  seedHarbormaster()
+  // app.fetch never starts boot.ts (listen does), so run it here as start would.
+  const boot = (await import('../boot.ts')).default
+  await boot.run({} as Parameters<typeof boot.run>[0])
   app = await createDevApp({
     root: resolve(here, '..'),
     machinesDir: resolve(here, '../machines'),
@@ -332,5 +333,72 @@ describe('the JSON board — /api/notices', () => {
     assert.ok(visitorTitles.includes('API public notice'))
     assert.ok(!visitorTitles.includes('API members notice'))
     assert.ok(!(JSON.stringify(asVisitor)).includes('Slip 3'))
+  })
+})
+
+describe('the harbormaster', () => {
+  it('signs in with the README credentials and can pin a notice, live', async () => {
+    const anon = sidOf(await app.fetch(new Request('http://test/')))!
+    const harbor = sidOf(
+      await postForm('/auth/login', anon, { email: 'harbormaster@quay.test', password: 'let-me-in' }),
+    )!
+    assert.ok(harbor, 'the seeded login must succeed and rotate the session')
+    await postForm('/notices/create', harbor, { title: 'Dredging Tuesday', body: 'Berths 1-4.' })
+
+    const home = await (
+      await app.fetch(new Request('http://test/', { headers: { Cookie: `stator_sid=${harbor}` } }))
+    ).text()
+    assert.ok(home.includes('pin/unpin'))
+
+    const api = (await (
+      await app.fetch(new Request('http://test/api/notices', { headers: { Cookie: `stator_sid=${harbor}` } }))
+    ).json()) as { notices: Array<{ id: string; title: string }> }
+    const id = api.notices.find((n) => n.title === 'Dredging Tuesday')!.id
+
+    const res = await postEvent(harbor, 'AuthMachine', { type: 'MODERATE', noticeId: id, action: 'pin' })
+    const body = (await res.json()) as { committed: boolean; patches: Array<{ name?: string }> }
+    assert.equal(body.committed, true)
+    assert.ok(
+      body.patches.some((p) => p.name === 'data-pinned'),
+      `pinning patches the kept row's border: ${JSON.stringify(body.patches)}`,
+    )
+  })
+})
+
+describe('watches check what arrives', () => {
+  it('a WATCH whose noticeId is not a string is not committed, and the profile still renders', async () => {
+    const anon = sidOf(await app.fetch(new Request('http://test/')))!
+    const member = sidOf(
+      await postForm('/auth/register', anon, {
+        email: 'odd@quay.test',
+        name: 'Odd',
+        password: 'password-123',
+      }),
+    )!
+    const res = await postEvent(member, 'AuthMachine', { type: 'WATCH', noticeId: { $gt: '' } })
+    assert.equal(((await res.json()) as { committed: boolean }).committed, false)
+
+    const profile = await app.fetch(
+      new Request('http://test/profile', { headers: { Cookie: `stator_sid=${member}` } }),
+    )
+    assert.equal(profile.status, 200)
+  })
+})
+
+describe('an expired session posting a profile form', () => {
+  it('is sent to sign in without a returnTo for the POST-only route', async () => {
+    const res = await app.fetch(
+      new Request('http://test/profile/name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ name: 'x' }),
+      }),
+    )
+    assert.equal(res.status, 302)
+    assert.equal(res.headers.get('location'), '/login')
+    assert.equal(
+      res.headers.getSetCookie().some((c) => c.startsWith('returnTo=')),
+      false,
+    )
   })
 })

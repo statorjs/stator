@@ -27,10 +27,11 @@ export default defineMiddleware([
     const s = stator(c)
     const path = new URL(c.req.url).pathname
 
-    // The members' area. Anonymous → stash where they were headed and bounce
-    // to the sign-in page; the login route redirects back here afterward.
-    if (path.startsWith('/profile') && !s.claims()) {
-      s.cookies.set('returnTo', path, { httpOnly: true, path: '/', maxAge: 300 })
+    // The members' area. Anonymous → bounce to the sign-in page. A page
+    // request stashes where it was headed, and the login route redirects back
+    // there afterward; a form post (`/profile/name`) has no page to return to.
+    if ((path === '/profile' || path.startsWith('/profile/')) && !s.claims()) {
+      if (c.req.method === 'GET') s.cookies.set('returnTo', path, { httpOnly: true, path: '/', maxAge: 300 })
       return c.redirect('/login')
     }
 

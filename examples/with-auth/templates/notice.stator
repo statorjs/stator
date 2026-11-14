@@ -8,10 +8,12 @@ const { notice, board, auth } = Stator.props<{
   board: InstanceOf<typeof BoardMachine>
   auth: InstanceOf<typeof AuthMachine>
 }>()
+// Title and body never change after posting, so they render once. Pinning
+// does change, so it is read from the board: a kept row is not re-rendered.
 ---
-<li data-pinned={notice.pinned ? '' : undefined}>
+<li data-pinned={read(board, (b) => b.all.find((n) => n.id === notice.id)?.pinned ?? false)}>
   <div class="head">
-    <strong>{read(board, (b) => b.all.find((n) => n.id === notice.id)?.title ?? '')}</strong>
+    <strong>{notice.title}</strong>
     {when(read(board, (b) => b.all.find((n) => n.id === notice.id)?.pinned ?? false), () => (
       <span class="pin">⚓ pinned</span>
     ))}
@@ -19,7 +21,7 @@ const { notice, board, auth } = Stator.props<{
       <span class="members">members</span>
     ))}
   </div>
-  <p class="body">{read(board, (b) => b.all.find((n) => n.id === notice.id)?.body ?? '')}</p>
+  <p class="body">{notice.body}</p>
   <div class="meta">
     <span>— {notice.authorName}</span>
     {when(read(auth, (a) => a.isAuthenticated), () => (
