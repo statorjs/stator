@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
+import { closeSessionConnections } from './sse.ts'
 import type { Store } from './store.ts'
 
 export const SESSION_COOKIE = 'stator_sid'
@@ -187,6 +188,7 @@ export async function rotateSessionNow(
     }
     await store.persistence.renameSession(sessionId, newSessionId)
   }
+  closeSessionConnections(sessionId)
   setSessionCookie(c, newSessionId)
   const session = getSessionState(c)
   if (session) {

@@ -113,6 +113,20 @@ export function broadcastEnvelope(payload: unknown): void {
   }
 }
 
+/**
+ * Hang up every live connection opened under `sessionId`. A rotated or
+ * cleared session's connections would otherwise keep receiving its page's
+ * updates under the old identity; each browser reconnects with its new cookie
+ * and is authorised afresh.
+ */
+export function closeSessionConnections(sessionId: string): void {
+  for (const conn of [...connections.values()]) {
+    if (conn.sessionId !== sessionId) continue
+    unregisterConnection(conn.id)
+    conn.close?.()
+  }
+}
+
 export function unregisterConnection(id: string): void {
   const conn = connections.get(id)
   if (!conn) return

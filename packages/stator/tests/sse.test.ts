@@ -717,6 +717,35 @@ describe('SSE: connection hygiene', () => {
     await waitFor(() => assert.equal(activeConnectionCount(), before))
   })
 
+  for (const route of ['/rotate', '/rotate-clear']) {
+    it(`hangs up a session's live connections when ${route} replaces it`, async () => {
+      const app = await boot()
+      const before = activeConnectionCount()
+      const cookie = await cookieFor(app, '/board')
+      const mine = await openSse(app, 'GET /board', cookie, 'page-1')
+      const other = await openSse(app, 'GET /board', await cookieFor(app, '/board'), 'page-2')
+      try {
+        await mine.readUntil((t) => t.includes(': open'))
+        await other.readUntil((t) => t.includes(': open'))
+        const res = await app.fetch(
+          new Request(`http://localhost${route}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
+            body: new URLSearchParams(),
+          }),
+        )
+        await res.text()
+        await waitFor(() => assert.equal(mine.ended, true))
+        await waitFor(() => assert.equal(activeConnectionCount(), before + 1))
+        assert.equal(other.ended, false)
+      } finally {
+        mine.close()
+        other.close()
+      }
+      await waitFor(() => assert.equal(activeConnectionCount(), before))
+    })
+  }
+
   it('unregisters a client that disconnects during the connect-time render', async () => {
     const app = await boot()
     const before = activeConnectionCount()
