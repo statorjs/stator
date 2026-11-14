@@ -96,6 +96,12 @@ The gate isn't authorization. It's the same for every visitor, and guards still 
 
 Before an `/__events` or `/__sse` request touches a page, Stator runs your `middleware.ts` as if the browser had navigated to that page. A guard on `/members` therefore also turns away that page's events and stream. If your guard admits by HTTP method, note that it sees a `GET`. See [Middleware & security](/guides/middleware/).
 
+## Production defaults
+
+- **`NODE_ENV` is set per command** when nothing else sets it: `production` for `stator build` and `stator start`, `development` for `dev`, `test` for `test`. A `stator start` with no `NODE_ENV` used to run with development logging and send the session cookie without `Secure`. A plain-HTTP deploy that relied on that sets `STATOR_SECURE_COOKIE=0`.
+- **`stator dev` binds `127.0.0.1`**, since it serves the inspector, which shows every app machine's state. To reach it from another device, pass `--host 0.0.0.0` or set `host` in `stator.config.ts`.
+- **Session ids must be ones the server issued.** A `stator_sid` cookie that isn't UUID-shaped is ignored and the visitor gets a fresh session. Tests that hand-craft a cookie should take it from a response's `Set-Cookie`, or use `crypto.randomUUID()`.
+
 ## Smaller changes
 
 - **`routes/404.stator` answers 404** without setting the status. A not-found page that relied on starting at 200 can still set `Stator.response.status`.

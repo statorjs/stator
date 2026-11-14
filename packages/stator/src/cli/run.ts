@@ -7,6 +7,8 @@ export interface CliContext {
   root: string
   /** `--port` flag, if given. Final port resolves flag > $PORT > config > 3000. */
   portFlag?: number
+  /** `--host` flag, if given: the bind address for dev/start, over `config.host`. */
+  hostFlag?: string
   /** Extra positionals after the command (e.g. test file globs). */
   rest: string[]
   /** `--previous` flag, if given: `build` diffs machine hashes against this
@@ -35,10 +37,16 @@ Commands:
 Options:
   --root <dir>        App root (default: current directory)
   --port <n>          Listen port for dev/start (default: $PORT or 3000)
+  --host <addr>       Bind address for dev/start (dev default: 127.0.0.1;
+                      start default: every interface). 0.0.0.0 opens dev to the network
   --previous <path>   build: the last deployed stator-manifest.json, to report which
                       machines' sessions this build resets (default: dist/'s own)
   --routes <dir>      check, build:lib: routes the contract check walks from (default: <dir>/routes)
   -h, --help          Show this help
+
+Environment:
+  NODE_ENV defaults to development for dev, test for test, and production for
+  build, build:lib and start. A value already set (shell, platform, .env) wins.
 `
 
 const { values, positionals } = parseArgs({
@@ -47,6 +55,7 @@ const { values, positionals } = parseArgs({
   options: {
     root: { type: 'string' },
     port: { type: 'string' },
+    host: { type: 'string' },
     previous: { type: 'string' },
     routes: { type: 'string' },
     help: { type: 'boolean', short: 'h' },
@@ -68,6 +77,7 @@ if (!COMMANDS.includes(command)) {
 const ctx: CliContext = {
   root: resolve(String(values.root ?? process.cwd())),
   portFlag: values.port != null ? Number(values.port) : undefined,
+  ...(values.host != null ? { hostFlag: String(values.host) } : {}),
   rest: positionals.slice(1),
   ...(values.previous != null ? { previousManifest: String(values.previous) } : {}),
   ...(values.routes != null ? { routesDir: String(values.routes) } : {}),
@@ -78,6 +88,11 @@ const ctx: CliContext = {
 // load it again for the direct-`server.ts` path; idempotent.
 const { loadDotenv } = await import('../server/env.ts')
 loadDotenv(ctx.root)
+
+// After .env, so a NODE_ENV there wins; before the command loads, so the
+// framework and the app's own modules see it from the start.
+const { applyNodeEnv } = await import('./node-env.ts')
+applyNodeEnv(command)
 
 // Dynamic import per command so `check` never loads the dev server's watcher, etc.
 const { run } = (await import(`./commands/${command.replace(':', '-')}.ts`)) as {

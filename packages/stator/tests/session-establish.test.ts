@@ -35,9 +35,21 @@ describe('establish-once session', () => {
   })
 
   it('reads an existing cookie without re-issuing', () => {
-    const c = fakeContext('stator_sid=abc-123')
-    assert.deepStrictEqual(getOrCreateSessionId(c), { sessionId: 'abc-123', isNew: false })
+    const sid = '6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b'
+    const c = fakeContext(`stator_sid=${sid}`)
+    assert.deepStrictEqual(getOrCreateSessionId(c), { sessionId: sid, isNew: false })
     assert.equal(c.setCookies.length, 0)
+  })
+
+  it('issues a fresh id for a cookie the server could not have issued', () => {
+    for (const chosen of ['chosen-by-the-client', '@anonymous', '@app', 'x'.repeat(36)]) {
+      const c = fakeContext(`stator_sid=${chosen}`)
+      const { sessionId, isNew } = getOrCreateSessionId(c)
+      assert.equal(isNew, true, chosen)
+      assert.notEqual(sessionId, chosen)
+      assert.match(sessionId, /^[0-9a-f-]{36}$/)
+      assert.equal(c.setCookies.length, 1)
+    }
   })
 })
 

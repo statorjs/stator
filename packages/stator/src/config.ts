@@ -22,8 +22,9 @@ export type LogLevel = 'silent' | 'fatal' | 'error' | 'warn' | 'info' | 'debug' 
 export interface StatorConfig {
   /** Listen port for `dev`/`start`. Precedence: `--port` flag > `$PORT` > this > 3000. */
   port?: number
-  /** Listen host / bind address. Default: all interfaces. Containers behind a
-   *  proxy typically need `0.0.0.0`. */
+  /** Listen host / bind address. `stator start` defaults to every interface;
+   *  `stator dev` defaults to `127.0.0.1`, since it serves the inspector.
+   *  Set `0.0.0.0` (or pass `--host`) to reach dev from another device. */
   host?: string
   /** Canonical app URL (`https://example.com`) — for absolute-URL generation
    *  (redirects, SSE reconnect, OG tags) and as a spoof-proof same-origin

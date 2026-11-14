@@ -628,11 +628,13 @@ export async function createNativeDevApp(config: DevAppConfig): Promise<NativeDe
       return findFreePort(port).then(
         (freePort) =>
           new Promise((resolveFn) => {
-            server.listen(freePort, async () => {
+            const host = resolved.host ?? '127.0.0.1'
+            server.listen(freePort, host, async () => {
               // `listen(0)` asks the OS for a port; report the one it gave.
               const bound = (server.address() as AddressInfo).port
               printDevBanner({
                 port: bound,
+                host,
                 requestedPort: port,
                 machines: machineCount,
                 routes: routes.length,

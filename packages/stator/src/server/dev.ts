@@ -23,6 +23,9 @@ export interface DevAppConfig {
   }
   /** The app directory (must reach node_modules for resolution). */
   root: string
+  /** Bind address for `listen()`. Default `127.0.0.1`: the dev server serves
+   *  the inspector, so it is reachable from this machine only unless set. */
+  host?: string
   machinesDir: string
   routesDir: string
   staticDir?: string

@@ -46,6 +46,34 @@ describe('close()', () => {
   })
 })
 
+describe('listen()', () => {
+  const boundAddress = (): string | undefined => {
+    const servers = (process as unknown as { _getActiveHandles(): object[] })
+      ._getActiveHandles()
+      .filter((h) => h.constructor.name === 'Server') as unknown as {
+      address(): { address: string } | null
+    }[]
+    return servers.map((s) => s.address()?.address).find(Boolean)
+  }
+
+  for (const [host, expected] of [
+    [undefined, '127.0.0.1'],
+    ['0.0.0.0', '0.0.0.0'],
+  ] as const) {
+    it(`binds ${expected} when host is ${host ?? 'not set'}`, async () => {
+      const app = await boot(host ? { host } : {})
+      const out = mock.method(process.stdout, 'write', () => true)
+      try {
+        await app.listen(0)
+        assert.equal(boundAddress(), expected)
+      } finally {
+        out.mock.restore()
+        await app.close()
+      }
+    })
+  }
+})
+
 describe('the native dev app in-process', () => {
   let app: DevApp | undefined
   after(async () => {
