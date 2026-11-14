@@ -28,6 +28,8 @@ function lanAddress(): string | undefined {
 
 export function printDevBanner(info: {
   port: number
+  /** The bind address. A loopback address is reachable from this machine only. */
+  host?: string
   /** The port originally asked for, when the server had to shift off it. */
   requestedPort?: number
   machines: number
@@ -35,7 +37,8 @@ export function printDevBanner(info: {
   inspector?: boolean
 }): void {
   const v = statorVersion()
-  const lan = lanAddress()
+  const loopback = info.host === undefined || /^(127\.|::1$|localhost$)/.test(info.host)
+  const lan = loopback ? undefined : lanAddress()
   const shifted =
     info.requestedPort !== undefined && info.requestedPort !== info.port
       ? [`  ${c.dim(`port ${info.requestedPort} was busy — using ${info.port}`)}`]
@@ -46,6 +49,7 @@ export function printDevBanner(info: {
     '',
     `  ${c.dim('local')}    ${c.cyan(`http://localhost:${info.port}/`)}`,
     ...(lan ? [`  ${c.dim('network')}  ${c.cyan(`http://${lan}:${info.port}/`)}`] : []),
+    ...(loopback ? [`  ${c.dim('network')}  ${c.dim('off — pass --host 0.0.0.0 to expose')}`] : []),
     '',
     `  ${c.dim(
       `${info.machines} machine${info.machines === 1 ? '' : 's'} · ${info.routes} route${

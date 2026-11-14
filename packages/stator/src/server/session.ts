@@ -72,16 +72,18 @@ export function peekSessionId(c: Context): string | null {
   return getSessionState(c)?.sid ?? cookieSessionId(c) ?? null
 }
 
+/** The shape of an id the server issues (`randomUUID()`). */
+const ISSUED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
 /**
  * The session id the request's cookie presents, or undefined when it presents
- * none the server could have issued. Ids beginning `@` name the framework's
- * own scopes (`@anonymous`, `@app`); a client that claims one would share its
- * lock and its storage key, so the cookie is treated as absent.
+ * none the server could have issued. Anything else (an id a client chose, or
+ * one naming the framework's own scopes, `@anonymous` and `@app`) is treated
+ * as no cookie, so the visitor is issued a fresh id instead.
  */
 function cookieSessionId(c: Context): string | undefined {
   const sid = getCookie(c, SESSION_COOKIE)
-  if (!sid || sid.startsWith('@') || sid.length > 256) return undefined
-  return sid
+  return sid && ISSUED_ID.test(sid) ? sid : undefined
 }
 
 /** Resume an EXISTING session from the arriving cookie (populate the shared

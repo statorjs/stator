@@ -34,8 +34,13 @@ All commands discover `machines/`, `routes/`, `templates/`, `static/` by convent
 
 - **`--root <dir>`** — app root. Default: the current directory.
 - **`--port <n>`** — listen port for `dev`/`start`. Precedence: `--port` > `$PORT` > `stator.config.ts` `port` > 3000.
+- **`--host <addr>`** — bind address for `dev`/`start`, over `stator.config.ts` `host`. `stator dev` binds `127.0.0.1` by default, since it serves the inspector; `--host 0.0.0.0` reaches it from a phone on your network. `stator start` binds every interface by default.
 - **`--routes <dir>`** — `check`, `build:lib`: the routes the contract check walks from. Default: `<dir>/routes`, or the root's `routes/`.
 - **`-h`, `--help`** — usage.
+
+## `NODE_ENV`
+
+Each command sets `NODE_ENV` when nothing else has: `development` for `dev`, `test` for `test`, and `production` for `build`, `build:lib` and `start`. `check` leaves it unset. A value from the shell, your platform or a `.env` file always wins. Stator reads it for log format and level, the `Secure` session-cookie flag and the persistence warnings, and your app's own code sees the same value.
 
 ## Stopping
 

@@ -25,7 +25,7 @@ Every field is optional and grouped by concern. `.env` / `.env.local` are loaded
 ```ts
 interface StatorConfig {
   port?: number       // dev/start listen port. Precedence: --port flag > $PORT > this > 3000
-  host?: string       // bind address. Default: all interfaces (containers often want 0.0.0.0)
+  host?: string       // bind address. start: all interfaces; dev: 127.0.0.1. --host overrides
   origin?: string     // canonical app URL (https://example.com) — absolute-URL generation + same-origin anchor
   secret?: string     // signing key for signed cookies. Falls back to STATOR_SECRET
 

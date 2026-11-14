@@ -83,6 +83,13 @@ export async function run(ctx: CliContext): Promise<void> {
     )
   }
 
+  if (process.env.NODE_ENV !== 'production') {
+    process.stderr.write(
+      `stator start: NODE_ENV is "${process.env.NODE_ENV}", not production — session cookies ` +
+        `are sent without Secure unless STATOR_SECURE_COOKIE=1, and production warnings are off\n`,
+    )
+  }
+
   const config = await loadConfig(dist)
   const app = await createApp({
     machinesDir: resolve(dist, 'machines'),
@@ -94,7 +101,7 @@ export async function run(ctx: CliContext): Promise<void> {
     images: config.images,
     trustedOrigins: config.trustedOrigins,
     origin: config.origin,
-    host: config.host,
+    host: ctx.hostFlag ?? config.host,
     secret: config.secret,
     cors: config.cors,
     logging: config.logging,

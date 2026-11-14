@@ -81,14 +81,14 @@ describe('audit #7: a raw Response keeps what the context gathered', () => {
     const raw = await app.fetch(
       new Request('http://localhost/login?raw=1', {
         method: 'POST',
-        headers: { Cookie: 'stator_sid=old-session-id' },
+        headers: { Cookie: 'stator_sid=0b9e4c1a-7d2f-4a6b-9e8c-1f2a3b4c5d6e' },
       }),
     )
     assert.equal(raw.status, 303)
     assert.equal(raw.headers.get('location'), '/')
     const cookie = raw.headers.get('set-cookie') ?? ''
     assert.match(cookie, /^stator_sid=/)
-    assert.ok(!cookie.startsWith('stator_sid=old-session-id'))
+    assert.ok(!cookie.startsWith('stator_sid=0b9e4c1a-7d2f-4a6b-9e8c-1f2a3b4c5d6e'))
   })
 })
 

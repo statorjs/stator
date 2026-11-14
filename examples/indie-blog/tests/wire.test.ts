@@ -37,39 +37,42 @@ after(async () => {
 
 const base = `http://localhost:${PORT}`
 
+// A request that establishes a session and rotates it sends two stator_sid
+// cookies; the last one is the live session, as in a browser.
 function sidOf(res: Response): string | null {
-  return res.headers.get('set-cookie')?.match(/stator_sid=([^;]+)/)?.[1] ?? null
+  const ids = [...(res.headers.get('set-cookie') ?? '').matchAll(/stator_sid=([^;,\s]+)/g)]
+  return ids.at(-1)?.[1] ?? null
 }
 
-async function postForm(path: string, sid: string, fields: Record<string, string>) {
+const cookie = (sid: string | null): Record<string, string> => (sid ? { Cookie: `stator_sid=${sid}` } : {})
+
+async function postForm(path: string, sid: string | null, fields: Record<string, string>) {
   return fetch(`${base}${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      Cookie: `stator_sid=${sid}`,
+      ...cookie(sid),
     },
     body: new URLSearchParams(fields),
     redirect: 'manual',
   })
 }
 
-async function postEvent(sid: string, machine: string, event: object) {
+async function postEvent(sid: string | null, machine: string, event: object) {
   const res = await fetch(`${base}/__events`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-Stator-Route': 'GET /admin',
-      Cookie: `stator_sid=${sid}`,
+      ...cookie(sid),
     },
     body: JSON.stringify({ machine, event }),
   })
   return (await res.json()) as { committed: boolean }
 }
 
-async function page(path: string, sid?: string): Promise<string> {
-  const res = await fetch(`${base}${path}`, {
-    headers: sid ? { Cookie: `stator_sid=${sid}` } : {},
-  })
+async function page(path: string, sid?: string | null): Promise<string> {
+  const res = await fetch(`${base}${path}`, { headers: cookie(sid ?? null) })
   return res.text()
 }
 
@@ -83,10 +86,11 @@ async function until(check: () => Promise<boolean>, ms = 4000): Promise<boolean>
 }
 
 describe('the indie-blog loop', () => {
-  let sid: string
+  // The front page establishes no session, so this starts as null.
+  let sid: string | null
 
   before(async () => {
-    sid = sidOf(await fetch(`${base}/`))!
+    sid = sidOf(await fetch(`${base}/`))
   })
 
   it('serves the empty front page with feed + webmention advertisement', async () => {

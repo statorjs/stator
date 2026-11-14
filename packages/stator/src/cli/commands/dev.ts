@@ -21,6 +21,7 @@ export async function run(ctx: CliContext): Promise<void> {
     images: config.images,
     trustedOrigins: config.trustedOrigins,
     origin: config.origin,
+    host: ctx.hostFlag ?? config.host,
     cors: config.cors,
     secret: config.secret,
     logging: config.logging,

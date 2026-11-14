@@ -53,7 +53,7 @@ describe('cookie jar', () => {
   it('get() reads the inbound request cookie', async () => {
     const app = await boot()
     // Send an existing session so only app cookies are new, plus pref=dark.
-    const res = await post(app, 'stator_sid=fixed-sid; pref=dark')
+    const res = await post(app, 'stator_sid=5a4b3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d; pref=dark')
     const jar = setCookies(res)
     assert.equal(
       jar.some((c) => c.startsWith('echoed=dark')),
