@@ -30,8 +30,16 @@ const selected = wanted.length > 0 ? wanted : templates
 const pnpmVersion = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8')).packageManager
 
 const work = mkdtempSync(join(tmpdir(), 'stator-starters-'))
+// A step that outlives this is hung (a handle left open), not slow.
+const STEP_TIMEOUT_MS = 5 * 60_000
 const run = (cmd, args, opts = {}) =>
-  spawnSync(cmd, args, { encoding: 'utf8', shell: process.platform === 'win32', ...opts })
+  spawnSync(cmd, args, {
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+    timeout: STEP_TIMEOUT_MS,
+    killSignal: 'SIGKILL',
+    ...opts,
+  })
 const tail = (r) => `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split('\n').slice(-12).join('\n')
 
 const packed = run('pnpm', ['pack', '--pack-destination', work], {
@@ -81,8 +89,12 @@ for (const template of selected) {
   const steps = []
   const step = (name, r) => {
     const ok = r.status === 0
-    steps.push(`${name} ${ok ? 'ok' : 'FAILED'}`)
-    if (!ok) failures.push(`${template}: ${name}\n${tail(r)}`)
+    const hung = r.error?.code === 'ETIMEDOUT'
+    steps.push(`${name} ${ok ? 'ok' : hung ? 'HUNG' : 'FAILED'}`)
+    if (!ok) {
+      const why = hung ? ` did not exit within ${STEP_TIMEOUT_MS / 60_000} minutes` : ''
+      failures.push(`${template}: ${name}${why}\n${tail(r)}`)
+    }
     return ok
   }
 
