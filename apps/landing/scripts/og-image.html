@@ -1,0 +1,113 @@
+<!doctype html>
+<!-- Source of static/og-image.png. Render with `pnpm og`. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @font-face {
+        font-family: "Space Grotesk Variable";
+        src: url("../static/fonts/space-grotesk-latin-wght-normal.woff2") format("woff2");
+        font-weight: 300 700;
+      }
+      @font-face {
+        font-family: "JetBrains Mono Variable";
+        src: url("../static/fonts/jetbrains-mono-latin-wght-normal.woff2") format("woff2");
+        font-weight: 100 800;
+      }
+      :root {
+        --yellow: #ffd60a;
+        --ink: #141414;
+        --paper: #f6f6f3;
+        --pink: #ff4fa3;
+        --violet: #6b3bf5;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        width: 1200px;
+        height: 630px;
+        padding: 56px 64px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        background: var(--yellow);
+        color: var(--ink);
+        font-family: "Space Grotesk Variable", sans-serif;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-size: 34px;
+        font-weight: 700;
+      }
+      .brand svg {
+        width: 46px;
+        height: 46px;
+      }
+      h1 {
+        font-size: 104px;
+        font-weight: 700;
+        line-height: 0.98;
+        letter-spacing: -0.035em;
+      }
+      .trip {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        font-family: "JetBrains Mono Variable", monospace;
+        font-size: 22px;
+        font-weight: 700;
+      }
+      .card {
+        padding: 14px 20px;
+        border: 4px solid var(--ink);
+        border-radius: 10px;
+        box-shadow: 6px 6px 0 var(--ink);
+        background: var(--paper);
+      }
+      .card--pink {
+        background: var(--pink);
+      }
+      .card--server {
+        background: var(--ink);
+        color: var(--paper);
+        box-shadow: 6px 6px 0 var(--paper);
+      }
+      .card--violet {
+        background: var(--violet);
+        color: var(--paper);
+      }
+      .url {
+        margin-left: auto;
+        font-size: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="brand">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="11.6" fill="none" stroke="currentColor" stroke-width="3.8" />
+        <g fill="currentColor">
+          <rect x="14.3" y="6" width="3.4" height="3.7" rx="0.5" />
+          <rect x="14.3" y="6" width="3.4" height="3.7" rx="0.5" transform="rotate(60 16 16)" />
+          <rect x="14.3" y="6" width="3.4" height="3.7" rx="0.5" transform="rotate(120 16 16)" />
+          <rect x="14.3" y="6" width="3.4" height="3.7" rx="0.5" transform="rotate(180 16 16)" />
+          <rect x="14.3" y="6" width="3.4" height="3.7" rx="0.5" transform="rotate(240 16 16)" />
+          <rect x="14.3" y="6" width="3.4" height="3.7" rx="0.5" transform="rotate(300 16 16)" />
+          <circle cx="16" cy="16" r="3.1" />
+        </g>
+      </svg>
+      Stator
+    </div>
+    <h1>Render HTML where<br />your state lives.</h1>
+    <div class="trip">
+      <span class="card card--pink">event →</span>
+      <span class="card card--server">CartMachine</span>
+      <span class="card card--violet">← patch</span>
+      <span class="url">statorjs.dev</span>
+    </div>
+  </body>
+</html>

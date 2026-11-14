@@ -39,20 +39,13 @@ That writes `.changeset/<name>.md`. Changesets accumulate on `main`; the version
 
    The extension is `private: true`, so `changeset publish` skips it — but changesets still versioned it and wrote its changelog. The only manual part is the marketplace push, exactly mirroring the npm OTP step.
 
-4. **Update the landing page** (`apps/landing/index.html`) — it is plain HTML with no build step, so these are hand-maintained and nothing bumps them for you. **Six** strings, and `grep -n '2\.8' apps/landing/index.html` (the *outgoing* version) is the way to find them all — some are bare `X.Y`, so a `X.Y.Z` pattern silently misses them:
+4. **Redeploy the landing page** (`apps/landing`), for a stable release. It is a Stator app that builds against the workspace's `@statorjs/stator`, and it carries no version strings, so there is nothing to hand-edit: a deploy picks up the released framework. Check its copy and code samples against the release first; they describe the framework, and nothing updates them for you. From the repo root:
 
-   | where | shape |
-   | --- | --- |
-   | nav | `REV X.Y` |
-   | hero spec | `DOC-002 · vX.Y · released` |
-   | hero prose | `released software, now at X.Y` |
-   | §6 intro | `what's shipped as of X.Y` |
-   | footer | `STATOR · vX.Y.Z` |
-   | footer | `REV. YYYY.MM` |
+   ```sh
+   fly deploy --config apps/landing/fly.toml --dockerfile apps/landing/Dockerfile
+   ```
 
-   Leave the `(X.Y)` tags inside the `/// SHIPPED` list alone — that list is a per-release ledger, newest first, and those tags are history. Add a new entry at its top for the minor's headline.
-
-   Do this **after** publishing, not before: `netlify.toml` auto-deploys the landing page on every push to `main`, so a bump that merges ahead of `pnpm release` puts a version on the site that isn't on npm yet.
+   Do this **after** publishing, not before, so the site never describes a version that isn't on npm yet. See [`apps/landing/README.md`](apps/landing/README.md).
 
 ## Preview releases (`next`)
 
@@ -77,7 +70,7 @@ When it's ready:
 pnpm changeset pre exit           # commit the pre.json change
 ```
 
-The next Version PR then produces the final `X.Y.0`, with a changelog covering **every** changeset consumed across the previews. That is also when you write the root `CHANGELOG.md` story and update the landing page — once, for the real release, not per preview.
+The next Version PR then produces the final `X.Y.0`, with a changelog covering **every** changeset consumed across the previews. That is also when you write the root `CHANGELOG.md` story and redeploy the landing page — once, for the real release, not per preview.
 
 Notes:
 

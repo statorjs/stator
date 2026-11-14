@@ -1,0 +1,55 @@
+<site-mark>
+  <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">
+    <circle cx="16" cy="16" r="11.6" fill="none" stroke="currentColor" stroke-width="3.8" />
+    <g fill="currentColor">
+      <rect x="14.3" y="6" width="3.4" height="3.7" rx="0.5" />
+      <rect x="14.3" y="6" width="3.4" height="3.7" rx="0.5" transform="rotate(60 16 16)" />
+      <rect x="14.3" y="6" width="3.4" height="3.7" rx="0.5" transform="rotate(120 16 16)" />
+      <rect x="14.3" y="6" width="3.4" height="3.7" rx="0.5" transform="rotate(180 16 16)" />
+      <rect x="14.3" y="6" width="3.4" height="3.7" rx="0.5" transform="rotate(240 16 16)" />
+      <rect x="14.3" y="6" width="3.4" height="3.7" rx="0.5" transform="rotate(300 16 16)" />
+      <g class="rotor" style={read(mark, (m) => m.rotation)}>
+        <circle cx="16" cy="16" r="3.1" />
+        <rect x="15.2" y="11.8" width="1.6" height="1.4" rx="0.3" />
+      </g>
+    </g>
+  </svg>
+</site-mark>
+
+<script>
+  // The ring holds still; the rotor turns one pole per event the hero demo sends.
+  const Mark = machine(
+    { poles: 0 },
+    {
+      on: { TURN: (s) => { s.poles += 1 } },
+      select: { rotation: (s) => `transform: rotate(${s.poles * 60}deg)` },
+    },
+  )
+
+  export class SiteMark extends StatorElement {
+    mark = use(Mark)
+
+    connectedCallback() {
+      super.connectedCallback()
+      const turn = () => this.mark.send('TURN')
+      window.addEventListener('stator-demo:event', turn)
+      this.track(() => window.removeEventListener('stator-demo:event', turn))
+    }
+  }
+</script>
+
+<style>
+  site-mark {
+    display: inline-flex;
+  }
+  .rotor {
+    transform-box: view-box;
+    transform-origin: 16px 16px;
+    transition: transform 0.6s ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rotor {
+      transition: none;
+    }
+  }
+</style>

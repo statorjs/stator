@@ -1,0 +1,67 @@
+---
+import SiteMark from './site-mark.stator'
+import ThemeToggle from './theme-toggle.stator'
+
+const { title, description } = Stator.props<{ title: string; description: string }>()
+const ORIGIN = 'https://statorjs.dev'
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={`${ORIGIN}/`} />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={`${ORIGIN}/`} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={`${ORIGIN}/static/og-image.png`} />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script src="/static/theme.js"></script>
+    <link
+      rel="preload"
+      href="/static/fonts/space-grotesk-latin-wght-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin="anonymous"
+    />
+    <link rel="stylesheet" href="/static/site.css" />
+  </head>
+  <body>
+    <div class="field">
+      <header class="wrap site-header">
+        <a href="/" class="brand">
+          <SiteMark />
+          Stator
+        </a>
+        <nav class="site-nav" aria-label="Site">
+          <a href="https://docs.statorjs.dev">Docs</a>
+          <a href="https://demo.statorjs.dev">Demo</a>
+          <a class="btn btn--tertiary press" href="https://github.com/statorjs/stator">GitHub</a>
+          <ThemeToggle />
+        </nav>
+      </header>
+      <children name="hero" />
+    </div>
+    <main>
+      <children />
+    </main>
+    <footer class="field site-footer">
+      <div class="wrap">
+        <div class="footer-cta">
+          <h2 class="h1">Build something with it.</h2>
+          <div class="actions">
+            <a class="btn btn--primary btn--lg press" href="https://docs.statorjs.dev">Start the tutorial</a>
+            <a class="btn btn--tertiary btn--lg press" href="https://github.com/statorjs/stator">Read the source</a>
+          </div>
+        </div>
+        <p class="footer-note">Stator. MIT licensed.</p>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,369 @@
+<round-trip>
+  <p class="caption">
+    <strong>One round trip, in three panes. Press something.</strong> This is also what the dev toolbar shows you.
+  </p>
+
+  <div class="panes">
+    <section class="pane pane--browser" aria-label="Browser">
+      <header>
+        <span class="chip chip--pink">BROWSER</span>
+        <span class="cart">Cart ({read(cart, (c) => c.count, 0)})</span>
+      </header>
+
+      <div class="view" hidden={read(cart, (c) => c.state !== 'idle', false)}>
+        <div class="row">
+          <div class="product"><strong>Pocket Notebook</strong><span>$12.00</span></div>
+          <button class="btn btn--secondary press" type="button" data-id="p1" on:click={add}>
+            {read(cart, (c) => c.labelP1, 'Add to cart')}
+          </button>
+        </div>
+        <div class="row">
+          <div class="product"><strong>Fountain Pen</strong><span>$28.00</span></div>
+          <button class="btn btn--secondary press" type="button" data-id="p2" on:click={add}>
+            {read(cart, (c) => c.labelP2, 'Add to cart')}
+          </button>
+        </div>
+        <div class="row">
+          <div class="product"><strong>Sticky Notes</strong><span>$8.50</span></div>
+          <button class="btn btn--secondary press" type="button" data-id="p3" on:click={add}>
+            {read(cart, (c) => c.labelP3, 'Add to cart')}
+          </button>
+        </div>
+        <button class="btn btn--invert btn--block press" type="button" on:click={checkout}>Checkout</button>
+      </div>
+
+      <div class="view" hidden={read(cart, (c) => c.state === 'idle', true)}>
+        <div class="row row--stack">
+          <h3 class="h3">Checking out {read(cart, (c) => c.count, 0)} items</h3>
+          <p class="muted">The product list is gone from the page. One patch swapped this branch in.</p>
+          <button class="btn btn--tertiary press" type="button" on:click={back}>Back to cart</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane pane--wire" aria-label="Wire">
+      <header><span class="chip chip--card">WIRE</span></header>
+      <p class="quiet" ref:quiet>Quiet. Try Checkout with an empty cart first.</p>
+      <div class="log" ref:log aria-live="polite"></div>
+    </section>
+
+    <section class="pane pane--server" aria-label="Server">
+      <header>
+        <span class="chip chip--violet">SERVER</span>
+        <span class="machine-name">CartMachine</span>
+      </header>
+      <div class="field-group">
+        <span class="label">state</span>
+        <span class="badge">{read(cart, (c) => c.state, 'idle')}</span>
+      </div>
+      <div class="field-group">
+        <span class="label">context.items</span>
+        <pre class="mono">{read(cart, (c) => c.itemsText, '[]')}</pre>
+      </div>
+      <div class="field-group">
+        <span class="label">last transition</span>
+        <span class="mono">{read(trip, (t) => t.last, 'none yet')}</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="counters">
+    <span class="counter">{read(trip, (t) => t.sent, 0)} events sent</span>
+    <span class="counter">{read(trip, (t) => t.bytes, 0)} bytes of patches</span>
+  </div>
+  <p class="note">
+    On this page the machine runs in your browser, so the page can sit on a CDN. In your app it runs on the
+    server, and these are the events and patches that would cross the wire.
+  </p>
+</round-trip>
+
+<script>
+  import { type CartEvents, type ProductId } from '../lib/cart-rules.ts'
+  import Cart from '../lib/demo-cart.ts'
+
+  const PRODUCTS: ProductId[] = ['p1', 'p2', 'p3']
+  const MAX_SLIPS = 3
+
+  // What the wire and server panes report about the last event.
+  const Trip = machine(
+    { last: 'none yet', sent: 0, bytes: 0 },
+    {
+      events: {} as { type: 'RECORD'; last: string; bytes: number },
+      on: {
+        RECORD: (s, e) => {
+          s.last = e.last
+          s.sent += 1
+          s.bytes += e.bytes
+        },
+      },
+    },
+  )
+
+  type View = { state: string; count: number; labels: Record<ProductId, string> }
+  type Patch = { target: { kind: 'slot'; id: string }; op: 'text' | 'html'; value: string }
+
+  export class RoundTrip extends StatorElement {
+    // The machine an app would register on the server, run in the browser.
+    cart = use(Cart)
+    trip = use(Trip)
+
+
+    add(e: Event) {
+      const id = (e.currentTarget as HTMLElement).dataset.id as ProductId
+      this.run({ type: 'ADD', productId: id })
+    }
+
+    checkout() {
+      this.run({ type: 'CHECKOUT' })
+    }
+
+    back() {
+      this.run({ type: 'BACK' })
+    }
+
+    run(event: CartEvents) {
+      const before = this.view()
+      this.cart.send(event)
+      const after = this.view()
+      const patches = patchesBetween(before, after)
+
+      let last = `${event.type}: stayed ${after.state}, action ran`
+      if (patches.length === 0) last = `${event.type}: blocked by its guard`
+      else if (before.state !== after.state) last = `${event.type}: ${before.state} to ${after.state}`
+
+      this.trip.send({
+        type: 'RECORD',
+        last,
+        bytes: patches.length ? JSON.stringify({ patches }).length : 0,
+      })
+      this.addSlip(event, patches)
+      window.dispatchEvent(new CustomEvent('stator-demo:event'))
+    }
+
+    view(): View {
+      return {
+        state: this.cart.state,
+        count: this.cart.count,
+        labels: { p1: this.cart.labelP1, p2: this.cart.labelP2, p3: this.cart.labelP3 },
+      }
+    }
+
+    addSlip(event: CartEvents, patches: Patch[]) {
+      const { log, quiet } = this.refs
+      if (!log) return
+      if (quiet) quiet.hidden = true
+
+      const slip = el('div', 'slip')
+      slip.append(line('event →', pretty({ machine: 'CartMachine', event }), 'slip-line'))
+      for (const patch of patches) {
+        slip.append(line('← patch', pretty(patch), 'slip-line slip-line--patch'))
+      }
+      if (patches.length === 0) {
+        slip.append(line('← nothing', 'the guard said no, so there is nothing to patch', 'slip-line slip-line--blocked'))
+      }
+      log.prepend(slip)
+      while (log.children.length > MAX_SLIPS) log.lastElementChild?.remove()
+    }
+  }
+
+  function patchesBetween(before: View, after: View): Patch[] {
+    const patches: Patch[] = []
+    if (before.state !== after.state) {
+      const value = after.state === 'idle' ? '<ul>…product rows…</ul>' : '<section>…checkout…</section>'
+      patches.push({ target: { kind: 'slot', id: 's1' }, op: 'html', value })
+      return patches
+    }
+    if (before.count !== after.count) {
+      patches.push({ target: { kind: 'slot', id: 's0' }, op: 'text', value: String(after.count) })
+    }
+    for (const id of PRODUCTS) {
+      if (before.labels[id] !== after.labels[id]) {
+        patches.push({ target: { kind: 'slot', id: `s1:k${id}:s0` }, op: 'text', value: after.labels[id] })
+      }
+    }
+    return patches
+  }
+
+  // One line per top-level key, so a slip wraps at keys and not mid-string.
+  function pretty(value: Record<string, unknown>) {
+    const inline = (v: unknown) =>
+      JSON.stringify(v, null, 1).replace(/\n\s*/g, ' ').replace(/([[{]) | (?=[\]}])/g, '$1')
+    const entries = Object.entries(value)
+    const rows = entries.map(
+      ([key, v], i) => `${JSON.stringify(key)}: ${inline(v)}${i < entries.length - 1 ? ',' : ''}`,
+    )
+    return ['{', ...rows, '}']
+  }
+
+  function el(tag: string, className: string, text?: string) {
+    const node = document.createElement(tag)
+    node.className = className
+    if (text !== undefined) node.textContent = text
+    return node
+  }
+
+  function line(tag: string, body: string | string[], className: string) {
+    const row = el('div', className)
+    const content = el('span', 'slip-body')
+    if (typeof body === 'string') content.textContent = body
+    else content.append(...body.map((text, i) => el('span', i > 0 && i < body.length - 1 ? 'slip-key' : '', text)))
+    row.append(el('span', 'slip-tag', tag), content)
+    return row
+  }
+</script>
+
+<style>
+  round-trip {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+  .caption {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 500;
+  }
+  .panes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+  }
+  .pane {
+    flex: 1 1 300px;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: var(--card);
+    border: 4px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 8px 8px 0 var(--line);
+  }
+  @media (min-width: 720px) {
+    .pane {
+      min-height: 480px;
+    }
+  }
+  .pane--wire {
+    flex: 1.2 1 340px;
+    background: var(--surface);
+  }
+  .pane--server {
+    background: var(--server-bg);
+    color: var(--server-fg);
+    border-color: var(--server-line);
+    box-shadow: 8px 8px 0 var(--server-shadow);
+    gap: 18px;
+  }
+  .pane--server .chip {
+    border-color: var(--server-fg);
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .cart {
+    font-weight: 700;
+  }
+  .machine-name,
+  .mono {
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .machine-name,
+  .label {
+    opacity: 0.8;
+  }
+  .view {
+    display: flex;
+    flex-direction: column;
+  }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 0;
+    border-top: 2px solid var(--line);
+  }
+  .row--stack {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .row .btn {
+    min-width: 124px;
+  }
+  .product {
+    display: flex;
+    flex-direction: column;
+  }
+  .product span,
+  .muted {
+    font-size: 15px;
+    color: var(--text-2);
+  }
+  .muted {
+    margin: 0;
+  }
+  .quiet {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 14px;
+  }
+  .log {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .label {
+    font-size: 15px;
+  }
+  pre {
+    margin: 0;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .badge {
+    padding: 6px 14px;
+    background: var(--yellow);
+    color: var(--ink);
+    border: 3px solid var(--server-fg);
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .counters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .counter {
+    padding: 8px 14px;
+    background: var(--card);
+    border: 3px solid var(--line);
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .note {
+    margin: 0;
+    max-width: 46em;
+    font-size: 16px;
+    font-weight: 500;
+  }
+</style>

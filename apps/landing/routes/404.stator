@@ -1,0 +1,16 @@
+---
+import Layout from '../templates/layout.stator'
+---
+<Layout title="Not found · Stator" description="That page does not exist.">
+  <div child="hero">
+    <section class="wrap hero">
+      <h1 class="display">Nothing here.</h1>
+      <div class="hero-side">
+        <p class="lede">That address does not match a page on this site.</p>
+        <div class="actions">
+          <a class="btn btn--primary press" href="/">Back to the home page</a>
+        </div>
+      </div>
+    </section>
+  </div>
+</Layout>
