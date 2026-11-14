@@ -49,3 +49,22 @@ describe('checkout over the wire', () => {
     assert.equal(res.status, 403)
   })
 })
+
+describe('the admin view', () => {
+  it('serves in development and is a 404 in production', async () => {
+    const dev = await app.fetch(new Request('http://test/admin'))
+    assert.equal(dev.status, 200)
+    await dev.text()
+
+    const was = process.env.NODE_ENV
+    process.env.NODE_ENV = 'production'
+    try {
+      const prod = await app.fetch(new Request('http://test/admin'))
+      assert.equal(prod.status, 404)
+      await prod.text()
+    } finally {
+      if (was === undefined) delete process.env.NODE_ENV
+      else process.env.NODE_ENV = was
+    }
+  })
+})

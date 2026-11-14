@@ -98,6 +98,14 @@ describe('the auth arc', () => {
     assert.ok((await res.text()).includes('bad-credentials'))
   })
 
+  it('refuses an account after five wrong passwords, before checking the sixth', async () => {
+    const anon = sidOf(await app.fetch(new Request('http://test/')))!
+    const attempt = async () =>
+      (await postForm('/auth/login', anon, { email: 'locked@quay.test', password: 'nope' })).text()
+    for (let i = 0; i < 5; i++) assert.ok((await attempt()).includes('bad-credentials'))
+    assert.ok((await attempt()).includes('too-many-attempts'))
+  })
+
   it('posting stamps identity from context; forged events grant nothing', async () => {
     const anon = sidOf(await app.fetch(new Request('http://test/')))!
     const authed = sidOf(

@@ -34,7 +34,7 @@ The numbers match the `TEACHING MOMENT` comments in the code.
 
 ## In production you'd add
 
-Rate limiting on login attempts — the ~25–50ms of scrypt is a per-request cost, not a throttle (an attacker just uses a fresh session per guess), so pair it with real per-IP + per-account limits. A durable "remember me" token if you want logins to outlive the session TTL (store hashed tokens per user; re-authenticate on a fresh session; revoke server-side), password reset via your mailer, and HTTPS (the session cookie is `Secure` under NODE_ENV=production).
+Shared, per-IP rate limiting on login. `lib/login-throttle.ts` refuses an account after five wrong passwords in 15 minutes, before scrypt runs, but it lives in one process's memory and can't see addresses; limit per IP at your proxy. A durable "remember me" token if you want logins to outlive the session TTL (store hashed tokens per user; re-authenticate on a fresh session; revoke server-side), password reset via your mailer, and HTTPS (`stator start` sends the session cookie `Secure`).
 
 ## CSRF posture
 

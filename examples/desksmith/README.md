@@ -16,7 +16,7 @@ pnpm start      # serve the production build
 - `machines/products.ts` is an **app** machine: one catalog, the same for every visitor.
 - `machines/cart.ts` is a **session** machine: each visitor's own cart, kept on the server, so it survives a reload.
 - `machines/checkout.ts` has real states (`shipping`, `payment`, `placing`, `complete`) and an **effect**: the card charge in `lib/payments.ts` runs after the transition commits and reports back with an event. Those completion events are listed `serverOnly`, so a browser can't send them; `tests/wire.test.ts` shows the 403. `SET_FIELD` checks that the field belongs to the current step, because the event arrives as JSON from the browser.
-- `machines/admin.ts` is an app machine fed by the cart's **emits**, and `routes/admin.stator` is a **live** page: it updates over SSE as carts change in other sessions. Open it in a second window while you shop in the first.
+- `machines/admin.ts` is an app machine fed by the cart's **emits**, and `routes/admin.stator` is a **live** page: it updates over SSE as carts change in other sessions. Open it in a second window while you shop in the first. It has no sign-in, so `middleware.ts` answers 404 for it in production.
 - `templates/theme-toggle.stator` is the one **client island**: a theme switch whose state belongs in the browser.
 
 Try it: add items, check out with card `4242`, and watch the events and patches in the inspector at the bottom of the page. A card ending `0000` is declined.
