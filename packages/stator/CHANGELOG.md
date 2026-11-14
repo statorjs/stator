@@ -1,5 +1,19 @@
 # @statorjs/stator
 
+## 3.0.0-next.9
+
+### Patch Changes
+
+- 59c71da: Passing an item read to a component, as in `<RowSeats seats={read(row, (r) => r.seats)} />`, is a compile error in `stator dev`, `stator check` and `stator build`, naming the component and the prop. It used to render the attribute as `"[object Object]"` with no live binding. A hand-written template that passes one to an island fails at render with the same advice: pass a machine read, which an island takes as a live attribute, or render the field inline in the row.
+- 59c71da: A row a keyed `each()` inserts after the page rendered keeps its item reads live. When the list first rendered with no rows carrying a `read(row, …)` (an empty list, typically), rows added later rendered correctly but their item reads were never tracked, so an edit to one of them never reached the page until it was reloaded.
+- edbff51: An app that uses an island from a package builds again under pnpm. `stator build` and `stator dev` failed with `island "<package>/…" missing from the bundle output` for any package installed as a symlink into a store, which is how pnpm installs every package.
+
+  The walk that finds the islands a route reaches resolved a package through its `exports` map and kept the path as written, under `node_modules/<name>`. The bundler names the same file by its real path in the store, so the bundle's output was never matched back to the island. Since 3.0.0-next.4; before that the walk resolved through `require`, which returns real paths. The walk returns real paths again, and the bundler matches its entries by real path however they were given.
+
+- b08a1cb: A server template's `on:dblclick` is delivered. The page runtime never listened for it, so the binding rendered and then did nothing.
+
+  A server template binds `on:click`, `on:dblclick`, `on:submit`, `on:change` and `on:input`. Binding any other event is now a render error that names those five, where it used to render an attribute nothing would ever read. A client island's `on:` is unchanged and takes any DOM event.
+
 ## 3.0.0-next.8
 
 ### Minor Changes
