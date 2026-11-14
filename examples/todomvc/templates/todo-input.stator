@@ -1,25 +1,21 @@
 <todo-input>
-  <input
-    class="new-todo"
-    placeholder="What needs doing?"
-    autofocus
-    ref:draft
-    on:keydown={maybeSubmit}
-  />
+  <form on:submit={add}>
+    <input class="new-todo" name="title" placeholder="What needs doing?" required maxlength="200" autofocus />
+  </form>
 </todo-input>
 
 <script>
   import TodosMachine from '../machines/todos.ts'
 
   // The doctrine, in one file: the INPUT owns the draft — every keystroke
-  // stays client-side with zero machinery, and the platform (maxlength,
-  // required, …) is the draft's guard. Enter commits one typed dispatch.
-  // Only a COMMITTED add clears the field — a guard-dropped or failed
-  // dispatch keeps your typing. That clear is the safe writeback moment.
+  // stays client-side with zero machinery, and the platform (`required`,
+  // `maxlength`) is the draft's guard. Submitting the form commits one typed
+  // dispatch. Only a COMMITTED add clears the field — a guard-dropped or
+  // failed dispatch keeps your typing. That clear is the safe writeback moment.
   export class TodoInput extends StatorElement {
-    async maybeSubmit(e: KeyboardEvent) {
-      if (e.key !== 'Enter') return
-      const input = e.currentTarget as HTMLInputElement
+    async add(e: SubmitEvent) {
+      e.preventDefault()
+      const input = (e.currentTarget as HTMLFormElement).elements.namedItem('title') as HTMLInputElement
       const title = input.value.trim()
       if (!title) return
       const result = await dispatch(TodosMachine, { type: 'ADD', title })

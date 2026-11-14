@@ -1,24 +1,8 @@
 ---
 import type { InstanceOf } from '@statorjs/stator/template'
 import type CartMachine from '../machines/cart.ts'
-import type ProductsMachine from '../machines/products.ts'
-import CartLine from './cart-line.stator'
 
-type CartItem = { productId: string; quantity: number; unitPrice: number }
-type Product = {
-  id: string
-  name: string
-  description: string
-  price: number
-  category: 'stationery' | 'office' | 'lifestyle'
-  initials: string
-}
-
-const { cart, products } = Stator.props<{
-  cart: InstanceOf<typeof CartMachine>
-  products: InstanceOf<typeof ProductsMachine>
-}>()
-const byId = products.byId as unknown as (id: string) => Product | undefined
+const { cart } = Stator.props<{ cart: InstanceOf<typeof CartMachine> }>()
 ---
 <section>
   <header>
@@ -36,18 +20,31 @@ const byId = products.byId as unknown as (id: string) => Product | undefined
     </div>
   )}
 
+  {/* Keyed rows: a quantity change patches that row's quantity and total.
+      Item reads only work inline in their each, so the row lives here. */}
   <ul>
-    {each(read(cart, c => c.items as CartItem[]), (item, idx) => {
-      const product = byId(item.productId)
-      return <CartLine
-        item={item}
-        idx={idx}
-        cart={cart}
-        name={product?.name ?? item.productId}
-        cat={product?.category ?? 'stationery'}
-        initials={product?.initials ?? '··'}
-      />
-    })}
+    {each(
+      read(cart, c => c.lines),
+      (line) => (
+        <li>
+          <div class={`thumb product-thumb--${line.category}`}>
+            <span class="product-thumb-initials">{line.initials}</span>
+          </div>
+          <div class="info">
+            <span class="name">{line.name}</span>
+            <span class="unit">${line.unitPrice.toFixed(2)} each</span>
+          </div>
+          <div class="qty">
+            <button on:click={() => cart.send({ type: 'DECREMENT', productId: line.productId })}>−</button>
+            <span>{read(line, l => l.quantity)}</span>
+            <button on:click={() => cart.send({ type: 'INCREMENT', productId: line.productId })}>+</button>
+          </div>
+          <div class="total">${read(line, l => l.lineTotal.toFixed(2))}</div>
+          <button on:click={() => cart.send({ type: 'REMOVE_ITEM', productId: line.productId })} title="Remove">×</button>
+        </li>
+      ),
+      { key: (line) => line.productId },
+    )}
   </ul>
 
   {when(read(cart, c => !c.isEmpty), () =>
@@ -106,6 +103,92 @@ const byId = products.byId as unknown as (id: string) => Product | undefined
     list-style: none;
     padding: 0;
     margin: 0;
+  }
+  li {
+    display: grid;
+    grid-template-columns: 64px 1fr auto auto auto;
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  li:last-child {
+    border-bottom: none;
+  }
+  .thumb {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Georgia", "Times New Roman", serif;
+    font-weight: 500;
+    font-size: 0.95rem;
+    letter-spacing: 0.06em;
+  }
+  .info {
+    display: flex;
+    flex-direction: column;
+  }
+  .name {
+    font-weight: 500;
+  }
+  .unit {
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .qty {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.15rem;
+  }
+  .qty button {
+    border: none;
+    background: transparent;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    font-size: 1rem;
+    line-height: 1;
+    color: var(--muted);
+    border-radius: 4px;
+  }
+  .qty button:hover {
+    background: var(--surface);
+    color: var(--text);
+  }
+  .qty span {
+    min-width: 2ch;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+  .total {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 70px;
+    text-align: right;
+  }
+  /* the remove ✕ — the only direct-child button of the row */
+  li > button {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--muted-2);
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+  li > button:hover {
+    background: #f2e9e9;
+    color: #b85b5b;
   }
   footer {
     display: flex;

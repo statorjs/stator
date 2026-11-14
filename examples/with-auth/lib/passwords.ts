@@ -4,9 +4,9 @@ import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
  * scrypt via node:crypto — no dependency. Deliberately SYNCHRONOUS so it can
  * run inside a machine guard (guards are sync by contract; that's what makes
  * "authenticate in the guard" possible). The trade-off: each derivation blocks
- * the event loop for ~25–50ms. That is NOT a brute-force defense — an attacker
- * uses a fresh cookieless session per guess, so it throttles nothing globally;
- * a production login needs real rate limiting (per-IP + per-account) on top.
+ * the event loop for ~25–50ms. That is NOT a brute-force defense on its own:
+ * `lib/login-throttle.ts` caps wrong guesses per account, and a production
+ * login also limits per IP at the proxy.
  */
 
 export function hashPassword(plaintext: string): { salt: string; hash: string } {

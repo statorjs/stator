@@ -1,12 +1,8 @@
 ---
 import type { InstanceOf } from '@statorjs/stator/template'
-import type CartMachine from '../machines/cart.ts'
 import type CheckoutMachine from '../machines/checkout.ts'
 
-const { checkout } = Stator.props<{
-  checkout: InstanceOf<typeof CheckoutMachine>
-  cart: InstanceOf<typeof CartMachine>
-}>()
+const { checkout } = Stator.props<{ checkout: InstanceOf<typeof CheckoutMachine> }>()
 ---
 <section>
   <div class="demo-banner">

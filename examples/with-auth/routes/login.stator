@@ -16,6 +16,9 @@ const error = query.error
       {when(error === 'bad-credentials', () => (
         <p class="error">That email/password combination didn't check out.</p>
       ))}
+      {when(error === 'too-many-attempts', () => (
+        <p class="error">Too many wrong passwords for that email. Try again in 15 minutes.</p>
+      ))}
       {when(error === 'exists', () => (
         <p class="error">An account with that email already exists — sign in instead.</p>
       ))}

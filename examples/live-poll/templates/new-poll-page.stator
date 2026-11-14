@@ -1,8 +1,13 @@
+---
+const { missing } = Stator.props<{ missing: boolean }>()
+---
 <section>
   <header class="page-header">
     <h1>New poll</h1>
     <p class="page-lede">Two to six options. Plain text only.</p>
   </header>
+
+  {missing ? <p class="form-error" role="alert">A poll needs a question and at least two options.</p> : null}
 
   <form action="/new" method="POST" class="form" data-stator-enhance>
     <label class="field">

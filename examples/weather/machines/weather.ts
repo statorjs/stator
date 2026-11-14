@@ -1,20 +1,24 @@
 import { defineMachine } from '@statorjs/stator/machine'
 import { type Place, placeId } from '../lib/open-meteo.ts'
-import SettingsMachine, { DEFAULT_CLOCK, DEFAULT_UNITS, type Clock, type Units } from './settings.ts'
+import SearchMachine from './search.ts'
 
 /**
- * The DOMAIN machine: which places this session tracks, which is active, and
- * the mirrored display prefs. It owns no forecast data and no clock — data
- * lives in the shared `ForecastCache` (app lifecycle, one copy per process),
- * and refresh cadence lives on the CLIENT (`refresh-clock` island). What this
- * machine contributes to the refresh path is the EMIT: `REVALIDATE` (from the
- * app bar or the tick island) re-emits the session's places as
- * `REFRESH_REQUESTED`, which the cache subscribes to — the only road a client
- * has to an app machine, and the reason coordinates never come from the wire.
+ * The DOMAIN machine: which places this session tracks and which is active.
+ * It owns no forecast data and no clock — data lives in the shared
+ * `ForecastCache` (app lifecycle, one copy per process), and refresh cadence
+ * lives on the CLIENT (`refresh-clock` island). What this machine contributes
+ * to the refresh path is the EMIT: `REVALIDATE` (from the app bar or the tick
+ * island) re-emits the session's places as `REFRESH_REQUESTED`, which the
+ * cache subscribes to — the only road a client has to an app machine.
  *
- * Display state (tile VMs) lives in `PanelsMachine`, which reads BOTH this
- * machine and the cache — the read/write split that also keeps the machine
- * module graph acyclic.
+ * Coordinates never come from the wire. A browser picks a search result by
+ * its position (`SearchMachine`'s `PICK`); the place itself, with the
+ * coordinates the server will fetch, comes from the geocoder's results held
+ * in that machine and arrives here as `ADD_PLACE`, which is `serverOnly`.
+ *
+ * Display state (tile VMs) lives in `PanelsMachine`, which reads this
+ * machine, the settings and the cache — the read/write split that also keeps
+ * the machine module graph acyclic.
  */
 
 export interface SavedPlace extends Place {
@@ -29,11 +33,12 @@ export const DEFAULT_PLACES: SavedPlace[] = (
   ] as Place[]
 ).map((p) => ({ ...p, id: placeId(p) }))
 
+/** A session's list is bounded, so the cache it feeds is too. */
+export const MAX_PLACES = 12
+
 interface Ctx {
   places: SavedPlace[]
   activeId: string
-  units: Units
-  clock: Clock
 }
 
 type Events =
@@ -41,23 +46,15 @@ type Events =
   | { type: 'REMOVE_PLACE'; id: string }
   | { type: 'SET_ACTIVE'; id: string }
   | { type: 'REVALIDATE' }
-  | { type: 'SETTINGS_CHANGED'; units: Units; clock: Clock; sourceSessionId?: string }
-
-const mirrorSettings = (ctx: Ctx, ev: { units: Units; clock: Clock }): void => {
-  ctx.units = ev.units
-  ctx.clock = ev.clock
-}
 
 export default defineMachine({
   name: 'WeatherMachine',
   lifecycle: 'session',
   events: {} as Events,
-  // Mirror display prefs from the Settings machine so formatting selectors
-  // (on PanelsMachine, which reads us) re-render when units/clock change.
-  subscribes: [{ from: SettingsMachine, event: 'CHANGED', dispatch: 'SETTINGS_CHANGED' }],
+  // Only the subscription below delivers this; a browser may not send it.
+  serverOnly: ['ADD_PLACE'],
+  subscribes: [{ from: SearchMachine, event: 'PICKED', dispatch: 'ADD_PLACE' }],
   emits: {
-    // Announce an added location so the search box can clear itself.
-    PLACE_ADDED: { payload: () => ({}) },
     // Ask the shared cache for fresh data on this session's places. The cache
     // applies the policy (staleness guard) — emitting is always safe.
     REFRESH_REQUESTED: {
@@ -69,15 +66,12 @@ export default defineMachine({
   context: {
     places: DEFAULT_PLACES,
     activeId: DEFAULT_PLACES[0]!.id,
-    units: DEFAULT_UNITS,
-    clock: DEFAULT_CLOCK,
   } as Ctx,
   initial: 'ready',
   states: {
     ready: {
       on: {
         REVALIDATE: { emit: 'REFRESH_REQUESTED' },
-        SETTINGS_CHANGED: { do: mirrorSettings },
         SET_ACTIVE: {
           do: (ctx, ev) => {
             if (ctx.places.some((p) => p.id === ev.id)) ctx.activeId = ev.id
@@ -87,13 +81,14 @@ export default defineMachine({
           do: (ctx, ev) => {
             const id = placeId(ev.place)
             if (!ctx.places.some((p) => p.id === id)) {
+              if (ctx.places.length >= MAX_PLACES) return
               ctx.places.push({ ...ev.place, id })
             }
             ctx.activeId = id
           },
           // The refresh emit covers the newcomer: every other place is fresh,
           // so the cache's guard reduces this to exactly one fetch.
-          emit: ['PLACE_ADDED', 'REFRESH_REQUESTED'],
+          emit: 'REFRESH_REQUESTED',
         },
         REMOVE_PLACE: {
           do: (ctx, ev) => {
@@ -109,7 +104,5 @@ export default defineMachine({
     places: (ctx) => ctx.places,
     activeId: (ctx) => ctx.activeId,
     active: (ctx) => ctx.places.find((p) => p.id === ctx.activeId) ?? ctx.places[0] ?? null,
-    units: (ctx) => ctx.units,
-    clock: (ctx) => ctx.clock,
   },
 })

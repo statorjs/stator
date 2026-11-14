@@ -22,14 +22,15 @@ type Events =
   | { type: 'EDIT_CANCEL' }
   | { type: 'CLEAR_COMPLETED' }
 
-let nextId = 0
-
 export default defineMachine({
   name: 'TodosMachine',
   lifecycle: 'session',
   events: {} as Events,
   context: {
     todos: [] as Todo[],
+    /** The next todo's number. In the context, so it is saved and restored
+     *  with the list and an id is never issued twice. */
+    nextId: 0,
     /** The row currently in edit mode, or ''. Server state — that's what
      *  lets in-place editing work with zero client JavaScript. */
     editingId: '',
@@ -39,9 +40,11 @@ export default defineMachine({
     ready: {
       on: {
         ADD: {
-          when: (_ctx, ev) => ev.title.trim().length > 0,
+          // The type says `title` is a string; what arrives is JSON from a
+          // browser, so the guard checks.
+          when: (_ctx, ev) => typeof ev.title === 'string' && ev.title.trim().length > 0,
           do: (ctx, ev) => {
-            ctx.todos.push({ id: `t${nextId++}`, title: ev.title.trim(), done: false })
+            ctx.todos.push({ id: `t${ctx.nextId++}`, title: ev.title.trim().slice(0, 200), done: false })
           },
         },
         TOGGLE: {
@@ -71,7 +74,7 @@ export default defineMachine({
         },
         EDIT_SAVE: {
           do: (ctx, ev) => {
-            const title = ev.title.trim()
+            const title = String(ev.title ?? '').trim().slice(0, 200)
             const i = ctx.todos.findIndex((t) => t.id === ev.id)
             if (i !== -1) {
               // Saving an emptied title deletes the todo (TodoMVC convention).

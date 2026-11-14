@@ -2,7 +2,7 @@ import { defineMachine } from '@statorjs/stator/machine'
 
 export type Category = 'stationery' | 'office' | 'lifestyle'
 
-type Product = {
+export type Product = {
   id: string
   name: string
   price: number

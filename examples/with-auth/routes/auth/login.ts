@@ -1,5 +1,6 @@
 import { defineApiRoute, safeLocalPath } from '@statorjs/stator/server'
 import { findUserByEmail } from '../../lib/db.ts'
+import { clearFailures, isLocked, recordFailure } from '../../lib/login-throttle.ts'
 import AuthMachine from '../../machines/auth.ts'
 
 /**
@@ -17,6 +18,9 @@ export const POST = defineApiRoute({
   handler: async (request, { dispatch, rotateSession, setClaims, cookies }) => {
     const form = await request.formData()
     const email = String(form.get('email') ?? '')
+    if (isLocked(email)) {
+      return { directives: [{ type: 'navigate', to: '/login?error=too-many-attempts' }] }
+    }
     const { committed } = await dispatch(AuthMachine, {
       type: 'LOGIN',
       email,
@@ -24,11 +28,13 @@ export const POST = defineApiRoute({
     })
     if (!committed) {
       // Guard drop = wrong credentials. No rotation, no claims for a failure.
+      recordFailure(email)
       return { directives: [{ type: 'navigate', to: '/login?error=bad-credentials' }] }
     }
 
     // The claim is a PROJECTION of AuthMachine's truth, minted from the same DB
     // row the guard authenticated against — never from the client's event.
+    clearFailures(email)
     const user = findUserByEmail(email)
     if (user) setClaims({ userId: user.id, role: user.role })
     rotateSession()

@@ -1,8 +1,8 @@
 import { defineMachine } from '@statorjs/stator/machine'
 import { activeConnectionCount } from '@statorjs/stator/server'
-import CartMachine from './cart.ts'
+import CartMachine, { type CartItem } from './cart.ts'
 
-type CartItem = { productId: string; quantity: number; unitPrice: number }
+export type SessionRow = SessionCartSnapshot & { sid: string }
 
 type SessionCartSnapshot = {
   items: CartItem[]
@@ -15,6 +15,24 @@ type AdminContext = {
   // Denormalized per-session cart state. Keyed by sourceSessionId — the
   // framework injects this on cross-lifecycle dispatches automatically.
   sessions: Record<string, SessionCartSnapshot>
+  /** Process metrics, sampled when a cart last changed. */
+  metrics: RuntimeMetrics
+}
+
+type RuntimeMetrics = ReturnType<typeof sampleMetrics>
+
+/** Reads live process state, so it runs in actions, never in a selector. */
+function sampleMetrics() {
+  const m = process.memoryUsage()
+  const mb = (bytes: number) => +(bytes / 1024 / 1024).toFixed(2)
+  return {
+    heapUsedMB: mb(m.heapUsed),
+    heapTotalMB: mb(m.heapTotal),
+    rssMB: mb(m.rss),
+    externalMB: mb(m.external),
+    activeConnections: activeConnectionCount(),
+    uptimeSeconds: Math.round(process.uptime()),
+  }
 }
 
 type AdminEvents = {
@@ -32,10 +50,8 @@ export default defineMachine({
 
   subscribes: [
     // Every cart-mutating event delivers a fresh snapshot here, with
-    // sourceSessionId injected by the framework (cross-lifecycle). The
-    // four semantic events all dispatch to the same updater since admin
-    // denormalizes — but the schema-export view preserves each event's
-    // domain meaning on the source side.
+    // sourceSessionId injected by the framework (cross-lifecycle). All four
+    // dispatch to the same updater, which replaces the session's snapshot.
     {
       from: CartMachine,
       event: 'ITEM_ADDED',
@@ -58,7 +74,7 @@ export default defineMachine({
     },
   ],
 
-  context: { sessions: {} } as AdminContext,
+  context: { sessions: {}, metrics: sampleMetrics() } as AdminContext,
 
   initial: 'ready',
   states: {
@@ -78,6 +94,7 @@ export default defineMachine({
               lastUpdate: Date.now(),
             }
           }
+          ctx.metrics = sampleMetrics()
         },
       },
     },
@@ -85,7 +102,7 @@ export default defineMachine({
 
   selectors: {
     sessions: (ctx) => ctx.sessions,
-    sessionList: (ctx) =>
+    sessionList: (ctx): SessionRow[] =>
       Object.entries(ctx.sessions)
         .map(([sid, snap]) => ({ sid, ...snap }))
         .sort((a, b) => b.lastUpdate - a.lastUpdate),
@@ -121,23 +138,6 @@ export default defineMachine({
         .sort((a, b) => b.count - a.count)
     },
 
-    // DEBUG: intentionally non-pure — these selectors sample live process
-    // state every time they're read. Used by the admin dashboard for
-    // leak/connection visibility. Every recompute re-evaluates them, so
-    // the values refresh on every fan-out push. Not safe to use outside
-    // debug surfaces.
-    runtimeMetrics: () => {
-      const m = process.memoryUsage()
-      const mb = (bytes: number) => +(bytes / 1024 / 1024).toFixed(2)
-      return {
-        heapUsedMB: mb(m.heapUsed),
-        heapTotalMB: mb(m.heapTotal),
-        rssMB: mb(m.rss),
-        externalMB: mb(m.external),
-        arrayBuffersMB: mb(m.arrayBuffers),
-        activeConnections: activeConnectionCount(),
-        uptimeSeconds: Math.round(process.uptime()),
-      }
-    },
+    runtimeMetrics: (ctx) => ctx.metrics,
   },
 })
