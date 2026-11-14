@@ -18,12 +18,26 @@ import type { Store } from './store.ts'
  * rediss:// URL — ioredis handles TLS automatically when the scheme is
  * rediss://. Pass the URL directly or a fully-formed RedisOptions object.
  */
+/** A client that connects on its first command, so loading a config that
+ *  builds a store (as `stator build` does) opens no socket. */
+function connect(connection: string | RedisOptions): Redis {
+  return typeof connection === 'string'
+    ? new Redis(connection, { lazyConnect: true })
+    : new Redis({ lazyConnect: true, ...connection })
+}
+
+async function disconnect(client: Redis): Promise<void> {
+  // A client that never connected has nothing to tell the server.
+  if (client.status === 'wait') client.disconnect()
+  else await client.quit()
+}
+
 export class RedisStore implements Store {
   private client: Redis
   private keyPrefix: string
 
   constructor(connection: string | RedisOptions, keyPrefix = 'stator:session') {
-    this.client = typeof connection === 'string' ? new Redis(connection) : new Redis(connection)
+    this.client = connect(connection)
     this.keyPrefix = keyPrefix
   }
 
@@ -79,7 +93,7 @@ export class RedisStore implements Store {
 
   /** Close the connection. Call on graceful shutdown. */
   async close(): Promise<void> {
-    await this.client.quit()
+    await disconnect(this.client)
   }
 
   /** Underlying ioredis client, exposed for health checks / introspection. */
@@ -98,7 +112,7 @@ export class RedisAppStore implements AppStore {
   private keyPrefix: string
 
   constructor(connection: string | RedisOptions, keyPrefix = 'stator:app') {
-    this.client = typeof connection === 'string' ? new Redis(connection) : new Redis(connection)
+    this.client = connect(connection)
     this.keyPrefix = keyPrefix
   }
 
@@ -119,6 +133,6 @@ export class RedisAppStore implements AppStore {
 
   /** Close the connection. Call on graceful shutdown. */
   async close(): Promise<void> {
-    await this.client.quit()
+    await disconnect(this.client)
   }
 }
