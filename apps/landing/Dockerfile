@@ -10,6 +10,9 @@ FROM base AS deps
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY packages/stator/package.json ./packages/stator/
+# The CLI's bin target, so the install can link `stator` into node_modules/.bin;
+# the rest of the source arrives in the runtime stage.
+COPY packages/stator/src/cli/stator.js ./packages/stator/src/cli/
 COPY apps/landing/package.json ./apps/landing/
 
 RUN CI=true pnpm install --frozen-lockfile
