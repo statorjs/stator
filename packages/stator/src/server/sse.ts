@@ -71,13 +71,17 @@ export function registerConnection(init: ConnectionInit): Connection {
     draining: false,
   }
   // A page-load holds at most one channel per route, so an existing
-  // connection with the same (clientId, routeKey) is a corpse whose abort we
+  // connection with the same (sessionId, clientId, routeKey) is a corpse whose abort we
   // never observed — a half-open socket, or a reconnect that raced its own
   // teardown. Left registered it would pin a SessionRuntime forever and take
   // a slice of every fan-out. Evict it before the new one lands.
   if (init.clientId !== undefined) {
     for (const prior of connections.values()) {
-      if (prior.clientId === init.clientId && prior.routeKey === init.routeKey) {
+      if (
+        prior.clientId === init.clientId &&
+        prior.routeKey === init.routeKey &&
+        prior.sessionId === init.sessionId
+      ) {
         sseLog.debug(
           { id: prior.id, sid: prior.sessionId, route: prior.routeKey, replacedBy: id },
           'evicting superseded connection',
@@ -351,10 +355,13 @@ export async function fanOut(
     // backlog, the response would overtake what is still queued, and a
     // positional op applied out of order corrupts a list rather than merely
     // staling it — so the diff rides the queue and the response carries none.
+    // Matched within the dispatching session, so another visitor naming this
+    // page's client id cannot make it skip a diff.
     const isOriginator =
       source?.originClientId !== undefined &&
       conn.clientId !== undefined &&
-      conn.clientId === source.originClientId
+      conn.clientId === source.originClientId &&
+      conn.sessionId === source.sessionId
     if (isOriginator) {
       if (!hasBacklog(conn)) {
         skippedOriginator++

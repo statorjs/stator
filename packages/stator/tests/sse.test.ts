@@ -522,6 +522,25 @@ describe('SSE: fan-out unit behavior', () => {
     }
   })
 
+  it("another session naming this page's client id does not make it skip a diff", async () => {
+    const { bump, connect, value } = await appFixture()
+    const sent: string[] = []
+    const conn = await connect(async (d) => {
+      sent.push(d)
+    }, 'tab-a')
+    try {
+      bump()
+      await fanOut(new Set(['QueueMachine']), {
+        sessionId: 'someone-else',
+        originClientId: 'tab-a',
+      })
+      await waitFor(() => assert.equal(sent.length, 1))
+      assert.deepStrictEqual(sent.map(value), ['1'])
+    } finally {
+      unregisterConnection(conn.id)
+    }
+  })
+
   it("the originator's patches ride its queue when it has a backlog, and the response when it doesn't", async () => {
     const { bump, connect, value } = await appFixture()
     let release!: () => void
@@ -536,9 +555,15 @@ describe('SSE: fan-out unit behavior', () => {
     try {
       // Nothing queued: the originator is skipped, its POST response delivers.
       bump()
-      assert.deepStrictEqual(await fanOut(new Set(['QueueMachine']), { originClientId: 'tab-a' }), {
-        originatorQueued: false,
-      })
+      assert.deepStrictEqual(
+        await fanOut(new Set(['QueueMachine']), {
+          sessionId: 'sse-queue',
+          originClientId: 'tab-a',
+        }),
+        {
+          originatorQueued: false,
+        },
+      )
       assert.equal(hasBacklog(conn), false)
       // Someone else's fan-out puts a write in flight on its channel...
       bump()
@@ -546,9 +571,15 @@ describe('SSE: fan-out unit behavior', () => {
       assert.equal(hasBacklog(conn), true)
       // ...so its own diff must queue behind that, and the response carry none.
       bump()
-      assert.deepStrictEqual(await fanOut(new Set(['QueueMachine']), { originClientId: 'tab-a' }), {
-        originatorQueued: true,
-      })
+      assert.deepStrictEqual(
+        await fanOut(new Set(['QueueMachine']), {
+          sessionId: 'sse-queue',
+          originClientId: 'tab-a',
+        }),
+        {
+          originatorQueued: true,
+        },
+      )
       assert.equal(conn.queue.length, 1)
       release()
       await waitFor(() => assert.equal(sent.length, 2))
@@ -666,6 +697,22 @@ describe('SSE: connection hygiene', () => {
     } finally {
       first.close()
       second.close()
+    }
+    await waitFor(() => assert.equal(activeConnectionCount(), before))
+  })
+
+  it("does not evict another session's connection that shares a client id", async () => {
+    const app = await boot()
+    const before = activeConnectionCount()
+    const mine = await openSse(app, 'GET /board', await cookieFor(app, '/board'), 'page-1')
+    const theirs = await openSse(app, 'GET /board', await cookieFor(app, '/board'), 'page-1')
+    try {
+      await theirs.readUntil((t) => t.includes(': open'))
+      await waitFor(() => assert.equal(activeConnectionCount(), before + 2))
+      assert.equal(mine.ended, false)
+    } finally {
+      mine.close()
+      theirs.close()
     }
     await waitFor(() => assert.equal(activeConnectionCount(), before))
   })
