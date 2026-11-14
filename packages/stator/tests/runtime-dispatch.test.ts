@@ -66,6 +66,20 @@ describe('delegated dispatch (data-event-* → /__events)', () => {
     assert.equal(btn.hasAttribute('data-stator-pending'), false)
   })
 
+  it('delivers a double-click bound with on:dblclick', async () => {
+    document.body.innerHTML = `<label data-event-dblclick='${DESCRIPTOR}'>edit</label>`
+    init()
+    const spy = mock.fn(async () => Response.json({ patches: [] }))
+    stubGlobal('fetch', spy)
+
+    document.querySelector('label')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    await flush()
+
+    assert.equal(spy.mock.calls.length, 1)
+    const [, reqInit] = spy.mock.calls[0]!.arguments as unknown as [string, RequestInit]
+    assert.partialDeepStrictEqual(JSON.parse(reqInit.body as string), { machine: 'CartMachine' })
+  })
+
   it('keeps the pending attribute until the LAST concurrent dispatch settles', async () => {
     document.body.innerHTML = `<button data-event-click='${DESCRIPTOR}'>go</button>`
     init()
