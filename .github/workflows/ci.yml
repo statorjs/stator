@@ -37,6 +37,7 @@ jobs:
       - run: pnpm exec biome ci .
       - run: node scripts/check-ignore-list.mjs
       - run: node scripts/check-scaffold-range.mjs
+      - run: node scripts/check-components.mjs
       - run: pnpm typecheck
       - run: pnpm test
       # What `pnpm create stator` hands a new user, scaffolded and run outside
