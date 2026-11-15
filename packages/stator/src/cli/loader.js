@@ -11,6 +11,10 @@ import { fileURLToPath } from 'node:url'
 import { transformSync } from 'esbuild'
 
 const TS = /\.(?:ts|tsx|mts|cts)$/
+/** The transform runs on the Node that executes its output, so it lowers
+ *  nothing: an older target strips syntax this runtime supports, such as the
+ *  import attribute a JSON import needs. */
+const TARGET = `node${process.versions.node}`
 
 /** Tell Node a `.ts` URL is an ES module so it reaches the `load` hook instead
  *  of throwing ERR_UNKNOWN_FILE_EXTENSION. Imports carry explicit extensions
@@ -29,7 +33,7 @@ export function load(url, context, nextLoad) {
     const { code } = transformSync(readFileSync(path, 'utf8'), {
       loader: path.endsWith('x') ? 'tsx' : 'ts',
       format: 'esm',
-      target: 'node20',
+      target: TARGET,
       sourcemap: 'inline',
       sourcefile: path,
     })

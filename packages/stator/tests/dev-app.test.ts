@@ -74,6 +74,19 @@ describe('listen()', () => {
   }
 })
 
+describe('JSON imports', () => {
+  it('keeps a JSON import attribute through the dev loader', async () => {
+    const app = await boot()
+    try {
+      const res = await app.fetch(new Request('http://localhost/estimate?zip=90210'))
+      assert.equal(res.status, 200)
+      assert.deepStrictEqual(await res.json(), { zip: '90210', estimate: 215 })
+    } finally {
+      await app.close()
+    }
+  })
+})
+
 describe('path parameters', () => {
   it('a malformed percent-escape is a 404, not a 500', async () => {
     const app = await boot()
