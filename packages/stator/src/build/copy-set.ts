@@ -264,7 +264,7 @@ export async function resolveCopySet(opts: CopySetOptions): Promise<CopySet> {
       write: false,
       format: 'esm',
       platform: 'node',
-      target: 'node20',
+      target: 'node24',
       outdir: join(root, '.stator-copy-set'), // virtual — write: false
       logLevel: 'silent',
       plugins: [
