@@ -30,7 +30,10 @@ jobs:
               exit 0
               ;;
           esac
-          changed="$(git diff --name-only origin/${{ github.base_ref }}...HEAD)"
+          # Compiled components are rebuilt by `prepublishOnly`, so committing a
+          # rebuild changes nothing published.
+          changed="$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
+            | grep -vE '^packages/stator/src/components/[^/]+\.stator\.ts$' || true)"
           notes="$(cat .changeset/*.md 2>/dev/null | grep -v -e '^# ' || true)"
           fail=0
           check() { # $1 = path regex, $2 = package name
