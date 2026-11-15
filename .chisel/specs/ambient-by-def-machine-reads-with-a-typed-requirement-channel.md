@@ -65,6 +65,10 @@ Give the rendered fragment a phantom requirement parameter, `Fragment<R>`:
 - **Compiler static subset-check (earlier idea).** A separate build pass verifying each route's reads ⊇ its components' reads. Works, but enforcement lives outside the type system (not in-editor, not compositional). The requirement channel subsumes it and surfaces at the exact call site.
 - **Automatic prop-forwarding** (compiler drills a marked prop through intermediates). Hacky; the ambient channel removes the drilling entirely.
 
+## Field reports
+
+- **2026-11-15, IndiePub themes:** layouts can't use `Stator.reads`, so a theme layout can't show the signed-in owner an Admin link without every route passing the owner through as a prop. The minimal theme dropped the link instead. Ambient by-def reads would let the layout `read(OwnerMachine, …)` directly.
+
 ## Open Questions
 
 - **API surface / naming.** `read(Machine, sel)` reused via overload, or a distinct `use(Machine)` that returns the handle for multiple reads? Symmetry target is `read`/`dispatch` both by def.
