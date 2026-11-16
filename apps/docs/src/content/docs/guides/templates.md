@@ -18,6 +18,16 @@ Plain `{expr}` renders once and is auto-escaped. `read(machine, selector)` creat
 
 `read()` is only valid in **text** or as a **whole** attribute value. Mixing literal text with a `read()` in one attribute is a compile error — wrap the whole value in the selector instead.
 
+`Stator.*` markers (`Stator.request`, `Stator.props()`, …) only work in the [frontmatter](/concepts/the-stator-file/#the-frontmatter-fence). Using one in the template is a compile error, so read it into a const there:
+
+```astro
+---
+import SearchForm from '../templates/search-form.stator'
+const q = Stator.request.query.get('q') ?? ''
+---
+<SearchForm query={q} />
+```
+
 Attribute bindings understand **boolean semantics**: a selector returning `false`/`null`/`undefined` renders the attribute *absent* (and a change patches it away with `removeAttribute`); `true` renders it present-and-empty. That's how presence-toggled attributes work end to end:
 
 ```astro

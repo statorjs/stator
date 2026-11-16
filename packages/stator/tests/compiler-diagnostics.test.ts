@@ -118,3 +118,70 @@ describe('RCDATA placement gate', () => {
     )
   })
 })
+
+describe('compiler: Stator markers outside the frontmatter', () => {
+  const located = (src: string, kind: 'route' | 'component'): CompileError => {
+    try {
+      compile(src, { id: 'page.stator', kind })
+    } catch (e) {
+      assert.ok(e instanceof CompileError)
+      return e
+    }
+    throw new Error('expected compile to throw')
+  }
+
+  it('rejects Stator.request interpolated in route markup, located at the marker', () => {
+    const err = located(
+      `---
+const title = 'Search'
+---
+<h1>{title}</h1>
+<p>{Stator.request.query.get('q')}</p>`,
+      'route',
+    )
+    assert.match(
+      err.message,
+      /Stator\.request .*frontmatter.*Assign it to a const in the frontmatter/,
+    )
+    assert.equal(err.loc!.file, 'page.stator')
+    assert.equal(err.loc!.line, 5)
+    assert.equal(err.loc!.column, 5)
+    assert.ok(err.loc!.frame.includes("{Stator.request.query.get('q')}"))
+  })
+
+  it('rejects a marker in a route prop expression', () => {
+    const err = located(
+      `---
+import Form from '../templates/form.stator'
+---
+<Form query={Stator.request.query} />`,
+      'route',
+    )
+    assert.match(err.message, /Assign it to a const in the frontmatter/)
+    assert.equal(err.loc!.line, 4)
+    assert.equal(err.loc!.column, 14)
+  })
+
+  it('rejects a marker in a directive value', () => {
+    const err = located(`<button on:click={() => Stator.response}>x</button>`, 'route')
+    assert.match(err.message, /Stator\.response/)
+  })
+
+  it('rejects a route-only marker used only in component markup, with component guidance', () => {
+    const err = located(`<p>{Stator.request.url.pathname}</p>`, 'component')
+    assert.match(err.message, /only available in a route page.*pass the value down as a prop/)
+    assert.equal(err.loc!.line, 1)
+    assert.equal(err.loc!.column, 5)
+  })
+
+  it('does not flag "Stator." in text, string literals or other identifiers', () => {
+    const src = `---
+const stator = { request: 'x' }
+const label = 'Stator.request'
+---
+<p title="Stator.request">Read Stator.request in the frontmatter.</p>
+<p>{'Stator.response'} {\`Stator.reads\`} {label} {stator.request}</p>`
+    assert.doesNotThrow(() => compile(src, { id: 'page.stator', kind: 'route' }))
+    assert.doesNotThrow(() => compile(src, { id: 'comp.stator', kind: 'component' }))
+  })
+})
