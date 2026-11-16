@@ -1,5 +1,14 @@
 # @statorjs/stator
 
+## 3.0.2
+
+### Patch Changes
+
+- a8cb8b9: Templates type the microdata attributes (`itemscope`, `itemtype`, `itemprop`, `itemid`, `itemref`) and the remaining HTML global attributes (`inert`, `translate`, `spellcheck`, `contenteditable`, `enterkeyhint`, `inputmode`, `autocapitalize`, `autocorrect`, `autofocus`, `accesskey`, `nonce`, `is`, `part`, `exportparts`, `slot`, `writingsuggestions`) on every element, so schema.org markup passes `stator check`. `inputmode` is now checked against its HTML keywords.
+- e2fe043: `stator check` and the language server now also warn when a `+` concatenation containing a `<script` tag is passed straight to `raw()`, such as `raw('<script>' + data + '</script>')`. Variables and function calls passed to `raw()` stay silent.
+- cf875fc: README: describe how Stator actually runs (its own loader in `stator dev` and `stator start`, no Vite or `tsx`), document `@statorjs/stator/register` for scripts, and replace the stale `tsx server.ts` minimal app with the CLI.
+- a16aec0: A `Stator.*` marker in template markup (an interpolation, a prop or a directive value) is now a located compile error, so `stator dev`, `build` and `check` all report it instead of the page throwing `ReferenceError: Stator is not defined` at render. A route is told to assign the value to a const in the frontmatter; a component using a route-only marker is told to read it in the route and pass it down as a prop.
+
 ## 3.0.1
 
 ### Patch Changes

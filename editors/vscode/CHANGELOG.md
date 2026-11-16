@@ -1,5 +1,12 @@
 # stator-vscode
 
+## 1.4.1
+
+### Patch Changes
+
+- e2fe043: `stator check` and the language server now also warn when a `+` concatenation containing a `<script` tag is passed straight to `raw()`, such as `raw('<script>' + data + '</script>')`. Variables and function calls passed to `raw()` stay silent.
+- a16aec0: A `Stator.*` marker in template markup (an interpolation, a prop or a directive value) is now a located compile error, so `stator dev`, `build` and `check` all report it instead of the page throwing `ReferenceError: Stator is not defined` at render. A route is told to assign the value to a const in the frontmatter; a component using a route-only marker is told to read it in the route and pass it down as a prop.
+
 ## 1.4.0
 
 ### Minor Changes

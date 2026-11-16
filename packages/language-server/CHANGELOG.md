@@ -1,5 +1,15 @@
 # @statorjs/language-server
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [a8cb8b9]
+- Updated dependencies [e2fe043]
+- Updated dependencies [cf875fc]
+- Updated dependencies [a16aec0]
+  - @statorjs/stator@3.0.2
+
 ## 0.2.1
 
 ### Patch Changes
