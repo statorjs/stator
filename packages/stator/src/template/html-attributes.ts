@@ -41,8 +41,11 @@ export interface AriaAttributes {
   [key: `aria-${string}`]: unknown
 }
 
-/** Global attributes present on every HTML element (a lean subset). Numeric
- *  attributes accept `string` too, since templates write them as strings. */
+/** Global attributes present on every HTML element. Numeric attributes accept
+ *  `string` too, since templates write them as strings. Enumerated attributes
+ *  whose missing-value default differs from their "off" keyword accept bare
+ *  `true` but not `false`, since `false` omits the attribute rather than
+ *  turning it off. */
 export interface GlobalHTMLAttributes {
   class?: string
   id?: string
@@ -54,6 +57,29 @@ export interface GlobalHTMLAttributes {
   dir?: 'ltr' | 'rtl' | 'auto'
   draggable?: boolean | 'true' | 'false'
   popover?: boolean | string
+  accesskey?: string
+  autocapitalize?: 'off' | 'none' | 'on' | 'sentences' | 'words' | 'characters'
+  autocorrect?: true | 'on' | 'off'
+  autofocus?: boolean
+  contenteditable?: true | 'true' | 'false' | 'plaintext-only'
+  enterkeyhint?: 'enter' | 'done' | 'go' | 'next' | 'previous' | 'search' | 'send'
+  inert?: boolean
+  inputmode?: 'none' | 'text' | 'decimal' | 'numeric' | 'tel' | 'search' | 'email' | 'url'
+  is?: string
+  nonce?: string
+  spellcheck?: true | 'true' | 'false'
+  translate?: true | 'yes' | 'no'
+  writingsuggestions?: true | 'true' | 'false'
+  /** Shadow-DOM parts and slot assignment (custom elements). */
+  part?: string
+  exportparts?: string
+  slot?: string
+  /** Microdata (schema.org markup). */
+  itemscope?: boolean
+  itemtype?: string
+  itemprop?: string
+  itemid?: string
+  itemref?: string
   /** Stator named-slot target — `child="header"` fills `<children name="header"/>`. */
   child?: string
   [key: `data-${string}`]: unknown
@@ -69,7 +95,6 @@ export interface ElementSpecificAttributes {
     name?: string
     value?: string
     form?: string
-    autofocus?: boolean
     popovertarget?: string
     popovertargetaction?: 'show' | 'hide' | 'toggle'
     /** Per-button overrides of the owning form's submission settings — the
@@ -97,8 +122,6 @@ export interface ElementSpecificAttributes {
     maxlength?: number | string
     pattern?: string
     autocomplete?: string
-    inputmode?: string
-    autofocus?: boolean
     accept?: string
     multiple?: boolean
     /** Associates this element with a `<form>` elsewhere in the document by
