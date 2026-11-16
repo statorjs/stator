@@ -59,6 +59,8 @@ const inlineMarker = (i: number): string => `\0statorInlineScript${i}\0`
 // author's template, so it can't collide with real content.
 const INLINE_MARKER_RE = /\0statorInlineScript(\d+)\0/g
 
+const ROUTE_ONLY_MARKERS = new Set(['request', 'response', 'reads'])
+
 export interface LowerMeta {
   /** This file's body contains a `<children>` placeholder (so the compiled
    *  function must accept a `props.children` bag). */
@@ -87,6 +89,8 @@ export interface LowerOptions {
   marks?: boolean
   /** File path, for diagnostics. */
   file?: string
+  /** What the file compiles to; picks the guidance in marker diagnostics. */
+  kind?: 'route' | 'component' | 'island'
   /** Out-param: the lowerer populates this with analysis metadata for
    *  compile()/validation/typegen. */
   meta?: LowerMeta
@@ -293,6 +297,32 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
   }
   find(sf)
   if (!fragment) throw new CompileError('stator: could not parse template body as JSX')
+
+  // `Stator.*` markers are rewritten in the frontmatter only; the template has
+  // no `Stator` binding, so any reference here would fail at render.
+  const checkNoStatorMarkers = (node: ts.Node): void => {
+    if (
+      (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'Stator'
+    ) {
+      const marker = ts.isPropertyAccessExpression(node)
+        ? `Stator.${node.name.text}`
+        : `Stator[${node.argumentExpression.getText(sf)}]`
+      const member = ts.isPropertyAccessExpression(node) ? node.name.text : ''
+      const routeOnly = ROUTE_ONLY_MARKERS.has(member)
+      throw new CompileError(
+        opts.kind === 'route' || !routeOnly
+          ? `stator: ${marker} can only be used in the frontmatter, not in the template markup. ` +
+              `Assign it to a const in the frontmatter and use that const in the markup.`
+          : `stator: ${marker} is only available in a route page's frontmatter, not in a ` +
+              `component. Read it in the route and pass the value down as a prop.`,
+        loc(node),
+      )
+    }
+    ts.forEachChild(node, checkNoStatorMarkers)
+  }
+  checkNoStatorMarkers(fragment)
 
   // Build-time gate for the defer/machine boundary: a machine read — `read()`,
   // or a machine-bound each/when/match, which always wraps a `read()` — cannot

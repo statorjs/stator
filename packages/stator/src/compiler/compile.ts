@@ -200,6 +200,7 @@ export function compile(source: string, opts: CompileOptions = {}): CompileResul
     source,
     templateOffset,
     file: opts.id,
+    kind,
     meta,
     resolveRegions: opts.resolveRegions,
     marks,
@@ -311,6 +312,7 @@ function compileClient(
   // scope attribute.
   const innerExpr = lowerTemplate(root.inner, {
     file: ctx.file,
+    kind: 'island',
     meta,
     client: { useFields: new Set(cls.useFields.keys()), directives },
     // The root's children, located in the source: located diagnostics, and
