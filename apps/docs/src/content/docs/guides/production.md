@@ -101,6 +101,39 @@ const app = await createApp({
 await app.listen(port)
 ```
 
+## One-off scripts
+
+A seed, a backfill or a migration is a TypeScript file that imports your app's code, and it runs under the same loader `stator start` uses. Pass it to Node with `--import`; no `tsx` or other runner is needed:
+
+```ts
+// scripts/seed.ts
+import { db } from '../lib/db.ts'
+
+await db.insert('products', [{ sku: 'mug', price: 1200 }])
+console.log('seeded')
+```
+
+```bash
+node --import @statorjs/stator/register scripts/seed.ts
+```
+
+The loader compiles TypeScript wherever it lives, including Stator itself and packages built on it inside `node_modules`, which plain Node refuses to strip.
+
+It is only the loader. The script doesn't go through the CLI, so nothing loads `.env`, sets `NODE_ENV`, or applies your `stator.config.ts`. Give it the environment with Node's own flags, listing `.env.local` last so it wins over `.env`. A real environment variable still wins over both:
+
+```bash
+node --env-file=.env --env-file-if-exists=.env.local \
+  --import @statorjs/stator/register scripts/seed.ts
+```
+
+To run a script on the deployed machine, it has to be in the artifact. Nothing imports `scripts/`, so the build [leaves it out](#what-gets-copied) unless you list it:
+
+```ts
+export default defineConfig({
+  build: { include: ['scripts'] },
+})
+```
+
 ## Deploy checklist
 
 - **Always-on, single instance.** SSE connections need the process running — disable scale-to-zero, and don't scale out (fan-out and app machines are in-process; multi-replica is deferred).
