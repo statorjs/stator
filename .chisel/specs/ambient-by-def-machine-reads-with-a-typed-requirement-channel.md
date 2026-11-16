@@ -68,6 +68,7 @@ Give the rendered fragment a phantom requirement parameter, `Fragment<R>`:
 ## Field reports
 
 - **2026-11-15, IndiePub themes:** layouts can't use `Stator.reads`, so a theme layout can't show the signed-in owner an Admin link without every route passing the owner through as a prop. The minimal theme dropped the link instead. Ambient by-def reads would let the layout `read(OwnerMachine, …)` directly.
+- **Decision (2026-11-16, Tony):** not pursued for this report. The pain is the same one-hop prop repeated in every route, not deep drilling, so context or ambient reads don't remove it. The direction is an `Astro.locals`-style per-request object that middleware fills and layouts can see. Not scheduled: weighed alongside the `defineApiRoute` method minor, otherwise a 3.2 fast follow.
 
 ## Open Questions
 
