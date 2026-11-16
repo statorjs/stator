@@ -7,7 +7,7 @@ Full documentation — tutorial, concepts, guides — lives in the repo's [`apps
 ## Install
 
 ```bash
-pnpm add @statorjs/stator hono
+pnpm add @statorjs/stator
 ```
 
 > **This package ships TypeScript source, by design.** There is no `dist/` of
