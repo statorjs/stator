@@ -226,3 +226,59 @@ describe('stator check: the compiler runs over every .stator file', () => {
     )
   })
 })
+
+describe('stator check: global HTML attributes on plain elements', () => {
+  const app = async (route: string): Promise<void> => {
+    await scaffold(route)
+    const config = JSON.parse(tsconfig)
+    config.compilerOptions = {
+      ...config.compilerOptions,
+      module: 'ESNext',
+      moduleResolution: 'Bundler',
+      lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+      allowImportingTsExtensions: true,
+      jsx: 'preserve',
+      rootDirs: ['.', '.stator/types', '.stator/check'],
+    }
+    config.include = ['lib', '.stator/check/**/*.tsx']
+    await writeFile(join(root, 'tsconfig.json'), JSON.stringify(config))
+  }
+  const errorsOf = async (): Promise<string> => {
+    const stderr = mock.method(process.stderr, 'write', () => true)
+    mock.method(process.stdout, 'write', () => true)
+    await assert.rejects(checkStack(root), /typecheck failed with 1 error/)
+    return (
+      stderr.mock.calls
+        .map((c) => String(c.arguments[0]))
+        .join('')
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: strips tsc's colour codes
+        .replace(/\x1b\[\d+m/g, '')
+    )
+  }
+
+  it('passes schema.org microdata and the other globals', async () => {
+    await app(
+      "---\nconst url = 'https://example.com/a'\n---\n" +
+        '<article itemscope itemtype="https://schema.org/BlogPosting" itemid={url} itemref="author">\n' +
+        '  <h1 itemprop="headline" translate="no" spellcheck="false">Hi</h1>\n' +
+        '  <time itemprop="datePublished" datetime="2026-11-15">Nov 15</time>\n' +
+        '  <div contenteditable="plaintext-only" enterkeyhint="send" inputmode="text" autocapitalize="sentences" accesskey="e" autofocus></div>\n' +
+        '  <section inert part="body" slot="main" nonce="abc" is="x-section" exportparts="a, b" writingsuggestions="false" autocorrect="off"></section>\n' +
+        '</article>\n',
+    )
+    mock.method(process.stdout, 'write', () => true)
+    assert.equal(await checkStack(root), undefined)
+  })
+
+  it('fails a non-boolean itemscope, located', async () => {
+    await app('---\n---\n<div itemscope={42}></div>\n')
+    const out = await errorsOf()
+    assert.match(out, /routes\/index\.stator:3:/)
+    assert.match(out, /'number' is not assignable/)
+  })
+
+  it('fails an enumerated attribute set to false', async () => {
+    await app('---\n---\n<p translate={false}>Hi</p>\n')
+    assert.match(await errorsOf(), /routes\/index\.stator:3:/)
+  })
+})
