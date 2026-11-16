@@ -45,6 +45,33 @@ const tag = raw('<script>go()</script>')
     )
   })
 
+  it('warns for a concatenation, at its start', () => {
+    const src = `---
+const tag = raw('<script type="application/ld+json">' + data + '</script>')
+---
+<p>{tag}</p>{raw(("<scr" + "ipt>") + (body + '</script>'))}`
+    const warnings = compileWarnings(src)
+    assert.deepStrictEqual(
+      warnings.map((w) => w.offset),
+      [at(src, "'<script type"), at(src, '("<scr')],
+    )
+    assert.equal(warnings[0]!.loc.line, 2)
+    assert.equal(warnings[1]!.loc.line, 4)
+  })
+
+  it("doesn't warn for a concatenation without <script, or one split by a value", () => {
+    assert.deepStrictEqual(
+      compileWarnings(
+        `<p>{raw('<b>' + name + '</b>')}{raw('<' + tag + 'script>')}{raw(a + b)}</p>`,
+      ),
+      [],
+    )
+  })
+
+  it("doesn't warn for a function call passed to raw()", () => {
+    assert.deepStrictEqual(compileWarnings('<head>{raw(render("<script>"))}</head>'), [])
+  })
+
   it("doesn't warn for a variable passed to raw()", () => {
     assert.deepStrictEqual(compileWarnings('<head>{raw(snippet)}</head>'), [])
   })

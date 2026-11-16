@@ -41,10 +41,10 @@ export function compileWarnings(source: string, file?: string): CompileWarning[]
     .map((offset) => ({ message: RAW_SCRIPT_WARNING, offset, loc: locAt(source, offset, file) }))
 }
 
-/** Push the offset of each string or template literal containing an opening
- *  `<script` tag that is passed straight to `raw()`. A variable argument is
- *  the sanctioned escape hatch and isn't flagged; a plain string is escaped on
- *  output, so it isn't either. */
+/** Push the offset of each string literal, template literal or `+`
+ *  concatenation containing an opening `<script` tag that is passed straight
+ *  to `raw()`. A variable argument is the sanctioned escape hatch and isn't
+ *  flagged; a plain string is escaped on output, so it isn't either. */
 function rawScriptLiterals(code: string, base: number, out: number[]): void {
   const sf = ts.createSourceFile('w.tsx', code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const visit = (node: ts.Node): void => {
@@ -54,17 +54,28 @@ function rawScriptLiterals(code: string, base: number, out: number[]): void {
       node.expression.text === 'raw'
     ) {
       const arg = node.arguments[0]
-      if (
-        arg &&
-        (ts.isStringLiteral(arg) ||
-          ts.isNoSubstitutionTemplateLiteral(arg) ||
-          ts.isTemplateExpression(arg)) &&
-        SCRIPT_OPEN_RE.test(arg.getText(sf))
-      ) {
-        out.push(base + arg.getStart(sf))
-      }
+      const text = arg && literalText(arg)
+      if (text && SCRIPT_OPEN_RE.test(text)) out.push(base + arg.getStart(sf))
     }
     ts.forEachChild(node, visit)
   }
   visit(sf)
+}
+
+/** The literal text of a string, template or `+` concatenation of them, with
+ *  `\0` standing in for each non-literal part; `undefined` if `node` isn't one
+ *  of those. Adjacent literals join, so `'<scr' + 'ipt>'` reads as `<script>`. */
+function literalText(node: ts.Expression): string | undefined {
+  while (ts.isParenthesizedExpression(node)) node = node.expression
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text
+  if (ts.isTemplateExpression(node)) {
+    return node.head.text + node.templateSpans.map((s) => `\0${s.literal.text}`).join('')
+  }
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = literalText(node.left)
+    const right = literalText(node.right)
+    if (left === undefined && right === undefined) return undefined
+    return (left ?? '\0') + (right ?? '\0')
+  }
+  return undefined
 }
