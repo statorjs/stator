@@ -2,7 +2,7 @@
 title: "@statorjs/stator/register: the loader for processes the CLI doesn't start"
 status: in-progress
 created: 2026-11-01
-updated: 2026-11-01
+updated: 2026-11-16
 area: tooling
 ---
 
@@ -44,3 +44,7 @@ Deferred: publishing compiled JS as the default entry, with source behind a cond
 
 - A tool launched outside the CLI still needs the flag (editors, `npx vitest`, scripts). It's documented as one line.
 - Under the transitional Vite dev server, a Stator-based package that isn't a direct dependency loads as a second instance.
+
+## Implementation Notes
+
+- **Docs (2026-11-16):** the CLI reference (`stator test`) and the Testing guide ("Running the suite") already cover the loader as specced. `guides/production.md` now also has "One-off scripts": the `--import` command for seed/backfill scripts, that it doesn't load `.env` or apply `stator.config.ts` (with Node's `--env-file` flags instead), and `build.include: ['scripts']` for running them from `dist/`. The package README no longer says production runs under `tsx`. Status left in-progress: the tonysull.co verification wasn't re-run here, and the `dev-vite.ts` part of the design no longer applies since the Vite dev server is gone.

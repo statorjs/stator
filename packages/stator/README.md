@@ -10,12 +10,14 @@ Full documentation — tutorial, concepts, guides — lives in the repo's [`apps
 pnpm add @statorjs/stator hono
 ```
 
-> **This package ships TypeScript source, by design.** Stator is
-> Vite/tsx-native: the dev server compiles `.stator` (and the framework's own
-> `.ts`) through Vite, and production runs the built output under `tsx`. There
-> is no `dist/` of transpiled JS — a plain-Node consumer that can't load `.ts`
-> modules can't import this package directly. This is a deliberate 1.0 stance,
-> not an oversight.
+> **This package ships TypeScript source, by design.** There is no `dist/` of
+> transpiled JS. The `stator` CLI registers its own esbuild loader before
+> importing anything: `stator dev` runs your source tree through it, and
+> `stator start` runs the built `dist/` through it, so neither needs Vite or
+> `tsx`. A process the CLI doesn't start (a script, a test runner launched by
+> an editor) gets the same loader with
+> `node --import @statorjs/stator/register file.ts`; plain Node can't load
+> this package's `.ts` from `node_modules` on its own.
 
 ## Entry points
 
@@ -25,28 +27,15 @@ pnpm add @statorjs/stator hono
 | `@statorjs/stator/server`   | `createApp`, `defineRoute`, `defineApiRoute`, stores, `dispatchToApp` |
 | `@statorjs/stator/template` | `html`, `read`, `each`, `when`/`match`, `raw`, directives |
 | `@statorjs/stator/client`   | island runtime — `StatorElement`, `use`, `machine`, `bind`, `dispatch` |
-| `@statorjs/stator/dev`      | `createDevApp` — the Vite-embedded dev server |
+| `@statorjs/stator/dev`      | `createDevApp` — the dev server `stator dev` runs |
 | `@statorjs/stator/build`    | `buildApp`, `loadProductionHead`, `syncTypes` |
-| `@statorjs/stator/components` | built-ins (`<JsonLd>`) |
+| `@statorjs/stator/config`   | `defineConfig` for `stator.config.ts` |
+| `@statorjs/stator/components` | built-ins (`<JsonLd>`, `<Image>`, `<Picture>`) |
+| `@statorjs/stator/register` | the TS loader, for `node --import` |
 
-`compiler` and `vite` subpaths exist but are internal — their shape may change in minor releases. Neither is a plugin surface: Stator reads no `vite.config.*` and accepts no bundler plugins.
+The `compiler` and `editor` subpaths exist but are internal — their shape may change in minor releases. Neither is a plugin surface: Stator reads no `vite.config.*` and accepts no bundler plugins.
 
 ## Minimal app
-
-```ts
-// server.ts
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { createDevApp } from '@statorjs/stator/dev'
-
-const here = dirname(fileURLToPath(import.meta.url))
-const app = await createDevApp({
-  root: here,
-  machinesDir: resolve(here, 'machines'),
-  routesDir: resolve(here, 'routes'),
-})
-await app.listen(3000)
-```
 
 ```ts
 // machines/counter.ts
@@ -88,7 +77,7 @@ const [counter] = Stator.reads([Counter])
 </html>
 ```
 
-Run with `tsx server.ts`. See the repo's `examples/desksmith` for the full wiring (type sync, production build, deploy).
+Run `stator dev` in the app directory, then `stator build` and `stator start` for production. See the repo's `examples/desksmith` for a fuller app (layouts, an island, tests, production build).
 
 ## License
 

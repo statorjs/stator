@@ -24,7 +24,7 @@ The same goes for Stator itself. What the editor accepts for the `Stator.*` macr
 Two things make types flow end to end (a `create-stator` project has both):
 
 - **`stator-env.d.ts`** — the ambient `*.stator` module declaration, so TS can type `import Page from './page.stator'`.
-- **`pnpm sync`** (`syncTypes`) — generates a `.stator/types/` mirror of per-component `.d.ts` files, so imports of your components get their real prop types instead of the permissive fallback. Wire it into `typecheck` (`tsx sync.ts && tsc --noEmit`) and run it after adding components.
+- **`stator check`** (`pnpm check`) — its first step, `syncTypes`, generates a `.stator/types/` mirror of per-component `.d.ts` files, so imports of your components get their real prop types instead of the permissive fallback. Run it after adding components.
 
 ### Template internals in CI
 
