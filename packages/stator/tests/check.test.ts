@@ -282,3 +282,76 @@ describe('stator check: global HTML attributes on plain elements', () => {
     assert.match(await errorsOf(), /routes\/index\.stator:3:/)
   })
 })
+
+describe('stator check: events sent to app machines', () => {
+  const MACHINE = (lifecycle: string) =>
+    "import { defineMachine } from '@statorjs/stator/machine'\n" +
+    `export default defineMachine({\n  name: 'Tally',\n  lifecycle: '${lifecycle}',\n` +
+    "  events: {} as { type: 'BUMP' },\n  context: { n: 0 },\n  initial: 'idle',\n" +
+    '  states: { idle: { on: { BUMP: (ctx) => { ctx.n += 1 } } } },\n' +
+    '  selectors: { n: (ctx) => ctx.n },\n})\n'
+  const ROUTE =
+    "---\nimport Tally from '../machines/tally.ts'\nconst [tally] = Stator.reads([Tally])\n---\n" +
+    "<p>{read(tally, (t) => t.n)}</p>\n<button on:click={() => tally.send({ type: 'BUMP' })}>bump</button>\n"
+  const ISLAND =
+    '<bump-button><button type="button" on:click={go}>go</button></bump-button>\n\n' +
+    "<script>\n  import Tally from '../machines/tally.ts'\n" +
+    "  export class BumpButton extends StatorElement {\n    go() { void dispatch(Tally, { type: 'BUMP' }) }\n  }\n</script>\n"
+
+  // A scaffolded app's tsconfig: unlike the one above, it typechecks templates.
+  const APP_TSCONFIG = JSON.stringify({
+    compilerOptions: {
+      strict: true,
+      noEmit: true,
+      target: 'ES2022',
+      module: 'ESNext',
+      moduleResolution: 'Bundler',
+      lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+      skipLibCheck: true,
+      allowImportingTsExtensions: true,
+      rootDirs: ['.', '.stator/types', '.stator/check'],
+      jsx: 'preserve',
+      types: [],
+    },
+    include: ['**/*.ts', '**/*.stator', '.stator/check/**/*.tsx'],
+  })
+
+  async function app(lifecycle: string, route: string, files: Record<string, string> = {}) {
+    await scaffold(route)
+    await writeFile(join(root, 'tsconfig.json'), APP_TSCONFIG)
+    await mkdir(join(root, 'machines'), { recursive: true })
+    await writeFile(join(root, 'machines/tally.ts'), MACHINE(lifecycle))
+    for (const [path, text] of Object.entries(files)) {
+      await mkdir(dirname(join(root, path)), { recursive: true })
+      await writeFile(join(root, path), text)
+    }
+  }
+  const errorsOf = async (): Promise<string> => {
+    const stderr = mock.method(process.stderr, 'write', () => true)
+    mock.method(process.stdout, 'write', () => true)
+    await assert.rejects(checkStack(root), /typecheck failed with 1 error/)
+    return stderr.mock.calls.map((c) => String(c.arguments[0])).join('')
+  }
+
+  it('fails a template send to an app machine, located, naming the session relay', async () => {
+    await app('app', ROUTE)
+    const out = await errorsOf()
+    assert.match(out, /routes\/index\.stator.*6/)
+    assert.match(out, /An app machine takes no events from the browser/)
+  })
+
+  it('fails an island dispatch to an app machine', async () => {
+    await app('app', "---\nimport Bump from '../templates/bump-button.stator'\n---\n<Bump />\n", {
+      'templates/bump-button.stator': ISLAND,
+    })
+    const out = await errorsOf()
+    assert.match(out, /templates\/bump-button\.stator/)
+    assert.match(out, /An app machine takes no events from the browser/)
+  })
+
+  it('passes the same send to a session machine', async () => {
+    await app('session', ROUTE)
+    mock.method(process.stdout, 'write', () => true)
+    assert.equal(await checkStack(root), undefined)
+  })
+})

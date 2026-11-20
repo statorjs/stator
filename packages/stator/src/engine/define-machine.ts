@@ -22,9 +22,10 @@ export interface DefineMachineConfig<
   Name extends string,
   TReads extends readonly AnyMachineDef[],
   Sel extends SelectorMap<C, ReadsMap<TReads>>,
+  L extends Lifecycle = Lifecycle,
 > {
   name: Name
-  lifecycle: Lifecycle
+  lifecycle: L
   /** Machines this one reads. Inferred as a tuple so `helpers.reads` is typed
    *  per read machine (keyed by name, selectors preserved). */
   reads?: TReads
@@ -119,7 +120,10 @@ export function defineMachine<
   Name extends string = string,
   const TReads extends readonly AnyMachineDef[] = readonly [],
   Sel extends SelectorMap<C, ReadsMap<TReads>> = SelectorMap<C, ReadsMap<TReads>>,
->(config: DefineMachineConfig<C, E, S, Name, TReads, Sel>): MachineDef<C, E, S, Sel, Name> {
+  L extends Lifecycle = Lifecycle,
+>(
+  config: DefineMachineConfig<C, E, S, Name, TReads, Sel, L>,
+): MachineDef<C, E, S, Sel, Name> & { lifecycle: L } {
   const reads = (config.reads ?? []) as unknown as AnyMachineDef[]
   if (config.persist && config.lifecycle === 'session') {
     throw new Error(
@@ -137,7 +141,7 @@ export function defineMachine<
   return {
     __isStatorMachine: true,
     name: config.name,
-    lifecycle: config.lifecycle as Lifecycle,
+    lifecycle: config.lifecycle,
     persist: config.persist ?? false,
     reads,
     subscribes: config.subscribes ?? [],

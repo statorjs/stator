@@ -36,7 +36,13 @@ await app.dispatchToApp(Board, { type: 'BUMP', by: 5 })
 
 `dispatchToApp` sends the event, persists the machine if it opted in, and fans the change out to every live SSE connection whose route reads it — a cron job can move a dashboard in real time.
 
-There is no direct *client*→app dispatch: browsers talk to their session machines, and session machines emit upward. That keeps "who can change shared state" an explicit, reviewable list — and it's deliberate, because `/__events` takes the machine name from the client, and shared state needs an authorization gate that per-session state doesn't.
+**The browser never sends an event to an app machine.** Every client event goes to a session machine; when shared state has to change, the session machine emits and the app machine subscribes. This is a rule of the framework, not a gap waiting to be filled:
+
+- A session machine holds one visitor's state, so the worst a forged event can do is change the sender's own session. An app machine holds everyone's, so a handler the browser could reach would be a public endpoint for shared state.
+- An app machine cannot tell who is asking. Its guards see the shared context and the event, and the event's fields come from the browser. The session machine is where "is this visitor allowed?" can be answered.
+- The app machine's `subscribes` stays the complete list of what can change it.
+
+The rule is enforced in three places. `stator check` and the editor report a template `machine.send(…)` or an island `dispatch(Machine, …)` aimed at an app machine as a type error at the call. At runtime, `/__events` refuses one with a 403.
 
 ## Buttons that drive shared state: the gateway pattern
 
@@ -70,7 +76,7 @@ export default defineMachine({
 subscribes: [{ from: Admin, event: 'restockRequested', dispatch: 'REQUEST_RESTOCK' }],
 ```
 
-The button sends to the gateway (its own session state — always legal), the guard authorizes, the emit crosses lifecycles with `sourceSessionId` attached, and persistence, effects, and SSE fan-out all behave normally from there. A more convenient route-gated form is a design candidate; this pattern is the supported path today and will keep working.
+The button sends to the gateway (its own session state — always legal), the guard authorizes, the emit crosses lifecycles with `sourceSessionId` attached, and persistence, effects, and SSE fan-out all behave normally from there.
 
 :::caution[Gateways don't launder authority]
 A gateway's `REQUEST_*` events are ordinary session events — dispatchable from browser devtools via `/__events` like any other. Authority in the emit payload must come from the session's **context** (put there by a verified handler or guard, as `isAdmin` is above), never from fields on the incoming event — otherwise any visitor can forge the request the gateway was supposed to gate. If a handler has no choice but to thread authority through the event itself, make the event prove itself: sign the claims server-side (an HMAC with a server secret) and verify in the guard — guards are synchronous, and so is `node:crypto`.
