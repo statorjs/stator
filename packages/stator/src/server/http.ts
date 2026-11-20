@@ -715,6 +715,20 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       return c.json({ error: `unknown machine "${body.machine}"` }, 404)
     }
 
+    // App machines are everyone's shared state, so the wire reaches session
+    // machines only; a session machine forwards to an app machine through an
+    // emit its `subscribes` declares.
+    if (originDef.lifecycle !== 'session') {
+      return c.json(
+        {
+          error:
+            `app machine "${body.machine}" does not take events from the browser: send to a ` +
+            'session machine and forward with an emit the app machine subscribes to',
+        },
+        403,
+      )
+    }
+
     // `serverOnly` events are server-generated — effect completions
     // (`CHARGE_APPROVED`), `after:` timers, cross-machine internals — that no
     // client legitimately sends. A client POST of one is forgery (e.g. faking a

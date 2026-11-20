@@ -333,6 +333,16 @@ export type ReadsMap<TReads extends readonly AnyMachineDef[]> = {
 export type EventOf<D extends AnyMachineDef> =
   D extends MachineDef<any, infer E, any, any, any> ? E : never
 
+/** The events the browser may send a machine: a session machine's event union.
+ *  For an app machine no event is assignable, so the compile error at the
+ *  `send` or `dispatch` call reads as the instruction. */
+export type BrowserEventOf<D extends AnyMachineDef> = D extends { lifecycle: 'app' }
+  ? AppMachineSendRefused
+  : EventOf<D>
+
+export type AppMachineSendRefused =
+  'An app machine takes no events from the browser: send to a session machine and forward with an emit the app machine subscribes to'
+
 /** The state-name union a machine declares (the keys of its `states`). Threads
  *  the literal names into `instance.state` so a template comparison
  *  (`read(m, s => s.state === 'ready')`) autocompletes and a typo is a compile

@@ -1,4 +1,4 @@
-import type { AnyMachineDef, EventOf } from '../engine/index.ts'
+import type { AnyMachineDef, BrowserEventOf } from '../engine/index.ts'
 import { applyDirectives, applyPatches } from '../wire/apply.ts'
 import type { WireEnvelope } from '../wire/index.ts'
 import { newEventId } from './client-id.ts'
@@ -31,7 +31,7 @@ export interface DispatchResult {
  */
 export async function dispatch<D extends AnyMachineDef>(
   machine: D,
-  event: EventOf<D>,
+  event: BrowserEventOf<D>,
 ): Promise<DispatchResult> {
   const result = await postEvent(
     { machine: machine.name, event, eventId: newEventId() },

@@ -20,6 +20,7 @@ export type {
   ActionHelpers,
   AfterEntry,
   AnyMachineDef,
+  BrowserEventOf,
   Capabilities,
   Effect,
   EffectInvocation,

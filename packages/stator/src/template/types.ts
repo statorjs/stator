@@ -1,6 +1,6 @@
 import type {
   AnyMachineDef,
-  EventOf,
+  BrowserEventOf,
   InstanceOf as SelectorsOf,
   StateNameOf,
 } from '../engine/index.ts'
@@ -15,7 +15,7 @@ import type { EventDescriptor } from '../server/render-context.ts'
  * autocomplete and a typo — in the name or the payload — is a compile error.
  */
 export type InstanceOf<TDef extends AnyMachineDef> = SelectorsOf<TDef> &
-  InstanceCommon<StateNameOf<TDef>, EventOf<TDef>>
+  InstanceCommon<StateNameOf<TDef>, BrowserEventOf<TDef>>
 
 export interface InstanceCommon<
   TStateKey extends string = string,
