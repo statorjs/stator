@@ -209,18 +209,16 @@ describe('layer 3 — the proof is precise', () => {
     assert.equal(res.headers.get('cache-control'), null)
   })
 
-  it('a claims peek that finds nothing keeps the proof, anonymous or cookied', async () => {
+  it('a claims peek that finds nothing withdraws the proof, anonymous or cookied', async () => {
     const anonymous = await get(app, '/whoami')
     assert.ok((await anonymous.text()).includes('anonymous'))
     assert.equal(anonymous.headers.get('set-cookie'), null)
-    assert.ok(anonymous.headers.get('cache-control'))
-    assert.ok(anonymous.headers.get('cache-control')!.includes('public'))
+    assert.equal(anonymous.headers.get('cache-control'), null)
 
     const cookied = await get(app, '/whoami', { Cookie: `stator_sid=${crypto.randomUUID()}` })
     assert.ok((await cookied.text()).includes('anonymous'))
     assert.equal(cookied.headers.get('set-cookie'), null)
-    assert.ok(cookied.headers.get('cache-control'))
-    assert.ok(cookied.headers.get('cache-control')!.includes('public'))
+    assert.equal(cookied.headers.get('cache-control'), null)
   })
 
   it('a claims peek that finds claims withdraws the proof', async () => {

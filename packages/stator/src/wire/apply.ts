@@ -33,9 +33,12 @@ export function resolveTarget(target: { kind: 'slot' | 'element'; id: string }):
 
 function warnMissing(target: { kind: string; id: string }): void {
   // A missing target means this DOM diverged from server truth (stale non-live
-  // page, or client code removed server-owned nodes). Skipping is safe — arm/
-  // key-scoped ids guarantee a patch can't land on the wrong content — but the
-  // divergence is worth surfacing.
+  // page, or client code removed server-owned nodes). Skipping is safe, and
+  // the divergence is worth surfacing. A miss is guaranteed only for ids
+  // scoped to a `when`/`match` arm or a keyed item: those cannot name other
+  // content. Ids outside such a scope are numbered in render order, so a
+  // render that differs by a plain conditional can give one id to different
+  // content, and a patch for it lands instead of missing.
   console.warn(`stator: patch target ${target.kind} "${target.id}" not in DOM — skipped`)
 }
 
