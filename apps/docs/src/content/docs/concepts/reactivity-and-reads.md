@@ -49,6 +49,8 @@ Equality is pragmatic: `Object.is` first, then a shallow type check, then a `JSO
 
 A binding produced by `when`/`match` reduces to a **key**: the branch re-renders only when the chosen branch changes, not every time the underlying value is merely truthy in a different way.
 
+A plain conditional — `{found ? <Poll /> : <Missing />}`, `{isOwner && <Tools />}` — is not a binding. It is decided once, when the page renders, and it has no id scope of its own, so the slot ids in and after it depend on which way it went. If its test comes from something that changes later (`Stator.request.claims()`, or a value read off a machine handle in the frontmatter), a later update is computed for a page laid out the other way. Write `when(read(machine, …), …)` instead: the branch is then part of the page's live state and flips by patch. `stator check` and the editor warn about a plain conditional whose test traces back to claims or a machine handle and whose arms hold a binding or a component; a test computed by a helper function isn't traced.
+
 ## read() on client machines
 
 Inside a [client island](/guides/client-components/), the same spelling runs without a server. `{read(theme, (t) => t.label)}` subscribes to the island's local [actor](/concepts/state-machines/#definition-actor-instance) and writes the DOM when the selector's value changes — a local subscribe-and-write with no recompute pass and no wire. The compiler lowers `read()` by the machine's location, so the primitive is ONE: *declare on a node what state it shows.* A server machine's node updates by patch; a client machine's by subscription. The mental model is identical on both sides of the [boundary](/concepts/server-client-boundary/).

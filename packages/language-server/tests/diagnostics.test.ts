@@ -88,4 +88,20 @@ describe('stator semantic diagnostics', () => {
     assert.ok(ds[0]!.message.includes('raw()'))
     assert.deepStrictEqual(ds[0]!.range.start, { line: 3, character: 11 })
   })
+
+  it('surfaces a render-time branch on machine state as a warning at the conditional', () => {
+    const src = [
+      '---',
+      'const [auth] = Stator.reads([Auth])',
+      'const signedIn = auth.isAuthenticated',
+      '---',
+      '<nav>{signedIn ? <Account auth={auth} /> : <a href="/login">Sign in</a>}</nav>',
+      '',
+    ].join('\n')
+    const ds = statorDiagnostics(src, '/app/routes/index.stator')
+    assert.equal(ds.length, 1)
+    assert.equal(ds[0]!.severity, 2)
+    assert.ok(ds[0]!.message.includes('when(read(auth, (a) => a.isAuthenticated), …)'))
+    assert.deepStrictEqual(ds[0]!.range.start, { line: 4, character: 6 })
+  })
 })

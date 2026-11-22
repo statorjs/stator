@@ -53,7 +53,7 @@ const WRAP_PREFIX_LEN = 'const __t = (<>'.length
 /** Placeholder bracketing a verbatim `<script is:inline>` while the surrounding
  *  template goes through the JSX parser. It's plain text (survives parsing and
  *  `escapeText` untouched) and is swapped back for the raw markup afterward. */
-const INLINE_SCRIPT_RE = /<script\b([^>]*\bis:inline\b[^>]*)>([\s\S]*?)<\/script>/gi
+export const INLINE_SCRIPT_RE = /<script\b([^>]*\bis:inline\b[^>]*)>([\s\S]*?)<\/script>/gi
 const inlineMarker = (i: number): string => `\0statorInlineScript${i}\0`
 // NUL (\0) delimits the marker precisely because it can never appear in an
 // author's template, so it can't collide with real content.

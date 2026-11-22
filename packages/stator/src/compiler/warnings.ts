@@ -1,5 +1,6 @@
 import ts from 'typescript'
 import { type DiagnosticLocation, locAt } from './diagnostics.ts'
+import { renderTimeBranches } from './render-time-branch.ts'
 import { scanRegions } from './split.ts'
 import { scanTemplate } from './template-scan.ts'
 
@@ -36,9 +37,12 @@ export function compileWarnings(source: string, file?: string): CompileWarning[]
     // expression; the `(` shifts every position by one.
     rawScriptLiterals(`(${source.slice(start, end)})`, start - 1, offsets)
   }
-  return offsets
-    .sort((a, b) => a - b)
-    .map((offset) => ({ message: RAW_SCRIPT_WARNING, offset, loc: locAt(source, offset, file) }))
+  return [
+    ...offsets.map((offset) => ({ message: RAW_SCRIPT_WARNING, offset })),
+    ...renderTimeBranches(regions),
+  ]
+    .sort((a, b) => a.offset - b.offset)
+    .map(({ message, offset }) => ({ message, offset, loc: locAt(source, offset, file) }))
 }
 
 /** Push the offset of each string literal, template literal or `+`
