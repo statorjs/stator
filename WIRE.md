@@ -135,6 +135,16 @@ Element ids are flat sequential identifiers (`e0`, `e1`, …) allocated on deman
 
 Routes declared `live: true` open `GET /__sse?route=<route-key>`. The framing is standard event-stream `data:` lines; each frame's payload is the same envelope a POST response carries — `{ patches: [...] }` (and optionally `directives`; POST responses additionally carry `committed: boolean`, whether the event transitioned any machine — a guard-dropped event is HTTP 200 with `committed: false`). A POST response can also carry no patches at all: when the page's own live channel already has writes queued for it, the diff is queued behind them and arrives over the stream instead, so the two channels cannot reorder a positional list op. Patches are diffed per connection against that connection's own binding baseline, so successive pushes are deltas, not resets. On connect, the server first pushes an **initial sync** — every binding's current value (keyed lists as one wholesale `html` reset) — so a page that missed changes between render and connect converges; clients apply it like any other frame. The initial sync is also the whole reconnect story: a dropped or watchdog-stale channel reopens (browser auto-reconnect or a client rebuild) and the fresh connection's sync converges the DOM in place — frames are unsequenced and individually unreplayable, and directives missed during an outage are gone. The server also sends an observable ping frame (`{"ping":true}`) every 25s; a visible page that misses two pings closes the half-open channel and reconnects. Comment frames (`: open`, `: keep-alive`) hold the connection through proxies; clients ignore them per the SSE spec.
 
+### Build handshake
+
+A live page echoes the build it was rendered against (`<meta name="stator-build">`) as `&build=<id>` on the connect URL. When the server is running a different build it answers with one frame and ends the stream, with no initial sync:
+
+```json
+{ "directives": [{ "type": "reload", "reason": "build", "build": "<the server's build id>" }] }
+```
+
+`reason` and `build` are optional fields of the `reload` directive. A `reload` that carries a `reason` is a remedy that can fail to take: a cache may hand the same page back. The bundled runtime reloads at once the first time; when the reloaded page is answered with the same `reason` and value again it closes the channel, reports `stale`, and waits 5 s, then 15 s, 30 s and 60 s between further reloads. A `reload` with no `reason` is always immediate. A client that does not know these fields ignores them and reloads.
+
 ## What's not in the wire protocol (yet)
 
 - **Multi-event POSTs** — currently one event per POST. Batching is 1.x if needed.

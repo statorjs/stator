@@ -13,3 +13,4 @@ Requires a Chrome at `/Applications/Google Chrome.app` (macOS). CI integration (
 ## Tests
 
 - `tables.mjs` — comment-marker regions in a real `<table>`: keyed insert/remove/move/replace keep rows correct and inside `<tbody>` (a `<span>` wrapper would be foster-parented out). The acceptance test for the region-markers migration.
+- `stale-reload.mjs` — a live page served by a cache that still holds the previous build: the tab reloads once, then waits between attempts instead of looping. Drives headless Chromium against a real origin through a small caching proxy and counts page loads. Not wired into `pnpm test:browser`; run `node --import @statorjs/stator/register browser-tests/stale-reload.mjs` (set `CHROME` to the binary, default `/usr/bin/chromium`).
