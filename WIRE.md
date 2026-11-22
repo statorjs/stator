@@ -27,6 +27,7 @@ Response: HTML document containing:
 - Slot markers — `<span data-slot="<slot-id>">…</span>` for text positions and for `each`/`when`/`match` body containers.
 - Element identifiers — `data-stator-id="<element-id>"` on any element that owns an attribute binding or an event handler.
 - The client runtime bundled at `/static/client.js`.
+- `<meta name="stator-layout" content="<8 hex chars>">` when the page has root-scope bindings: a fingerprint of them (see "Layout handshake").
 
 The server discards the slot map after the response. State for patching on subsequent POSTs is reconstructed by re-rendering against current machine state inside the POST handler.
 
@@ -37,6 +38,7 @@ POST /__events
 Content-Type: application/json
 Cookie: stator_sid=<sid>          ; required
 X-Stator-Route: GET <url-path>    ; required — identifies the client's current route so the server knows which machines to hydrate and which template to render for patches
+X-Stator-Layout: <fingerprint>    ; optional — the page's `stator-layout` meta, see "Layout handshake"
 ```
 
 Body:
@@ -143,7 +145,22 @@ A live page echoes the build it was rendered against (`<meta name="stator-build"
 { "directives": [{ "type": "reload", "reason": "build", "build": "<the server's build id>" }] }
 ```
 
-`reason` and `build` are optional fields of the `reload` directive. A `reload` that carries a `reason` is a remedy that can fail to take: a cache may hand the same page back. The bundled runtime reloads at once the first time; when the reloaded page is answered with the same `reason` and value again it closes the channel, reports `stale`, and waits 5 s, then 15 s, 30 s and 60 s between further reloads. A `reload` with no `reason` is always immediate. A client that does not know these fields ignores them and reloads.
+`reason` (`"build"` or `"layout"`) and the matching `build` or `layout` value are optional fields of the `reload` directive. A `reload` that carries a `reason` is a remedy that can fail to take: a cache may hand the same page back. The bundled runtime reloads at once the first time; when the reloaded page is answered with the same `reason` and value again it closes the channel, reports `stale`, and waits 5 s, then 15 s, 30 s and 60 s between further reloads. A `reload` with no `reason` is always immediate. A client that does not know these fields ignores them and reloads.
+
+### Layout handshake
+
+Root-scope slot and element ids are positional, so patches computed from one render apply only to a page whose root-scope bindings sit at the same ids. A page with root-scope bindings carries a fingerprint of them in `<meta name="stator-layout">`: a hash over each root-scope binding's slot id, kind, machine, selector source and, for an attribute binding, element id and attribute name. Bindings inside a `when`/`match` arm, a list row or a `defer` slot are not part of it.
+
+The client echoes the fingerprint as `&layout=<fp>` on the `/__sse` connect URL and as `X-Stator-Layout` on `POST /__events`. The server compares it with the fingerprint of the render it is about to patch from:
+
+- `/__sse`: on a mismatch the server writes one frame and ends the stream. There is no initial sync and the connection is not registered.
+- `/__events`: on a mismatch the event is processed and persisted as usual, and the response carries `patches: []` and the directive. The replay cache stores that response like any other.
+
+```json
+{ "directives": [{ "type": "reload", "reason": "layout", "layout": "<the server's fingerprint>" }] }
+```
+
+`layout` is the fingerprint the server expected, or `""` when its render has no root-scope bindings. The bundled runtime guards this reload exactly as it does a build reload. A request that carries no fingerprint is never compared, and neither is one whose route answers 404 for the path.
 
 ## What's not in the wire protocol (yet)
 

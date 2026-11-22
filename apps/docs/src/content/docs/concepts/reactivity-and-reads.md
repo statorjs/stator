@@ -29,6 +29,12 @@ A binding is re-diffed by exactly one owner, and a read must sit inside its owne
 
 A `when()`/`match()` arm re-renders on its own schedule, without the row around it, so an item read inside an arm is a **compile error** — use a machine read there, or restructure so the arm doesn't split the row. The compiler enforces both rules at build time and explains the escape hatches in the error. The full placement rules are in the [keyed lists guide](/guides/keyed-lists/).
 
+## A plain conditional is chosen once
+
+`{claims ? <Member /> : <Guest />}` and `{found && <Results />}` are ordinary expressions: they run when the page renders, and the markup they pick stays until the next full render. Nothing registers them, so nothing re-evaluates them. `when(read(machine, …), …)` is the live form: the test is a binding, the arm swaps by patch when the value changes, and bindings inside the arm are addressed under the arm's own id scope.
+
+The difference matters for more than the branch itself. Slot ids are handed out in render order, so a plain conditional with bindings in it, or ahead of other bindings, decides the ids of everything after it. If the value behind it changes while a page is open (signing in or out in another tab, a machine value copied into a frontmatter `const`), the next render no longer lines up with the page. Stator detects that and [reloads the page](/guides/realtime-sse/) instead of patching it, so the page ends up right, at the cost of a reload. A branch on session or machine state that should follow that state belongs in `when(read(…))`.
+
 ## Slots and bindings
 
 Every binding is filed two ways:

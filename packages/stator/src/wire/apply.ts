@@ -33,12 +33,11 @@ export function resolveTarget(target: { kind: 'slot' | 'element'; id: string }):
 
 function warnMissing(target: { kind: string; id: string }): void {
   // A missing target means this DOM diverged from server truth (stale non-live
-  // page, or client code removed server-owned nodes). Skipping is safe, and
-  // the divergence is worth surfacing. A miss is guaranteed only for ids
-  // scoped to a `when`/`match` arm or a keyed item: those cannot name other
-  // content. Ids outside such a scope are numbered in render order, so a
-  // render that differs by a plain conditional can give one id to different
-  // content, and a patch for it lands instead of missing.
+  // page, or client code removed server-owned nodes). Inside a `when`/`match`
+  // arm or a list row, ids are scoped to the arm or key, so a skipped patch
+  // cannot land on other content. Root-scope ids are positional; the layout
+  // fingerprint (`stator-layout`) is what keeps a page whose root layout
+  // differs from the server's render from being patched at all.
   console.warn(`stator: patch target ${target.kind} "${target.id}" not in DOM — skipped`)
 }
 
@@ -112,7 +111,7 @@ function applyPatch(
  *  without it every reload is immediate. */
 export function applyDirectives(
   directives: Directive[],
-  guarded?: (reason: 'build', token: string) => void,
+  guarded?: (reason: 'build' | 'layout', token: string) => void,
 ): void {
   for (const directive of directives) {
     emit('stator:directive-applied', { directive, timestamp: Date.now() })
@@ -127,8 +126,11 @@ export function applyDirectives(
         location.href = directive.to
         return // stop processing further directives; we're leaving
       case 'reload':
-        if (directive.reason && guarded) guarded(directive.reason, directive.build ?? '')
-        else location.reload()
+        if (directive.reason && guarded) {
+          guarded(directive.reason, directive.build ?? directive.layout ?? '')
+        } else {
+          location.reload()
+        }
         return
       case 'push-url':
         if (!isSafeNavigationUrl(directive.to)) {

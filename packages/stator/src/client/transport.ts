@@ -62,6 +62,11 @@ export async function fetchWithTimeout(input: string, init: RequestInit): Promis
   }
 }
 
+/** The binding-layout fingerprint this page was rendered with, if it has one. */
+export function pageLayout(): string | null | undefined {
+  return document.querySelector('meta[name="stator-layout"]')?.getAttribute('content')
+}
+
 export type PostEventResult = { ok: true; res: Response } | { ok: false; error: DispatchError }
 
 /**
@@ -77,6 +82,7 @@ export async function postEvent(
   routeKey: string,
 ): Promise<PostEventResult> {
   let error: DispatchError
+  const layout = pageLayout()
   for (let attempt = 0; ; attempt++) {
     try {
       const res = await fetchWithTimeout('/__events', {
@@ -86,6 +92,7 @@ export async function postEvent(
           Accept: 'application/json',
           'X-Stator-Route': routeKey,
           'X-Stator-Client': clientId,
+          ...(layout ? { 'X-Stator-Layout': layout } : {}),
         },
         credentials: 'same-origin',
         body: JSON.stringify(body),

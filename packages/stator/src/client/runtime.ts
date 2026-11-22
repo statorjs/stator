@@ -22,7 +22,13 @@ import type { Directive, WireEnvelope } from '../wire/index.ts'
 import { TEMPLATE_EVENTS } from '../wire/template-events.ts'
 import { clearReloadGuard, guardedReload } from './build-reload.ts'
 import { clientId, newEventId } from './client-id.ts'
-import { emitDispatchError, fetchWithTimeout, postEvent, TimeoutError } from './transport.ts'
+import {
+  emitDispatchError,
+  fetchWithTimeout,
+  pageLayout,
+  postEvent,
+  TimeoutError,
+} from './transport.ts'
 
 /* ------------------------------------------------------------------ */
 /* In-flight affordance                                                */
@@ -111,6 +117,8 @@ function runDirectives(directives: Directive[]): void {
 function initLiveChannel(): { close(): void } | undefined {
   liveChannel?.close()
   liveChannel = undefined
+  // The next state is announced whatever the last channel ended on.
+  connectionState = undefined
 
   const meta = document.querySelector('meta[name="stator-live"][content="true"]')
   if (!meta) return
@@ -121,10 +129,9 @@ function initLiveChannel(): { close(): void } | undefined {
   // into the URL at load time, so it rides EventSource's native reconnect too.
   const build = document.querySelector('meta[name="stator-build"]')?.getAttribute('content')
   const buildParam = build ? `&build=${encodeURIComponent(build)}` : ''
-  const url = `/__sse?route=${encodeURIComponent(routeKey)}&client=${encodeURIComponent(clientId)}${buildParam}`
-
-  // A new channel announces its first state, whatever the last one ended on.
-  connectionState = undefined
+  const layout = pageLayout()
+  const layoutParam = layout ? `&layout=${encodeURIComponent(layout)}` : ''
+  const url = `/__sse?route=${encodeURIComponent(routeKey)}&client=${encodeURIComponent(clientId)}${buildParam}${layoutParam}`
 
   let sse: EventSource | null = null
   let lastSeen = Date.now()
