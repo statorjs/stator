@@ -30,3 +30,7 @@ So the gap is smaller than "scripts can't run":
 
 - No new runtime dependency.
 - Not a task runner: no script registry, no watching.
+
+## Decision record (2026-11-22, Tony)
+
+Parked. The motivating gap was documentation and is closed: the production guide documents `@statorjs/stator/register`, and on Node 24 `node --env-file-if-exists=.env --env-file-if-exists=.env.local --import @statorjs/stator/register <script>` covers env loading. What `exec` would add beyond a shorter command is `--boot` and config access, and no script has needed either. A docs-only "Running scripts" recipe ships instead. Revisit when a real script needs the resolved config or what `boot.ts` sets up.
