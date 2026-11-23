@@ -1,4 +1,4 @@
-/* @stator contract=1 compiler=3.0.3 */
+/* @stator contract=1 compiler=3.0.4 */
 import {
   classList,
   defer,

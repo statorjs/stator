@@ -1,5 +1,16 @@
 # @statorjs/stator
 
+## 3.0.4
+
+### Patch Changes
+
+- 2b12a38: A live page told to reload for a new build no longer loops when a CDN is still serving the old page. It reloads once; if the page that comes back is still the old build it waits (5 s, then longer) before trying again, and shows `data-stator-connection="stale"` meanwhile. Before, a cache that ignored the reload's revalidation header kept the tab reloading many times a second until its entry expired.
+- ce5a6f8: A GET that reads claims is never marked `Cache-Control: public`. It was marked when the read found no claims, which let a shared cache serve the anonymous page to a signed-in visitor of the same URL. Pages and data routes that read claims are now served from the origin for everyone; middleware that calls `claims()` on every request withdraws derived caching from every page, so read claims only on the paths that need them. A hand-set `Cache-Control` still wins.
+- 67f9eac: `stator dev` now applies `events` from `stator.config.ts`. `events.gate` and `events.maxBytes` were read by `stator start` only, so a dev server always enforced the gate and used the default 64 KB body cap whatever the config said.
+- b5309d5: A page served by a catch-all route after another route answered 404 now gets its live updates and events from the route that rendered it. Before, `/__sse` and `/__events` used the first route matching the path, so such a page was patched from a different template and its events were checked against the wrong route. The page names its route in a `stator-pattern` meta, which the client echoes; pages served by their first match send nothing new.
+- 5fc5fea: A page whose layout no longer matches what the server renders for it reloads instead of taking patches. Signing in or out in another tab, or going Back to a page after signing in, could leave a tab with one session's page receiving another's updates; where the template chose markup with a plain `{x ? … : …}` on claims or machine state, values landed on the wrong elements until the page was reloaded. Each page now carries a fingerprint of its binding layout, the server compares it on `/__sse` and `/__events`, and a mismatch reloads the page once. An event sent from such a page still takes effect. `when(read(machine, …))` branches were never affected.
+- 110b272: `stator check` and the language server warn about a plain conditional that is chosen once at render from a value that can change afterwards. `{found ? <PollPage /> : <NotFound />}` or `{isOwner && <Tools />}`, where the test comes from `Stator.request.claims()` or from a value read off a machine handle in the frontmatter, has no id scope of its own, so a later live update can land on the wrong elements until the page reloads. The warning points at the conditional and names the fix: `when(read(machine, …), …)`, which makes the branch part of the page's live state. It fires only when an arm holds a binding (`read()`, `each`/`when`/`match`, an `on:` handler) or a component; a test computed by a helper function isn't traced. It never fails the check.
+
 ## 3.0.3
 
 ### Patch Changes
