@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
 import { afterEach, beforeEach, describe, it, mock } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { settleReloadGuard } from '../src/client/build-reload.ts'
 import { init, initLiveChannel } from '../src/client/runtime.ts'
 import { createApp } from '../src/server/create-app.ts'
 import { activeConnectionCount } from '../src/server/sse.ts'
@@ -405,5 +406,50 @@ describe('guarded reload: a layout mismatch', () => {
     assert.deepEqual(reloadsAt, [0])
     mock.timers.tick(1)
     assert.deepEqual(reloadsAt, [0, 5000])
+  })
+
+  it('a reloaded page that carries the expected layout forgets the attempt', async () => {
+    const reloadsAt: number[] = []
+    const t0 = Date.now()
+    stubGlobal('location', {
+      pathname: '/cart',
+      search: '',
+      reload: () => reloadsAt.push(Date.now() - t0),
+    })
+    stubGlobal('fetch', async () =>
+      Response.json({ patches: [], directives: [LAYOUT_RELOAD], committed: true }),
+    )
+    const attempt = { path: '/cart', reason: 'layout', token: 'bbbb1111', count: 1, at: t0 }
+    sessionStorage.setItem('stator:reload', JSON.stringify(attempt))
+    document.head.innerHTML = '<meta name="stator-layout" content="bbbb1111">'
+    document.body.innerHTML =
+      '<button data-event-click=\'{"machine":"CartMachine","event":{"type":"ADD"}}\'>go</button>'
+    init()
+    assert.equal(sessionStorage.getItem('stator:reload'), null)
+
+    // Back on the other layout without a guarded reload, the same mismatch again.
+    document.head.innerHTML = '<meta name="stator-layout" content="aaaa0000">'
+    document.querySelector('button')!.click()
+    await until(() => reloadsAt.length === 1)
+    assert.deepEqual(reloadsAt, [0])
+    assert.notEqual(connectionAttr(), 'stale')
+  })
+
+  it('a reloaded page that is still the old one keeps the attempt', () => {
+    stubGlobal('location', { pathname: '/cart', search: '', reload: () => {} })
+    const layout = { path: '/cart', reason: 'layout', token: 'bbbb1111', count: 1, at: Date.now() }
+    for (const [attempt, head] of [
+      [layout, '<meta name="stator-layout" content="aaaa0000">'],
+      [{ ...layout, path: '/other' }, '<meta name="stator-layout" content="bbbb1111">'],
+      [{ ...layout, reason: 'build', token: 'B2' }, '<meta name="stator-build" content="B1">'],
+    ] as const) {
+      sessionStorage.setItem('stator:reload', JSON.stringify(attempt))
+      document.head.innerHTML = head
+      settleReloadGuard({
+        build: document.querySelector('meta[name="stator-build"]')?.getAttribute('content'),
+        layout: document.querySelector('meta[name="stator-layout"]')?.getAttribute('content'),
+      })
+      assert.notEqual(sessionStorage.getItem('stator:reload'), null)
+    }
   })
 })

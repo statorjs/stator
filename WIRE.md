@@ -160,7 +160,7 @@ The client echoes the fingerprint as `&layout=<fp>` on the `/__sse` connect URL 
 { "directives": [{ "type": "reload", "reason": "layout", "layout": "<the server's fingerprint>" }] }
 ```
 
-`layout` is the fingerprint the server expected, or `""` when its render has no root-scope bindings. The bundled runtime guards this reload exactly as it does a build reload. A request that carries no fingerprint is never compared, and neither is one whose route answers 404 for the path.
+`layout` is the fingerprint the server expected, or `""` when its render has no root-scope bindings. The bundled runtime guards this reload exactly as it does a build reload, and forgets the attempt when the reloaded page carries the layout the server asked for. A request that carries no fingerprint is never compared, and neither is one whose route answers 404 for the path.
 
 ## What's not in the wire protocol (yet)
 

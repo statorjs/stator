@@ -20,7 +20,7 @@
 import { applyDirectives, applyPatches } from '../wire/apply.ts'
 import type { Directive, WireEnvelope } from '../wire/index.ts'
 import { TEMPLATE_EVENTS } from '../wire/template-events.ts'
-import { clearReloadGuard, guardedReload } from './build-reload.ts'
+import { clearReloadGuard, guardedReload, settleReloadGuard } from './build-reload.ts'
 import { clientId, newEventId } from './client-id.ts'
 import {
   emitDispatchError,
@@ -70,6 +70,10 @@ function init(): void {
   for (const type of TEMPLATE_EVENTS) {
     document.body.addEventListener(type, handleEvent)
   }
+  settleReloadGuard({
+    build: document.querySelector('meta[name="stator-build"]')?.getAttribute('content'),
+    layout: pageLayout(),
+  })
   initLiveChannel()
 }
 
