@@ -9,12 +9,13 @@ import RegForm from '../../templates/reg-form.stator'
 const [roster] = Stator.reads([RosterMachine])
 const { params } = Stator.request
 
-const attendee = roster.attendees.find((a) => a.id === String(params.id)) ?? null
+const id = String(params.id)
+const attendee = roster.attendees.find((a) => a.id === id)
 if (!attendee) Stator.response.status = 404
 ---
 <Layout title="Edit registration">
-  {attendee ? (
-    <>
+  {when(read(roster, (r) => r.attendees.some((a) => a.id === id)), () => (
+    <div>
       <header>
         <h1>Edit registration</h1>
         <p>
@@ -24,22 +25,23 @@ if (!attendee) Stator.response.status = 404
       </header>
       <RegForm
         mode="update"
-        rid={attendee.id}
-        name={attendee.name}
-        email={attendee.email}
-        seats={attendee.seats}
-        ticket={attendee.ticket}
-        updates={attendee.updates}
+        rid={attendee?.id}
+        name={attendee?.name}
+        email={attendee?.email}
+        seats={attendee?.seats}
+        ticket={attendee?.ticket}
+        updates={attendee?.updates}
         done="/"
       />
       <p><a href="/">← back to the desk</a></p>
-    </>
-  ) : (
-    <>
+    </div>
+  ))}
+  {when(read(roster, (r) => !r.attendees.some((a) => a.id === id)), () => (
+    <div>
       <h1>No such registration</h1>
       <p>That party isn't on the roster — it may have been removed. <a href="/">Back to the desk.</a></p>
-    </>
-  )}
+    </div>
+  ))}
 </Layout>
 
 <style>

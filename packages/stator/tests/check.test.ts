@@ -225,6 +225,41 @@ describe('stator check: the compiler runs over every .stator file', () => {
         .includes(', 1 warning\n'),
     )
   })
+
+  it('a plain conditional on a machine snapshot warns, located, and still passes', async () => {
+    await scaffold(
+      "---\nimport Door from '../machines/door.ts'\nconst [door] = Stator.reads([Door])\n" +
+        'const open = door.isOpen\n---\n' +
+        "<p>{open ? <button on:click={() => door.send({ type: 'SHUT' })}>shut</button> : <b>shut</b>}</p>\n",
+    )
+    await mkdir(join(root, 'machines'), { recursive: true })
+    await writeFile(
+      join(root, 'machines/door.ts'),
+      "import { defineMachine } from '@statorjs/stator/machine'\n" +
+        "export default defineMachine({\n  name: 'Door',\n  lifecycle: 'session',\n" +
+        "  events: {} as { type: 'SHUT' },\n  context: { open: true },\n  initial: 'idle',\n" +
+        '  states: { idle: { on: { SHUT: (ctx) => { ctx.open = false } } } },\n' +
+        '  selectors: { isOpen: (ctx) => ctx.open },\n})\n',
+    )
+    const stderr = mock.method(process.stderr, 'write', () => true)
+    const stdout = mock.method(process.stdout, 'write', () => true)
+
+    assert.equal(await checkStack(root), undefined)
+    const err = stderr.mock.calls.map((c) => String(c.arguments[0])).join('')
+    assert.ok(
+      err.includes(
+        'routes/index.stator:6:5 - warning: this branch is chosen once, when the page renders. ' +
+          'If `open` changes later',
+      ),
+    )
+    assert.ok(err.includes('Use when(read(door, (d) => d.isOpen), …)'))
+    assert.ok(
+      stdout.mock.calls
+        .map((c) => String(c.arguments[0]))
+        .join('')
+        .includes(', 1 warning\n'),
+    )
+  })
 })
 
 describe('stator check: global HTML attributes on plain elements', () => {
