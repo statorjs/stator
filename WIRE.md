@@ -28,6 +28,7 @@ Response: HTML document containing:
 - Element identifiers — `data-stator-id="<element-id>"` on any element that owns an attribute binding or an event handler.
 - The client runtime bundled at `/static/client.js`.
 - `<meta name="stator-layout" content="<8 hex chars>">` when the page has root-scope bindings: a fingerprint of them (see "Layout handshake").
+- `<meta name="stator-pattern" content="<route pattern>">` when the page was rendered by a route other than the first one matching its path (see "Route pattern").
 
 The server discards the slot map after the response. State for patching on subsequent POSTs is reconstructed by re-rendering against current machine state inside the POST handler.
 
@@ -39,6 +40,7 @@ Content-Type: application/json
 Cookie: stator_sid=<sid>          ; required
 X-Stator-Route: GET <url-path>    ; required — identifies the client's current route so the server knows which machines to hydrate and which template to render for patches
 X-Stator-Layout: <fingerprint>    ; optional — the page's `stator-layout` meta, see "Layout handshake"
+X-Stator-Pattern: <route pattern> ; optional — the page's `stator-pattern` meta, see "Route pattern"
 ```
 
 Body:
@@ -160,7 +162,15 @@ The client echoes the fingerprint as `&layout=<fp>` on the `/__sse` connect URL 
 { "directives": [{ "type": "reload", "reason": "layout", "layout": "<the server's fingerprint>" }] }
 ```
 
-`layout` is the fingerprint the server expected, or `""` when its render has no root-scope bindings. The bundled runtime guards this reload exactly as it does a build reload, and forgets the attempt when the reloaded page carries the layout the server asked for. A request that carries no fingerprint is never compared, and neither is one whose route answers 404 for the path.
+`layout` is the fingerprint the server expected, or `""` when its render has no root-scope bindings. The bundled runtime guards this reload exactly as it does a build reload, and forgets the attempt when the reloaded page carries the layout the server asked for. A request that carries no fingerprint is never compared.
+
+### Route pattern
+
+A page GET tries every route that can serve its path: when the first match answers 404 the request falls through to a catch-all. A page rendered by such a later route carries that route's pattern in `<meta name="stator-pattern">` (for example `/posts/*rest`). A page rendered by its first match carries none.
+
+The client echoes the pattern as `&pattern=<pattern>` on the `/__sse` connect URL and as `X-Stator-Pattern` on `POST /__events`. The server then renders, patches and gates events from that route instead of the first match. Without a pattern it uses the first match.
+
+A pattern that is not one of the path's GET candidates (the route was removed or renamed) is answered with a layout reload whose `layout` is `"pattern"`, a value no page fingerprint equals, so the attempt is forgotten only by a healthy live frame. On `/__sse` that is the only frame and the stream ends. On `/__events` the event is not dispatched and the response is `{ "patches": [], "directives": [<the reload>], "committed": false }`.
 
 ## What's not in the wire protocol (yet)
 
