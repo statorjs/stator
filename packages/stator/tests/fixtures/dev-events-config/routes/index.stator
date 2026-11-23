@@ -1,0 +1,6 @@
+---
+import Counter from '../machines/counter.ts'
+
+const [counter] = Stator.reads([Counter])
+---
+<p>{read(counter, (c) => c.count)}</p>
