@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { dirname, resolve } from 'node:path'
 import { afterEach, beforeEach, describe, it, mock } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { initLiveChannel } from '../src/client/runtime.ts'
+import { settleReloadGuard } from '../src/client/build-reload.ts'
+import { init, initLiveChannel } from '../src/client/runtime.ts'
 import { createApp } from '../src/server/create-app.ts'
 import { activeConnectionCount } from '../src/server/sse.ts'
 import { stubGlobal, unstubAllGlobals, useFakeTimers } from './helpers/mocks.ts'
@@ -168,6 +169,7 @@ afterEach(async () => {
   initLiveChannel() // no live meta: closes the last channel and opens none
   await until(() => activeConnectionCount() === 0)
   document.documentElement.removeAttribute('data-stator-connection')
+  document.body.innerHTML = ''
   unstubAllGlobals()
   sessionStorage.clear()
   mock.timers.reset()
@@ -342,5 +344,112 @@ describe('guarded reload: HTML from build A served by a cache while the origin r
     await tab.visit()
     await tab.advance(10_000)
     assert.deepEqual(tab.reloadsAt, [0, 5000, 10_000])
+  })
+})
+
+describe('guarded reload: a layout mismatch', () => {
+  const LAYOUT_RELOAD = { type: 'reload', reason: 'layout', layout: 'bbbb1111' }
+
+  it('a live page that keeps mismatching backs off, and echoes its fingerprint on connect', async () => {
+    const urls: string[] = []
+    const tab = openTab(
+      (req) => {
+        urls.push(req.url)
+        return new Response(`data: ${JSON.stringify({ directives: [LAYOUT_RELOAD] })}\n\n`)
+      },
+      () =>
+        new Response(
+          '<head><meta name="stator-live" content="true"><meta name="stator-layout" content="aaaa0000"></head>',
+        ),
+    )
+
+    await tab.visit()
+    assert.match(urls[0]!, /&layout=aaaa0000$/)
+    assert.deepEqual(tab.reloadsAt, [0])
+
+    await tab.advance(4000)
+    assert.equal(connectionAttr(), 'stale')
+    assert.equal(tab.open, 0)
+
+    await tab.advance(17_000)
+    assert.deepEqual(tab.reloadsAt, [0, 5000, 20_000])
+    assert.equal(tab.connects, tab.loads)
+  })
+
+  it('a page that is not live: the event response reloads it, then a repeat waits', async () => {
+    const reloadsAt: number[] = []
+    const t0 = Date.now()
+    stubGlobal('location', {
+      pathname: '/cart',
+      search: '',
+      reload: () => reloadsAt.push(Date.now() - t0),
+    })
+    const posts: Array<Record<string, string>> = []
+    stubGlobal('fetch', async (_url: string, request: RequestInit) => {
+      posts.push(request.headers as Record<string, string>)
+      return Response.json({ patches: [], directives: [LAYOUT_RELOAD], committed: true })
+    })
+    document.head.innerHTML = '<meta name="stator-layout" content="aaaa0000">'
+    document.body.innerHTML =
+      '<button data-event-click=\'{"machine":"CartMachine","event":{"type":"ADD"}}\'>go</button>'
+    init()
+
+    document.querySelector('button')!.click()
+    await until(() => reloadsAt.length === 1)
+    assert.equal(posts[0]!['X-Stator-Layout'], 'aaaa0000')
+    assert.deepEqual(reloadsAt, [0])
+
+    // The page that came back is answered the same way.
+    document.querySelector('button')!.click()
+    await until(() => connectionAttr() === 'stale')
+    mock.timers.tick(4999)
+    assert.deepEqual(reloadsAt, [0])
+    mock.timers.tick(1)
+    assert.deepEqual(reloadsAt, [0, 5000])
+  })
+
+  it('a reloaded page that carries the expected layout forgets the attempt', async () => {
+    const reloadsAt: number[] = []
+    const t0 = Date.now()
+    stubGlobal('location', {
+      pathname: '/cart',
+      search: '',
+      reload: () => reloadsAt.push(Date.now() - t0),
+    })
+    stubGlobal('fetch', async () =>
+      Response.json({ patches: [], directives: [LAYOUT_RELOAD], committed: true }),
+    )
+    const attempt = { path: '/cart', reason: 'layout', token: 'bbbb1111', count: 1, at: t0 }
+    sessionStorage.setItem('stator:reload', JSON.stringify(attempt))
+    document.head.innerHTML = '<meta name="stator-layout" content="bbbb1111">'
+    document.body.innerHTML =
+      '<button data-event-click=\'{"machine":"CartMachine","event":{"type":"ADD"}}\'>go</button>'
+    init()
+    assert.equal(sessionStorage.getItem('stator:reload'), null)
+
+    // Back on the other layout without a guarded reload, the same mismatch again.
+    document.head.innerHTML = '<meta name="stator-layout" content="aaaa0000">'
+    document.querySelector('button')!.click()
+    await until(() => reloadsAt.length === 1)
+    assert.deepEqual(reloadsAt, [0])
+    assert.notEqual(connectionAttr(), 'stale')
+  })
+
+  it('a reloaded page that is still the old one keeps the attempt', () => {
+    stubGlobal('location', { pathname: '/cart', search: '', reload: () => {} })
+    const layout = { path: '/cart', reason: 'layout', token: 'bbbb1111', count: 1, at: Date.now() }
+    for (const [attempt, head] of [
+      [layout, '<meta name="stator-layout" content="aaaa0000">'],
+      [{ ...layout, path: '/other' }, '<meta name="stator-layout" content="bbbb1111">'],
+      [{ ...layout, reason: 'build', token: 'B2' }, '<meta name="stator-build" content="B1">'],
+    ] as const) {
+      sessionStorage.setItem('stator:reload', JSON.stringify(attempt))
+      document.head.innerHTML = head
+      settleReloadGuard({
+        build: document.querySelector('meta[name="stator-build"]')?.getAttribute('content'),
+        layout: document.querySelector('meta[name="stator-layout"]')?.getAttribute('content'),
+      })
+      assert.notEqual(sessionStorage.getItem('stator:reload'), null)
+    }
   })
 })

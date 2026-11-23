@@ -7,18 +7,20 @@ import { streamSSE } from 'hono/streaming'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { z } from 'zod'
 import { type AnyMachineDef, describeMachine } from '../engine/index.ts'
+import type { Directive } from '../wire/index.ts'
 import { applyRenderedEffects, runApiRoute } from './api-route.ts'
 import { crossSiteGuard } from './csrf.ts'
 import { scheduleSessionEffects } from './effects.ts'
 import { record, replayFor } from './event-dedupe.ts'
 import { type ImagesRenderInfo, type ResolvedImagesConfig, serveImage } from './images.ts'
 import { buildInspectPayload } from './inspect.ts'
+import { layoutFingerprint } from './layout-fingerprint.ts'
 import { scopedLogger } from './logger.ts'
 import type { MachineStore } from './machine-store.ts'
 import type { MiddlewareDefinition } from './middleware.ts'
 import { runQueryRoute } from './query-route.ts'
 import { initialSyncPatches, recompute } from './recompute.ts'
-import { renderRoute } from './render.ts'
+import { type RenderResult, renderRoute } from './render.ts'
 import {
   markDerivedCaching,
   withContextHeaders,
@@ -573,9 +575,21 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
       const runtime = new SessionRuntime(sessionId, config.store)
       await runtime.loadGraph(route.reads)
-      const { renderState } = await renderRoute(route, routeKey, sessionId, runtime, request, {
+      const rendered = await renderRoute(route, routeKey, sessionId, runtime, request, {
         images: imagesInfo,
       })
+      const { renderState } = rendered
+
+      // Layout handshake: the page echoes the fingerprint of the HTML it holds
+      // (`layout` param, from its `stator-layout` meta). When this render's
+      // differs, its root-scope ids address other elements than the page's,
+      // so the page reloads instead of taking a sync computed from it.
+      const reload = layoutReload(c.req.query('layout'), rendered, routeKey)
+      if (reload) {
+        runtime.dispose()
+        await stream.writeSSE({ data: JSON.stringify({ directives: [reload] }) })
+        return
+      }
 
       // The handler parks on `finished` until the connection ends. Both ways
       // out resolve it: the client aborting, and the server hanging up on a
@@ -794,10 +808,16 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
         // Baseline render for the diff runs UNDER the session lock — never
         // resolve defer slots here (that would kick their I/O under the lock).
-        const { renderState } = await renderRoute(route, routeKey, sessionId, runtime, request, {
+        const rendered = await renderRoute(route, routeKey, sessionId, runtime, request, {
           resolveDeferred: false,
           images: imagesInfo,
         })
+        const { renderState } = rendered
+
+        // The page's root-scope ids match this baseline's only when their
+        // layout fingerprints do. On a mismatch the event still commits, and
+        // the response reloads the page instead of patching it.
+        const reload = layoutReload(c.req.header('X-Stator-Layout'), rendered, routeKey)
 
         const touched = runtime.processEvent(body.machine, body.event)
 
@@ -806,8 +826,10 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         // derived machines' own state didn't move.
         const { all: recomputeSet } = config.store.expandTouchedForRecompute(touched)
         const patches = []
-        for (const name of recomputeSet) {
-          patches.push(...recompute(renderState, name, runtime))
+        if (!reload) {
+          for (const name of recomputeSet) {
+            patches.push(...recompute(renderState, name, runtime))
+          }
         }
 
         // Persist committed machines plus any fresh machine that fired its
@@ -833,7 +855,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         // the response carries none.
         const envelope = {
           patches: originatorQueued ? [] : patches,
-          directives: [],
+          directives: reload ? [reload] : [],
           committed: touched.size > 0,
         }
         if (body.eventId) record(sessionId, body.eventId, JSON.stringify(envelope))
@@ -921,6 +943,27 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
   })
 
   return app
+}
+
+/**
+ * The reload a page is owed when the layout fingerprint it sent is not the
+ * one of the render the server would patch it from; undefined when they match
+ * or the page sent none. A render that answers 404 is not compared: a GET
+ * cascades past such a route, so the page may be another route's.
+ */
+function layoutReload(
+  pageLayout: string | undefined,
+  rendered: RenderResult,
+  routeKey: string,
+): Directive | undefined {
+  if (!pageLayout || rendered.response.status === 404) return undefined
+  const layout = layoutFingerprint(rendered.renderState) ?? ''
+  if (pageLayout === layout) return undefined
+  httpLog.debug(
+    { route: routeKey, page: pageLayout, layout },
+    'layout mismatch: reloading the page',
+  )
+  return { type: 'reload', reason: 'layout', layout }
 }
 
 /**
@@ -1060,6 +1103,10 @@ async function renderGetCandidate(
       const extra = await headExtras(discovered.filePath)
       if (extra) headHtml.push(extra)
     }
+    // The fingerprint of this HTML's root-scope bindings, echoed by the client
+    // on /__sse and /__events. Eight hex characters, or absent.
+    const layout = layoutFingerprint(result.renderState)
+    if (layout) headHtml.push(`<meta name="stator-layout" content="${layout}">`)
     if (route.live) {
       headHtml.push('<meta name="stator-live" content="true">')
       // The build this page was rendered against — the client echoes it on

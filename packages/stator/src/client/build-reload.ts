@@ -47,6 +47,21 @@ export function guardedReload(
   else hold(delay)
 }
 
+/**
+ * Forget an attempt that took: this document carries the build or layout the
+ * server asked for.
+ */
+export function settleReloadGuard(page: { build?: string | null; layout?: string | null }): void {
+  try {
+    const prev = JSON.parse(sessionStorage.getItem(KEY) ?? 'null')
+    if (!prev || prev.path !== location.pathname) return
+    const now = prev.reason === 'build' ? page.build : (page.layout ?? '')
+    if (now === prev.token) sessionStorage.removeItem(KEY)
+  } catch {
+    // nothing was stored
+  }
+}
+
 export function clearReloadGuard(): void {
   try {
     sessionStorage.removeItem(KEY)

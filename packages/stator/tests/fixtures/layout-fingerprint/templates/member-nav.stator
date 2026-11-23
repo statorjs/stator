@@ -1,0 +1,7 @@
+---
+import type { InstanceOf } from '../../../../src/template/index.ts'
+import type BoardMachine from '../machines/board.ts'
+
+const { board, userId } = Stator.props<{ board: InstanceOf<typeof BoardMachine>; userId: string }>()
+---
+<p id="member" title={read(board, (b) => `members:${b.members}`)}>Signed in as {userId}. Members online: {read(board, (b) => b.members)}</p>

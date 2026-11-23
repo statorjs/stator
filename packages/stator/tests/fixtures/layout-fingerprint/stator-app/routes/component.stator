@@ -1,0 +1,17 @@
+---
+// @stator live
+import BoardMachine from '../../machines/board.ts'
+import Guest from '../../templates/guest.stator'
+import MemberNav from '../../templates/member-nav.stator'
+
+const [board] = Stator.reads([BoardMachine])
+const claims = Stator.request.claims<{ userId: string }>()
+---
+<!doctype html>
+<html>
+  <head><title>t</title></head>
+  <body>
+    {claims ? <MemberNav board={board} userId={claims.userId} /> : <Guest />}
+    <p id="total" title={read(board, (b) => `total:${b.total}`)}>Total: {read(board, (b) => b.total)}</p>
+  </body>
+</html>
