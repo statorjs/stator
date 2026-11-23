@@ -80,9 +80,7 @@ Shipped: machine state inspection (`describeMachine`, `/@stator/inspect`, the Ma
 
 **Why this category**: not features — debts against the small-and-legible surface the vision promises, recorded here so they're paid deliberately instead of discovered by a user.
 
-- **Major-cutover pairing** *(semver policy, not a task)*: when a change *could* be shaped as breaking but a non-breaking shaping exists, ship the non-breaking shaping now and record the deferred cutover here — so the next major that lands for other reasons carries the cleanup. *Minor today, ride a major later.* 3.0 carried the ledger: the flat `createApp`/`createDevApp` keys, the Toolchain re-export from `/server`, the blanket `/__events` 400 for events no chart handles, and the Node 24 floor. **Parked for the next major:**
-  - **The `reads` family naming.** Four surfaces share one word — template `read()`, route `Stator.reads([...])`, the machine option `reads:`, and `helpers.reads`. It was scheduled for 3.0 and did not land. The proposal stands: `read()` keeps its name; the two declarations become `machines` (`Stator.machines([...])` on routes, `machines: [...]` on `defineApiRoute`); the machine option becomes `peers: [...]` and `helpers.reads` becomes `helpers.peers`. The new names can ship in a minor as aliases, with the old ones deprecated and removed at 4.0. The editor contract (`StatorMacros`) is the gate that makes the rename safe.
-  - **The root `media/` convention dir**, held back from the images release.
+- **Major-cutover pairing** *(semver policy, not a task)*: when a change *could* be shaped as breaking but a non-breaking shaping exists, ship the non-breaking shaping now and record the deferred cutover here — so the next major that lands for other reasons carries the cleanup. *Minor today, ride a major later.* 3.0 carried the ledger: the flat `createApp`/`createDevApp` keys, the Toolchain re-export from `/server`, the blanket `/__events` 400 for events no chart handles, and the Node 24 floor. The next major's list is the [4.0 ledger](#40-ledger).
 - **Scaffold toolchain devDeps drift**: `@statorjs/stator` in scaffolded apps is version-managed (the `STATOR_RANGE` sync + changesets), but the starters' other devDeps are hand-pinned — `typescript ^5.6` in every one, and a `tsx` devDependency in `indie-blog` that none of its scripts use (`apps/store` still runs its own `server.ts` under `tsx`). Follow-ups: bump them, and add a freshness guard so they don't silently re-drift (pairs with scaffold-smoke CI). *Motivation*: the scaffold is the first-run experience; stale tooling is a silent, compounding papercut on every new app.
 - **Entries not marked resolved in the rebox log** *(check each against 3.0 first)*: frontmatter is parsed as plain `.ts` while the type-checker's virtual file models it as JSX (entry 2); a conditional wrapper around a `child="x"` slot marker silently falls into the default slot (entry 4); author attributes on an island's root element are silently dropped (entry 7). [Log](.chisel/docs/rebox-paper-cuts.md).
 - **Spec statuses are stale**: a number of specs are still `draft` for work that shipped (session identity, the Vite exit, lazy sessions, image caching, the snapshot follow-ups among them).
@@ -96,7 +94,8 @@ Shipped: the `/server/runtime` tier split (2.12, re-export removed in 3.0), the 
 - **The compose/identity seam is the standing complexity risk** *(watch, not a task)*: slot scopes, key scopes, element ids — the addressing layer under the bindings. It generated the composition-boundary bugs, and a new binding *kind* re-tests it. The diff-*kind* surface stays small on purpose (see [`recompute-model`](.chisel/docs/recompute-model.md)); the guardrail is on this seam — a new binding kind or position earns its place only after it regression-tests the seam and clears the same evidence bar as any primitive. The guardrail's first hard call: item reads inside `when`/`match`/`defer` arms are a compile error, not a supported position. *Revisit trigger*: two more real templates carrying find-by-id machine reads inside arms for item-local data.
 - **A page that peeks claims is marked `public` for everyone** *(confirmed 2026-11-22; patch specced: [`a-claims-read-always-withdraws-derived-caching`](.chisel/specs/a-claims-read-always-withdraws-derived-caching.md))*: the anonymous render of a claims-peeking page goes out `public` with no `Vary`, so a shared cache may serve it to a signed-in visitor. When the two renders allocate different slot ids (a plain ternary on claims), patches for the signed-in render land on the wrong elements of the anonymous HTML. Details and fix candidates in the [plan](.chisel/specs/implementation-plan-3-1-through-3-3.md).
 - **A CDN-stale live page reload-loops after a deploy** *(confirmed 2026-11-22; patch specced: [`a-build-mismatch-reload-is-guarded-against-a-stale-cache`](.chisel/specs/a-build-mismatch-reload-is-guarded-against-a-stale-cache.md))*: a build-id mismatch on `/__sse` triggers a bare `location.reload()` with no guard, and a cache that keeps serving the old HTML loops the tab until the edge entry expires.
-- **A session change under an open tab lands patches on the wrong elements** *(confirmed 2026-11-22; patch specced: [`a-layout-fingerprint`](.chisel/specs/a-layout-fingerprint-reloads-a-page-whose-ids-no-longer-match.md))*: slot and element ids are positional, so a plain conditional or component choice on a value that changes after the page loaded (claims, on sign-in in another tab, sign-out, or Back after sign-in) shifts every id after it, and the next sync is applied to a page laid out differently. `when()`/`match()` are unaffected. Details in the [plan](.chisel/specs/implementation-plan-3-1-through-3-3.md).
+- **A session change under an open tab lands patches on the wrong elements** *(confirmed 2026-11-22; patch specced: [`a-layout-fingerprint`](.chisel/specs/a-layout-fingerprint-reloads-a-page-whose-ids-no-longer-match.md))*: slot and element ids are positional, so a plain conditional or component choice on a value that changes after the page loaded (claims, on sign-in in another tab, sign-out, or Back after sign-in) shifts every id after it when an arm holds a binding, and the next sync is applied to a page laid out differently. `when()`/`match()` are unaffected. Details in the [plan](.chisel/specs/implementation-plan-3-1-through-3-3.md).
+- **A page served by a catch-all is patched from the wrong route** *(confirmed 2026-11-22; patch specced: [`a-page-served-by-a-fall-through-names-its-route`](.chisel/specs/a-page-served-by-a-fall-through-names-its-route.md))*: a GET falls through a 404 to a catch-all, but `/__sse` and `/__events` use the first route matching the path, so the catch-all's page is synced, patched and event-gated from a different template. The layout fingerprint exempts 404 renders until this lands.
 - **The event gate is by event type, not by machine**: `/__events` accepts an event when some page offers that type, whichever machine it targets. Tightening it to (machine, type) is future work.
 - **Coalescing outbox** *(measurement-gated)*: at most one pending write per slot on a connection's queue. Bounded writes and the per-connection write queue shipped in 2.10; this is what remains of the [SSE delivery spec](.chisel/specs/sse-delivery-bounded-writes-the-outbox-and-fan-out-at-scale.md).
 
@@ -116,12 +115,37 @@ Adjudicated: **route injection** is rejected in favour of package handlers behin
 
 Tracked in the gap analysis, unscheduled: a Redis fan-out backplane (multi-replica), durable effects with an outbox, `waitFor` coordination, lazy machine refs, a user lifecycle (a third fan-out scope: one user's connections across devices), transient context keys, and rate limiting (likely a recipe over middleware).
 
+## 4.0 ledger
+
+**Why this category**: everything the next major carries, in one place. 4.0 exists because every event on a `defineMachine` machine must have a schema; the rest rides along.
+
+**Committed.** Each has a non-breaking form shipping first.
+
+| Cutover | Non-breaking form | Ships in |
+| --- | --- | --- |
+| Every `defineMachine` event has a schema: `events.schemas` becomes `require`, `{} as Events` is removed. Client-only `machine()` machines are exempt | `events({ … })` opt-in, `warn` at dev boot | 3.2 |
+| Old `reads` names removed (`Stator.reads`, `reads:`, `helpers.reads`); internal fields renamed | `machines` and `peers` aliases, old names deprecated | 3.1 |
+| 1 MiB default request body limit | `requests.maxBodyBytes` opt-in, a warning over 1 MiB | 3.1 |
+| `zod` removed from the framework's dependencies | hand-written envelope check | 3.2 |
+| Root `media/` convention dir | held back from the images release | 2.11 |
+
+**Candidates.** Breaking, not yet designed; each needs a spec before it is committed.
+
+- **A route's 404 is final, with an explicit hand-off.** Today a GET route's 404 falls through to a catch-all, so a status code doubles as control flow, and `/__sse` and `/__events` had to learn which route served a page. The candidate: a 404 means "this is mine and it is not found", and a route calls something explicit to pass the request on (to a catch-all or `routes/404.stator`). Every app with a `[slug]` route and a `404.stator` relies on the fall-through today, so it needs a migration story.
+- **The event gate by (machine, type).** It is by event type today. Tightening it can refuse events an app currently sends.
+
+**Open decisions.**
+
+- The `serverOnly: [...]` list on a machine, now that `serverOnly<T>()` and `serverOnly(schema)` declare the same thing per event: deprecate the list in 3.2 and remove it here, or keep both.
+- What `events.schemas: 'off'` and `'warn'` mean once `require` is the default: removed, or kept as an escape hatch.
+- How `stator build` and `stator check` enforce the schema requirement. Neither imports machine modules in 3.x; the 3.2 report runs at dev boot only.
+
 ## Sequencing
 
 The plan, with what runs in parallel and what was parked, is in [`implementation-plan-3-1-through-3-3`](.chisel/specs/implementation-plan-3-1-through-3-3.md).
 
-1. **Patches**: `stator dev` ignoring `config.events`, and the two cache bugs under Runtime correctness.
+1. **Patches**: `stator dev` ignoring `config.events`, the `stator check` warning for render-time branches, and the four bugs under Runtime correctness (claims caching, the reload guard, the layout fingerprint, the fall-through route).
 2. **3.1, forms and the wire**: refusal reasons over 4xx, client hardening, body limits, `defineApiRoute` any method, the `reads` rename as aliases, the `node24` hash target.
 3. **3.2**: event payload schemas.
 4. Alongside, as they merge: `stator inspect` / `stator viz`, the SEO recipe with `indie-blog`, the "Running scripts" recipe.
-5. **4.0**: schemas required for every `defineMachine` event, carrying the parked cutovers (old `reads` names, the 1 MiB default body limit, `zod`, the root `media/` dir).
+5. **4.0**: schemas required for every `defineMachine` event, carrying the [4.0 ledger](#40-ledger).

@@ -8,7 +8,7 @@ area: runtime
 
 ## What and Why
 
-Slot and element ids are positional. `allocSlotId` and `allocElementId` (`packages/stator/src/server/render-context.ts:226-235`) hand out `s0`, `s1`, `e0`, … from a per-scope counter, and only `each`, keyed rows, `when`/`match` arms and `defer` push a scope (`src/template/conditional.ts:54`). A plain conditional (`{x ? <a/> : <b/>}`, `{x && <i/>}`) and a component chosen by a value do not, so every id after one depends on which way it went.
+Slot and element ids are positional. `allocSlotId` and `allocElementId` (`packages/stator/src/server/render-context.ts:226-235`) hand out `s0`, `s1`, `e0`, … from a per-scope counter, and only `each`, keyed rows, `when`/`match` arms and `defer` push a scope (`src/template/conditional.ts:54`). A plain conditional (`{x ? <a/> : <b/>}`, `{x && <i/>}`) and a component chosen by a value do not. When an arm holds a binding or a component, every id after the conditional depends on which way it went; an arm of static markup allocates no ids and shifts nothing.
 
 A patch is addressed by id and applied blindly. So whenever the server computes patches from a render in which such a conditional went one way, for a browser holding HTML in which it went the other, values land on the wrong elements, and the patches for ids the page does not have are skipped with a console warning (or, in one direction, with no warning at all).
 
@@ -140,6 +140,10 @@ It lives in `compileWarnings` (it depends on no release-specific API, so the edi
 - **Selector source in the hash.** It closes the same-shape collision and costs a string per binding per render. Recommended: include it, measure, and drop it from the event path only if it shows.
 - **Should the dev server say why it reloaded?** A one-line dev log naming the route and the first differing binding would turn a surprising reload into a pointer at the template line. Cheap; worth doing in the same PR if the fingerprint function can return the difference.
 - **`clearClaims()` without rotation** leaves a connection pushing member-arm values to a signed-out tab. That is authorisation staleness, covered by "rotate on any privilege change", and out of scope here. Worth a sentence in the middleware guide.
+
+## As built
+
+- A render that answers 404 is not compared. A page served by a catch-all after a fall-through is rendered from the first matching route on `/__sse` and `/__events`, which would mismatch on every connect and event. [[a-page-served-by-a-fall-through-names-its-route]] fixes the resolution and removes the exemption.
 
 ## Implementation Notes
 

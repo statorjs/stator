@@ -14,7 +14,7 @@ The plan for the next two minors and the major they lead to, with every decision
 
 | Release | Theme | What ships |
 | --- | --- | --- |
-| 3.0.x | patches | `stator dev` ignores `config.events`; a claims read always withdraws derived caching; the build-mismatch reload guard; the layout fingerprint |
+| 3.0.x | patches | `stator dev` ignores `config.events`; a claims read always withdraws derived caching; the build-mismatch reload guard; the layout fingerprint; a fall-through page names its route |
 | 3.1 | forms and the wire | refused-dispatch reasons over 4xx, client error-handling hardening, request body limits, `defineApiRoute` any method, the `reads` rename as aliases, the `node24` hash target |
 | 3.2 | schemas | event payload schemas: bring your own Standard Schema validator, `warn` by default |
 | any | rides the next release when merged | `stator inspect` / `stator viz`, the SEO recipe with `indie-blog`, the "Running scripts" recipe |
@@ -25,6 +25,7 @@ Specs:
 - [`a-claims-read-always-withdraws-derived-caching`](./a-claims-read-always-withdraws-derived-caching.md) (patch)
 - [`a-build-mismatch-reload-is-guarded-against-a-stale-cache`](./a-build-mismatch-reload-is-guarded-against-a-stale-cache.md) (patch)
 - [`a-layout-fingerprint-reloads-a-page-whose-ids-no-longer-match`](./a-layout-fingerprint-reloads-a-page-whose-ids-no-longer-match.md) (patch)
+- [`a-page-served-by-a-fall-through-names-its-route`](./a-page-served-by-a-fall-through-names-its-route.md) (patch; stacked on the fingerprint)
 - [`refused-dispatch-reasons`](./refused-dispatch-reasons.md) (3.1; revised for 4xx)
 - [`client-side-event-error-handling`](./client-side-event-error-handling.md) (3.1 hardening and bubbling events; the rest parked)
 - [`request-body-size-limits-for-uploads-and-api-routes`](./request-body-size-limits-for-uploads-and-api-routes.md) (3.1)
@@ -168,6 +169,8 @@ The PR breakdown is in the spec, which is being revised to this record.
 | `zod` removed from `package.json` | 3.2 |
 | Root `media/` convention dir | 2.11 |
 
+The full ledger, with candidates and open decisions, is in [`ROADMAP.md`](../../ROADMAP.md#40-ledger). One candidate was added on 2026-11-22: a route's 404 becomes final, with an explicit hand-off to a catch-all.
+
 ### Sequencing summary
 
 | Can run in parallel | Must run in series |
@@ -207,6 +210,7 @@ Each of these was specced or planned on 2026-11-22 and then parked for lack of e
 
 - **Claims in layouts: parked.** Decided 2026-11-22: the Admin link can simply go from the site footer, so nothing is built for it. The chosen answer to the IndiePub Admin link was to let a layout call `Stator.request.claims()` as a route can, "under the existing 2.12 caching rule". That rule was the bug, and with the fix a layout that reads claims makes every page using it uncacheable, which is the outcome the parked late-routes design existed to avoid. Options to weigh when this is picked up: accept uncacheable themed pages for sites that want the link; an island that fetches a tiny data route; or the late-route sync, which this is now real evidence for.
 - **Session change under an open tab: confirmed 2026-11-22; patch specced** ([`a-layout-fingerprint-…`](./a-layout-fingerprint-reloads-a-page-whose-ids-no-longer-match.md)). The three patches are layered and all needed: the claims fix makes the cache header true, the fingerprint stops patches being applied to a mismatched page, and the guard makes both reloads safe behind a stale cache. Order: guard, then fingerprint; the claims fix is independent. A tab holding a page rendered under one session state gets patches computed under another, with no cache involved: sign-in in another tab (the rotated session's reconnect), claims set without rotation (the tab's own `/__events` response), sign-out, and Back after sign-in (a real bfcache restore, and the HTTP-cache re-show). Reproduced at server level, through the real applier, and in Chromium (`.claude/worktrees/agent-a4eac046b30ad0bf7`, `tests/repro-session-shift.test.ts`, `browser-tests/session-shift.mjs`, uncommitted). The cause is positional ids: a plain conditional or a component choice on any value that differs between the page GET and a later baseline render shifts the ids after it. `when()`/`match()` arms never misland, and `when(read(machine, …))`, the `with-auth` pattern, converges fully. It is not claims-specific and the claims-caching patch does not close it. Leading fix candidate: a layout fingerprint in the page, echoed on `/__sse` and `/__events`, with a reload on mismatch that goes through the build-reload guard; plus a compile-time diagnostic steering such branches to `when()`.
+- **A page served by a catch-all is patched from the wrong route: confirmed 2026-11-22; patch specced** ([`a-page-served-by-a-fall-through-names-its-route`](./a-page-served-by-a-fall-through-names-its-route.md)). `/__sse` and `/__events` take the first route matching the path where GET falls through a 404. The fingerprint branch exempts 404 renders until this lands.
 - **The event gate is by event type, not by (machine, type).** Tightening it is future work, independent of schemas.
 - **Should "client reads 4xx bodies" ship in a 3.0.x patch?** A tab opened before the 3.1 deploy runs the old transport and reads a 422 refusal as "couldn't send". Nothing commits wrongly, and shipping the client change a release ahead narrows the window. It adds a field to `DispatchError`, which is a minor by the book.
 
