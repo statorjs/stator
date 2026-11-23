@@ -69,6 +69,8 @@ async (c, next) => {
 }
 ```
 
+Reading claims withdraws [derived caching](/reference/config/#notes) from that response, whatever the read returns, so keep the read inside the path check: middleware that calls `claims()` on every request leaves no page cacheable.
+
 Claims are a **projection**, not a second source of truth. Your machine still owns identity; claims carry only what the machine-unaware edge needs to gate. Keep them minimal and they can't meaningfully drift.
 
 **Lifecycle** — `rotateSession()` moves the session to a fresh id (the fixation defense: call it on any privilege change, so an id captured while anonymous is worthless after login). `clearSession()` deletes the session outright (logout on a shared machine). In a **handler** both are *deferred* — applied after the handler returns, so state persists before the id changes, and claims set the same request follow to the new id. In **middleware** both are *immediate* (`await`), because there's no "after the handler" upstream:
@@ -80,6 +82,8 @@ if (s.claims() && (await isRevoked(s.claims()))) {
   return c.redirect('/login')
 }
 ```
+
+A revocation check has to run on every request, so this one can't sit inside a path check: it reads claims everywhere, and no page keeps its derived caching. That is the price of the check. A site that needs both revocation and edge-cached public pages scopes the check to the paths a session matters on.
 
 **Cookies** — `stator(c).cookies` / `ctx.cookies` (`get`/`set`/`delete`) for app-owned cookies, distinct from the framework's session cookie. The canonical use is a login `returnTo`: middleware stashes where the visitor was headed, the login route reads it back and redirects there.
 

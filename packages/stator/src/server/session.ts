@@ -29,7 +29,7 @@ export interface SessionState {
  *  response unprovable as anonymous-identical, so no derived Cache-Control. */
 export interface SessionUse {
   used: boolean
-  /** A claims read resolved to a value. */
+  /** Claims were read, whatever the read returned. */
   claimsRead: boolean
   /** A request input beyond the URL was read (a header, a cookie), so the
    *  response may differ per visitor. */
@@ -58,13 +58,14 @@ export function sessionUse(c: Context): SessionUse {
   return use
 }
 
-/** Read the resumed session's claims — a peek that never establishes. Only a
- *  DEFINED result makes the response claims-dependent (layer 3): a visitor
- *  whose claims read came back empty saw exactly the anonymous page. */
+/** Read the resumed session's claims — a peek that never establishes. Any
+ *  read makes the response claims-dependent (layer 3): the page that came
+ *  back may be the anonymous one, but the URL now has more than one answer,
+ *  and a derived `public` would let a shared cache give this one to a
+ *  visitor who is signed in. */
 export function readClaims<T = unknown>(c: Context): T | undefined {
-  const claims = getSessionState(c)?.claims as T | undefined
-  if (claims !== undefined) sessionUse(c).claimsRead = true
-  return claims
+  sessionUse(c).claimsRead = true
+  return getSessionState(c)?.claims as T | undefined
 }
 
 /** The session id this request WOULD have — established state or the arriving
