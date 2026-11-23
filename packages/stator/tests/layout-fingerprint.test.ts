@@ -623,66 +623,199 @@ describe('cascading routes', () => {
   const Counter = defineMachine({
     name: 'CounterMachine',
     lifecycle: 'session',
-    events: {} as { type: 'NOOP' },
+    events: {} as { type: 'BUMP' },
     context: { a: 1, b: 2 },
     initial: 'ready',
-    states: { ready: { on: { NOOP: () => {} } } },
+    states: {
+      ready: {
+        on: {
+          BUMP: (ctx) => {
+            ctx.a += 1
+          },
+        },
+      },
+    },
     selectors: { a: (ctx) => ctx.a, b: (ctx) => ctx.b },
   })
-  const page = (urlPath: string, paramNames: string[], GET: DiscoveredRoute['GET']) =>
-    ({ urlPath, paramNames, filePath: `<test>${urlPath}`, GET }) as DiscoveredRoute
+  const page = (
+    urlPath: string,
+    paramNames: string[],
+    GET: DiscoveredRoute['GET'],
+    extra: Partial<DiscoveredRoute> = {},
+  ) => ({ urlPath, paramNames, filePath: `<test>${urlPath}`, GET, ...extra }) as DiscoveredRoute
   const doc = (body: HtmlFragment) =>
     html`<!doctype html><html><head><title>t</title></head><body>${body}</body></html>`
+  const patternOf = (html: string): string | undefined =>
+    /<meta name="stator-pattern" content="([^"]+)">/.exec(html)?.[1]
+
+  // `a` is at s0 in the specific route and at s1 in the catch-alls.
+  const specific = page(
+    '/posts/:slug',
+    ['slug'],
+    defineRoute({
+      reads: [Counter],
+      live: true,
+      render: ({ CounterMachine: c, response }: any, request) => {
+        if (request.params.slug !== 'known') response.status = 404
+        return doc(html`<p>${read(c, (m: any) => m.a)}</p>`)
+      },
+    }),
+  )
+  const catchAllRoute = defineRoute({
+    reads: [Counter],
+    live: true,
+    render: ({ CounterMachine: c }: any) =>
+      doc(html`<p>${read(c, (m: any) => m.b)}</p><p>${read(c, (m: any) => m.a)}</p>`),
+  })
+  const catchAll = page('/posts/*rest', ['rest'], catchAllRoute)
+  const notFound = page('/*__stator_notfound__', ['__stator_notfound__'], catchAllRoute, {
+    isNotFoundFallback: true,
+  })
+
+  const boot = (routes: DiscoveredRoute[]) =>
+    buildHonoApp({
+      routes: sortRoutes(routes),
+      store: new MachineStore([Counter], new InMemoryStore()),
+    })
+  type Hono = Awaited<ReturnType<typeof boot>>
+
+  const cookie = () => `stator_sid=${crypto.randomUUID()}`
+  const load = async (app: Hono, path: string, sid: string) =>
+    (await app.fetch(new Request(`http://localhost${path}`, { headers: { Cookie: sid } }))).text()
+  const bump = async (
+    app: Hono,
+    path: string,
+    sid: string,
+    echo: { layout?: string; pattern?: string },
+  ) => {
+    const res = await app.fetch(
+      new Request('http://localhost/__events', {
+        method: 'POST',
+        headers: {
+          Cookie: sid,
+          'Content-Type': 'application/json',
+          'X-Stator-Route': `GET ${path}`,
+          ...(echo.layout ? { 'X-Stator-Layout': echo.layout } : {}),
+          ...(echo.pattern ? { 'X-Stator-Pattern': echo.pattern } : {}),
+          Origin: 'http://localhost',
+        },
+        body: JSON.stringify({ machine: 'CounterMachine', event: { type: 'BUMP' } }),
+      }),
+    )
+    assert.equal(res.status, 200, await res.clone().text())
+    return (await res.json()) as Envelope
+  }
+  const connect = async (
+    app: Hono,
+    path: string,
+    sid: string,
+    echo: { layout?: string; pattern?: string },
+  ) => {
+    const params = new URLSearchParams({ route: `GET ${path}`, client: 'c1' })
+    if (echo.layout) params.set('layout', echo.layout)
+    if (echo.pattern) params.set('pattern', echo.pattern)
+    const res = await app.fetch(
+      new Request(`http://localhost/__sse?${params}`, { headers: { Cookie: sid } }),
+    )
+    assert.equal(res.status, 200)
+    return new Channel(res)
+  }
+  const echoOf = (html: string) => ({ layout: layoutOf(html), pattern: patternOf(html) })
+  const staleReload = [{ type: 'reload', reason: 'layout', layout: 'pattern' }]
 
   it('the meta is the fingerprint of the candidate that is served', async () => {
-    const specific = page(
-      '/posts/:slug',
-      ['slug'],
-      defineRoute({
-        reads: [Counter],
-        render: ({ CounterMachine: c, response }: any, request) => {
-          if (request.params.slug !== 'known') response.status = 404
-          return doc(html`<p>${read(c, (m: any) => m.a)}</p>`)
-        },
-      }),
-    )
-    const catchAll = page(
-      '/posts/*rest',
-      ['rest'],
-      defineRoute({
-        reads: [Counter],
-        render: ({ CounterMachine: c }: any) =>
-          doc(html`<p>${read(c, (m: any) => m.b)}</p><p>${read(c, (m: any) => m.a)}</p>`),
-      }),
-    )
-    const store = new MachineStore([Counter], new InMemoryStore())
-    const app = await buildHonoApp({ routes: sortRoutes([specific, catchAll]), store })
-
-    const won = await (await app.fetch(new Request('http://localhost/posts/known'))).text()
-    const fellThrough = await (await app.fetch(new Request('http://localhost/posts/other'))).text()
+    const app = await boot([specific, catchAll])
+    const won = await load(app, '/posts/known', cookie())
+    const fellThrough = await load(app, '/posts/other', cookie())
 
     assert.equal(won.match(/stator-layout/g)?.length, 1)
     assert.equal(fellThrough.match(/stator-layout/g)?.length, 1)
     assert.match(fellThrough, /<span data-slot="s1">1<\/span>/)
     assert.notEqual(layoutOf(won), layoutOf(fellThrough))
+  })
 
-    // /__events resolves the path to the first matching route, which answers
-    // 404 here: its layout is not held against the catch-all's page.
-    const res = await app.fetch(
-      new Request('http://localhost/__events', {
-        method: 'POST',
-        headers: {
-          Cookie: `stator_sid=${crypto.randomUUID()}`,
-          'Content-Type': 'application/json',
-          'X-Stator-Route': 'GET /posts/other',
-          'X-Stator-Layout': layoutOf(fellThrough)!,
-          Origin: 'http://localhost',
-        },
-        body: JSON.stringify({ machine: 'CounterMachine', event: { type: 'NOOP' } }),
-      }),
+  it('only a page served by a later candidate names its route', async () => {
+    const app = await boot([specific, catchAll])
+    assert.equal(patternOf(await load(app, '/posts/known', cookie())), undefined)
+    assert.equal(patternOf(await load(app, '/posts/other', cookie())), '/posts/*rest')
+  })
+
+  it('an event from a fall-through page is patched from the route that rendered it', async () => {
+    const app = await boot([specific, catchAll])
+    const sid = cookie()
+    const html = await load(app, '/posts/other', sid)
+
+    const res = await bump(app, '/posts/other', sid, echoOf(html))
+    assert.deepEqual(res.directives, [])
+    assert.deepEqual(
+      res.patches!.map((p) => [p.target.id, p.value]),
+      [['s1', '2']],
     )
-    assert.equal(res.status, 200, await res.clone().text())
-    assert.deepEqual(((await res.json()) as Envelope).directives, [])
+  })
+
+  it('a page that names no route is resolved to the first match', async () => {
+    const app = await boot([specific, catchAll])
+    const sid = cookie()
+    const html = await load(app, '/posts/known', sid)
+
+    const res = await bump(app, '/posts/known', sid, echoOf(html))
+    assert.deepEqual(res.directives, [])
+    assert.deepEqual(
+      res.patches!.map((p) => p.target.id),
+      ['s0'],
+    )
+  })
+
+  it('a fall-through page that sends no pattern is reloaded, not patched from the first match', async () => {
+    const app = await boot([specific, catchAll])
+    const sid = cookie()
+    const html = await load(app, '/posts/other', sid)
+
+    const res = await bump(app, '/posts/other', sid, { layout: layoutOf(html) })
+    assert.deepEqual(res.patches, [])
+    assert.equal(res.directives![0].reason, 'layout')
+  })
+
+  it('a pattern that is no candidate for the path reloads and dispatches nothing', async () => {
+    const app = await boot([specific, catchAll, page('/docs/*rest', ['rest'], catchAllRoute)])
+    const sid = cookie()
+    const html = await load(app, '/posts/other', sid)
+    const echo = echoOf(html)
+
+    for (const pattern of ['/gone/*rest', '/docs/*rest']) {
+      const res = await bump(app, '/posts/other', sid, { ...echo, pattern })
+      assert.deepEqual(res, { patches: [], directives: staleReload, committed: false })
+
+      const channel = await connect(app, '/posts/other', sid, { ...echo, pattern })
+      await channel.until(() => channel.ended, 'the stream to end')
+      assert.deepEqual(channel.envelopes, [{ directives: staleReload }])
+    }
+
+    const res = await bump(app, '/posts/other', sid, echo)
+    assert.deepEqual(
+      res.patches!.map((p) => p.value),
+      ['2'],
+    )
+  })
+
+  it('a live fall-through page connects without a reload', async () => {
+    for (const [routes, pattern] of [
+      [[specific, catchAll], '/posts/*rest'],
+      [[specific, notFound], '/*__stator_notfound__'],
+    ] as const) {
+      const app = await boot([...routes])
+      const sid = cookie()
+      const html = await load(app, '/posts/other', sid)
+      assert.equal(patternOf(html), pattern)
+
+      const channel = await connect(app, '/posts/other', sid, echoOf(html))
+      const res = await bump(app, '/posts/other', sid, echoOf(html))
+      assert.deepEqual(res.directives, [])
+      await new Promise((r) => setTimeout(r, 50))
+      assert.deepEqual(channel.reloads, [])
+      assert.equal(channel.ended, false)
+      await channel.close()
+    }
   })
 })
 

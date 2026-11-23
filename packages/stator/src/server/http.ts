@@ -7,6 +7,7 @@ import { streamSSE } from 'hono/streaming'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { z } from 'zod'
 import { type AnyMachineDef, describeMachine } from '../engine/index.ts'
+import { escapeAttribute } from '../template/parser.ts'
 import type { Directive } from '../wire/index.ts'
 import { applyRenderedEffects, runApiRoute } from './api-route.ts'
 import { crossSiteGuard } from './csrf.ts'
@@ -258,6 +259,29 @@ function cascadeCandidates<T extends PathMatch>(all: T[]): T[] {
   if (isSuffixedParamPattern(winner.route.urlPath)) return [winner]
   return [winner, ...all.slice(1).filter((m) => isRestPattern(m.route.urlPath))]
 }
+
+/**
+ * The route a page's /__sse and /__events requests belong to. A GET cascades
+ * past a 404, so the page may have been rendered by a later candidate than
+ * the first match; such a page sends that route's `urlPath` as `pattern`.
+ * `'stale'` when it names a route that is not a GET candidate for the path.
+ */
+function resolvePageRoute(
+  matchers: RouteMatcher[],
+  literalPath: string,
+  pattern: string | undefined,
+): PathMatch | 'stale' | null {
+  if (!pattern) return matchPath(matchers, literalPath)
+  const candidates = cascadeCandidates(
+    matchAllPaths(matchers, literalPath).filter((m) => !!m.route.GET),
+  )
+  return candidates.find((m) => m.route.urlPath === pattern) ?? 'stale'
+}
+
+/** The reload sent to a page whose `pattern` names no route for its path. Its
+ *  token is one no page fingerprint equals, so the client's record of the
+ *  attempt outlives a reload that hands the same page back. */
+const STALE_ROUTE_RELOAD: Directive = { type: 'reload', reason: 'layout', layout: 'pattern' }
 
 /** Parse a route key like "GET /p/abc-123" into method + literal path. */
 function parseRouteKey(
@@ -522,7 +546,12 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     if (parsed?.method !== 'GET') {
       return c.text(`malformed route key "${routeKey}"`, 400)
     }
-    const matched = matchPath(getMatchers, parsed.path)
+    const matched = resolvePageRoute(getMatchers, parsed.path, c.req.query('pattern'))
+    if (matched === 'stale') {
+      return streamSSE(c, async (stream) => {
+        await stream.writeSSE({ data: JSON.stringify({ directives: [STALE_ROUTE_RELOAD] }) })
+      })
+    }
     if (!matched?.route.GET) {
       return c.text(`unknown route "${routeKey}"`, 404)
     }
@@ -673,7 +702,10 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     if (parsed?.method !== 'GET') {
       return c.json({ error: `malformed route key "${routeKey}"` }, 400)
     }
-    const matched = matchPath(getMatchers, parsed.path)
+    const matched = resolvePageRoute(getMatchers, parsed.path, c.req.header('X-Stator-Pattern'))
+    if (matched === 'stale') {
+      return c.json({ patches: [], directives: [STALE_ROUTE_RELOAD], committed: false })
+    }
     if (!matched?.route.GET) {
       return c.json({ error: `unknown route "${routeKey}"` }, 404)
     }
@@ -935,6 +967,7 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
         config.buildId,
         config.caching,
         imagesInfo,
+        matched === candidates[0] ? undefined : matched.route.urlPath,
       )
       if (candidate.status !== 404) return candidate.commit()
       lastNotFound = candidate.commit
@@ -948,15 +981,14 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 /**
  * The reload a page is owed when the layout fingerprint it sent is not the
  * one of the render the server would patch it from; undefined when they match
- * or the page sent none. A render that answers 404 is not compared: a GET
- * cascades past such a route, so the page may be another route's.
+ * or the page sent none.
  */
 function layoutReload(
   pageLayout: string | undefined,
   rendered: RenderResult,
   routeKey: string,
 ): Directive | undefined {
-  if (!pageLayout || rendered.response.status === 404) return undefined
+  if (!pageLayout) return undefined
   const layout = layoutFingerprint(rendered.renderState) ?? ''
   if (pageLayout === layout) return undefined
   httpLog.debug(
@@ -1076,6 +1108,8 @@ async function renderGetCandidate(
   buildId?: string,
   caching?: { sMaxAge: number; staleWhileRevalidate: number },
   images?: ImagesRenderInfo,
+  /** Set when this route is not the path's first match: the page names it. */
+  pattern?: string,
 ): Promise<GetCandidate> {
   // Lazy layer 1: only a session-machine read forces establishment. An
   // app-only (or read-free) page renders against the resumed sid when a
@@ -1107,6 +1141,9 @@ async function renderGetCandidate(
     // on /__sse and /__events. Eight hex characters, or absent.
     const layout = layoutFingerprint(result.renderState)
     if (layout) headHtml.push(`<meta name="stator-layout" content="${layout}">`)
+    if (pattern) {
+      headHtml.push(`<meta name="stator-pattern" content="${escapeAttribute(pattern)}">`)
+    }
     if (route.live) {
       headHtml.push('<meta name="stator-live" content="true">')
       // The build this page was rendered against — the client echoes it on

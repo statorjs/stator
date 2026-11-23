@@ -26,6 +26,7 @@ import {
   emitDispatchError,
   fetchWithTimeout,
   pageLayout,
+  pagePattern,
   postEvent,
   TimeoutError,
 } from './transport.ts'
@@ -135,7 +136,9 @@ function initLiveChannel(): { close(): void } | undefined {
   const buildParam = build ? `&build=${encodeURIComponent(build)}` : ''
   const layout = pageLayout()
   const layoutParam = layout ? `&layout=${encodeURIComponent(layout)}` : ''
-  const url = `/__sse?route=${encodeURIComponent(routeKey)}&client=${encodeURIComponent(clientId)}${buildParam}${layoutParam}`
+  const pattern = pagePattern()
+  const patternParam = pattern ? `&pattern=${encodeURIComponent(pattern)}` : ''
+  const url = `/__sse?route=${encodeURIComponent(routeKey)}&client=${encodeURIComponent(clientId)}${buildParam}${layoutParam}${patternParam}`
 
   let sse: EventSource | null = null
   let lastSeen = Date.now()

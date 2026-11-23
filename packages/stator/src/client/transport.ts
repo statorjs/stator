@@ -67,6 +67,11 @@ export function pageLayout(): string | null | undefined {
   return document.querySelector('meta[name="stator-layout"]')?.getAttribute('content')
 }
 
+/** The route that rendered this page, when it was not the path's first match. */
+export function pagePattern(): string | null | undefined {
+  return document.querySelector('meta[name="stator-pattern"]')?.getAttribute('content')
+}
+
 export type PostEventResult = { ok: true; res: Response } | { ok: false; error: DispatchError }
 
 /**
@@ -83,6 +88,7 @@ export async function postEvent(
 ): Promise<PostEventResult> {
   let error: DispatchError
   const layout = pageLayout()
+  const pattern = pagePattern()
   for (let attempt = 0; ; attempt++) {
     try {
       const res = await fetchWithTimeout('/__events', {
@@ -93,6 +99,7 @@ export async function postEvent(
           'X-Stator-Route': routeKey,
           'X-Stator-Client': clientId,
           ...(layout ? { 'X-Stator-Layout': layout } : {}),
+          ...(pattern ? { 'X-Stator-Pattern': pattern } : {}),
         },
         credentials: 'same-origin',
         body: JSON.stringify(body),
