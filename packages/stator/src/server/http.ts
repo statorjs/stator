@@ -563,7 +563,11 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       // before any render/registration: a doomed connection does no work.
       const pageBuild = c.req.query('build')
       if (config.buildId && pageBuild && pageBuild !== config.buildId) {
-        await stream.writeSSE({ data: JSON.stringify({ directives: [{ type: 'reload' }] }) })
+        await stream.writeSSE({
+          data: JSON.stringify({
+            directives: [{ type: 'reload', reason: 'build', build: config.buildId }],
+          }),
+        })
         return
       }
 

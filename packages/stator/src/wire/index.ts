@@ -43,7 +43,10 @@ export type Patch =
  *  after applying patches. See the response-directives spec for the full list. */
 export type Directive =
   | { type: 'navigate'; to: string }
-  | { type: 'reload' }
+  /** `reason` marks a reload the server sends as a remedy for a mismatch, with
+   *  the value it expected; the page runtime guards those against repeating.
+   *  A plain reload carries neither. */
+  | { type: 'reload'; reason?: 'build'; build?: string }
   | { type: 'push-url'; to: string }
   | { type: 'replace-url'; to: string }
   | { type: 'focus'; target: { kind: 'slot' | 'element'; id: string } }

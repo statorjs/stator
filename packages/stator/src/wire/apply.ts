@@ -108,7 +108,12 @@ function applyPatch(
   return elementAt(start, end, patch.to)
 }
 
-export function applyDirectives(directives: Directive[]): void {
+/** `guarded` takes a reload that carries a `reason`, with the server's token;
+ *  without it every reload is immediate. */
+export function applyDirectives(
+  directives: Directive[],
+  guarded?: (reason: 'build', token: string) => void,
+): void {
   for (const directive of directives) {
     emit('stator:directive-applied', { directive, timestamp: Date.now() })
     switch (directive.type) {
@@ -122,7 +127,8 @@ export function applyDirectives(directives: Directive[]): void {
         location.href = directive.to
         return // stop processing further directives; we're leaving
       case 'reload':
-        location.reload()
+        if (directive.reason && guarded) guarded(directive.reason, directive.build ?? '')
+        else location.reload()
         return
       case 'push-url':
         if (!isSafeNavigationUrl(directive.to)) {

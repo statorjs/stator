@@ -70,8 +70,12 @@ describe('build-id reload handshake', () => {
     const app = await boot('build-NEW')
     const cookie = await cookieFor(app, '/live-head')
     const buffer = await sseFirstChunk(app, 'GET /live-head', cookie, 'build-OLD')
-    assert.ok(buffer.includes('"reload"'))
     assert.ok(!buffer.includes(': open')) // reload short-circuits before the sync
+    // The frame says why, and which build the server is on.
+    const frame = buffer.split('\n').find((line) => line.startsWith('data: '))!
+    assert.deepEqual(JSON.parse(frame.slice(6)), {
+      directives: [{ type: 'reload', reason: 'build', build: 'build-NEW' }],
+    })
   })
 
   it('does NOT reload when the build-id matches', async () => {

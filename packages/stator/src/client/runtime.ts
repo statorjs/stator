@@ -18,8 +18,9 @@
  */
 
 import { applyDirectives, applyPatches } from '../wire/apply.ts'
-import type { WireEnvelope } from '../wire/index.ts'
+import type { Directive, WireEnvelope } from '../wire/index.ts'
 import { TEMPLATE_EVENTS } from '../wire/template-events.ts'
+import { clearReloadGuard, guardedReload } from './build-reload.ts'
 import { clientId, newEventId } from './client-id.ts'
 import { emitDispatchError, fetchWithTimeout, postEvent, TimeoutError } from './transport.ts'
 
@@ -73,6 +74,40 @@ function init(): void {
  *  each holding a socket against the browser's per-origin cap. */
 let liveChannel: { close(): void } | undefined
 
+// Connection-state signal: `data-stator-connection` on the root element
+// (CSS hook for offline banners etc.) plus a `stator:connection-state`
+// event. Change-guarded — EventSource fires `error` on every failed
+// auto-reconnect attempt, and only transitions are worth announcing.
+//
+// `idle` is a DELIBERATE release, not a fault, and is deliberately its own
+// state: apps hang offline banners off `disconnected`/`stale`, and reusing
+// either would flash "you're offline" every time a tab loses focus.
+let connectionState: string | undefined
+function setConnectionState(state: 'connected' | 'disconnected' | 'stale' | 'idle'): void {
+  if (state === connectionState) return
+  connectionState = state
+  document.documentElement.setAttribute('data-stator-connection', state)
+  emit('stator:connection-state', { state, timestamp: Date.now() })
+}
+
+/** Wait out a guarded reload: no live connection is held or retried, the page
+ *  reads as `stale`, and one timer reloads it. */
+let holdTimer: ReturnType<typeof setTimeout> | undefined
+function hold(delayMs: number): void {
+  if (holdTimer !== undefined) return
+  liveChannel?.close()
+  liveChannel = undefined
+  setConnectionState('stale')
+  holdTimer = setTimeout(() => {
+    holdTimer = undefined
+    location.reload()
+  }, delayMs)
+}
+
+function runDirectives(directives: Directive[]): void {
+  applyDirectives(directives, (reason, token) => guardedReload(reason, token, hold))
+}
+
 function initLiveChannel(): { close(): void } | undefined {
   liveChannel?.close()
   liveChannel = undefined
@@ -88,24 +123,12 @@ function initLiveChannel(): { close(): void } | undefined {
   const buildParam = build ? `&build=${encodeURIComponent(build)}` : ''
   const url = `/__sse?route=${encodeURIComponent(routeKey)}&client=${encodeURIComponent(clientId)}${buildParam}`
 
-  // Connection-state signal: `data-stator-connection` on the root element
-  // (CSS hook for offline banners etc.) plus a `stator:connection-state`
-  // event. Change-guarded — EventSource fires `error` on every failed
-  // auto-reconnect attempt, and only transitions are worth announcing.
-  //
-  // `idle` is a DELIBERATE release, not a fault, and is deliberately its own
-  // state: apps hang offline banners off `disconnected`/`stale`, and reusing
-  // either would flash "you're offline" every time a tab loses focus.
-  let connectionState: string | undefined
-  const setConnectionState = (state: 'connected' | 'disconnected' | 'stale' | 'idle'): void => {
-    if (state === connectionState) return
-    connectionState = state
-    document.documentElement.setAttribute('data-stator-connection', state)
-    emit('stator:connection-state', { state, timestamp: Date.now() })
-  }
+  // A new channel announces its first state, whatever the last one ended on.
+  connectionState = undefined
 
   let sse: EventSource | null = null
   let lastSeen = Date.now()
+  let healthy = false
 
   const onMessage = (e: MessageEvent): void => {
     lastSeen = Date.now()
@@ -120,6 +143,10 @@ function initLiveChannel(): { close(): void } | undefined {
     // inspectors and for the dev client, which reads its rebuild/error
     // signals off this instead of opening a second event-stream.
     emit('stator:live-message', { envelope: data, timestamp: Date.now() })
+    if (!healthy && !data.directives?.some((d) => d.type === 'reload')) {
+      healthy = true
+      clearReloadGuard()
+    }
     if (data.patches) {
       // SSE is server-pushed — no client round-trip to time — so report the
       // apply duration (still the useful "how expensive was this update?").
@@ -133,7 +160,7 @@ function initLiveChannel(): { close(): void } | undefined {
       })
     }
     if (data.directives && data.directives.length > 0) {
-      applyDirectives(data.directives)
+      runDirectives(data.directives)
     }
   }
 
@@ -413,7 +440,7 @@ async function applyEnvelopeFromResponse(
     applyPatches(data.patches)
   }
   if (data.directives && data.directives.length > 0) {
-    applyDirectives(data.directives)
+    runDirectives(data.directives)
   }
 }
 
