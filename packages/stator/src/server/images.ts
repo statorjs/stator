@@ -14,7 +14,9 @@ import { basename, dirname, join, resolve, sep } from 'node:path'
  * user-agent negotiation, ever), `?w=` resizes to an allowlisted width, and
  * `?w=&h=` cover-crops to an exact box — BOTH dimensions must come from the
  * allowlist, so the variant space stays bounded (widths² at worst, never an
- * open crop parameter). Variants cache on disk beside the originals
+ * open crop parameter). A width off the allowlist is not an error: it
+ * redirects to the next rung up, or to the original past the top rung, so
+ * no new variant ever exists for it. Variants cache on disk beside the originals
  * (`.variants/`), regenerated when the original is newer. GIFs serve as
  * originals only — animation does not survive naive resizing.
  */
@@ -277,11 +279,35 @@ function resolveOriginal(
   return null
 }
 
+/** The rung that answers a requested width: the smallest allowlisted width
+ *  that is at least `requested`, or `null` when it is past the top rung (the
+ *  original answers). Shared by the endpoint and anything building URLs, so
+ *  both round the same way. */
+export function servedWidth(widths: readonly number[], requested: number): number | null {
+  let rung: number | null = null
+  for (const w of widths) if (w >= requested && (rung === null || w < rung)) rung = w
+  return rung
+}
+
+/** Redirect an off-allowlist size to the URL of the variant that answers it.
+ *  Cacheable: a stale one still lands on a URL the endpoint resolves, because
+ *  every width resolves. */
+function canonicalRedirect(config: ResolvedImagesConfig, rel: string, query: string): Response {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `${config.path}/${rel}${query}`,
+      'Cache-Control': 'public, max-age=3600',
+    },
+  })
+}
+
 /**
  * Serve one image request: `rel` is the path under the endpoint prefix,
  * `widthParam` the raw `?w=` value (undefined = original size). Returns a
  * complete `Response` — 200 with caching headers, 304 on a validator match,
- * 400 for an off-allowlist width, 404 otherwise.
+ * 302 to the answering variant for an off-allowlist width, 400 for a
+ * malformed size, 404 otherwise.
  */
 export async function serveImage(
   config: ResolvedImagesConfig,
@@ -296,19 +322,38 @@ export async function serveImage(
   let width: number | undefined
   if (widthParam !== undefined) {
     width = canonical(widthParam)
-    if (!config.widths.includes(width)) {
-      return new Response(`w must be one of ${config.widths.join(', ')}`, { status: 400 })
+    if (Number.isNaN(width)) {
+      return new Response('w must be a positive integer', { status: 400 })
     }
   }
   let height: number | undefined
   if (heightParam !== undefined) {
-    // A crop needs both axes: `w` from the width allowlist, `h` derived from
-    // an allowlisted aspect — the finite-variant DoS bound, |widths|x|aspects|.
+    // A crop needs both axes, and its shape must be an allowlisted aspect —
+    // the finite-variant DoS bound, |widths|x|aspects|.
     height = canonical(heightParam)
     const w = width
-    if (w === undefined || !config.aspectRatios.some((a) => height === Math.round(w / a))) {
+    const aspect =
+      w === undefined ? undefined : config.aspectRatios.find((a) => height === Math.round(w / a))
+    if (w === undefined || aspect === undefined) {
       return new Response('h requires w, and w/h must match an allowlisted aspect', { status: 400 })
     }
+    // An unlisted crop width rounds up like a plain one, keeping its shape. A
+    // crop is an exact box, so past the top rung it is the top rung's box:
+    // the original cannot stand in for a crop.
+    const rung = servedWidth(config.widths, w) ?? Math.max(...config.widths)
+    if (!Number.isFinite(rung)) {
+      return new Response('a crop needs at least one width in images.widths', { status: 400 })
+    }
+    if (rung !== w) {
+      return canonicalRedirect(config, rel, `?w=${rung}&h=${Math.round(rung / aspect)}`)
+    }
+  } else if (width !== undefined) {
+    // An unlisted width is answered by the next rung up, and past the top
+    // rung by the original — as a redirect to that variant's one URL, so the
+    // caller gets pixels at least as large as asked while the variant space
+    // (and a CDN's copy count) stays exactly the allowlist.
+    const rung = servedWidth(config.widths, width)
+    if (rung !== width) return canonicalRedirect(config, rel, rung === null ? '' : `?w=${rung}`)
   }
 
   const dot = rel.lastIndexOf('.')

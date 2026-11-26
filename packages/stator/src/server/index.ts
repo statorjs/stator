@@ -38,7 +38,7 @@ export type {
   SubscribeEvent,
 } from './define-machine.ts'
 export type { ImageTransformer } from './images.ts'
-export { probeImage, sharpTransformer } from './images.ts'
+export { probeImage, servedWidth, sharpTransformer } from './images.ts'
 export { logger, scopedLogger, setLogLevel } from './logger.ts'
 export type { MiddlewareDefinition } from './middleware.ts'
 export { dangerouslyDefineMiddleware, defineMiddleware } from './middleware.ts'
