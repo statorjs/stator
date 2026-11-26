@@ -102,11 +102,14 @@ describe('photo posts over multipart', () => {
     assert.match(html, /width="1"[^>]*height="1"|height="1"[^>]*width="1"/)
 
     // The URL's extension is the delivery format: request the stored PNG as
-    // webp and the endpoint transcodes. An off-allowlist width is a 400.
+    // webp and the endpoint transcodes. An unlisted width redirects to the
+    // next listed one up.
     const webp = await fetch(`${base}${src!.replace(/\.png$/, '.webp')}?w=400`)
     assert.equal(webp.status, 200)
     assert.equal(webp.headers.get('content-type'), 'image/webp')
-    assert.equal((await fetch(`${base}${src}?w=999`)).status, 400)
+    const rounded = await fetch(`${base}${src}?w=999`, { redirect: 'manual' })
+    assert.equal(rounded.status, 302)
+    assert.equal(rounded.headers.get('location'), `${src}?w=1200`)
   })
 
   it('rejects a photo without alt text', async () => {
