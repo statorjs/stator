@@ -15,6 +15,7 @@ The full plan, with what runs in parallel, is in [`implementation-plan-3-1-throu
 - **The `reads` rename, as aliases**: `Stator.machines([...])` and `machines:` on routes, `peers:` and `helpers.peers` on machines; old names deprecated, removed at 4.0. Spec: [`the-reads-family-rename`](.chisel/specs/the-reads-family-rename-ships-as-aliases-machines-on-routes-peers-on-machines.md).
 
 - **Body size limits for uploads and API routes**: `requests.maxBodyBytes` in config and `maxBodyBytes` per route, 413 over the limit. No default in 3.1 (a warning over 1 MiB); 1 MiB at 4.0. Spec: [`request-body-size-limits`](.chisel/specs/request-body-size-limits-for-uploads-and-api-routes.md).
+- **An unlisted image width is answered, not refused** *(merged, waiting for the release)*: `?w=` off `images.widths` redirects to the next listed width up, and past the largest to the original; it was a 400, which a browser shows as a broken image. Found on tonysull.co, where a package helper asked for a width the site does not list. It belongs with the refusal work: the server gives a request it cannot take as given a useful answer. Still to do for 3.1: a `stator dev` log line when the endpoint redirects, so the template asking for the unlisted width gets found. Spec: [`an-unlisted-image-width`](.chisel/specs/an-unlisted-image-width-is-answered-by-the-next-one-up.md).
 - **Machine-hash esbuild target → `'node24'`**: `server/machine-hash.ts` still bundles for `node20`. The hash is taken over the bundle's minified output, so only a machine using syntax esbuild rewrote for Node 20 (an import attribute, for example) gets a new hash; measured across seven apps, the two targets produce identical bytes. Still a minor with a changeset that says so. The literal stays a literal: the hash has to come out the same on any Node.
 
 ## Example starters
@@ -145,7 +146,7 @@ Tracked in the gap analysis, unscheduled: a Redis fan-out backplane (multi-repli
 The plan, with what runs in parallel and what was parked, is in [`implementation-plan-3-1-through-3-3`](.chisel/specs/implementation-plan-3-1-through-3-3.md).
 
 1. **Patches**: `stator dev` ignoring `config.events`, the `stator check` warning for render-time branches, and the four bugs under Runtime correctness (claims caching, the reload guard, the layout fingerprint, the fall-through route).
-2. **3.1, forms and the wire**: refusal reasons over 4xx, client hardening, body limits, `defineApiRoute` any method, the `reads` rename as aliases, the `node24` hash target.
+2. **3.1, forms and the wire**: refusal reasons over 4xx, client hardening, body limits, `defineApiRoute` any method, the `reads` rename as aliases, the `node24` hash target, unlisted image widths answered by redirect (its PR merges early and waits; nothing releases as 3.1 before the rest lands).
 3. **3.2**: event payload schemas.
 4. Alongside, as they merge: `stator inspect` / `stator viz`, the SEO recipe with `indie-blog`, the "Running scripts" recipe.
 5. **4.0**: schemas required for every `defineMachine` event, carrying the [4.0 ledger](#40-ledger).

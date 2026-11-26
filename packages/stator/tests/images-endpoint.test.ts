@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { describe, it } from 'node:test'
@@ -65,12 +65,33 @@ describe('image endpoint', () => {
     assert.equal(webp.headers.get('content-type'), 'image/webp')
   })
 
-  it('rejects off-allowlist widths and traversal', async () => {
+  it('an unlisted width redirects to the next rung up, and past the top rung to the original', async () => {
+    const app = await boot({ dir: mediaDir(), path: '/media', widths: [800, 192, 400] })
+    const to = async (query: string) => {
+      const res = await app.fetch(new Request(`http://localhost/media/2026/08/probe.webp${query}`))
+      return [res.status, res.headers.get('location')]
+    }
+    assert.deepEqual(await to('?w=120'), [302, '/media/2026/08/probe.webp?w=192'])
+    assert.deepEqual(await to('?w=193'), [302, '/media/2026/08/probe.webp?w=400'])
+    assert.deepEqual(await to('?w=1200'), [302, '/media/2026/08/probe.webp'])
+    assert.deepEqual(await to('?w=192'), [200, null])
+    // The redirect lands on bytes: nothing it names is itself refused.
+    const landed = await app.fetch(new Request('http://localhost/media/2026/08/probe.webp'))
+    assert.equal(landed.status, 200)
+    assert.equal(landed.headers.get('content-type'), 'image/webp')
+  })
+
+  it('an unlisted width never makes a variant of its own', async () => {
+    const dir = mediaDir()
+    const app = await boot({ dir, path: '/media', widths: [400] })
+    for (const w of [1, 2, 3, 399, 401, 5000]) {
+      await app.fetch(new Request(`http://localhost/media/2026/08/probe.webp?w=${w}`))
+    }
+    assert.equal(existsSync(join(dir, '.variants')), false)
+  })
+
+  it('rejects malformed widths and traversal', async () => {
     const app = await boot({ dir: mediaDir(), path: '/media', widths: [400] })
-    assert.equal(
-      (await app.fetch(new Request('http://localhost/media/2026/08/probe.png?w=999'))).status,
-      400,
-    )
     // One spelling per width, so a CDN holds one copy of each variant.
     for (const w of ['400.0', '4e2', '0x190', '0400', ' 400']) {
       const res = await app.fetch(new Request(`http://localhost/media/2026/08/probe.png?w=${w}`))
@@ -84,7 +105,7 @@ describe('image endpoint', () => {
 })
 
 describe('image endpoint: crops', () => {
-  it('w+h cover-crops to the exact box; h alone or off-allowlist is a 400', async () => {
+  it('w+h cover-crops to the exact box; h alone or off-aspect is a 400', async () => {
     const app = await boot({ dir: mediaDir(), path: '/media' })
     const crop = await app.fetch(
       new Request('http://localhost/media/2026/08/probe.webp?w=400&h=400'),
@@ -102,6 +123,15 @@ describe('image endpoint: crops', () => {
       (await app.fetch(new Request('http://localhost/media/2026/08/probe.png?w=400&h=999'))).status,
       400,
     )
+    // An unlisted crop width keeps its shape and takes the next rung up; past
+    // the top rung it is the top rung's box, never the uncropped original.
+    const up = await app.fetch(new Request('http://localhost/media/2026/08/probe.webp?w=300&h=300'))
+    assert.equal(up.status, 302)
+    assert.equal(up.headers.get('location'), '/media/2026/08/probe.webp?w=400&h=400')
+    const over = await app.fetch(
+      new Request('http://localhost/media/2026/08/probe.webp?w=3200&h=1800'),
+    )
+    assert.equal(over.headers.get('location'), '/media/2026/08/probe.webp?w=1600&h=900')
   })
 })
 

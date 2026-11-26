@@ -368,7 +368,8 @@ describe('stator dev with a package island', () => {
       'templates/count-stepper.stator':
         '<count-stepper><span>local</span></count-stepper>\n\n<script>\n  export class CountStepper extends StatorElement {}\n</script>\n',
     })
-    const dev = await startDev(root, 57000 + (process.pid % 3000))
+    // Its own port: the server above is still listening until `after`.
+    const dev = await startDev(root, 51000 + (process.pid % 3000))
     children.push(dev.child)
     const page = await (await fetch(`${dev.url}/`)).text()
     assert.ok(!page.includes('acme_blocks_src_stepper-'), 'the package island is not served')
