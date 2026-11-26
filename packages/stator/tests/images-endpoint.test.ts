@@ -104,6 +104,27 @@ describe('image endpoint', () => {
   })
 })
 
+describe('image endpoint: the dev notice for an unlisted width', () => {
+  it('names the width asked for, the list, and what answered', async () => {
+    const { unlistedWidthNotice } = await import('../src/server/images.ts')
+    const widths = [192, 400, 800]
+    assert.equal(
+      unlistedWidthNotice(widths, '64', false),
+      'an image was asked for at w=64, which is not in images.widths (192, 400, 800). ' +
+        'It was redirected to w=192, the next one up. Ask for a listed width to skip the redirect.',
+    )
+    assert.match(unlistedWidthNotice(widths, '1200', false)!, /redirected to the original/)
+    assert.match(unlistedWidthNotice(widths, '1200', true)!, /redirected to w=800, the largest/)
+  })
+
+  it('says nothing for a listed, absent or malformed width', async () => {
+    const { unlistedWidthNotice } = await import('../src/server/images.ts')
+    for (const w of ['192', undefined, '192.0', '0', 'abc']) {
+      assert.equal(unlistedWidthNotice([192, 400], w, false), null, String(w))
+    }
+  })
+})
+
 describe('image endpoint: crops', () => {
   it('w+h cover-crops to the exact box; h alone or off-aspect is a 400', async () => {
     const app = await boot({ dir: mediaDir(), path: '/media' })

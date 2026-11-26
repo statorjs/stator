@@ -289,6 +289,35 @@ export function servedWidth(widths: readonly number[], requested: number): numbe
   return rung
 }
 
+/** What to tell a developer when a request named a width the endpoint
+ *  redirects: the width asked for, the list, and what answered. `null` when
+ *  the width is listed, absent or malformed. The dev server logs it once per
+ *  width, so the template asking for an unlisted size gets found; production
+ *  says nothing (the redirect is the answer, and a line per request would be
+ *  noise anyone could cause). */
+export function unlistedWidthNotice(
+  widths: readonly number[],
+  widthParam: string | undefined,
+  crop: boolean,
+): string | null {
+  if (widthParam === undefined || !/^[1-9]\d*$/.test(widthParam)) return null
+  const asked = Number(widthParam)
+  const rung = servedWidth(widths, asked)
+  if (rung === asked) return null
+  const top = widths.length > 0 ? Math.max(...widths) : null
+  const answer =
+    rung !== null
+      ? `w=${rung}, the next one up`
+      : crop && top !== null
+        ? `w=${top}, the largest (a crop never falls back to the original)`
+        : 'the original, since it is past the largest'
+  return (
+    `an image was asked for at w=${asked}, which is not in images.widths ` +
+    `(${widths.join(', ')}). It was redirected to ${answer}. ` +
+    'Ask for a listed width to skip the redirect.'
+  )
+}
+
 /** Redirect an off-allowlist size to the URL of the variant that answers it.
  *  Cacheable: a stale one still lands on a URL the endpoint resolves, because
  *  every width resolves. */

@@ -13,7 +13,12 @@ import { applyRenderedEffects, runApiRoute } from './api-route.ts'
 import { crossSiteGuard } from './csrf.ts'
 import { scheduleSessionEffects } from './effects.ts'
 import { record, replayFor } from './event-dedupe.ts'
-import { type ImagesRenderInfo, type ResolvedImagesConfig, serveImage } from './images.ts'
+import {
+  type ImagesRenderInfo,
+  type ResolvedImagesConfig,
+  serveImage,
+  unlistedWidthNotice,
+} from './images.ts'
 import { buildInspectPayload } from './inspect.ts'
 import { layoutFingerprint } from './layout-fingerprint.ts'
 import { scopedLogger } from './logger.ts'
@@ -516,12 +521,26 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
 
   if (config.images) {
     const images = config.images
+    // Dev only (`inspect` is the dev servers' flag): name an unlisted width
+    // once, with the page that asked, so its template can be fixed.
+    const noticed = new Set<string>()
     app.get(`${images.path}/*`, async (c) => {
       let rel: string
       try {
         rel = decodeURIComponent(c.req.path.slice(images.path.length + 1))
       } catch {
         return c.text('not found', 404) // malformed percent-encoding is a 404, not a 500
+      }
+      if (config.inspect) {
+        const notice = unlistedWidthNotice(
+          images.widths,
+          c.req.query('w'),
+          c.req.query('h') !== undefined,
+        )
+        if (notice && !noticed.has(notice)) {
+          noticed.add(notice)
+          httpLog.warn({ path: c.req.path, page: c.req.header('referer') }, `stator: ${notice}`)
+        }
       }
       return withContextHeaders(
         c,
