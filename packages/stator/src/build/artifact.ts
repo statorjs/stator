@@ -105,6 +105,31 @@ async function installedVersion(root: string, name: string): Promise<string | un
 }
 
 /**
+ * The app's `imports` map as `dist/` needs it. The build compiles `x.stator` to
+ * `x.stator.ts` and rewrites every `#…stator` specifier to `#…stator.ts`, so a
+ * key or a target ending in `.stator` (a `*` pattern's included) gains the
+ * `.ts` too; every other path is the same in `dist/` as in the source. Every
+ * string leaf of a conditional or array target is rewritten alike.
+ */
+export function distImports(imports: Record<string, unknown>): Record<string, unknown> {
+  const path = (p: string): string => (p.endsWith('.stator') ? `${p}.ts` : p)
+  const target = (t: unknown): unknown => {
+    if (typeof t === 'string') return t.startsWith('./') ? path(t) : t
+    if (Array.isArray(t)) return t.map(target)
+    if (typeof t === 'object' && t !== null) {
+      return Object.fromEntries(Object.entries(t).map(([k, v]) => [k, target(v)]))
+    }
+    return t
+  }
+  return Object.fromEntries(Object.entries(imports).map(([k, v]) => [path(k), target(v)]))
+}
+
+const importsMap = (value: unknown): Record<string, unknown> | undefined =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined
+
+/**
  * Write the artifact's dependency manifest into `outDir`. `packages` is the set
  * of direct dependencies the app's code reached (`CopySet.packages`).
  */
@@ -126,7 +151,19 @@ export async function writeArtifactDeps(opts: {
   // Self-contained app: both files travel as they are, and the install on the
   // target is locked to exactly what was tested.
   if (lockfile) {
-    await cp(manifestPath, join(outDir, 'package.json'))
+    // Verbatim, unless its `imports` names a `.stator` path the build renamed:
+    // then only that field changes. A frozen install compares the dependency
+    // fields against the lockfile, never `imports`.
+    const text = await readFile(manifestPath, 'utf8')
+    const own = JSON.parse(text) as { imports?: unknown }
+    const imports = importsMap(own.imports)
+    const rewritten = imports && distImports(imports)
+    if (rewritten && JSON.stringify(rewritten) !== JSON.stringify(imports)) {
+      const out = { ...own, imports: rewritten }
+      await writeFile(join(outDir, 'package.json'), `${JSON.stringify(out, null, 2)}\n`)
+    } else {
+      await cp(manifestPath, join(outDir, 'package.json'))
+    }
     await cp(join(root, lockfile), join(outDir, lockfile))
     return {
       kind: 'copied',
@@ -143,7 +180,9 @@ export async function writeArtifactDeps(opts: {
     version?: string
     dependencies?: Record<string, string>
     devDependencies?: Record<string, string>
+    imports?: unknown
   }
+  const imports = importsMap(app.imports)
   const pinned: Record<string, string> = {}
   const unpinned: string[] = []
   for (const name of [...opts.packages].sort()) {
@@ -168,6 +207,9 @@ export async function writeArtifactDeps(opts: {
     // the app's `type`. Once the artifact is the deploy root there is nothing
     // above it to inherit from.
     type: 'module',
+    // The app's `#` subpath imports, which the built modules still use. With
+    // nothing above the artifact, no other manifest can answer them.
+    ...(imports ? { imports: distImports(imports) } : {}),
     dependencies: pinned,
     scripts: { start: 'stator start' },
   }
