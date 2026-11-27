@@ -917,10 +917,12 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     const name = attr.name.getText(sf)
     if (!attr.initializer) return name // boolean attribute
     if (ts.isStringLiteral(attr.initializer)) {
-      // The value is the author's literal text (JSX attribute strings carry no
-      // escapes): HTML-escape it for the markup, then escape it for the
-      // `html\`…\`` literal it lands in so `\`, a backtick and `${` stay text.
-      return `${name}="${escapeText(escapeAttribute(attr.initializer.text))}"`
+      // The value's entities decode as JSX and HTML read them (`&amp;` is `&`);
+      // the rest is the author's text as typed (JSX attribute strings carry no
+      // backslash escapes). HTML-escape that for the markup, then escape it for
+      // the `html\`…\`` literal it lands in so `\`, a backtick and `${` stay text.
+      const value = decodeJsxEntities(attr.initializer.text)
+      return `${name}="${escapeText(escapeAttribute(value))}"`
     }
     return `${name}="\${${attrExpr(attr)}}"`
   }
@@ -1032,6 +1034,42 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
  *  literal HTML element (incl. custom elements). Matches React/Astro/Solid. */
 function isComponentTag(tag: string): boolean {
   return /^[A-Z]/.test(tag)
+}
+
+/** A character or numeric reference TypeScript's JSX transform decodes. */
+const JSX_ENTITY_RE = /&(#\d+|#x[\da-fA-F]+|\w+);/
+
+/**
+ * Decode the entities in a JSX string attribute's text exactly as the
+ * TypeScript JSX transform does: named references from its table, `&#38;` and
+ * `&#x26;`; an unknown or unterminated reference stays as typed. The table and
+ * decoder aren't exported, so the value is run through the transform itself
+ * (only when it holds something reference-shaped) and read back.
+ */
+function decodeJsxEntities(text: string): string {
+  if (!JSX_ENTITY_RE.test(text)) return text
+  // A JSX attribute string can't contain its own quote, so one of the two fits.
+  const q = text.includes('"') ? "'" : '"'
+  const out = ts.transpileModule(`<x a=${q}${text}${q} />`, {
+    compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ESNext },
+    reportDiagnostics: false,
+  }).outputText
+  const sf = ts.createSourceFile('d.js', out, ts.ScriptTarget.ESNext, true, ts.ScriptKind.JS)
+  let decoded: string | undefined
+  const find = (n: ts.Node): void => {
+    if (decoded !== undefined) return
+    if (
+      ts.isPropertyAssignment(n) &&
+      n.name.getText(sf) === 'a' &&
+      ts.isStringLiteral(n.initializer)
+    ) {
+      decoded = n.initializer.text
+      return
+    }
+    ts.forEachChild(n, find)
+  }
+  find(sf)
+  return decoded ?? text
 }
 
 /** Escape literal template text so it round-trips inside a `\`…\`` literal. */

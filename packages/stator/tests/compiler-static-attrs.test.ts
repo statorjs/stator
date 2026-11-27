@@ -10,8 +10,9 @@ import type { HtmlFragment } from '../src/template/types.ts'
 
 /**
  * A static attribute value (`title="…"`) reaches the browser as exactly the text
- * the author wrote: escaped for the HTML attribute, and for the `html\`…\``
- * literal the compiler emits it into. It used to be emitted with JSON.stringify,
+ * the author wrote, with its entities decoded as JSX and HTML read them: escaped
+ * for the HTML attribute, and for the `html\`…\`` literal the compiler emits it
+ * into. It used to be emitted with JSON.stringify,
  * which escapes for a JS string, not for either of those (findings 05-F2/02-F9).
  */
 
@@ -52,7 +53,6 @@ describe('compiler: a static attribute value renders as its literal text', () =>
     ['a double quote', `<p title='say "hi"'></p>`, 'say "hi"'],
     ['a single quote', `<p title="it's"></p>`, "it's"],
     ['an ampersand', '<p title="a & b"></p>', 'a & b'],
-    ['an entity-looking ampersand', '<p title="&amp;"></p>', '&amp;'],
     ['a less-than', '<p title="a < b"></p>', 'a < b'],
     ['a backslash', '<p title="C:\\path\\n"></p>', 'C:\\path\\n'],
     ['a backtick', '<p title="a`b"></p>', 'a`b'],
@@ -72,6 +72,59 @@ describe('compiler: a static attribute value renders as its literal text', () =>
       lowerTemplate(`<p title='say "hi" \${x} \`'></p>`),
       'html`<p title="say &quot;hi&quot; \\${x} \\`"></p>`',
     )
+  })
+
+  describe('entities decode as JSX and HTML read them, then the value is escaped', () => {
+    const entities: Array<[written: string, value: string]> = [
+      ['Tom &amp; Jerry', 'Tom & Jerry'],
+      ['Tom & Jerry', 'Tom & Jerry'],
+      ['&quot;hi&quot;', '"hi"'],
+      ['it&#39;s', "it's"],
+      ['it&#x27;s', "it's"],
+      ['&#38; &#x26;', '& &'],
+      ['&copy; 2026', '\u00a9 2026'],
+      ['a&nbsp;b', 'a\u00a0b'],
+      ['&lt;b&gt;', '<b>'],
+      ['&#x1F600;', '\u{1F600}'],
+      ['&foo; stays', '&foo; stays'],
+      ['&amp without a semicolon', '&amp without a semicolon'],
+      ['a bare & stays', 'a bare & stays'],
+      ['&amp;amp;', '&amp;'],
+      ['&#36;{x} and $&#123;x}', '${x} and ${x}'],
+    ]
+    for (const [written, value] of entities) {
+      it(written, () => {
+        const q = written.includes('"') ? "'" : '"'
+        assert.equal(titleOf(render(`<p title=${q}${written}${q}></p>`, { x: 1 }), value), value)
+      })
+    }
+
+    it('a double-quoted entity in a single-quoted value', () => {
+      assert.equal(
+        titleOf(render(`<p title='say &quot;hi" \${x}'></p>`), 'say "hi" ${x}'),
+        'say "hi" ${x}',
+      )
+    })
+
+    it('an island inner element decodes the same way', () => {
+      const r = compile(
+        `<my-widget><span title="Tom &amp; Jerry &copy;">x</span></my-widget>
+
+<script>
+  export class MyWidget extends StatorElement {}
+</script>`,
+        { id: 'my-widget.stator' },
+      )
+      assert.ok(r.serverCode.includes('<span title="Tom &amp; Jerry \u00a9">'), r.serverCode)
+    })
+
+    it('body text and an attribute agree on an entity', () => {
+      const out = render('<p title="a &amp; b">a &amp; b</p>')
+      const m = /^<p title="([^"]*)">(.*)<\/p>$/.exec(out)
+      assert.ok(m, out)
+      assert.equal(decode(m[1]!), 'a & b')
+      assert.equal(decode(m[2]!), 'a & b')
+    })
   })
 
   it('a dynamic attribute still interpolates', () => {
