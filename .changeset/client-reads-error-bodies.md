@@ -1,0 +1,5 @@
+---
+'@statorjs/stator': minor
+---
+
+The client reads the body of a non-2xx `/__events` response instead of discarding it. The server's `error` sentence for a 400, 403, 404 or 413 (for example `event type "CHARGE_OK" is server-only`) now reaches app code as `error.message` on the island `dispatch()` result and as `message` on the `stator:dispatch-error` detail; enhanced form submits pass a JSON `error` from an API route through the same way. `message` is absent when the body is not JSON, such as a 500's text or a proxy's error page, and a 400's `detail` stays in the console. A 200 whose body is not a JSON object now resolves `dispatch()` with `ok: false` and `error: { phase: 'http', status: 200, message: 'malformed response body' }` and fires `stator:dispatch-error`; before, `dispatch()` rejected and a template send logged and fired nothing. `ok` on the result now means the server processed the event and answered. The transport also recognises a 422 whose body carries a `refusal` object as an answer rather than a failure, ready for refusal reasons; the server does not send one yet, and any other 422 is still a failed request.

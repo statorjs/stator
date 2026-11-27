@@ -4,11 +4,13 @@
  * module self-initializes on import; islands importing `dispatch` must not
  * drag the page runtime (and its document-wide listeners) into their bundle.
  *
- * Failure contract: network errors, timeouts, and non-2xx responses resolve
- * (never throw) as `{ ok: false, error }`, and a `stator:dispatch-error`
- * CustomEvent fires on window once per dispatch when the failure is final.
+ * Failure contract: network errors, timeouts, non-2xx responses and malformed
+ * bodies resolve (never throw) as `{ ok: false, error }`, and a
+ * `stator:dispatch-error` CustomEvent fires on window once per dispatch when
+ * the failure is final.
  */
 
+import type { WireEnvelope } from '../wire/index.ts'
 import { clientId } from './client-id.ts'
 
 /** App-level deadline for event POSTs — browsers' own connection timeouts are
@@ -23,6 +25,10 @@ export interface DispatchError {
   phase: 'network' | 'timeout' | 'http'
   /** HTTP status — present only for `phase: 'http'`. */
   status?: number
+  /** The server's `error` string, when the response body was JSON and had
+   *  one; `'malformed response body'` for a 2xx that was not a JSON object.
+   *  Absent for a non-JSON error body (a 500's text, a proxy's HTML page). */
+  message?: string
 }
 
 /** Thrown by `fetchWithTimeout` when the deadline aborts the request, so
@@ -72,15 +78,60 @@ export function pagePattern(): string | null | undefined {
   return document.querySelector('meta[name="stator-pattern"]')?.getAttribute('content')
 }
 
-export type PostEventResult = { ok: true; res: Response } | { ok: false; error: DispatchError }
+/** `status` is 200 for any 2xx. A 422 is an answer only when its body carries
+ *  a refusal; any other 422 is a failed request. */
+export type PostEventResult =
+  | { ok: true; status: 200 | 422; envelope: WireEnvelope }
+  | { ok: false; error: DispatchError }
+
+/** A response body parsed once: the JSON value, or `undefined` when the body
+ *  is empty or not JSON. */
+function parseBody(text: string): unknown {
+  if (!text) return undefined
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** A refusal is detected by its body, not the status alone: a JSON object
+ *  whose `refusal` is an object with a string `code`. */
+function carriesRefusal(body: unknown): boolean {
+  return isObject(body) && isObject(body.refusal) && typeof body.refusal.code === 'string'
+}
+
+/** The `error` string of a parsed JSON error body, if it has one. A 400's
+ *  `detail` is for the console, not for app code, so it is not read. */
+function errorStringOf(body: unknown): string | undefined {
+  return isObject(body) && typeof body.error === 'string' ? body.error : undefined
+}
+
+/** The `error` string of a JSON error body's text, if it has one. */
+export function errorMessageOf(text: string): string | undefined {
+  return errorStringOf(parseBody(text))
+}
 
 /**
- * POST an event descriptor to `/__events`. Resolves — never throws — and
- * emits `stator:dispatch-error` once when a failure is final. Network and
- * timeout failures retry with backoff, but ONLY when the body carries an
- * `eventId` (the server's replay cache is what makes a duplicate safe —
- * keyed-list patches are not idempotent). Non-2xx responses are terminal
- * immediately: the server saw the event and answered.
+ * POST an event descriptor to `/__events` and read the answer. Resolves —
+ * never throws — and emits `stator:dispatch-error` once when a failure is
+ * final. Network and timeout failures retry with backoff, but ONLY when the
+ * body carries an `eventId` (the server's replay cache is what makes a
+ * duplicate safe — keyed-list patches are not idempotent). A status is never
+ * retried, a 422 included: the server saw the event and answered.
+ *
+ * The body is read for every status, in this order:
+ *   - a 2xx with a JSON object is the envelope;
+ *   - a 422 whose body carries a refusal is an envelope too (the machine was
+ *     asked and said no), with nothing logged or emitted;
+ *   - any other non-2xx is `phase: 'http'`, with the body's `error` string as
+ *     `message` when it has one;
+ *   - a 2xx whose body is not a JSON object is `phase: 'http'` with
+ *     `message: 'malformed response body'`.
  */
 export async function postEvent(
   body: { machine: string; event: { type: string }; eventId?: string },
@@ -90,8 +141,10 @@ export async function postEvent(
   const layout = pageLayout()
   const pattern = pagePattern()
   for (let attempt = 0; ; attempt++) {
+    let res: Response
+    let text: string
     try {
-      const res = await fetchWithTimeout('/__events', {
+      res = await fetchWithTimeout('/__events', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -104,10 +157,9 @@ export async function postEvent(
         credentials: 'same-origin',
         body: JSON.stringify(body),
       })
-      if (res.ok) return { ok: true, res }
-      error = { phase: 'http', status: res.status }
-      console.error('stator: event POST failed', res.status, await res.text())
-      break
+      // Read inside the try: a body cut off mid-read is an answer that did not
+      // arrive, retried like a lost response (the replay cache answers it).
+      text = await res.text()
     } catch (err) {
       error = { phase: err instanceof TimeoutError ? 'timeout' : 'network' }
       const delay = RETRY_DELAYS_MS[attempt]
@@ -117,7 +169,24 @@ export async function postEvent(
       }
       console.warn(`stator: dispatch ${error.phase} — retrying in ${delay}ms`)
       await new Promise((r) => setTimeout(r, delay))
+      continue
     }
+
+    const parsed = parseBody(text)
+    if (res.ok) {
+      if (isObject(parsed)) return { ok: true, status: 200, envelope: parsed as WireEnvelope }
+      error = { phase: 'http', status: res.status, message: 'malformed response body' }
+      console.error('stator: malformed response body', res.status, text)
+      break
+    }
+    if (res.status === 422 && carriesRefusal(parsed)) {
+      return { ok: true, status: 422, envelope: parsed as WireEnvelope }
+    }
+    const message = errorStringOf(parsed)
+    error = { phase: 'http', status: res.status, ...(message !== undefined ? { message } : {}) }
+    // The console gets everything the server said, a 400's `detail` included.
+    console.error('stator: event POST failed', res.status, parsed ?? text)
+    break
   }
   emitDispatchError(error, body)
   return { ok: false, error }

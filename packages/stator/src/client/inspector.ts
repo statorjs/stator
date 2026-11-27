@@ -477,7 +477,8 @@ function mount(): void {
   })
 
   window.addEventListener('stator:dispatch-error', (e: Event) => {
-    const { machine, phase, status, timestamp } = (e as CustomEvent).detail
+    const { machine, phase, status, message, timestamp } = (e as CustomEvent).detail
+    const params = [status != null ? String(status) : '', message ?? ''].filter(Boolean).join(' ')
     addEntry(
       'up',
       `<div class="stator-inspector-summary">
@@ -485,7 +486,7 @@ function mount(): void {
         <span class="stator-inspector-arrow">✕</span>
         <span class="stator-inspector-machine">${escapeHtml(machine ?? 'form')}</span>
         <span class="stator-inspector-event-type">${escapeHtml(phase)}</span>
-        <span class="stator-inspector-params">${status != null ? escapeHtml(String(status)) : ''}</span>
+        <span class="stator-inspector-params">${escapeHtml(params)}</span>
       </div>`,
       (e as CustomEvent).detail,
     )

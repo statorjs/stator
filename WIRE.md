@@ -59,12 +59,16 @@ Success response: `200 OK` with `{ "patches": [...] }` per the patch shape below
 
 **Idempotent replay.** When an `eventId` is present, the server caches the serialized response body per `(session, eventId)` (last 32 per session, in-process — single-replica is a 1.0 constraint) and answers a duplicate POST with the cached body verbatim: no re-apply, no fan-out, no effects. That's what makes a client retry safe after a *lost response* — the commit happened once, and the retry just recovers its patches. Positional keyed-list ops (`insert`/`remove`/`move`) are why replay-not-reprocess is load-bearing. Clients retry only network failures and timeouts, with backoff, reusing the same `eventId`; a non-2xx response is never retried — the server saw the event and answered.
 
-Error responses:
+Error responses carry a JSON body `{ "error": "<sentence>" }`. The client reads it and hands the sentence to app code as `DispatchError.message`; a `400` for a body that fails to parse also carries `detail`, which is for the console and is not passed on.
 
 | Status | Cause |
 |---|---|
-| `400` | Missing `X-Stator-Route` header, or event body fails schema validation |
-| `404` | Unknown route key, or unknown machine name |
+| `400` | Missing `X-Stator-Route` header, malformed route key, event body fails schema validation (with `detail`), an `@`-reserved event type, or an event type no part of the machine's chart handles |
+| `403` | Cross-site write, the route's middleware refuses this caller (or answers its own 4xx status, passed through), an app machine posted to directly, a `serverOnly` event, or an event the route does not offer (`events.gate: 'enforce'`) |
+| `404` | Unknown route key, a route key naming a data route, or unknown machine name |
+| `413` | Event body larger than `events.maxBytes` |
+
+The client treats each of these as a failed request, and a `2xx` whose body is not a JSON object the same way. A middleware that would redirect the caller is not an error: it answers `200` with a `navigate` directive and `committed: false`.
 
 ## Patches
 
