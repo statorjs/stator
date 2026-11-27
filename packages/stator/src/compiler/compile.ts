@@ -17,7 +17,7 @@ import {
   TEMPLATE_LOWERING_TARGETS,
 } from './emit-names.ts'
 import { scopeHash } from './hash.ts'
-import { type LowerMeta, lowerTemplate } from './lower.ts'
+import { decodeJsxEntities, type LowerMeta, lowerTemplate } from './lower.ts'
 import {
   canMark,
   finalizeSourceMap,
@@ -397,7 +397,11 @@ function staticRootAttrs(
       )
     }
     const name = attr.name.getText(sf)
-    out[name] = attr.initializer === undefined ? true : (attr.initializer as ts.StringLiteral).text
+    // Decoded as JSX reads it, so the shell renders what a plain element would.
+    out[name] =
+      attr.initializer === undefined
+        ? true
+        : decodeJsxEntities((attr.initializer as ts.StringLiteral).text)
   }
   return out
 }

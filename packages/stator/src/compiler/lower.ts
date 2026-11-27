@@ -1,4 +1,5 @@
 import ts from 'typescript'
+import { escapeAttribute } from '../template/parser.ts'
 import { isVoidElement } from '../template/void-elements.ts'
 import { elementMarker, ISLAND_MARKER_ATTR, slotMarker } from '../wire/island-markers.ts'
 import { type ClientDirective, inferDeps } from './client-script.ts'
@@ -847,7 +848,10 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
         if (meta) meta.regions.add(region)
       }
     }
-    return `\${props.children?.${region} ?? ''}`
+    // The region name is author text: a non-identifier (`name="side-bar"`)
+    // must be a quoted key, or it would be emitted as live code.
+    const access = /^[A-Za-z_$][\w$]*$/.test(region) ? `.${region}` : `.[${JSON.stringify(region)}]`
+    return `\${props.children?${access} ?? ''}`
   }
 
   // Read a `child="x"` marker off a caller's child node (null = default bucket).
@@ -913,7 +917,12 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     const name = attr.name.getText(sf)
     if (!attr.initializer) return name // boolean attribute
     if (ts.isStringLiteral(attr.initializer)) {
-      return `${name}=${JSON.stringify(attr.initializer.text)}`
+      // The value's entities decode as JSX and HTML read them (`&amp;` is `&`);
+      // the rest is the author's text as typed (JSX attribute strings carry no
+      // backslash escapes). HTML-escape that for the markup, then escape it for
+      // the `html\`…\`` literal it lands in so `\`, a backtick and `${` stay text.
+      const value = decodeJsxEntities(attr.initializer.text)
+      return `${name}="${escapeText(escapeAttribute(value))}"`
     }
     return `${name}="\${${attrExpr(attr)}}"`
   }
@@ -972,7 +981,8 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       if (!attr.initializer) {
         entries.push(`${name}: true`) // boolean shorthand
       } else if (ts.isStringLiteral(attr.initializer)) {
-        entries.push(`${name}: ${JSON.stringify(attr.initializer.text)}`)
+        // Decoded as JSX reads it, like an element's static attribute.
+        entries.push(`${name}: ${JSON.stringify(decodeJsxEntities(attr.initializer.text))}`)
       } else {
         entries.push(`${name}: ${attrExpr(attr)}`)
       }
@@ -1013,7 +1023,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     return `${tag}({ ${entries.join(', ')} })`
   }
 
-  const body = `html\`${doctype}${contentOfChildren(fragment.children)}\``
+  const body = `html\`${escapeText(doctype)}${contentOfChildren(fragment.children)}\``
   // Splice verbatim `is:inline` scripts back in, escaped for the `html\`…\``
   // literal (the body may carry backticks / `$`).
   return inlineScripts.length === 0
@@ -1025,6 +1035,42 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
  *  literal HTML element (incl. custom elements). Matches React/Astro/Solid. */
 function isComponentTag(tag: string): boolean {
   return /^[A-Z]/.test(tag)
+}
+
+/** A character or numeric reference TypeScript's JSX transform decodes. */
+const JSX_ENTITY_RE = /&(#\d+|#x[\da-fA-F]+|\w+);/
+
+/**
+ * Decode the entities in a JSX string attribute's text exactly as the
+ * TypeScript JSX transform does: named references from its table, `&#38;` and
+ * `&#x26;`; an unknown or unterminated reference stays as typed. The table and
+ * decoder aren't exported, so the value is run through the transform itself
+ * (only when it holds something reference-shaped) and read back.
+ */
+export function decodeJsxEntities(text: string): string {
+  if (!JSX_ENTITY_RE.test(text)) return text
+  // A JSX attribute string can't contain its own quote, so one of the two fits.
+  const q = text.includes('"') ? "'" : '"'
+  const out = ts.transpileModule(`<x a=${q}${text}${q} />`, {
+    compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ESNext },
+    reportDiagnostics: false,
+  }).outputText
+  const sf = ts.createSourceFile('d.js', out, ts.ScriptTarget.ESNext, true, ts.ScriptKind.JS)
+  let decoded: string | undefined
+  const find = (n: ts.Node): void => {
+    if (decoded !== undefined) return
+    if (
+      ts.isPropertyAssignment(n) &&
+      n.name.getText(sf) === 'a' &&
+      ts.isStringLiteral(n.initializer)
+    ) {
+      decoded = n.initializer.text
+      return
+    }
+    ts.forEachChild(n, find)
+  }
+  find(sf)
+  return decoded ?? text
 }
 
 /** Escape literal template text so it round-trips inside a `\`…\`` literal. */

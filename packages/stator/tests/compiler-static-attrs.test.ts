@@ -1,0 +1,268 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+import { transform } from 'esbuild'
+import { compile } from '../src/compiler/compile.ts'
+import { lowerTemplate } from '../src/compiler/lower.ts'
+import { createRenderState, runInRender } from '../src/server/render-context.ts'
+import * as templateApi from '../src/template/index.ts'
+import { html } from '../src/template/index.ts'
+import { escapeAttribute, escapeText } from '../src/template/parser.ts'
+import type { HtmlFragment } from '../src/template/types.ts'
+import { jsOf } from './helpers/js-of.ts'
+
+/**
+ * A static attribute value (`title="…"`) reaches the browser as exactly the text
+ * the author wrote, with its entities decoded as JSX and HTML read them: escaped
+ * for the HTML attribute, and for the `html\`…\`` literal the compiler emits it
+ * into. It used to be emitted with JSON.stringify,
+ * which escapes for a JS string, not for either of those (findings 05-F2/02-F9).
+ */
+
+function render(template: string, scope: Record<string, unknown> = {}): string {
+  const expr = lowerTemplate(template)
+  const names = ['html', ...Object.keys(scope)]
+  // eslint-disable-next-line no-new-func
+  const fn = new Function(...names, `return (${expr})`)
+  return inRender(() => fn(html, ...Object.values(scope)) as HtmlFragment).html
+}
+
+function inRender(f: () => HtmlFragment): HtmlFragment {
+  return runInRender(createRenderState('s1', 'GET /'), f)
+}
+
+/** The browser's reading of a double-quoted attribute value (the entities
+ *  escapeAttribute produces). */
+function decode(s: string): string {
+  return s
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+}
+
+/** The single `title` attribute on the rendered `<p>`: its markup, which must
+ *  be exactly the escapeAttribute form of the text, and the text it decodes to. */
+function titleOf(out: string, text: string): string {
+  const m = /^<p title="([^"]*)"><\/p>$/.exec(out)
+  assert.ok(m, `expected exactly one well-formed title attribute, got: ${out}`)
+  assert.equal(m[1], escapeAttribute(text))
+  return decode(m[1]!)
+}
+
+describe('compiler: a static attribute value renders as its literal text', () => {
+  const cases: Array<[label: string, template: string, text: string]> = [
+    ['a double quote', `<p title='say "hi"'></p>`, 'say "hi"'],
+    ['a single quote', `<p title="it's"></p>`, "it's"],
+    ['an ampersand', '<p title="a & b"></p>', 'a & b'],
+    ['a less-than', '<p title="a < b"></p>', 'a < b'],
+    ['a backslash', '<p title="C:\\path\\n"></p>', 'C:\\path\\n'],
+    ['a backtick', '<p title="a`b"></p>', 'a`b'],
+    ['${…}', '<p title="Price: ${price}"></p>', 'Price: ${price}'],
+    ['${…} that would evaluate', '<p title="${1+1}"></p>', '${1+1}'],
+    ['JSON', `<p title='{"a":1}'></p>`, '{"a":1}'],
+  ]
+  for (const [label, template, text] of cases) {
+    it(label, () => {
+      // `price` in scope: the old output interpolated it instead of failing.
+      assert.equal(titleOf(render(template, { price: 9 }), text), text)
+    })
+  }
+
+  it('emits HTML-escaped, template-escaped markup', () => {
+    assert.equal(
+      lowerTemplate(`<p title='say "hi" \${x} \`'></p>`),
+      'html`<p title="say &quot;hi&quot; \\${x} \\`"></p>`',
+    )
+  })
+
+  describe('entities decode as JSX and HTML read them, then the value is escaped', () => {
+    const entities: Array<[written: string, value: string]> = [
+      ['Tom &amp; Jerry', 'Tom & Jerry'],
+      ['Tom & Jerry', 'Tom & Jerry'],
+      ['&quot;hi&quot;', '"hi"'],
+      ['it&#39;s', "it's"],
+      ['it&#x27;s', "it's"],
+      ['&#38; &#x26;', '& &'],
+      ['&copy; 2026', '\u00a9 2026'],
+      ['a&nbsp;b', 'a\u00a0b'],
+      ['&lt;b&gt;', '<b>'],
+      ['&#x1F600;', '\u{1F600}'],
+      ['&foo; stays', '&foo; stays'],
+      ['&amp without a semicolon', '&amp without a semicolon'],
+      ['a bare & stays', 'a bare & stays'],
+      ['&amp;amp;', '&amp;'],
+      ['&#36;{x} and $&#123;x}', '${x} and ${x}'],
+    ]
+    for (const [written, value] of entities) {
+      it(written, () => {
+        const q = written.includes('"') ? "'" : '"'
+        assert.equal(titleOf(render(`<p title=${q}${written}${q}></p>`, { x: 1 }), value), value)
+      })
+    }
+
+    it('a double-quoted entity in a single-quoted value', () => {
+      assert.equal(
+        titleOf(render(`<p title='say &quot;hi" \${x}'></p>`), 'say "hi" ${x}'),
+        'say "hi" ${x}',
+      )
+    })
+
+    it('an island inner element decodes the same way', () => {
+      const r = compile(
+        `<my-widget><span title="Tom &amp; Jerry &copy;">x</span></my-widget>
+
+<script>
+  export class MyWidget extends StatorElement {}
+</script>`,
+        { id: 'my-widget.stator' },
+      )
+      assert.ok(r.serverCode.includes('<span title="Tom &amp; Jerry \u00a9">'), r.serverCode)
+    })
+
+    it('body text and an attribute agree on an entity', () => {
+      const out = render('<p title="a &amp; b">a &amp; b</p>')
+      const m = /^<p title="([^"]*)">(.*)<\/p>$/.exec(out)
+      assert.ok(m, out)
+      assert.equal(decode(m[1]!), 'a & b')
+      assert.equal(decode(m[2]!), 'a & b')
+    })
+  })
+
+  it('a dynamic attribute still interpolates', () => {
+    assert.equal(lowerTemplate('<p title={price}></p>'), 'html`<p title="${price}"></p>`')
+    assert.match(render('<p title={price}></p>', { price: 9 }), / title="9">/)
+    assert.match(render('<p title={q}></p>', { q: 'say "hi"' }), / title="say &quot;hi&quot;">/)
+  })
+
+  it('a plain value is emitted unchanged', () => {
+    assert.equal(
+      lowerTemplate('<input type="text" class="a b" disabled />'),
+      'html`<input type="text" class="a b" disabled>`',
+    )
+  })
+
+  it('a compiled component module stays valid with a backtick or ${ in a static attribute', async () => {
+    const r = compile('<p title="a`b ${c} \\">x</p>', { id: 'c.stator' })
+    await transform(r.serverCode, { loader: 'ts' }) // throws on a syntax error
+    assert.ok(r.serverCode.includes('<p title="a\\`b \\${c} \\\\">x</p>'), r.serverCode)
+  })
+
+  it("an island's inner element gets the same escaping", async () => {
+    const r = compile(
+      `<my-widget><span title='say "hi" \${x}'>x</span></my-widget>
+
+<script>
+  export class MyWidget extends StatorElement {}
+</script>`,
+      { id: 'my-widget.stator' },
+    )
+    assert.equal(r.isClient, true)
+    await transform(r.serverCode, { loader: 'ts' })
+    assert.ok(r.serverCode.includes('<span title="say &quot;hi&quot; \\${x}">'), r.serverCode)
+  })
+})
+
+describe('compiler: other author text written into the emitted template', () => {
+  it('a doctype with a backtick or ${ stays text', () => {
+    const out = render('<!doctype html `${x}`><p>x</p>')
+    assert.equal(out, '<!doctype html `${x}`><p>x</p>')
+  })
+
+  it('a non-identifier <children name> is a quoted key, not code', () => {
+    const expr = lowerTemplate('<div><children name="side-bar"/></div>')
+    assert.equal(expr, 'html`<div>${props.children?.["side-bar"] ?? \'\'}</div>`')
+    assert.equal(
+      lowerTemplate('<div><children name="banner"/></div>'),
+      "html`<div>${props.children?.banner ?? ''}</div>`",
+    )
+    // eslint-disable-next-line no-new-func
+    const fn = new Function('html', 'props', `return (${expr})`)
+    const out = inRender(
+      () => fn(html, { children: { 'side-bar': html`<i>s</i>` } }) as HtmlFragment,
+    )
+    assert.equal(out.html, '<div><i>s</i></div>')
+  })
+})
+
+describe('compiler: component string props and island root attributes decode entities too', () => {
+  function runModule(code: string): any {
+    const body = code
+      .replace(/^import .*$/gm, '')
+      .replace(/^\s*export default /m, 'return ')
+      .replace(/^\s*export /gm, '')
+    const names = Object.keys(templateApi)
+    // eslint-disable-next-line no-new-func
+    return new Function(...names, body)(...names.map((n) => (templateApi as any)[n]))
+  }
+
+  /** A compiled component that shows its `title` prop as text and as an attribute. */
+  const Card = runModule(
+    jsOf(
+      compile(
+        `---
+const { title } = Stator.props<{ title: string }>()
+---
+<p title={title}>{title}</p>`,
+        { id: 'card.stator' },
+      ).serverCode,
+    ),
+  ) as (p: { title: string }) => HtmlFragment
+
+  /** An island whose root carries a static `title`. */
+  const islandWith = (written: string): (() => HtmlFragment) => {
+    const q = written.includes('"') ? "'" : '"'
+    const { serverCode } = compile(
+      `<my-widget title=${q}${written}${q}>x</my-widget>
+
+<script>
+  export class MyWidget extends StatorElement {}
+</script>`,
+      { id: 'my-widget.stator' },
+    )
+    return runModule(jsOf(serverCode)) as () => HtmlFragment
+  }
+
+  const cases: Array<[written: string, value: string]> = [
+    ['Tom &amp; Jerry', 'Tom & Jerry'],
+    ['&quot;hi&quot;', '"hi"'],
+    ['it&#39;s', "it's"],
+    ['&copy; 2026', '© 2026'],
+    ['&foo; stays', '&foo; stays'],
+    ['a bare & stays', 'a bare & stays'],
+  ]
+
+  for (const [written, value] of cases) {
+    it(`a component prop: ${written}`, () => {
+      const q = written.includes('"') ? "'" : '"'
+      const out = render(`<Card title=${q}${written}${q}/>`, { Card })
+      const m = /^<p [^>]*\btitle="([^"]*)"[^>]*>(.*)<\/p>$/.exec(out)
+      assert.ok(m, out)
+      assert.equal(m[1], escapeAttribute(value)) // as an attribute
+      assert.equal(m[2], escapeText(value)) // as text
+      assert.equal(decode(m[1]!), value)
+      assert.equal(decode(m[2]!), value)
+    })
+
+    it(`an island root attribute: ${written}`, () => {
+      const out = inRender(() => islandWith(written)()).html
+      const m = /^<my-widget title="([^"]*)"[^>]*>x<\/my-widget>$/.exec(out)
+      assert.ok(m, out)
+      assert.equal(m[1], escapeAttribute(value))
+      assert.equal(decode(m[1]!), value)
+    })
+  }
+
+  it('a plain element, a component prop and an island root attribute show the same text', () => {
+    const written = 'Tom &amp; Jerry &copy; &foo; & `${x}` "q"'
+    const q = "'"
+    const plain = /title="([^"]*)"/.exec(render(`<p title=${q}${written}${q}></p>`, { x: 1 }))![1]
+    const prop = /title="([^"]*)"/.exec(
+      render(`<Card title=${q}${written}${q}/>`, { Card, x: 1 }),
+    )![1]
+    const island = /title="([^"]*)"/.exec(inRender(() => islandWith(written)()).html)![1]
+    assert.equal(prop, plain)
+    assert.equal(island, plain)
+    assert.equal(decode(plain!), 'Tom & Jerry © &foo; & `${x}` "q"')
+  })
+})
