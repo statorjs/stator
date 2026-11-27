@@ -45,12 +45,48 @@ export type Action<C, E extends EventObject, R = Record<string, any>> = (
   helpers: ActionHelpers<R>,
 ) => void
 
-/** A guard decides whether a transition may fire. Pure of (ctx, ev). */
-export type Guard<C, E extends EventObject, R = Record<string, any>> = (
-  ctx: C,
-  ev: E,
-  helpers: ActionHelpers<R>,
-) => boolean
+/** One problem with a refused event's payload. The shape a Standard Schema
+ *  issue flattens to, so a schema failure maps in with no second shape. */
+export interface RefusalIssue {
+  /** Where in the event payload: `['email']`, `['guests', 2, 'name']`. Empty
+   *  means the whole event. */
+  path: ReadonlyArray<string | number>
+  message: string
+}
+
+/** Why a guard refused an event: transient data on one dispatch's result,
+ *  never machine state. Recorded by `helpers.refuse(...)` in a guard. */
+export interface Refusal<Code extends string = string> {
+  /** The machine's own vocabulary (`'duplicate'`, `'full'`). Stable; what code
+   *  branches on. `'invalid'` is the conventional code for "the payload is
+   *  wrong, see `issues`". */
+  code: Code
+  /** A sentence for a person. Optional: a client may own the wording and key
+   *  it by `code`. */
+  message?: string
+  /** Per-field problems. */
+  issues?: RefusalIssue[]
+}
+
+/** Helpers handed to guards: everything actions get, plus `refuse`. */
+export interface GuardHelpers<R = Record<string, any>, Code extends string = string>
+  extends ActionHelpers<R> {
+  /** Record why this guard is refusing, and refuse. Always returns `false`, so
+   *  `return refuse(...)` and `a(...) && b(...)` compose as plain booleans do.
+   *  The first refusal recorded during one `send` is the one reported; it is
+   *  dropped if a later candidate's guard passes. */
+  refuse(code: Code, detail?: { message?: string; issues?: RefusalIssue[] }): false
+}
+
+/** A guard decides whether a transition may fire. Pure of (ctx, ev). A guard
+ *  that says why it refuses calls `helpers.refuse(code, …)`, which returns
+ *  `false`. A guard annotated with `ActionHelpers` still assigns. */
+export type Guard<
+  C,
+  E extends EventObject,
+  R = Record<string, any>,
+  Code extends string = string,
+> = (ctx: C, ev: E, helpers: GuardHelpers<R, Code>) => boolean
 
 /** Passed to an effect alongside the snapshots. `effectId` is unique per
  *  LOGICAL invocation — a re-invoked entry effect keeps its id, so threading it
