@@ -5,6 +5,7 @@ import type {
   StateNameOf,
 } from '../engine/index.ts'
 import type { EventDescriptor } from '../server/render-context.ts'
+import { HTML_FRAGMENT, hasBrand } from './brand.ts'
 
 /**
  * The template-facing shape of a machine instance: the engine's selector view
@@ -27,19 +28,19 @@ export interface InstanceCommon<
 }
 
 /**
- * Opaque marker for rendered HTML chunks. Produced by the `html` tag.
+ * Opaque marker for rendered HTML chunks. Produced by the `html` tag and
+ * `raw()`. The brand is symbol-keyed (./brand.ts), so a look-alike object
+ * parsed from JSON is not a fragment and renders as escaped text.
  */
 export interface HtmlFragment {
-  readonly __isHtmlFragment: true
+  readonly [HTML_FRAGMENT]: true
   readonly html: string
 }
 
 export function createHtmlFragment(html: string): HtmlFragment {
-  return { __isHtmlFragment: true, html }
+  return { [HTML_FRAGMENT]: true, html }
 }
 
 export function isHtmlFragment(v: unknown): v is HtmlFragment {
-  return (
-    typeof v === 'object' && v !== null && (v as Record<string, unknown>).__isHtmlFragment === true
-  )
+  return hasBrand(v, HTML_FRAGMENT)
 }

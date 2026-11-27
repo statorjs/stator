@@ -6,10 +6,11 @@ import {
   requireCurrentRenderState,
   type SlotId,
 } from '../server/render-context.ts'
+import { hasBrand, READ_RESULT } from './brand.ts'
 import type { InstanceOf } from './types.ts'
 
 export interface ReadResult<T = unknown> {
-  readonly __isReadResult: true
+  readonly [READ_RESULT]: true
   slotId: SlotId
   machineName: string
   selector: ErasedSelector
@@ -21,9 +22,7 @@ export interface ReadResult<T = unknown> {
 }
 
 export function isReadResult(v: unknown): v is ReadResult {
-  return (
-    typeof v === 'object' && v !== null && (v as Record<string, unknown>).__isReadResult === true
-  )
+  return hasBrand(v, READ_RESULT)
 }
 
 export function read<TDef extends AnyMachineDef, TResult>(
@@ -74,7 +73,7 @@ export function read(
   const source = live ?? instance
   const value = selector(source)
   return {
-    __isReadResult: true,
+    [READ_RESULT]: true,
     slotId,
     machineName: def.name,
     selector: selector as ErasedSelector,

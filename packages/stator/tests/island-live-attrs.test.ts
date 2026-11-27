@@ -8,6 +8,7 @@ import { recompute } from '../src/server/recompute.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import { SessionRuntime } from '../src/server/session-runtime.ts'
 import { InMemoryStore } from '../src/server/store.ts'
+import { ITEM_READ } from '../src/template/brand.ts'
 import { clientShellAttrs } from '../src/template/client-shell.ts'
 import { when } from '../src/template/conditional.ts'
 import { html } from '../src/template/html.ts'
@@ -83,7 +84,7 @@ describe('island live attrs', () => {
   })
 
   it('refuses an item read() as an island prop, naming the prop', () => {
-    const itemRead = { __isItemRead: true, selector: () => 1, value: 1 }
+    const itemRead = { [ITEM_READ]: true, selector: () => 1, value: 1 }
     assert.throws(
       () => clientShellAttrs({ seats: itemRead }, { seats: 'number' }),
       /read\(item, …\) passed as island prop "seats".*machine read/s,

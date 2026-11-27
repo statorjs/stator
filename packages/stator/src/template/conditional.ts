@@ -10,6 +10,7 @@ import {
   type SlotId,
   unregisterBindingsForScope,
 } from '../server/render-context.ts'
+import { BRANCH_RESULT, hasBrand } from './brand.ts'
 import { isReadResult, type ReadResult } from './read.ts'
 import { type HtmlFragment, isHtmlFragment } from './types.ts'
 
@@ -20,15 +21,13 @@ import { type HtmlFragment, isHtmlFragment } from './types.ts'
  * hidden via CSS).
  */
 export interface BranchResult {
-  readonly __isBranchResult: true
+  readonly [BRANCH_RESULT]: true
   readonly html: string
   readonly slotId: SlotId
 }
 
 export function isBranchResult(v: unknown): v is BranchResult {
-  return (
-    typeof v === 'object' && v !== null && (v as Record<string, unknown>).__isBranchResult === true
-  )
+  return hasBrand(v, BRANCH_RESULT)
 }
 
 /**
@@ -107,7 +106,7 @@ export function when<T>(cond: T | ReadResult<T>, fn: () => HtmlFragment): Branch
   // Comment markers delimit the region (no injected node, valid in restricted
   // parents) — see each.ts for the rationale.
   const html = `<!--s:${slotId}-->${innerHtml}<!--/s:${slotId}-->`
-  return { __isBranchResult: true, html, slotId }
+  return { [BRANCH_RESULT]: true, html, slotId }
 }
 
 /**
@@ -167,5 +166,5 @@ export function match<TKey extends string>(
   // Comment markers delimit the region (no injected node, valid in restricted
   // parents) — see each.ts for the rationale.
   const html = `<!--s:${slotId}-->${innerHtml}<!--/s:${slotId}-->`
-  return { __isBranchResult: true, html, slotId }
+  return { [BRANCH_RESULT]: true, html, slotId }
 }

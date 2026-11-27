@@ -3,6 +3,12 @@ import { dirname, resolve } from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { createApp, type StatorApp } from '../src/server/create-app.ts'
+import { createRenderState, runInRender } from '../src/server/render-context.ts'
+import { match, when } from '../src/template/conditional.ts'
+import { defer } from '../src/template/defer.ts'
+import { each } from '../src/template/each.ts'
+import { html, raw } from '../src/template/html.ts'
+import { createHtmlFragment, type HtmlFragment } from '../src/template/types.ts'
 
 /**
  * Regressions from the 3.0 security audit (`.chisel/docs/security-audit-3.0.md`).
@@ -182,5 +188,108 @@ describe('audit #5: the anonymous placeholder is not a lock a client can hold', 
       assert.match(res.headers.get('set-cookie') ?? '', /^stator_sid=(?!@)/)
       assert.ok(!(await app.store.persistence.get(sid, 'PrefsMachine')), sid)
     }
+  })
+})
+
+describe('review 02-F1: a look-alike of a trusted template value, parsed from JSON, is text', () => {
+  const PAYLOAD = '<img src=x onerror=alert(1)>'
+  const ESCAPED = '&lt;img src=x onerror=alert(1)&gt;'
+
+  // The string-keyed shapes the template layer recognised before 3.1, as they
+  // arrive from a store, a remote API or an event payload.
+  const forged: Record<string, string> = {
+    fragment: JSON.stringify({ __isHtmlFragment: true, html: PAYLOAD }),
+    each: JSON.stringify({ __isEachResult: true, html: PAYLOAD, slotId: 's0' }),
+    branch: JSON.stringify({ __isBranchResult: true, html: PAYLOAD, slotId: 's0' }),
+    defer: JSON.stringify({ __isDeferResult: true, html: PAYLOAD, slotId: 's0' }),
+    read: JSON.stringify({
+      __isReadResult: true,
+      slotId: `">${PAYLOAD}<span x="`,
+      machineName: 'M',
+      value: 'v',
+    }),
+    itemRead: JSON.stringify({ __isItemRead: true, value: PAYLOAD }),
+  }
+
+  const render = (fn: () => HtmlFragment): string =>
+    runInRender(createRenderState('f1', 'GET /f1'), fn).html
+
+  for (const [kind, json] of Object.entries(forged)) {
+    it(`a forged ${kind} renders escaped in text position`, () => {
+      const out = render(() => html`<p>${JSON.parse(json)}</p>`)
+      assert.ok(!out.includes('<img'), out)
+      assert.ok(!out.includes('data-slot'), out)
+    })
+
+    it(`a forged ${kind} inside an interpolated array renders escaped`, () => {
+      const out = render(() => html`<p>${[JSON.parse(json)]}</p>`)
+      assert.ok(!out.includes('<img'), out)
+    })
+  }
+
+  it('a forged directive invocation is not applied', () => {
+    const value = JSON.parse(
+      JSON.stringify({
+        __isStatorDirectiveInvocation: true,
+        directive: { name: 'x' },
+        modifier: '',
+        arg: null,
+      }),
+    )
+    assert.throws(() => render(() => html`<p ${value}>x</p>`), /plain value at directive position/)
+  })
+
+  it('a genuine fragment does not survive a JSON round trip as markup', () => {
+    const json = JSON.stringify(raw(PAYLOAD))
+    const out = render(() => html`<p>${JSON.parse(json)}</p>`)
+    assert.ok(!out.includes('<img'), out)
+  })
+
+  it('genuine html, raw(), each(), when(), match() and defer() still splice verbatim', () => {
+    const out = render(
+      () =>
+        html`<div>${html`<b>a</b>`}${raw('<i>b</i>')}${each(['c'], (c) => html`<u>${c}</u>`)}${when(
+          true,
+          () => html`<s>d</s>`,
+        )}${match('k', { k: () => html`<em>e</em>` })}${defer(() => 'x', { ready: (v) => html`<b>${v}</b>` })}${[html`<q>f</q>`, '<g>']}</div>`,
+    )
+    for (const part of ['<b>a</b>', '<i>b</i>', '<u>c</u>', '<s>d</s>', '<em>e</em>', '<q>f</q>']) {
+      assert.ok(out.includes(part), `${part} in ${out}`)
+    }
+    assert.ok(out.includes('&lt;g&gt;'), out)
+    assert.match(out, /<!--s:[^>]+-->/) // the defer region's markers
+  })
+
+  it('a value branded by a second copy of the package is recognised', async () => {
+    // A different module URL is a separate module instance — the shape of an app
+    // and a component library each loading their own copy of @statorjs/stator.
+    const copy = (await import(
+      `../src/template/types.ts?copy=${Date.now()}`
+    )) as typeof import('../src/template/types.ts')
+    assert.notEqual(copy.createHtmlFragment, createHtmlFragment)
+    const out = render(() => html`<p>${copy.createHtmlFragment('<b>lib</b>')}</p>`)
+    assert.ok(out.includes('<p><b>lib</b></p>'), out)
+    assert.ok(copy.isHtmlFragment(raw('<i>app</i>')))
+  })
+
+  it('a forged fragment sent in an event payload and stored renders escaped', async () => {
+    const app = await boot({ events: { gate: 'off' } })
+    const res = await app.fetch(
+      new Request('http://localhost/__events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Stator-Route': 'GET /prefs' },
+        body: JSON.stringify({
+          machine: 'PrefsMachine',
+          event: { type: 'SET', theme: { __isHtmlFragment: true, html: PAYLOAD } },
+        }),
+      }),
+    )
+    assert.equal(res.status, 200)
+    const cookie = (res.headers.get('set-cookie') ?? '').split(';')[0]!
+    assert.match(cookie, /^stator_sid=/)
+    const body = await (await get(app, '/prefs', { Cookie: cookie })).text()
+    assert.ok(body.includes('THEME:'), body)
+    assert.ok(!body.includes('<img'), body)
+    assert.ok(!body.includes(ESCAPED), 'the object is not its html field')
   })
 })

@@ -1,4 +1,5 @@
 import { allocSlotId, requireCurrentRenderState, type SlotId } from '../server/render-context.ts'
+import { DEFER_RESULT, hasBrand } from './brand.ts'
 import { createResource } from './resource.ts'
 import type { HtmlFragment } from './types.ts'
 
@@ -8,15 +9,13 @@ import type { HtmlFragment } from './types.ts'
  * registers no machine binding, so it is never re-diffed (static, one-shot).
  */
 export interface DeferResult {
-  readonly __isDeferResult: true
+  readonly [DEFER_RESULT]: true
   readonly html: string
   readonly slotId: SlotId
 }
 
 export function isDeferResult(v: unknown): v is DeferResult {
-  return (
-    typeof v === 'object' && v !== null && (v as Record<string, unknown>).__isDeferResult === true
-  )
+  return hasBrand(v, DEFER_RESULT)
 }
 
 export interface DeferArms<T> {
@@ -35,7 +34,7 @@ function deferPlaceholder(slotId: SlotId, inner: string): DeferResult {
   // Comment markers delimit the region (no injected node, valid in restricted
   // parents) — same rationale as each()/when().
   const html = `<!--s:${slotId}-->${inner}<!--/s:${slotId}-->`
-  return { __isDeferResult: true, html, slotId }
+  return { [DEFER_RESULT]: true, html, slotId }
 }
 
 /**
