@@ -28,6 +28,7 @@ This is finding 02-F1 of the November 2026 review, re-confirmed on `main` before
 - Patch release. No change to what authors write.
 - No edit to files in the engine hash or to files other open branches change.
 - Compiled `.stator` output and the checked-in compiled components must not change.
+- Accepted: the interfaces carry a `unique symbol` key, so two copies of the package type-checked in one program have distinct `HtmlFragment` types, where the old string-keyed types were structurally identical. Runtime recognition is unaffected. Only code that passes one copy's `HtmlFragment` where the other copy's type is expected would see a type error. A component library declares `@statorjs/stator` as a peer dependency, so an app and its libraries share one copy and one set of types. The alternative, a string key in the types over a symbol at runtime, would make the types wrong about the runtime.
 
 ## Approach
 
@@ -52,7 +53,3 @@ Not changed: `__isEventDescriptor` (built in `server/instance-proxy.ts`, which i
 - **A module-private `Symbol()`.** Same problem as the `WeakSet`.
 - **Keep the string properties and also require the symbol.** Keeps the old shape visible in `JSON.stringify` output and in types for no benefit; nothing outside the template layer reads the string properties.
 - **Validate event payloads.** 3.2 event schemas narrow `/__events` only, and only for machines that opt in. The brand is the one place that covers every source of JSON.
-
-## Open Questions
-
-- The interfaces now carry a `unique symbol` key. Two copies of the package type-checked in one program have distinct `HtmlFragment` types, where the old string-keyed types were structurally identical. Runtime recognition is unaffected; only code that passes one copy's `HtmlFragment` where the other copy's type is expected (for example a route `render` returning a library component's result directly) would see a type error. A deduped install has one copy.
