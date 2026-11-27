@@ -15,8 +15,9 @@ import {
 const nativeLoader: ModuleLoader = (file) => import(pathToFileURL(file).href)
 
 /** HTTP methods a route file may export. GET goes through `defineRoute`
- *  (page rendering) or `defineApiRoute({ method: 'GET' })` (data route);
- *  the rest go through `defineApiRoute` (command handlers). */
+ *  (page rendering) or `defineDataRoute` (data route; also the deprecated
+ *  `defineApiRoute({ method: 'GET' })`); the rest go through
+ *  `defineApiRoute` (command handlers). */
 export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
 export type HttpMethod = (typeof HTTP_METHODS)[number]
 
@@ -30,8 +31,9 @@ export interface DiscoveredRoute {
   /** The file that contributes GET, when a page and a command file merged
    *  into one route. What the page can render is read from this one. */
   getFilePath?: string
-  /** GET route: a page (defineRoute) or a data route (defineApiRoute with
-   *  method: 'GET'), discriminated by brand. At most one. */
+  /** GET route: a page (defineRoute) or a data route (defineDataRoute, or
+   *  the deprecated defineApiRoute with method: 'GET'), discriminated by
+   *  brand. At most one. */
   GET?: RouteDefinition | QueryRouteDefinition
   /** API routes by method. */
   POST?: ApiRouteDefinition
@@ -65,8 +67,9 @@ export interface DiscoveredRoute {
  *     `DiscoveredRoute.isNotFoundFallback`.
  *
  * Files may export any combination of `GET`/`POST`/`PUT`/`PATCH`/`DELETE`.
- * GET is a `defineRoute` (page renderer) or a `defineApiRoute` declaring
- * `method: 'GET'` (data route); the others are `defineApiRoute` commands.
+ * GET is a `defineRoute` (page renderer) or a `defineDataRoute` (data route;
+ * the deprecated `defineApiRoute({ method: 'GET' })` builds the same thing);
+ * the others are `defineApiRoute` commands.
  *
  * Files that don't export anything under an HTTP-method name are silently
  * skipped. With recursive walking, the routes tree often contains utility
@@ -86,8 +89,9 @@ export async function discoverRoutes(
   for (const filePath of files) {
     const mod = await load(filePath)
 
-    // GET is a page (defineRoute) or a data route (defineApiRoute with
-    // method: 'GET'); POST/PUT/PATCH/DELETE are command API routes.
+    // GET is a page (defineRoute) or a data route (defineDataRoute, or the
+    // deprecated defineApiRoute with method: 'GET'); POST/PUT/PATCH/DELETE
+    // are command API routes.
     const get =
       isStatorRoute(mod.GET) || isStatorQueryRoute(mod.GET)
         ? (mod.GET as RouteDefinition | QueryRouteDefinition)
@@ -104,18 +108,19 @@ export async function discoverRoutes(
     if (mod.GET && !get) {
       throw new Error(
         isStatorApiRoute(mod.GET)
-          ? `stator: ${filePath} exports GET from defineApiRoute() without method: 'GET'. ` +
-              `A GET is a page (defineRoute) or a data route (defineApiRoute({ method: 'GET', … })).`
-          : `stator: ${filePath} exports GET but it is neither a defineRoute (page) nor a ` +
-              `defineApiRoute({ method: 'GET' }) (data route).`,
+          ? `stator: ${filePath} exports GET as a command route (defineApiRoute), which only ` +
+              `answers POST, PUT, PATCH or DELETE. A GET is a page (defineRoute) or a data route ` +
+              `(defineDataRoute({ … }), or the deprecated defineApiRoute({ method: 'GET' })).`
+          : `stator: ${filePath} exports GET but it is neither a page (defineRoute) nor a ` +
+              `data route (defineDataRoute({ … })).`,
       )
     }
     for (const m of ['POST', 'PUT', 'PATCH', 'DELETE'] as const) {
       if (!mod[m]) continue
       if (isStatorQueryRoute(mod[m])) {
         throw new Error(
-          `stator: ${filePath} exports ${m} created with method: 'GET' — the declared method ` +
-            `must match the export name. Data routes are GET-only.`,
+          `stator: ${filePath} exports ${m} as a data route, which only answers GET. ` +
+            `Export it as GET, or make the ${m} a command route with defineApiRoute().`,
         )
       }
       if (!isStatorApiRoute(mod[m])) {
@@ -133,7 +138,7 @@ export async function discoverRoutes(
       if (dataFileExtensions.has(secondExt)) {
         throw new Error(
           `stator: ${filePath} is named like a data route (.${secondExt}${extname(filePath)}) ` +
-            `but exports no route. Export GET = defineApiRoute({ method: 'GET', … }) or rename the file.`,
+            `but exports no route. Export GET = defineDataRoute({ … }) or rename the file.`,
         )
       }
       continue

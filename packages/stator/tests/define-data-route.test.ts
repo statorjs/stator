@@ -136,10 +136,15 @@ describe('defineDataRoute: discovery', () => {
     assert.equal(isStatorApiRoute(board.POST), true)
   })
 
-  it('rejects it under a mutation method, as it rejects a method: "GET" definition', async () => {
+  it('rejects it under a mutation method with the message a method: "GET" definition gets', async () => {
     await assert.rejects(
       discoverRoutes(resolve(fixtures, 'data-route-as-delete')),
-      /exports DELETE created with method: 'GET'.*Data routes are GET-only/,
+      (err: Error) => {
+        assert.match(err.message, /exports DELETE as a data route, which only answers GET/)
+        // The file never wrote `method`, so the message must not claim it did.
+        assert.doesNotMatch(err.message, /method: 'GET'/)
+        return true
+      },
     )
   })
 })

@@ -38,14 +38,14 @@ describe('discovery: method/constructor mismatch', () => {
     // file's sole export, a skip-first order treats it as a utility file.
     await assert.rejects(
       discoverRoutes(mismatch),
-      /exports GET from defineApiRoute\(\) without method: 'GET'/,
+      /exports GET as a command route \(defineApiRoute\).*defineDataRoute/,
     )
   })
 
-  it("errors on a method: 'GET' definition exported under a mutation method", async () => {
+  it("errors on a data route (method: 'GET') exported under a mutation method", async () => {
     await assert.rejects(
       discoverRoutes(resolve(here, 'fixtures', 'route-query-as-post')),
-      /exports POST created with method: 'GET'/,
+      /exports POST as a data route, which only answers GET/,
     )
   })
 
