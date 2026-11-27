@@ -93,7 +93,20 @@ async function runAppEffect(invocation: EffectInvocation, store: MachineStore): 
     // when the machine opted in), then dispatch any completion.
     if (invocation.kind === 'entry') {
       if (store.appInstance(machineName)?.actor.settleEntry(effectId)) {
-        await store.persistAppMachine(machineName)
+        try {
+          await store.persistAppMachine(machineName)
+        } catch (err) {
+          // Called as `void runAppEffect(...)`: a rejection here would be
+          // unhandled and end the process. The resident actor stays settled
+          // (it is the live state, and the effect did finish); the store keeps
+          // the pending marker until this machine's next successful persist,
+          // so at worst the entry re-invokes on the next boot. The completion
+          // below is still delivered.
+          effectLog.error(
+            { machine: machineName, effectId, err: String(err) },
+            'entry-effect settle persist failed',
+          )
+        }
       }
     }
     if (!completion) return
