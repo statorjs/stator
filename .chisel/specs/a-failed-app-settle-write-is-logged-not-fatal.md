@@ -39,9 +39,9 @@ This matches the session path. `runSessionEffect` catches a failed null-completi
 - **Skip the completion when the settle write fails.** That is what main did before crashing. The completion is independent of the write, and its own dispatch persists the settled snapshot, so delivering it is the quickest repair of the store.
 - **A process-wide `unhandledRejection` handler.** Hides every future bug of this shape rather than fixing this one, and it is the app's choice, not the framework's.
 
-## Open Questions
+## Not in this change
 
-- After a failed write, the two planes differ in where the truth is. For an app machine the in-memory actor has moved on and the store is behind; for a session machine the in-memory runtime is discarded and the store is the truth. `dispatchToApp` has the same split on any failed persist (the actor has already committed the event). This patch does not change that; it is closer to 03-F14 (partial commits).
+- After a failed write, the two planes differ in where the truth is. For an app machine the in-memory actor has moved on and the store is behind; for a session machine the in-memory runtime is discarded and the store is the truth. `dispatchToApp` has the same split on any failed persist (the actor has already committed the event). This patch does not change that. It belongs with partial commits (a failed write part-way through a persist), a separate finding from the same review. Unscheduled.
 
 ## Implementation Notes
 
