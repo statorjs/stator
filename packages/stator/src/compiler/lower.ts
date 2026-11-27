@@ -1,4 +1,5 @@
 import ts from 'typescript'
+import { escapeAttribute } from '../template/parser.ts'
 import { isVoidElement } from '../template/void-elements.ts'
 import { elementMarker, ISLAND_MARKER_ATTR, slotMarker } from '../wire/island-markers.ts'
 import { type ClientDirective, inferDeps } from './client-script.ts'
@@ -847,7 +848,10 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
         if (meta) meta.regions.add(region)
       }
     }
-    return `\${props.children?.${region} ?? ''}`
+    // The region name is author text: a non-identifier (`name="side-bar"`)
+    // must be a quoted key, or it would be emitted as live code.
+    const access = /^[A-Za-z_$][\w$]*$/.test(region) ? `.${region}` : `.[${JSON.stringify(region)}]`
+    return `\${props.children?${access} ?? ''}`
   }
 
   // Read a `child="x"` marker off a caller's child node (null = default bucket).
@@ -913,7 +917,10 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     const name = attr.name.getText(sf)
     if (!attr.initializer) return name // boolean attribute
     if (ts.isStringLiteral(attr.initializer)) {
-      return `${name}=${JSON.stringify(attr.initializer.text)}`
+      // The value is the author's literal text (JSX attribute strings carry no
+      // escapes): HTML-escape it for the markup, then escape it for the
+      // `html\`…\`` literal it lands in so `\`, a backtick and `${` stay text.
+      return `${name}="${escapeText(escapeAttribute(attr.initializer.text))}"`
     }
     return `${name}="\${${attrExpr(attr)}}"`
   }
@@ -1013,7 +1020,7 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
     return `${tag}({ ${entries.join(', ')} })`
   }
 
-  const body = `html\`${doctype}${contentOfChildren(fragment.children)}\``
+  const body = `html\`${escapeText(doctype)}${contentOfChildren(fragment.children)}\``
   // Splice verbatim `is:inline` scripts back in, escaped for the `html\`…\``
   // literal (the body may carry backticks / `$`).
   return inlineScripts.length === 0
