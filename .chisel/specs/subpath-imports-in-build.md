@@ -28,6 +28,7 @@ An app that uses Node `#` subpath imports (the `imports` field of its `package.j
 - Patch release. No API or config change.
 - Files under `packages/stator/src/build/` only. `server/dev-native.ts` is unchanged: it already builds its graph from `localImports`.
 - One resolver: `#` resolution reuses the pattern and condition matching `resolveExports` uses for `exports` (`import`, `node`, `default`), not a second implementation.
+- Custom conditions (`--conditions=development`) are not modelled, as for `exports`.
 
 ## Approach
 
@@ -51,10 +52,9 @@ An app that uses Node `#` subpath imports (the `imports` field of its `package.j
 - Write `dist/package.json` earlier and leave `resolveBare` on `createRequire`. Rejected: `require` resolution takes `require` conditions, not `import`, and Node's package-scope cache can hold a stale read of a manifest written mid-process.
 - Resolve `#` against the source tree and map the result into `dist/`. Workable, but the walks already run over `dist/`, and resolving through the artifact's own manifest tests exactly what `stator start` will use.
 
-## Open Questions
+## Not in this change
 
-- Custom conditions (`--conditions=development`) are not modelled, as for `exports`.
-- An unused value import in a `.ts` file is elided by esbuild before the copy set sees it, while Node's type stripping keeps it. That predates this change and applies to relative imports too; `checkSubpathImports` catches the `#` case.
+- An unused value import in a `.ts` file is elided by esbuild before the copy set sees it, while Node's type stripping keeps it, so a directory reached only that way is not copied into `dist`. That predates this change and applies to relative imports too. `checkSubpathImports` catches the `#` case; the relative case is a separate bug. Unscheduled.
 
 ## Implementation Notes
 
