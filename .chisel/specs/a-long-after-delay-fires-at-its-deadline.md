@@ -25,6 +25,7 @@ Found in review 2026-11 (03-F1) and reproduced on main on 2026-11-27: a 30-day t
 
 - Patch release. No API change.
 - No edit to the engine or to the engine-hash host files. The change stays inside `server/timers.ts`.
+- Server only. The client has no `after` timers: `after` runs only on the server.
 
 ## Approach
 
@@ -42,12 +43,11 @@ Docs: no page states a maximum for `after` (`reference/machine.md`, `guides/effe
 - **Reject delays over the maximum.** Day-scale `after` (trial expiry, holds, cache TTLs) is a reasonable use the docs invite, so it should work rather than error.
 - **Count the remaining time down without the clock.** Simpler, but each late step adds its lateness to the fire time.
 
-## Open Questions
+## Not in this change
 
-- A dynamic `delay(ctx)` that returns `NaN`, or a negative number, still fires after about 1 ms, as `setTimeout` does. The review suggests rejecting those with an error naming the machine and state. Not part of this patch.
-- Shutdown does not clear armed timers (they are unref'd); that is 03-F10, not this patch.
-- Other `setTimeout` calls in `src/server/` take operator configuration, not machine durations: `images.ts` (`encodeTimeoutMs`), `shutdown.ts` (`STATOR_SHUTDOWN_TIMEOUT_MS`), `sse.ts` (`STATOR_SSE_WRITE_TIMEOUT_MS`), `dev-native.ts`. A value over 24.8 days there would be clamped too; left alone.
-- The client has no `after` timers: `after` runs only on the server.
+- A dynamic `delay(ctx)` that returns `NaN`, or a negative number, still fires after about 1 ms, as `setTimeout` does. Rejecting it with an error that names the machine and state would change behaviour, so it is left for a later release. Unscheduled.
+- Shutdown does not clear armed timers (they are unref'd). A separate finding from the same review. Unscheduled.
+- Other `setTimeout` calls in `src/server/` take operator configuration, not machine durations: `images.ts` (`encodeTimeoutMs`), `shutdown.ts` (`STATOR_SHUTDOWN_TIMEOUT_MS`), `sse.ts` (`STATOR_SSE_WRITE_TIMEOUT_MS`), `dev-native.ts`. A value over 24.8 days there would be clamped too. Left alone: nobody sets a shutdown or write timeout in weeks.
 
 ## Implementation Notes
 
