@@ -52,6 +52,9 @@ export interface MachineDescription {
   serverOnly: string[]
   emits: string[]
   selectors: string[]
+  /** Names of the machines declared in `peers:`. */
+  peers: string[]
+  /** @deprecated The same list as `peers`, under its old name. Removed in 4.0. */
   reads: string[]
   subscribes: Array<{ from: string; event: string; dispatch: string }>
   /** The def's initial context (the shape a fresh instance starts from). */
@@ -118,6 +121,7 @@ export function describeMachine(def: AnyMachineDef): MachineDescription {
     serverOnly: [...def.serverOnly],
     emits: Object.keys(def.emits),
     selectors: Object.keys(def.selectors),
+    peers: def.reads.map((d) => d.name),
     reads: def.reads.map((d) => d.name),
     subscribes: def.subscribes.map((s) => ({
       from: s.from.name,

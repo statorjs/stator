@@ -8,7 +8,7 @@ import type {
   Lifecycle,
   MachineDef,
   OnMap,
-  ReadsMap,
+  PeersMap,
   Seed,
   SelectorMap,
   StateNode,
@@ -21,13 +21,16 @@ export interface DefineMachineConfig<
   S extends string,
   Name extends string,
   TReads extends readonly AnyMachineDef[],
-  Sel extends SelectorMap<C, ReadsMap<TReads>>,
+  Sel extends SelectorMap<C, PeersMap<TReads>>,
   L extends Lifecycle = Lifecycle,
 > {
   name: Name
   lifecycle: L
-  /** Machines this one reads. Inferred as a tuple so `helpers.reads` is typed
-   *  per read machine (keyed by name, selectors preserved). */
+  /** Machines this one consults. Inferred as a tuple so `helpers.peers` is
+   *  typed per peer machine (keyed by name, selectors preserved). */
+  peers?: TReads
+  /** @deprecated Renamed `peers` (same meaning). Removed in 4.0. Declaring
+   *  both is an error. */
   reads?: TReads
   subscribes?: SubscribeEntry[]
   /** Typed event surface. Pass `{} as MyEvents` — a phantom carrier the engine
@@ -54,21 +57,21 @@ export interface DefineMachineConfig<
   emits?: EmitsConfig<C, E>
   context: C
   initial: NoInfer<S>
-  /** Transitions see `helpers.reads` typed as `ReadsMap<TReads>`.
+  /** Transitions see `helpers.peers` typed as `PeersMap<TReads>`.
    *
    *  The state union S is inferred from this map's KEYS and nowhere else —
    *  every interior S position (`to:`, the machine-level `on:`) is NoInfer.
    *  Without that, `to:` string literals become competing inference
    *  candidates, and whenever they don't happen to cover every state the
    *  union silently collapses to the covered subset. */
-  states: Record<S, StateNode<C, E, NoInfer<S>, ReadsMap<TReads>>>
+  states: Record<S, StateNode<C, E, NoInfer<S>, PeersMap<TReads>>>
   /** Machine-level transitions: handlers that apply in ANY state, consulted only
    *  when the current state does not declare the event (a state-scoped handler
    *  always wins). The home for a completion event whose handling must not depend
    *  on an unrelated machine-wide state — e.g. a per-record save completing while
    *  the machine is busy reloading the collection. Without this, such a
    *  completion is dropped wherever the current state has no handler for it. */
-  on?: OnMap<C, E, NoInfer<S>, ReadsMap<TReads>>
+  on?: OnMap<C, E, NoInfer<S>, PeersMap<TReads>>
   selectors?: Sel
   /** APP machines only: persist this machine's snapshot through the AppStore
    *  so its state survives restarts. Opt-in — caches and other
@@ -98,9 +101,9 @@ function normalizeEmits<C, E extends EventObject>(
  * Derive the machine's capability classification.
  *
  * Initial heuristic (refined in the full capability pass): a machine is
- * server-pinned if it reads another machine — cross-machine reads can't be
+ * server-pinned if it declares a peer — cross-machine reads can't be
  * resolved in the browser. A pure context/states/selectors machine with no
- * reads is portable (the client-model spike's reads-free counter ran
+ * peers is portable (the client-model spike's reads-free counter ran
  * client-side for exactly this reason). Secrets and cross-session emit are
  * future inputs to this function; they're noted as TODO, not silently ignored.
  */
@@ -119,12 +122,20 @@ export function defineMachine<
   S extends string = string,
   Name extends string = string,
   const TReads extends readonly AnyMachineDef[] = readonly [],
-  Sel extends SelectorMap<C, ReadsMap<TReads>> = SelectorMap<C, ReadsMap<TReads>>,
+  Sel extends SelectorMap<C, PeersMap<TReads>> = SelectorMap<C, PeersMap<TReads>>,
   L extends Lifecycle = Lifecycle,
 >(
   config: DefineMachineConfig<C, E, S, Name, TReads, Sel, L>,
 ): MachineDef<C, E, S, Sel, Name> & { lifecycle: L } {
-  const reads = (config.reads ?? []) as unknown as AnyMachineDef[]
+  // Both set is an error — unless they are the same array, which is what a
+  // def spread back into defineMachine (`{ ...Def, subscribes }`) carries.
+  if (config.peers !== undefined && config.reads !== undefined && config.peers !== config.reads) {
+    throw new Error(
+      `stator: machine "${config.name}" got both peers and reads — keep peers ` +
+        `(reads is its old name).`,
+    )
+  }
+  const reads = (config.peers ?? config.reads ?? []) as unknown as AnyMachineDef[]
   if (config.persist && config.lifecycle === 'session') {
     throw new Error(
       `stator: machine "${config.name}" sets persist: true but is session-lifecycle — ` +
@@ -143,7 +154,11 @@ export function defineMachine<
     name: config.name,
     lifecycle: config.lifecycle,
     persist: config.persist ?? false,
+    peers: reads,
     reads,
+    ...(config.reads !== undefined && config.peers === undefined
+      ? { deprecatedOptions: ['reads'] }
+      : {}),
     subscribes: config.subscribes ?? [],
     serverOnly: config.serverOnly ?? [],
     ...(config.seed ? { seed: config.seed as MachineDef<C, E, S, Sel, Name>['seed'] } : {}),
