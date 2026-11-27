@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { build, type OnLoadArgs, type OnLoadResult } from 'esbuild'
 import ts from 'typescript'
 import { compile, regionResolverFor } from '../compiler/index.ts'
+import { subpathImportTarget } from './reachability.ts'
 
 /**
  * What `stator build` copies into `dist/` — derived from the app's own module
@@ -305,11 +306,16 @@ export async function resolveCopySet(opts: CopySetOptions): Promise<CopySet> {
               const bare = !args.path.startsWith('.') && !isAbsolute(args.path)
               const inRoot = isAbsolute(abs) && insideRoot(abs)
               if (NODE_MODULES.test(abs) || (!inRoot && bare)) {
-                if (bare && !client) {
+                // A `#` subpath import mapped to a package names that package
+                // in its target, not in the specifier.
+                const spec = args.path.startsWith('#')
+                  ? subpathImportTarget(args.path, args.importer)?.target
+                  : args.path
+                if (bare && !client && spec && !spec.startsWith('.') && !spec.startsWith('#')) {
                   packages.add(
-                    args.path.startsWith('@')
-                      ? args.path.split('/').slice(0, 2).join('/')
-                      : args.path.split('/')[0]!,
+                    spec.startsWith('@')
+                      ? spec.split('/').slice(0, 2).join('/')
+                      : spec.split('/')[0]!,
                   )
                 }
                 return { path: abs, external: true }

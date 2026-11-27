@@ -6,6 +6,7 @@ import { hashMachines } from '../server/machine-hash.ts'
 import { type ArtifactDeps, writeArtifactDeps } from './artifact.ts'
 import { compileComponentFile } from './compile-component.ts'
 import { type CopySet, resolveCopySet } from './copy-set.ts'
+import { scanImports } from './imports.ts'
 import { bundleIslands, walkFiles } from './islands.ts'
 import {
   collisionMessage,
@@ -18,6 +19,7 @@ import {
   tagCollisions,
 } from './library-islands.ts'
 import { routeOfferedEvents } from './offered-events.ts'
+import { resolveSubpathImport, subpathImportTarget } from './reachability.ts'
 import { routeCssMap, routeCssPath } from './route-css.ts'
 
 /**
@@ -225,6 +227,14 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
     if (rewritten !== code) await writeFile(file, rewritten)
   }
 
+  // The dependency half of the artifact: the app's own manifest + lockfile when
+  // it has one, else a pinned manifest. Written after the tree so a generated
+  // package.json cannot be clobbered by the copy step, and before the walks
+  // below: they read the built tree, and a `#` subpath import in it resolves
+  // through this file's `imports`, as it will at runtime.
+  const deps = await writeArtifactDeps({ root, outDir, packages: copySet.packages })
+  await checkSubpathImports(outDir, tsFiles, new Set(copySet.reached))
+
   // Route-level, usage-driven CSS: one artifact per route, from exactly the
   // components that route's own import graph reaches (local siblings just
   // written above, plus any node_modules component library's published
@@ -265,11 +275,6 @@ export async function buildApp(config: BuildConfig): Promise<BuildResult> {
     ...islands,
     ...[...reach.packageIslands.values()].map((i) => ({ rel: i.rel, entry: i.entry })),
   ]
-
-  // The dependency half of the artifact: the app's own manifest + lockfile when
-  // it has one, else a pinned manifest. Written after the tree so a generated
-  // package.json cannot be clobbered by the copy step.
-  const deps = await writeArtifactDeps({ root, outDir, packages: copySet.packages })
 
   // Always write the manifest — it carries the build-id even for an app with no
   // islands (a live route without islands still needs the reload handshake).
@@ -390,6 +395,61 @@ async function checkReach(
     throw new Error(
       `stator build: ${n} problem${n === 1 ? '' : 's'} with what the routes reach:\n` +
         errors.map((e) => `  ${e}`).join('\n'),
+    )
+  }
+}
+
+/**
+ * Refuse a built module whose `#` subpath import the artifact cannot resolve.
+ * Dev resolves it through the app's `package.json`; `dist/` resolves it through
+ * its own, which carries the app's `imports` with `.stator` paths renamed. An
+ * import that still finds nothing there (the map lives in a `package.json`
+ * above the app root, or a target leaves the copied tree) would fail at
+ * `stator start`, so it fails the build, named by file, line and specifier
+ * (a compiled `.stator` by file alone: its lines are the compiler's). Only
+ * modules the app's graph reaches are checked. A target naming a package is
+ * left to the install.
+ */
+async function checkSubpathImports(
+  outDir: string,
+  files: string[],
+  reached: ReadonlySet<string>,
+): Promise<void> {
+  const manifest = join(outDir, 'package.json')
+  const hasManifest = await exists(manifest)
+  const problems: string[] = []
+  for (const file of files) {
+    const rel = relative(outDir, file).replace(/\\/g, '/')
+    // Only what the app's graph reaches can be imported at runtime; a test
+    // file in a copied directory may alias what the build leaves behind.
+    if (!reached.has(rel.replace(/\.stator(\.client)?\.ts$/, '.stator'))) continue
+    const code = await readFile(file, 'utf8')
+    for (const imp of scanImports(code, file)) {
+      if (!imp.spec.startsWith('#') || imp.typeOnly) continue
+      // Only the artifact's own manifest counts: one above `dist/` is not
+      // deployed with it.
+      const found = subpathImportTarget(imp.spec, file)
+      const target = found?.pkgJson === manifest ? found.target : undefined
+      if (target && (!target.startsWith('./') || resolveSubpathImport(imp.spec, file))) continue
+      const compiled = /\.stator(\.client)?\.ts$/.test(file)
+      const where = compiled
+        ? rel.replace(/(\.client)?\.ts$/, '')
+        : `${rel}:${code.slice(0, imp.start).split('\n').length}`
+      const spec = compiled ? imp.spec.replace(/\.stator\.ts$/, '.stator') : imp.spec
+      const why = !hasManifest
+        ? 'the app root has no package.json, so the artifact has no `imports` to resolve it from'
+        : !target
+          ? "no key of the `imports` in the app root's package.json matches it"
+          : `it maps to ${target}, which is not in the build output`
+      problems.push(`  ${where}  '${spec}': ${why}`)
+    }
+  }
+  if (problems.length > 0) {
+    const n = problems.length
+    throw new Error(
+      `stator build: ${n} \`#\` subpath import${n === 1 ? '' : 's'} would not resolve in the built app:\n` +
+        `${problems.join('\n')}\n` +
+        "Declare each in the `imports` field of the app root's package.json, with a `./` target inside the app.",
     )
   }
 }

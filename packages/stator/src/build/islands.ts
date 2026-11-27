@@ -1,6 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { probeModule, scanImports } from './imports.ts'
+import { resolveSubpathImport } from './reachability.ts'
 
 /**
  * The island-bundling seam.
@@ -87,10 +88,12 @@ export async function routeIslandMap(opts: {
   return (await reachIslands(opts)).routes
 }
 
-/** Absolute targets of a file's relative import specifiers, bounded to
- *  `baseDir`: a static read through `imports.ts`, no module evaluation (an
- *  unreadable file yields none). An extensionless specifier is probed the way
- *  `probeModule` does. */
+/** Absolute targets of a file's relative and `#` subpath import specifiers,
+ *  bounded to `baseDir`: a static read through `imports.ts`, no module
+ *  evaluation (an unreadable file yields none). An extensionless relative
+ *  specifier is probed the way `probeModule` does; a `#` one is resolved
+ *  through the `imports` of the file's `package.json`, as the build's walk
+ *  resolves it. */
 export async function localImports(file: string, baseDir: string): Promise<string[]> {
   let code: string
   try {
@@ -99,11 +102,16 @@ export async function localImports(file: string, baseDir: string): Promise<strin
     return []
   }
   const out: string[] = []
+  const bound = resolve(baseDir)
   for (const { spec } of scanImports(code, file)) {
-    if (!spec.startsWith('.')) continue
-    const base = resolve(join(file, '..'), spec)
-    const target = probeModule(base) ?? base
-    if (target.startsWith(baseDir)) out.push(target)
+    let target: string | undefined
+    if (spec.startsWith('.')) {
+      const base = resolve(join(file, '..'), spec)
+      target = probeModule(base) ?? base
+    } else if (spec.startsWith('#')) {
+      target = resolveSubpathImport(spec, file)
+    }
+    if (target && (target === bound || target.startsWith(bound + sep))) out.push(target)
   }
   return out
 }

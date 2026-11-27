@@ -1,0 +1,11 @@
+<tick-tock>
+  <button type="button" on:click={tick}>tick</button>
+</tick-tock>
+
+<script>
+  export class TickTock extends StatorElement {
+    tick() {
+      this.dataset.ticked = 'yes'
+    }
+  }
+</script>

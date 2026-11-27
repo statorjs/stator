@@ -142,6 +142,44 @@ describe('reachability', () => {
     assert.equal(card?.pkg?.name, '@esm/only')
   })
 
+  it("resolves a # subpath import through the app's imports: patterns, conditions, packages", async () => {
+    const root = tree({
+      'package.json': JSON.stringify({
+        name: 'app',
+        type: 'module',
+        imports: {
+          '#ui/*': './components/*',
+          '#ui/special/*': { require: './nope/*', import: './special/*' },
+          '#card': [{ types: './card.d.ts', default: './components/card.stator' }],
+          '#kit': '@other/kit',
+        },
+      }),
+      'routes/index.ts':
+        "import Card from '#card'\n" +
+        "import X from '#ui/x.stator'\n" +
+        "import S from '#ui/special/s.ts'\n" +
+        "import K from '#kit'\n" +
+        "import M from '#missing'\n" +
+        'export const GET = { Card, X, S, K, M }\n',
+      'components/card.stator': '<p>card</p>\n',
+      'components/x.stator': '<p>x</p>\n',
+      'special/s.ts': 'export default 1\n',
+      'node_modules/@other/kit/package.json': pkg('@other/kit', { '.': './index.ts' }),
+      'node_modules/@other/kit/index.ts': 'export default 1\n',
+    })
+    const importer = join(root, 'routes/index.ts')
+    assert.equal(resolveBare('#card', importer), join(root, 'components/card.stator'))
+    assert.equal(resolveBare('#ui/x.stator', importer), join(root, 'components/x.stator'))
+    // The longer pattern wins, and its `import` condition, not `require`.
+    assert.equal(resolveBare('#ui/special/s.ts', importer), join(root, 'special/s.ts'))
+    assert.equal(resolveBare('#kit', importer), join(root, 'node_modules/@other/kit/index.ts'))
+    assert.equal(resolveBare('#missing', importer), undefined)
+    const { modules } = await reachFrom(importer, { appRoot: root })
+    assert.ok(modules.has(join(root, 'components/card.stator')))
+    assert.ok(modules.has(join(root, 'components/x.stator')))
+    assert.equal(modules.get(join(root, 'components/x.stator'))?.pkg, undefined)
+  })
+
   it('follows a Stator-aware package into another, to any depth', async () => {
     const root = app()
     const { modules } = await reachFrom(join(root, 'routes/index.ts'), { appRoot: root })

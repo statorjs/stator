@@ -1,0 +1,12 @@
+{
+  "name": "subpath-imports-app",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#components/*": "./components/*",
+    "#ui/badge.stator": {
+      "import": "./components/badge.stator",
+      "default": "./components/badge.stator"
+    }
+  }
+}

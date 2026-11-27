@@ -91,8 +91,11 @@ const within = (dir: string, file: string): boolean => file === dir || file.star
  * with an `exports` map is resolved through it under the `import`, `node` and
  * `default` conditions; anything else, or an `exports` map with no match, goes
  * through Node's `require` resolution. Either way the result is a real path.
+ * A `#` subpath import is resolved through the `imports` map of the
+ * importer's own `package.json` (`resolveSubpathImport`).
  */
 export function resolveBare(spec: string, importer: string): string | undefined {
+  if (spec.startsWith('#')) return resolveSubpathImport(spec, importer)
   const viaExports = resolveExports(spec, importer)
   if (viaExports) return viaExports
   try {
@@ -138,6 +141,68 @@ function resolveExports(spec: string, importer: string): string | undefined {
   return within(root, file) ? file : undefined
 }
 
+/** The `package.json` whose scope `file` is in: the nearest one up from it,
+ *  as Node picks the one whose `imports` a `#` specifier is read from. Found
+ *  by the file system, not `findPackageJSON`, whose process-wide cache would
+ *  remember a build's `dist/package.json` as missing from before it was
+ *  written. The path keeps the importer's spelling (no realpath), so an app
+ *  module reached through `imports` is named as its relative imports name it. */
+function packageScope(file: string): string | undefined {
+  let dir = dirname(file)
+  for (;;) {
+    const candidate = join(dir, 'package.json')
+    if (existsSync(candidate)) return candidate
+    const parent = dirname(dir)
+    if (parent === dir) return undefined
+    dir = parent
+  }
+}
+
+/**
+ * Where a `#` specifier resolves, read from the `imports` map of the
+ * importer's package scope the way Node reads it: an exact key, else the
+ * longest matching `*` pattern, conditions chosen as for `exports`. A `./`
+ * target is a file in that package; any other target is a package specifier,
+ * resolved from the package. Undefined when the scope has no `imports`, no key
+ * matches, or the target file does not exist.
+ */
+export function resolveSubpathImport(spec: string, importer: string): string | undefined {
+  const found = subpathImportTarget(spec, importer)
+  if (!found) return undefined
+  const { pkgJson, target: hit } = found
+  if (!hit.startsWith('./')) {
+    return hit.startsWith('#') || hit.startsWith('/') || hit.startsWith('../')
+      ? undefined
+      : resolveBare(hit, pkgJson)
+  }
+  const root = dirname(pkgJson)
+  const file = resolve(root, hit)
+  return within(root, file) && statSync(file, { throwIfNoEntry: false })?.isFile()
+    ? file
+    : undefined
+}
+
+/** The target the `imports` map of `importer`'s package scope gives the `#`
+ *  specifier `spec`, before it is resolved to a file, and the `package.json`
+ *  it is relative to. Undefined when there is no scope, no `imports` map, or
+ *  no key matches. */
+export function subpathImportTarget(
+  spec: string,
+  importer: string,
+): { pkgJson: string; target: string } | undefined {
+  const pkgJson = packageScope(importer)
+  if (!pkgJson) return undefined
+  let json: { imports?: unknown }
+  try {
+    json = JSON.parse(readFileSync(pkgJson, 'utf8')) as typeof json
+  } catch {
+    return undefined
+  }
+  if (typeof json.imports !== 'object' || json.imports === null) return undefined
+  const target = mapTarget(json.imports as Record<string, unknown>, spec)
+  return target ? { pkgJson, target } : undefined
+}
+
 /** The target `exports` maps `subpath` to, `*` patterns substituted. */
 function exportsTarget(exports: unknown, subpath: string): string | undefined {
   const isMap =
@@ -146,7 +211,13 @@ function exportsTarget(exports: unknown, subpath: string): string | undefined {
     !Array.isArray(exports) &&
     Object.keys(exports).some((k) => k.startsWith('.'))
   if (!isMap) return subpath === '.' ? conditionTarget(exports, undefined) : undefined
-  const map = exports as Record<string, unknown>
+  return mapTarget(exports as Record<string, unknown>, subpath)
+}
+
+/** The target a subpath map (`exports` keyed by `./x`, `imports` by `#x`)
+ *  gives `subpath`: an exact key, else the longest-prefix `*` pattern, with
+ *  the `*` substituted and conditions chosen by `conditionTarget`. */
+function mapTarget(map: Record<string, unknown>, subpath: string): string | undefined {
   if (subpath in map && !subpath.includes('*')) return conditionTarget(map[subpath], undefined)
   let best: { key: string; star: string } | undefined
   for (const key of Object.keys(map)) {

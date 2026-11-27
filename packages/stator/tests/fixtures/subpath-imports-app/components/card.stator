@@ -1,0 +1,8 @@
+<div class="card">
+  <span class="title">card</span>
+</div>
+
+<style>
+  .card { padding: 1rem; }
+  .title { color: rebeccapurple; }
+</style>
