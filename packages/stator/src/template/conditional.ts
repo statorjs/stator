@@ -141,7 +141,11 @@ export function match<TKey extends string>(
 
   const keyFn = (v: unknown): unknown => v
   const renderFn = (v: unknown): (() => HtmlFragment) | null => {
-    const fn = (cases as Record<string, (() => HtmlFragment) | undefined>)[String(v)]
+    // Own arms only: a value like "constructor" or "__proto__" (it can come
+    // from data) must find no arm, not an Object.prototype member.
+    const k = String(v)
+    if (!Object.hasOwn(cases, k)) return null
+    const fn = (cases as Record<string, (() => HtmlFragment) | undefined>)[k]
     return fn ?? null
   }
 
