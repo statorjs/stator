@@ -21,6 +21,15 @@ export interface DevAppConfig {
     /** Largest `/__events` body accepted, in bytes. Default: 65536. */
     maxBytes?: number
   }
+  /** Request policy for everything outside `/__events` (which has its own
+   *  cap, `events.maxBytes`). */
+  requests?: {
+    /** Largest request body accepted, in bytes: API routes and anything app
+     *  middleware reads. A route can set its own with `maxBodyBytes` on
+     *  `defineApiRoute`. `Infinity` accepts any size. Default: no limit in 3.x
+     *  (a body over 1048576 logs a warning); 1048576 from 4.0. */
+    maxBodyBytes?: number
+  }
   /** The app directory (must reach node_modules for resolution). */
   root: string
   /** Bind address for `listen()`. Default `127.0.0.1`: the dev server serves

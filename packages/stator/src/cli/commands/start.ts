@@ -111,6 +111,7 @@ export async function run(ctx: CliContext): Promise<void> {
     machineHashes: machines,
     offeredEvents: events,
     events: config.events,
+    requests: config.requests,
     middlewareFile: resolve(dist, 'middleware.ts'),
     bootFile: resolve(dist, 'boot.ts'),
   })

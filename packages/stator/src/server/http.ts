@@ -10,6 +10,7 @@ import { type AnyMachineDef, describeMachine } from '../engine/index.ts'
 import { escapeAttribute } from '../template/parser.ts'
 import type { Directive } from '../wire/index.ts'
 import { applyRenderedEffects, runApiRoute } from './api-route.ts'
+import { bodyLimit } from './body-limit.ts'
 import { crossSiteGuard } from './csrf.ts'
 import { scheduleSessionEffects } from './effects.ts'
 import { record, replayFor } from './event-dedupe.ts'
@@ -81,6 +82,9 @@ export interface HttpConfig {
   eventGate?: 'enforce' | 'warn' | 'off'
   /** See `StatorConfig.events.maxBytes`. Default 64 KiB. */
   eventMaxBytes?: number
+  /** See `StatorConfig.requests.maxBodyBytes`. Undefined: no project limit
+   *  (a route can still set its own). */
+  maxBodyBytes?: number
   /** Serve the dev inspector asset at `/@stator/inspector.js`. The dev server
    *  sets this and injects the script tag; production leaves it off. */
   inspector?: boolean
@@ -386,6 +390,13 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     }
   })
 
+  // Compile matchers for every route, in discovery's specificity order. Our own
+  // matcher (not Hono's router) is the routing authority: GET/API dispatch and
+  // SSE/POST resolution all go through `matchPath`, so rest params (`*name`) and
+  // specificity ordering behave identically everywhere. Hono only routes the
+  // fixed framework endpoints (static exact paths it prioritizes over `*`).
+  const matchers: RouteMatcher[] = config.routes.map(compileMatcher)
+
   // Security defaults (unless the app opted out via dangerouslyDefineMiddleware),
   // then the app's own middleware — all ahead of route matching, so a guard here
   // can't be missed by a route added later. crossSiteGuard runs before matching,
@@ -400,6 +411,17 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
       }),
     )
   }
+  // Request body limits: framework plumbing, not a security default, so it
+  // runs with or without them. After the cross-site guard (a cross-site write
+  // is still a 403) and before the app's middleware, so a body read there is
+  // counted too. Resolves the route the same way command dispatch does below.
+  app.use(
+    '*',
+    bodyLimit({
+      match: (path) => matchPath(matchers, path)?.route,
+      maxBodyBytes: config.maxBodyBytes,
+    }),
+  )
   for (const handler of mw?.handlers ?? []) {
     app.use('*', handler)
   }
@@ -421,12 +443,6 @@ export async function buildHonoApp(config: HttpConfig): Promise<Hono> {
     return admittedProbes.has(probe) ? undefined : res
   }
 
-  // Compile matchers for every route, in discovery's specificity order. Our own
-  // matcher (not Hono's router) is the routing authority: GET/API dispatch and
-  // SSE/POST resolution all go through `matchPath`, so rest params (`*name`) and
-  // specificity ordering behave identically everywhere. Hono only routes the
-  // fixed framework endpoints (static exact paths it prioritizes over `*`).
-  const matchers: RouteMatcher[] = config.routes.map(compileMatcher)
   const getMatchers = matchers // SSE/POST filter by `.GET` after matching
 
   app.get('/static/client.js', (c) => {

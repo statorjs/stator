@@ -52,6 +52,10 @@ interface StatorConfig {
     maxBytes?: number                 // largest /__events body, in bytes. Default: 65536
   }
 
+  requests?: {
+    maxBodyBytes?: number // largest request body outside /__events, in bytes; over it → 413. Infinity = no limit. Default: none (1048576 from 4.0)
+  }
+
   caching?: false | {
     sMaxAge?: number              // derived Cache-Control shared-cache lifetime (seconds). Default: 60
     staleWhileRevalidate?: number // serve-stale window (seconds). Default: 300. `false` never emits
@@ -90,6 +94,7 @@ interface StatorConfig {
 - **Persistence is grouped by concern.** `persistence.session` and `persistence.app` are the two swappable [store adapters](/guides/persistence/); the other bags hold policy, not adapters. See `RedisStore`/`CachedStore`/`RedisAppStore` in the [server reference](/reference/server/).
 - **Secrets belong in the environment.** Prefer `process.env.STATOR_SECRET` and a `REDIS_URL` over hard-coding — `.env.local` (gitignored) for local, real platform secrets in production. See [Production](/guides/production/).
 - **Derived caching is a proof, not a tag.** On a GET the framework can prove anonymous-identical — every declared read is an app machine, and the handler read no session, no claims, no request header and no cookie — it emits `Cache-Control: public, s-maxage, stale-while-revalidate` itself. Any of those reads withdraws it, a hand-set `Cache-Control` always wins, and a response that sets a cookie, from middleware or a handler, is never marked. `request.raw` is outside the proof, and so is the request's host: a page that builds absolute URLs from `request.url` needs a CDN that keys on host. The dev servers never emit it.
+- **Request bodies are uncapped unless you set a limit.** `requests.maxBodyBytes` caps every request body outside `/__events` (which has `events.maxBytes`): API routes and anything app middleware reads. A command route's `maxBodyBytes` on `defineApiRoute` overrides it for that route and method, up or down. A body over its limit is answered `413` with `{ "error": "request body exceeds N bytes" }`: before the handler runs when `Content-Length` declares it, otherwise as the body is read, with no more than the limit ever buffered. With neither key set, nothing is refused, and the first body over 1 MiB on each route logs a warning, because 4.0 will default the limit to 1048576 bytes.
 - **Security options** (`trustedOrigins`, `sessions.cookie.sameSite`) pair with the [middleware guide](/guides/middleware/); CORS is opt-in per route/app via the `cors()` middleware.
 - **`build` is rarely needed.** What lands in `dist/` is derived from your module graph, so a new directory needs no configuration — see [what gets copied](/guides/production/#what-gets-copied). `include` is for a directory reached only through a path your code builds at runtime.
 - **`createApp`/`createDevApp`** accept this same shape directly (plus dir options) for hand-wired entries — see [dev & build](/reference/dev-and-build/). The flat keys of 2.x (`store`, `sessionTtlSeconds`, …) were removed in 3.0 in favor of the nested shape here.

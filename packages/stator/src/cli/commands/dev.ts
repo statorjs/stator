@@ -26,6 +26,7 @@ export async function run(ctx: CliContext): Promise<void> {
     secret: config.secret,
     logging: config.logging,
     events: config.events,
+    requests: config.requests,
   })
   await app.listen(resolvePort(ctx.portFlag, config.port))
 }
