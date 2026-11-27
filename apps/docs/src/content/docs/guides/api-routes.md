@@ -1,6 +1,6 @@
 ---
 title: API routes
-description: "defineApiRoute, the request/response surface, and response directives."
+description: "defineApiRoute and defineDataRoute, the request/response surface, and response directives."
 sidebar:
   order: 7
 ---
@@ -23,7 +23,20 @@ export const POST = defineApiRoute({
 })
 ```
 
-Export by method (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`). The mutation methods are **command** routes, as above. A `GET` export is either a page (`defineRoute`) or a **[data route](#data-get-routes)** — `defineApiRoute` declaring `method: 'GET'` — serving JSON, XML, or text instead of a rendered page.
+Export by method (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`). The export name is the HTTP method; `defineApiRoute` has no `method` field. The mutation methods are **command** routes, as above. A `GET` export is either a page (`defineRoute`) or a **[data route](#data-get-routes)** (`defineDataRoute`) serving JSON, XML, or text instead of a rendered page.
+
+A `DELETE` is the same shape under another export name:
+
+```ts title="routes/cart/items/[id].ts"
+// DELETE /cart/items/:id
+export const DELETE = defineApiRoute({
+  reads: [CartMachine],
+  handler: async (request, { dispatch }) => {
+    await dispatch(CartMachine, { type: 'REMOVE_ITEM', productId: request.params.id })
+    return { directives: [{ type: 'navigate', to: '/cart' }] }
+  },
+})
+```
 
 ## The request
 
@@ -63,12 +76,13 @@ A command handler (`POST`/`PUT`/`PATCH`/`DELETE`) can **dispatch** but not read 
 
 ## Data GET routes
 
-`method: 'GET'` declares a read-only **data route**: the handler receives `machines` — read proxies keyed by machine name, the same shape a page's render context uses — and no `dispatch`.
+`defineDataRoute` defines a read-only **data route**, exported as `GET`: the handler receives `machines` — read proxies keyed by machine name, the same shape a page's render context uses — and no `dispatch`.
 
 ```ts title="routes/api/collections/[name].ts"
 // GET /api/collections/:name
-export const GET = defineApiRoute({
-  method: 'GET',
+import { defineDataRoute } from '@statorjs/stator/server'
+
+export const GET = defineDataRoute({
   reads: [Collections],
   handler: (request, { machines }) =>
     machines.CollectionsMachine.forConsumers(request.params.name),
@@ -84,6 +98,8 @@ Dynamic segments compose with the extension: `routes/p/[id].json.ts` serves `/p/
 **Conditional GETs are free.** Synthesized responses carry a strong `ETag` and answer `If-None-Match` with a bodyless 304, so polling consumers stop paying for unchanged data.
 
 Data routes serve no HTML: no client runtime is injected, `live:` does not exist for them, and `/__events` refuses route keys that target them.
+
+Before 3.1 a data route was written `defineApiRoute({ method: 'GET', … })`. That spelling still works and builds the same route; it is deprecated and is removed in 4.0.
 
 ## Return value
 

@@ -50,6 +50,7 @@ export type {
   ApiRouteHelpers,
   ApiRouteResult,
   DefineApiRouteConfig,
+  DefineDataRouteConfig,
   DefineQueryRouteConfig,
   DefineRouteConfig,
   Directive,
@@ -63,7 +64,7 @@ export type {
   RouteRequest,
   RouteResponseContext,
 } from './routing.ts'
-export { defineApiRoute, defineRoute } from './routing.ts'
+export { defineApiRoute, defineDataRoute, defineRoute } from './routing.ts'
 export type { SecurityHeadersOptions } from './security-headers.ts'
 export { securityHeaders } from './security-headers.ts'
 export { activeConnectionCount } from './sse.ts'

@@ -1,10 +1,12 @@
 ---
 title: defineApiRoute takes any HTTP method
-status: draft
+status: archived
 created: 2026-11-15
-updated: 2026-11-22
+updated: 2026-11-27
 area: routing
 ---
+
+Not shipped. Its PR (#282) was closed on 2026-11-27 in favour of a separate definer for data routes, so that no route needs a `method` field at all: `defineDataRoute` ships in 3.1, `defineApiRoute({ method: 'GET' })` is deprecated, and `method` is removed from `defineApiRoute` at 4.0. Making `method` legal on command routes would have added a second source for a fact the export name already states. See [`definedataroute-defines-a-data-route`](./definedataroute-defines-a-data-route.md).
 
 ## What and Why
 
@@ -79,10 +81,6 @@ The existing query-brand message ("Data routes are GET-only") stays, since `meth
 - **Require `method` on every route.** Makes the file self-describing and breaks every existing command route. Could ride a major; nothing asks for it.
 - **Route by the declared method instead of the export name.** Two sources of truth for one fact, and the export name is the one discovery, the inspector and the merge-by-URL step already read.
 - **Leave discovery alone and treat `method` as documentation.** Then `export const DELETE = defineApiRoute({ method: 'POST' })` silently serves DELETE, which is the kind of quiet disagreement the GET check exists to prevent.
-
-## Open Questions
-
-- **Should the inspector show the declared method?** `inspect.ts` lists methods by export name, which is the truth. Nothing to add unless the two can disagree, and after this they cannot.
 
 ## Implementation Notes
 

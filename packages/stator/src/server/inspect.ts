@@ -21,7 +21,7 @@ import { type DiscoveredRoute, HTTP_METHODS } from './route-discovery.ts'
 import { isStatorQueryRoute, isStatorRoute } from './routing.ts'
 
 export interface InspectRouteMethod {
-  /** `page` = defineRoute, `data` = defineApiRoute({method:'GET'}), `api` = the rest. */
+  /** `page` = defineRoute, `data` = defineDataRoute or a GET defineApiRoute, `api` = the rest. */
   kind: 'page' | 'data' | 'api'
   reads: string[]
   /** Page routes only: whether the route opened an SSE live channel. */
