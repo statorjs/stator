@@ -156,9 +156,6 @@ export function defineMachine<
     persist: config.persist ?? false,
     peers: reads,
     reads,
-    ...(config.reads !== undefined && config.peers === undefined
-      ? { deprecatedOptions: ['reads'] }
-      : {}),
     subscribes: config.subscribes ?? [],
     serverOnly: config.serverOnly ?? [],
     ...(config.seed ? { seed: config.seed as MachineDef<C, E, S, Sel, Name>['seed'] } : {}),

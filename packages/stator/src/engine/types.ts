@@ -326,9 +326,6 @@ export interface MachineDef<
   /** The same array as `peers`, under its old name. The field the server
    *  reads until 4.0; prefer `peers` in new code. */
   reads: AnyMachineDef[]
-  /** Deprecated option names this definition was declared with (`['reads']`),
-   *  for the dev server's once-per-process report. Absent when none. */
-  deprecatedOptions?: readonly string[]
   subscribes: SubscribeEntry[]
   /** Event types no client may dispatch to `/__events` (server-generated only:
    *  effect completions, timers, cross-machine internals). Normalized to `[]`.

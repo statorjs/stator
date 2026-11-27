@@ -89,17 +89,15 @@ describe('reads rename: peers on machines', () => {
       ['StockMachine'],
     )
     assert.equal(WithPeers.reads, WithPeers.peers)
-    assert.equal(WithPeers.deprecatedOptions, undefined)
     assert.equal(WithPeers.capabilities.serverPinned, true)
   })
 
-  it('reads: still declares the list, and is recorded as the deprecated spelling', () => {
+  it('reads: still declares the list', () => {
     assert.deepStrictEqual(
       WithReads.reads.map((d) => d.name),
       ['StockMachine'],
     )
     assert.equal(WithReads.peers, WithReads.reads)
-    assert.deepStrictEqual(WithReads.deprecatedOptions, ['reads'])
     assert.equal(WithReads.capabilities.serverPinned, true)
   })
 
@@ -113,7 +111,6 @@ describe('reads rename: peers on machines', () => {
     })
     assert.deepStrictEqual(M.peers, [])
     assert.equal(M.reads, M.peers)
-    assert.equal(M.deprecatedOptions, undefined)
   })
 
   it('declaring both peers and reads throws, naming the one to keep', () => {
@@ -141,7 +138,6 @@ describe('reads rename: peers on machines', () => {
       Derived.peers.map((d) => d.name),
       ['StockMachine'],
     )
-    assert.equal(Derived.deprecatedOptions, undefined)
   })
 
   it('a resolveHelpers stub under either key reaches a machine using either name', () => {
