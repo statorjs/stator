@@ -25,6 +25,9 @@ const EXTENSIONS: Record<string, string> = {
 }
 
 export const POST = defineApiRoute({
+  // The 2 MB file check below plus room for the multipart form around it.
+  // A bigger body is refused with a 413 before it is buffered.
+  maxBodyBytes: 2_100_000,
   reads: [ProfileMachine],
   handler: async (request, { dispatch }) => {
     const form = await request.formData()
@@ -88,9 +91,11 @@ import { pipeline } from 'node:stream/promises'
 await pipeline(Readable.fromWeb(file.stream()), createWriteStream(`./uploads/${key}`))
 ```
 
+The route's `maxBodyBytes` applies to a streamed body too: past the limit the stream errors mid-write with a `BodyTooLargeError`, and the client gets a 413. The partial file is yours to delete, as it is when a client disconnects mid-upload.
+
 ## In production you'd add
 
-- **A size limit at the edge.** The `file.size` check runs *after* the body is received — real DoS protection caps the request body at your proxy or platform, before it reaches the handler.
+- **Keep the proxy's limit at or above the app's.** `maxBodyBytes` is what bounds the memory an upload can take; the `file.size` check only runs once the body is in. A proxy or platform in front applies its own limit first and answers with its own error page, so set it at or above the largest `maxBodyBytes` you use, or uploads near the limit get the proxy's error instead of the app's 413.
 - **Content sniffing, not trust.** `file.type` is set by the client and can lie, so the allowlist above only stops honest mistakes. If the type matters for safety, check the file's magic bytes as well.
 - **Object storage + signed URLs** at any real scale — write to S3-compatible storage and serve via signed URLs instead of your app process.
 - **Orphan cleanup.** An upload whose follow-up dispatch never lands (the user closed the tab) leaves bytes with no key pointing at them. Sweep unreferenced uploads on a schedule, or upload-then-commit in one flow.

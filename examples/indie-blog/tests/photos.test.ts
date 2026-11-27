@@ -112,6 +112,15 @@ describe('photo posts over multipart', () => {
     assert.equal(rounded.headers.get('location'), `${src}?w=1200`)
   })
 
+  it('a 10 MiB photo still publishes under the route body limit', async () => {
+    // The largest photo lib/media.ts accepts: real PNG bytes padded to size.
+    const padded = new Uint8Array(10 * 1024 * 1024)
+    padded.set(PNG)
+    const photo = new File([padded], 'big.png', { type: 'image/png' })
+    const result = await publish(sid, { title: '', content: 'A big one.', photo_alt: 'Big' }, photo)
+    assert.match(result.directives?.[0]?.to ?? '', /^\/posts\//)
+  })
+
   it('rejects a photo without alt text', async () => {
     const photo = new File([PNG], 'x.png', { type: 'image/png' })
     const result = await publish(sid, { title: '', content: 'No alt.', photo_alt: '' }, photo)

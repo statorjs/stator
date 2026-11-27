@@ -1,8 +1,8 @@
 ---
 title: Request body size limits for uploads and API routes
-status: draft
+status: shipped
 created: 2026-11-22
-updated: 2026-11-22
+updated: 2026-11-27
 area: server
 ---
 

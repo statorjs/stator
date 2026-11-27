@@ -14,6 +14,9 @@ import OwnerMachine from '../../machines/owner.ts'
  * commits — and for a post with no targets, a probe event checks auth.
  */
 export const POST = defineApiRoute({
+  // A 10 MiB photo (MAX_PHOTO_BYTES) plus the form around it. Larger bodies
+  // are refused with a 413 before the handler sees them.
+  maxBodyBytes: 12 * 1024 * 1024,
   reads: [OwnerMachine],
   handler: async (request, { dispatch }) => {
     const form = await request.formData()
