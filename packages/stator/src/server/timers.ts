@@ -18,7 +18,55 @@ export const APP_SCOPE = '@app'
  * it's counting down for, and fires across (or between) requests. A process
  * restart drops armed timers (non-durable, like effects).
  */
-const timers = new Map<string, ReturnType<typeof setTimeout>[]>()
+const timers = new Map<string, LongTimer[]>()
+
+/** Longest delay `setTimeout` honours (2^31-1 ms, about 24.8 days). Node
+ *  clamps anything larger to 1 ms, so a longer `after` is waited out in steps
+ *  of at most this size. */
+export const MAX_TIMEOUT_MS = 2 ** 31 - 1
+
+/** One `after` timer. `handle` is whichever step is pending, so a cancel
+ *  mid-way clears the step that is actually ticking. */
+interface LongTimer {
+  handle: ReturnType<typeof setTimeout> | undefined
+}
+
+/** `setTimeout` for any delay: a delay over `MAX_TIMEOUT_MS` is waited out in
+ *  steps, and `fn` runs once at the end. Each step re-reads the clock and
+ *  waits for what is left of the deadline, so a late step doesn't push the
+ *  fire later. Every step is unref'd — a pending timer doesn't keep the
+ *  process alive. */
+function setLongTimeout(fn: () => void, delay: number): LongTimer {
+  const timer: LongTimer = { handle: undefined }
+  const finish = (): void => {
+    timer.handle = undefined
+    fn()
+  }
+  // The common case (and NaN) is exactly the setTimeout call it always was.
+  if (!(delay > MAX_TIMEOUT_MS)) {
+    timer.handle = unrefd(setTimeout(finish, delay))
+    return timer
+  }
+  const deadline = Date.now() + delay
+  const step = (): void => {
+    const remaining = deadline - Date.now()
+    timer.handle = unrefd(
+      remaining > MAX_TIMEOUT_MS ? setTimeout(step, MAX_TIMEOUT_MS) : setTimeout(finish, remaining),
+    )
+  }
+  step()
+  return timer
+}
+
+const unrefd = (h: ReturnType<typeof setTimeout>): ReturnType<typeof setTimeout> => {
+  ;(h as unknown as { unref?: () => void }).unref?.()
+  return h
+}
+
+function clearLongTimeout(timer: LongTimer): void {
+  if (timer.handle !== undefined) clearTimeout(timer.handle)
+  timer.handle = undefined
+}
 
 const key = (scope: string, machineName: string, stateKey: string): string =>
   `${scope} ${machineName} ${stateKey}`
@@ -29,7 +77,7 @@ export function cancelAfterTimers(scope: string, machineName: string, stateKey: 
   const k = key(scope, machineName, stateKey)
   const handles = timers.get(k)
   if (!handles) return
-  for (const h of handles) clearTimeout(h)
+  for (const t of handles) clearLongTimeout(t)
   timers.delete(k)
 }
 
@@ -76,7 +124,9 @@ export function armAfterTimers(
       opts?.restore && opts.enteredAt !== undefined
         ? Math.max(declared - (Date.now() - opts.enteredAt), OVERDUE_FIRE_MS)
         : declared
-    const h = setTimeout(() => {
+    // Through setLongTimeout, not setTimeout: a day-scale delay (or a
+    // restored remainder of one) past 2^31-1 ms would otherwise fire in 1 ms.
+    return setLongTimeout(() => {
       timers.delete(k) // a state has one arm-set; drop the whole key on fire
       const fire =
         def.lifecycle === 'app'
@@ -89,9 +139,6 @@ export function armAfterTimers(
         )
       })
     }, delay)
-    // Don't keep the process alive for a pending timer.
-    ;(h as unknown as { unref?: () => void }).unref?.()
-    return h
   })
   timers.set(k, handles)
 }
