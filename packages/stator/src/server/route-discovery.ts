@@ -5,6 +5,7 @@ import type { ModuleLoader } from './discovery.ts'
 import { dataFileExtensions } from './query-route.ts'
 import {
   type ApiRouteDefinition,
+  HTTP_METHODS,
   isStatorApiRoute,
   isStatorQueryRoute,
   isStatorRoute,
@@ -14,11 +15,9 @@ import {
 
 const nativeLoader: ModuleLoader = (file) => import(pathToFileURL(file).href)
 
-/** HTTP methods a route file may export. GET goes through `defineRoute`
- *  (page rendering) or `defineApiRoute({ method: 'GET' })` (data route);
- *  the rest go through `defineApiRoute` (command handlers). */
-export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
-export type HttpMethod = (typeof HTTP_METHODS)[number]
+// Defined in routing.ts (the config types need the union); re-exported here
+// so existing importers keep working.
+export { HTTP_METHODS, type HttpMethod } from './routing.ts'
 
 export interface DiscoveredRoute {
   /** Hono-shaped URL pattern. Path params are `:name`. */
@@ -102,12 +101,18 @@ export async function discoverRoutes(
     // These run BEFORE the not-a-route skip below: a file whose only export
     // is a mis-constructed method name must error, not vanish as a utility.
     if (mod.GET && !get) {
+      const declared = isStatorApiRoute(mod.GET)
+        ? (mod.GET as ApiRouteDefinition).method
+        : undefined
       throw new Error(
-        isStatorApiRoute(mod.GET)
-          ? `stator: ${filePath} exports GET from defineApiRoute() without method: 'GET'. ` +
+        !isStatorApiRoute(mod.GET)
+          ? `stator: ${filePath} exports GET but it is neither a defineRoute (page) nor a ` +
+              `defineApiRoute({ method: 'GET' }) (data route).`
+          : declared !== undefined
+            ? `stator: ${filePath} exports GET created with method: '${declared}'. ` +
               `A GET is a page (defineRoute) or a data route (defineApiRoute({ method: 'GET', … })).`
-          : `stator: ${filePath} exports GET but it is neither a defineRoute (page) nor a ` +
-              `defineApiRoute({ method: 'GET' }) (data route).`,
+            : `stator: ${filePath} exports GET from defineApiRoute() without method: 'GET'. ` +
+              `A GET is a page (defineRoute) or a data route (defineApiRoute({ method: 'GET', … })).`,
       )
     }
     for (const m of ['POST', 'PUT', 'PATCH', 'DELETE'] as const) {
@@ -122,6 +127,13 @@ export async function discoverRoutes(
         throw new Error(
           `stator: ${filePath} exports ${m} but it is not a defineApiRoute. ` +
             `${m} handlers must be created with defineApiRoute(); defineRoute() is GET-only.`,
+        )
+      }
+      const declared = (mod[m] as ApiRouteDefinition).method
+      if (declared !== undefined && declared !== m) {
+        throw new Error(
+          `stator: ${filePath} exports ${m} created with method: '${declared}' — the declared method ` +
+            `must match the export name. Rename the export or change the method.`,
         )
       }
     }

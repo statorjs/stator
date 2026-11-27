@@ -126,6 +126,15 @@ export function isStatorRoute(v: unknown): v is RouteDefinition {
 
 export type { Directive } from '../wire/index.ts'
 
+/** HTTP methods a route file may export. GET goes through `defineRoute`
+ *  (page rendering) or `defineApiRoute({ method: 'GET' })` (data route);
+ *  the rest go through `defineApiRoute` (command handlers). */
+export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
+export type HttpMethod = (typeof HTTP_METHODS)[number]
+
+/** Every method a command route can be exported under. */
+export type CommandMethod = Exclude<HttpMethod, 'GET'>
+
 /** Envelope shape API route handlers return when they want the framework
  *  to synthesize an HTTP response. Returning a raw Response is also OK.
  *  Same shape as the wire envelope the client receives. */
@@ -171,6 +180,9 @@ export interface ApiRouteHelpers {
 
 export interface ApiRouteDefinition {
   readonly __isStatorApiRoute: true
+  /** The declared method, when the route declared one. Discovery checks it
+   *  against the export name; the export name is what routes. */
+  method?: CommandMethod
   reads: AnyMachineDef[]
   handler: (
     request: RouteRequest,
@@ -179,6 +191,9 @@ export interface ApiRouteDefinition {
 }
 
 export interface DefineApiRouteConfig<TReads extends ReadonlyArray<AnyMachineDef>> {
+  /** The method this route is exported under. Optional for a command route:
+   *  the export name is what routes. Discovery checks the two agree. */
+  method?: CommandMethod
   reads?: TReads
   handler: (
     request: RouteRequest,
@@ -187,8 +202,10 @@ export interface DefineApiRouteConfig<TReads extends ReadonlyArray<AnyMachineDef
 }
 
 /** `method: 'GET'` discriminates: with it, the handler is a read-only data
- *  route typed with `{ machines }`; without it, a command route typed with
- *  `{ dispatch, rotateSession }` — exactly as before. */
+ *  route typed with `{ machines }`; without `method`, or with any other
+ *  method (`'POST'`, `'PUT'`, `'PATCH'`, `'DELETE'`), a command route typed
+ *  with `{ dispatch, rotateSession }`. The export name still routes the
+ *  request; discovery checks a declared method against it. */
 export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef> = readonly []>(
   config: DefineQueryRouteConfig<TReads>,
 ): QueryRouteDefinition
@@ -198,6 +215,12 @@ export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef>>(
 export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef>>(
   config: DefineQueryRouteConfig<TReads> | DefineApiRouteConfig<TReads>,
 ): QueryRouteDefinition | ApiRouteDefinition {
+  const declared = (config as { method?: unknown }).method
+  if (declared !== undefined && !(HTTP_METHODS as readonly unknown[]).includes(declared)) {
+    throw new Error(
+      `stator: defineApiRoute method must be one of ${HTTP_METHODS.join(', ')} — got ${JSON.stringify(declared)}.`,
+    )
+  }
   if ('method' in config && config.method === 'GET') {
     return {
       __isStatorQueryRoute: true,
@@ -206,10 +229,12 @@ export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef>>(
       revision: config.revision,
     }
   }
+  const command = config as DefineApiRouteConfig<TReads>
   return {
     __isStatorApiRoute: true,
-    reads: config.reads ? [...config.reads] : [],
-    handler: (config as DefineApiRouteConfig<TReads>).handler,
+    ...(command.method !== undefined ? { method: command.method } : {}),
+    reads: command.reads ? [...command.reads] : [],
+    handler: command.handler,
   }
 }
 

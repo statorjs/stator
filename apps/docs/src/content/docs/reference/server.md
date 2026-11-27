@@ -81,6 +81,7 @@ function defineApiRoute(config: DefineQueryRouteConfig): QueryRouteDefinition  /
 function defineApiRoute(config: DefineApiRouteConfig): ApiRouteDefinition     // commands
 
 interface DefineApiRouteConfig {
+  method?: CommandMethod  // 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   reads?: MachineDef[]
   handler: (request: RouteRequest, helpers: ApiRouteHelpers) => ApiRouteResult | Promise<ApiRouteResult>
 }
@@ -92,7 +93,9 @@ interface DefineQueryRouteConfig {
 }
 ```
 
-Defines a non-page endpoint. Without `method`, it is a **command** route (`POST`/`PUT`/`PATCH`/`DELETE`): the handler returns either a raw `Response` or an `ApiRouteEnvelope` (the same `{ patches?, directives? }` wire envelope the client already knows how to apply), and `helpers.dispatch(machine, event)` sends an event to a machine addressed by its imported def — type-checked against that machine's event union, session-lifecycle only, and the machine must be in the route's `reads` graph.
+Defines a non-page endpoint. Without `method`, or with any method but `'GET'`, it is a **command** route (`POST`/`PUT`/`PATCH`/`DELETE`): the handler returns either a raw `Response` or an `ApiRouteEnvelope` (the same `{ patches?, directives? }` wire envelope the client already knows how to apply), and `helpers.dispatch(machine, event)` sends an event to a machine addressed by its imported def — type-checked against that machine's event union, session-lifecycle only, and the machine must be in the route's `reads` graph.
+
+A command route's `method` is optional. The export name routes the request; when `method` is declared, discovery checks it against the export name and fails startup on a mismatch (`exports DELETE created with method: 'POST'`). A value outside `GET`, `POST`, `PUT`, `PATCH`, `DELETE` throws when the route is defined; lowercase is not accepted.
 
 With `method: 'GET'`, it is a **data route**: the handler receives `helpers.machines` (read proxies keyed by machine name, the same shape a page render context uses) and no `dispatch`. A plain return value is served as JSON; a string takes its `Content-Type` from the URL's extension; a raw `Response` passes through verbatim. Synthesized responses carry a strong `ETag` and answer `If-None-Match` with 304. See the [API routes guide](/guides/api-routes/#data-get-routes).
 
@@ -109,7 +112,7 @@ type Directive =
   | { type: 'event'; name: string; detail?: unknown }
 ```
 
-Related exports: `ApiRouteDefinition`, `ApiRouteHelpers`, `ApiRouteResult`, `ApiRouteEnvelope`, `QueryRouteDefinition`, `QueryRouteHelpers`, `QueryRouteResult`, `Directive`.
+Related exports: `ApiRouteDefinition`, `ApiRouteHelpers`, `HttpMethod`, `CommandMethod`, `ApiRouteResult`, `ApiRouteEnvelope`, `QueryRouteDefinition`, `QueryRouteHelpers`, `QueryRouteResult`, `Directive`.
 
 ## dispatchToApp
 

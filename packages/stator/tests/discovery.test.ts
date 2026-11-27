@@ -9,6 +9,7 @@ import {
   filePathToRoute,
   sortRoutes,
 } from '../src/server/route-discovery.ts'
+import { defineApiRoute } from '../src/server/routing.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const missing = resolve(here, 'fixtures', '__does_not_exist__')
@@ -49,10 +50,48 @@ describe('discovery: method/constructor mismatch', () => {
     )
   })
 
+  it('errors on a command route whose declared method differs from its export name', async () => {
+    await assert.rejects(
+      discoverRoutes(resolve(here, 'fixtures', 'route-method-mismatch')),
+      /bad\.ts exports DELETE created with method: 'POST' — the declared method must match the export name/,
+    )
+  })
+
+  it('names the declared method when a command route is exported as GET', async () => {
+    await assert.rejects(
+      discoverRoutes(resolve(here, 'fixtures', 'route-method-on-get')),
+      /exports GET created with method: 'POST'\. A GET is a page \(defineRoute\) or a data route/,
+    )
+  })
+
+  it('loads a command route with a matching declared method, and one without', async () => {
+    const routes = await discoverRoutes(resolve(here, 'fixtures', 'route-method-match'))
+    assert.equal(routes.length, 1)
+    assert.partialDeepStrictEqual(routes[0]!.DELETE, { __isStatorApiRoute: true, method: 'DELETE' })
+    assert.equal(routes[0]!.PUT?.__isStatorApiRoute, true)
+    assert.equal(routes[0]!.PUT?.method, undefined)
+  })
+
   it('errors on an extension-named route file that exports no route', async () => {
     await assert.rejects(
       discoverRoutes(resolve(here, 'fixtures', 'route-ext-no-exports')),
       /named like a data route/,
+    )
+  })
+})
+
+describe('defineApiRoute: method', () => {
+  it('keeps a declared command method on the definition', () => {
+    const def = defineApiRoute({ method: 'PATCH', handler: () => ({}) })
+    assert.equal(def.method, 'PATCH')
+    assert.equal('method' in defineApiRoute({ handler: () => ({}) }), false)
+  })
+
+  it('throws at definition time on a method outside HTTP_METHODS', () => {
+    assert.throws(
+      // Reachable from JavaScript or through a cast; lowercase is not normalised.
+      () => defineApiRoute({ method: 'post' as 'POST', handler: () => ({}) }),
+      /stator: defineApiRoute method must be one of GET, POST, PUT, PATCH, DELETE — got "post"\./,
     )
   })
 })

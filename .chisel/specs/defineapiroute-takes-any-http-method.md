@@ -1,8 +1,8 @@
 ---
 title: defineApiRoute takes any HTTP method
-status: draft
+status: shipped
 created: 2026-11-15
-updated: 2026-11-22
+updated: 2026-11-27
 area: routing
 ---
 

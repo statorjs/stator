@@ -25,6 +25,24 @@ export const POST = defineApiRoute({
 
 Export by method (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`). The mutation methods are **command** routes, as above. A `GET` export is either a page (`defineRoute`) or a **[data route](#data-get-routes)** — `defineApiRoute` declaring `method: 'GET'` — serving JSON, XML, or text instead of a rendered page.
 
+A command route can name its method. The export name is what routes the request, and discovery checks that a declared `method` matches it, so `export const DELETE = defineApiRoute({ method: 'POST', … })` fails at startup with the file named:
+
+```ts title="routes/cart/[id].ts"
+import { defineApiRoute } from '@statorjs/stator/server'
+import CartMachine from '../../machines/cart.ts'
+
+export const DELETE = defineApiRoute({
+  method: 'DELETE',
+  reads: [CartMachine],
+  handler: async (request, { dispatch }) => {
+    await dispatch(CartMachine, { type: 'REMOVE_ITEM', productId: request.params.id })
+    return { directives: [{ type: 'reload' }] }
+  },
+})
+```
+
+`method` is optional on a command route and required on a data route: `method: 'GET'` is what makes a `defineApiRoute` a data route.
+
 ## The request
 
 `request` carries `params`, `query`, `headers`, the raw `Request`, and body helpers `formData()` / `json()` / `text()`.
