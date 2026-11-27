@@ -175,13 +175,13 @@ with `(maxBodyBytes on routes/admin/publish.ts)` in place of the config key when
 - **A `body: { maxBytes }` group on both config and route.** Matches `events.maxBytes` leaf for leaf. Costs a nested object on every upload route for one number, and `requests` is the better home for the next request-level policy.
 - **`false` for "no limit".** `caching: false` is the precedent, but there `false` removes a block. Here the type stays `number` and `Infinity` means what it says.
 
-## Open Questions
+## Not in 3.1
 
-- **The key name.** `requests.maxBodyBytes` with `maxBodyBytes` on the route is recommended above. `requests.maxBytes` would mirror `events.maxBytes` exactly at the cost of a different word on the route.
-- **The 4.0 number.** 1 MiB is recommended. 512 KiB is the SvelteKit line; 2 MiB to 4 MiB is the "a phone photo fits" line, which invites not setting a route limit at all.
-- **A read timeout.** A limit on size does nothing about a body that arrives one byte a second. `requests.bodyTimeoutMs` is the natural sibling; not in 3.1.
-- **Should the 3.x warning count toward `stator check`?** A static pass could flag a route that calls `request.formData()` with no `maxBodyBytes`. Cheap to add later, noisy if wrong; leave it to the runtime warning for now.
-- **Folding `readCapped` into `body-limit.ts`.** The `/__events` reader could become "apply the limit, then `text()`". Deferred so this does not edit the `/__events` handler while other 3.1 work is in it.
+The key name (`requests.maxBodyBytes`, `maxBodyBytes` on the route) and the 4.0 default (1 MiB) are settled; see the decision record below. Three things were left out on purpose:
+
+- **A read timeout.** A limit on size does nothing about a body that arrives one byte a second. `requests.bodyTimeoutMs` is the natural sibling. Unscheduled.
+- **A `stator check` lint.** A static pass could flag a route that calls `request.formData()` with no `maxBodyBytes`. Cheap to add later, noisy if wrong; the runtime warning covers it for now.
+- **Folding `readCapped` into `body-limit.ts`.** The `/__events` reader could become "apply the limit, then `text()`". Held back so this change did not edit the `/__events` handler while other 3.1 work is in it; it can follow once refusal reasons has merged.
 
 ## Implementation Notes
 
