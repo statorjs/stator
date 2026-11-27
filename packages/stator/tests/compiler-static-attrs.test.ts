@@ -4,9 +4,11 @@ import { transform } from 'esbuild'
 import { compile } from '../src/compiler/compile.ts'
 import { lowerTemplate } from '../src/compiler/lower.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
+import * as templateApi from '../src/template/index.ts'
 import { html } from '../src/template/index.ts'
-import { escapeAttribute } from '../src/template/parser.ts'
+import { escapeAttribute, escapeText } from '../src/template/parser.ts'
 import type { HtmlFragment } from '../src/template/types.ts'
+import { jsOf } from './helpers/js-of.ts'
 
 /**
  * A static attribute value (`title="…"`) reaches the browser as exactly the text
@@ -180,5 +182,87 @@ describe('compiler: other author text written into the emitted template', () => 
       () => fn(html, { children: { 'side-bar': html`<i>s</i>` } }) as HtmlFragment,
     )
     assert.equal(out.html, '<div><i>s</i></div>')
+  })
+})
+
+describe('compiler: component string props and island root attributes decode entities too', () => {
+  function runModule(code: string): any {
+    const body = code
+      .replace(/^import .*$/gm, '')
+      .replace(/^\s*export default /m, 'return ')
+      .replace(/^\s*export /gm, '')
+    const names = Object.keys(templateApi)
+    // eslint-disable-next-line no-new-func
+    return new Function(...names, body)(...names.map((n) => (templateApi as any)[n]))
+  }
+
+  /** A compiled component that shows its `title` prop as text and as an attribute. */
+  const Card = runModule(
+    jsOf(
+      compile(
+        `---
+const { title } = Stator.props<{ title: string }>()
+---
+<p title={title}>{title}</p>`,
+        { id: 'card.stator' },
+      ).serverCode,
+    ),
+  ) as (p: { title: string }) => HtmlFragment
+
+  /** An island whose root carries a static `title`. */
+  const islandWith = (written: string): (() => HtmlFragment) => {
+    const q = written.includes('"') ? "'" : '"'
+    const { serverCode } = compile(
+      `<my-widget title=${q}${written}${q}>x</my-widget>
+
+<script>
+  export class MyWidget extends StatorElement {}
+</script>`,
+      { id: 'my-widget.stator' },
+    )
+    return runModule(jsOf(serverCode)) as () => HtmlFragment
+  }
+
+  const cases: Array<[written: string, value: string]> = [
+    ['Tom &amp; Jerry', 'Tom & Jerry'],
+    ['&quot;hi&quot;', '"hi"'],
+    ['it&#39;s', "it's"],
+    ['&copy; 2026', '© 2026'],
+    ['&foo; stays', '&foo; stays'],
+    ['a bare & stays', 'a bare & stays'],
+  ]
+
+  for (const [written, value] of cases) {
+    it(`a component prop: ${written}`, () => {
+      const q = written.includes('"') ? "'" : '"'
+      const out = render(`<Card title=${q}${written}${q}/>`, { Card })
+      const m = /^<p [^>]*\btitle="([^"]*)"[^>]*>(.*)<\/p>$/.exec(out)
+      assert.ok(m, out)
+      assert.equal(m[1], escapeAttribute(value)) // as an attribute
+      assert.equal(m[2], escapeText(value)) // as text
+      assert.equal(decode(m[1]!), value)
+      assert.equal(decode(m[2]!), value)
+    })
+
+    it(`an island root attribute: ${written}`, () => {
+      const out = inRender(() => islandWith(written)()).html
+      const m = /^<my-widget title="([^"]*)"[^>]*>x<\/my-widget>$/.exec(out)
+      assert.ok(m, out)
+      assert.equal(m[1], escapeAttribute(value))
+      assert.equal(decode(m[1]!), value)
+    })
+  }
+
+  it('a plain element, a component prop and an island root attribute show the same text', () => {
+    const written = 'Tom &amp; Jerry &copy; &foo; & `${x}` "q"'
+    const q = "'"
+    const plain = /title="([^"]*)"/.exec(render(`<p title=${q}${written}${q}></p>`, { x: 1 }))![1]
+    const prop = /title="([^"]*)"/.exec(
+      render(`<Card title=${q}${written}${q}/>`, { Card, x: 1 }),
+    )![1]
+    const island = /title="([^"]*)"/.exec(inRender(() => islandWith(written)()).html)![1]
+    assert.equal(prop, plain)
+    assert.equal(island, plain)
+    assert.equal(decode(plain!), 'Tom & Jerry © &foo; & `${x}` "q"')
   })
 })

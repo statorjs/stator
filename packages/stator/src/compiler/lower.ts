@@ -981,7 +981,8 @@ export function lowerTemplate(template: string, opts: LowerOptions = {}): string
       if (!attr.initializer) {
         entries.push(`${name}: true`) // boolean shorthand
       } else if (ts.isStringLiteral(attr.initializer)) {
-        entries.push(`${name}: ${JSON.stringify(attr.initializer.text)}`)
+        // Decoded as JSX reads it, like an element's static attribute.
+        entries.push(`${name}: ${JSON.stringify(decodeJsxEntities(attr.initializer.text))}`)
       } else {
         entries.push(`${name}: ${attrExpr(attr)}`)
       }
@@ -1046,7 +1047,7 @@ const JSX_ENTITY_RE = /&(#\d+|#x[\da-fA-F]+|\w+);/
  * decoder aren't exported, so the value is run through the transform itself
  * (only when it holds something reference-shaped) and read back.
  */
-function decodeJsxEntities(text: string): string {
+export function decodeJsxEntities(text: string): string {
   if (!JSX_ENTITY_RE.test(text)) return text
   // A JSX attribute string can't contain its own quote, so one of the two fits.
   const q = text.includes('"') ? "'" : '"'

@@ -22,6 +22,7 @@ The `.stator` compiler lowers a static attribute (`title="…"`, a JSX string li
 - A dynamic attribute (`title={x}`) still lowers to `title="${x}"` and interpolates.
 - A value with none of those characters is emitted byte for byte as before, so the checked-in compiled components (`src/components/*.stator.ts`) do not change.
 - The same holds inside an island's template, which goes through the same lowering.
+- A static string prop on a component (`<Card title="Tom &amp; Jerry"/>`) passes the value `Tom & Jerry`, as JSX would, and an island's root static attributes decode the same way. A plain element, a component prop and an island root attribute given the same static text show the same text.
 
 ## Constraints
 
@@ -42,6 +43,13 @@ if (ts.isStringLiteral(attr.initializer)) {
 
 A JSX attribute string carries no backslash escapes, so `attr.initializer.text` is the author's text as typed, entities included. `decodeJsxEntities` decodes them exactly as the TypeScript JSX transform does for a string attribute. TypeScript's `decodeEntities` and its `entities` table (the 253 HTML 4 named references, plus decimal and hex numeric references) are internal and not exported, so when the value holds something reference-shaped (`&name;`, `&#n;`, `&#xh;`) it is run through `ts.transpileModule` with `jsx: React` as `<x a="…"/>` and the emitted string literal is read back. A value with no reference skips this entirely. `escapeAttribute` (`template/parser.ts`) then gives the HTML form (`& " ' < >`), and the file's local `escapeText` escapes `\`, a backtick and `$` for the template literal, as it already does for JSX text and `is:inline` scripts. A `${` produced by decoding (`&#36;{x}`) is escaped like a typed one.
 
+The same decoding applies where a static attribute string becomes a value instead of markup, so the value matches what a plain element shows:
+
+- Component string props (`lowerComponent` in `lower.ts`): `${name}: ${JSON.stringify(decodeJsxEntities(text))}`. The prop is a JS string literal in JS code, and the component escapes it wherever it renders it.
+- An island's root static attributes (`staticRootAttrs` in `compile.ts`): decoded into the JSON object passed to `clientShellAttrs`, which escapes them at render. The island's client code reads these attributes from the server-rendered DOM, and no separate client emit path carries them, so server and client agree.
+
+`decodeJsxEntities` is exported from `lower.ts` for this; there is one decoder.
+
 Two other places write author text into the generated template the same way and are fixed alongside:
 
 - A leading `<!doctype …>` is spliced into the literal unescaped; it now goes through `escapeText`.
@@ -51,9 +59,7 @@ Emit sites checked and already correct:
 
 - JSX text: `escapeText` for the literal, and HTML is the author's markup by design (`<` cannot appear in JSX text), so its entities are decoded by the browser. Static attributes now agree with it.
 - Attribute names, tag names, `ref:` names: JSX identifiers, which cannot contain a backtick, `\` or `${`.
-- `on:` event names, `child="x"` region keys, component string props (`<Card title="…"/>`): `JSON.stringify` inside a `${…}` expression, which is JS context, where a JSON string is a correct string literal; the prop is escaped when the component renders it.
-- Island root static attributes (`compile.ts` `staticRootAttrs`): a JSON object in JS context, escaped by `clientShellAttrs` at render.
-- Component string props and island root attributes do not decode entities (`<Card title="&amp;"/>` passes `&amp;`), unlike JSX. That is a separate question and is left as it is; see Open Questions.
+- `on:` event names and `child="x"` region keys: `JSON.stringify` inside a `${…}` expression, which is JS context, where a JSON string is a correct string literal.
 - `compiler/client-emit.ts`: slot markers, selectors, the element tag, event names and attribute names are all `JSON.stringify` in JS context, and none of them reach an HTML template.
 
 ## Alternatives Considered
@@ -63,14 +69,15 @@ Emit sites checked and already correct:
 - **A hand-written entity table.** Partial, and it would drift from the JSX reading the editor shows. Rejected in favour of TypeScript's own transform.
 - **Escape at runtime** (`title="${"say \"hi\""}"`). Correct, but changes every static attribute in every compiled file and costs a runtime escape per attribute. Rejected.
 
-## Open Questions
+## Not in this change
 
-- Should component string props and island root static attributes decode entities too, so `<Card title="&amp;"/>` passes `&` as JSX would? Not changed here.
+- Static strings that are names or keys, not display text, are not decoded: `child="x"` region keys, `<children name="x">`, `on:` event names and `ref:` names (the last two are JSX identifiers and cannot hold `&`). A region key and its `<children name>` stay undecoded on both sides, so they still match.
 
 ## Implementation Notes
 
 One PR, S.
 
-- `packages/stator/src/compiler/lower.ts`: the three changes above and `decodeJsxEntities`.
-- `packages/stator/tests/compiler-static-attrs.test.ts`: each character class renders as its literal text through the real runtime; entities (`&amp;`, `&quot;`, `&#39;`, `&#x27;`, `&copy;`, `&nbsp;`, numeric, astral, unknown `&foo;`, unterminated `&amp`, a bare `&`) decode or stay as specified; body text and an attribute agree; the emitted markup; a dynamic attribute still interpolates; a compiled component module and an island module parse with esbuild; the doctype and the region name.
+- `packages/stator/src/compiler/lower.ts`: the three changes above, `decodeJsxEntities`, and decoding component string props.
+- `packages/stator/src/compiler/compile.ts`: decoding island root static attributes in `staticRootAttrs`.
+- `packages/stator/tests/compiler-static-attrs.test.ts`: each character class renders as its literal text through the real runtime; entities (`&amp;`, `&quot;`, `&#39;`, `&#x27;`, `&copy;`, `&nbsp;`, numeric, astral, unknown `&foo;`, unterminated `&amp`, a bare `&`) decode or stay as specified; body text and an attribute agree; a component string prop rendered as text and as an attribute, and an island root attribute, decode the same way; a plain element, a component prop and an island root attribute given the same static value show the same text; the emitted markup; a dynamic attribute still interpolates; a compiled component module and an island module parse with esbuild; the doctype and the region name.
 - Changeset (patch). No docs state the old behaviour.
