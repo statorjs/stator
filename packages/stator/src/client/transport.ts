@@ -8,6 +8,10 @@
  * bodies resolve (never throw) as `{ ok: false, error }`, and a
  * `stator:dispatch-error` CustomEvent fires on window once per dispatch when
  * the failure is final.
+ *
+ * Observability: `postEvent` fires `stator:event-sent` once per dispatch and
+ * `stator:patches-received` when an envelope arrives, so both callers (a
+ * template send and an island `dispatch()`) show in the inspector alike.
  */
 
 import type { WireEnvelope } from '../wire/index.ts'
@@ -140,6 +144,24 @@ export async function postEvent(
   let error: DispatchError
   const layout = pageLayout()
   const pattern = pagePattern()
+  emit('stator:event-sent', {
+    machine: body.machine,
+    event: body.event,
+    routeKey,
+    timestamp: Date.now(),
+  })
+  const startedAt = performance.now()
+  // Fired before the caller applies the envelope, as the page runtime always
+  // has; a 422 refusal's empty list fires it like any committed-nothing answer.
+  const received = (envelope: WireEnvelope): void => {
+    if (!envelope.patches) return
+    emit('stator:patches-received', {
+      patches: envelope.patches,
+      source: 'post',
+      durationMs: Math.round(performance.now() - startedAt),
+      timestamp: Date.now(),
+    })
+  }
   for (let attempt = 0; ; attempt++) {
     let res: Response
     let text: string
@@ -174,12 +196,16 @@ export async function postEvent(
 
     const parsed = parseBody(text)
     if (res.ok) {
-      if (isObject(parsed)) return { ok: true, status: 200, envelope: parsed as WireEnvelope }
+      if (isObject(parsed)) {
+        received(parsed as WireEnvelope)
+        return { ok: true, status: 200, envelope: parsed as WireEnvelope }
+      }
       error = { phase: 'http', status: res.status, message: 'malformed response body' }
       console.error('stator: malformed response body', res.status, text)
       break
     }
     if (res.status === 422 && carriesRefusal(parsed)) {
+      received(parsed as WireEnvelope)
       return { ok: true, status: 422, envelope: parsed as WireEnvelope }
     }
     const message = errorStringOf(parsed)

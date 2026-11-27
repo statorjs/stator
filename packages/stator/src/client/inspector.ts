@@ -492,6 +492,23 @@ function mount(): void {
     )
   })
 
+  window.addEventListener('stator:patch-error', (e: Event) => {
+    const { patch, error, timestamp } = (e as CustomEvent).detail
+    const reason = error instanceof Error ? error.message : String(error)
+    addEntry(
+      'down',
+      `<div class="stator-inspector-summary">
+        <span class="stator-inspector-time">${fmtTime(timestamp)}</span>
+        <span class="stator-inspector-arrow">✕</span>
+        <span class="stator-inspector-machine">patch ${escapeHtml(patch.op)}</span>
+        <span class="stator-inspector-event-type">${escapeHtml(`${patch.target.kind} ${patch.target.id}`)}</span>
+        <span class="stator-inspector-params">${escapeHtml(reason)}</span>
+      </div>`,
+      // An Error serializes to `{}`; keep its message in the expandable detail.
+      { patch, error: reason, timestamp },
+    )
+  })
+
   window.addEventListener('stator:patches-received', (e: Event) => {
     const { patches, source, durationMs, timestamp } = (e as CustomEvent).detail
     const timing = durationMs != null ? `${durationMs}ms` : ''

@@ -269,6 +269,46 @@ describe('delegated dispatch (data-event-* → /__events)', () => {
   })
 })
 
+describe('a throwing patch on a template send', () => {
+  it('applies the rest of the batch and the directives, fires one patch-error, and clears pending', async () => {
+    document.body.innerHTML = `<button data-event-click='${DESCRIPTOR}'>go</button><span data-slot="s0">a</span><span data-slot="s1">b</span><span data-slot="s2">c</span>`
+    Object.defineProperty(document.querySelector('[data-slot="s1"]')!, 'textContent', {
+      set() {
+        throw new Error('boom')
+      },
+    })
+    init()
+    stubGlobal(
+      'fetch',
+      mock.fn(async () =>
+        Response.json({
+          patches: [
+            { target: { kind: 'slot', id: 's0' }, op: 'text', value: 'A' },
+            { target: { kind: 'slot', id: 's1' }, op: 'text', value: 'B' },
+            { target: { kind: 'slot', id: 's2' }, op: 'text', value: 'C' },
+          ],
+          directives: [{ type: 'event', name: 'custom:after', detail: 1 }],
+        }),
+      ),
+    )
+    const patchErrors = listen('stator:patch-error')
+    const after = listen('custom:after')
+    const sent = listen('stator:event-sent')
+
+    const btn = document.querySelector('button')!
+    btn.click()
+    await flush()
+
+    assert.equal(document.querySelector('[data-slot="s0"]')!.textContent, 'A')
+    assert.equal(document.querySelector('[data-slot="s2"]')!.textContent, 'C')
+    assert.equal(patchErrors.length, 1)
+    assert.partialDeepStrictEqual(patchErrors, [{ patch: { target: { id: 's1' } } }])
+    assert.deepStrictEqual(after, [1])
+    assert.equal(sent.length, 1)
+    assert.equal(btn.hasAttribute('data-stator-pending'), false)
+  })
+})
+
 describe('enhanced form submit (data-stator-enhance)', () => {
   it('marks the form pending and emits a machine-less dispatch-error on failure', async () => {
     document.body.innerHTML = `<form data-stator-enhance action="/submit" method="post"><input name="a" value="1"></form>`

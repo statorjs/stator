@@ -52,13 +52,21 @@ export async function dispatch<D extends AnyMachineDef>(
     return { ok: false, committed: false, patchCount: 0, error: result.error }
   }
   const data = result.envelope
-  // A 422 envelope (a refusal) is applied like a 200's: one code path, and
-  // both lists are empty on a refusal.
-  applyPatches(data.patches ?? [])
-  applyDirectives(data.directives ?? [])
-  return {
+  const answer: DispatchResult = {
     ok: true,
     committed: result.status === 422 ? false : (data.committed ?? true),
     patchCount: data.patches?.length ?? 0,
   }
+  // A 422 envelope (a refusal) is applied like a 200's: one code path, and
+  // both lists are empty on a refusal. Each patch is contained by
+  // `applyPatches`; the `try` keeps a directive that throws (a `push-url` the
+  // browser refuses) from turning an answered event into a rejection, since
+  // `dispatch()` resolves on every path.
+  try {
+    applyPatches(data.patches ?? [])
+    applyDirectives(data.directives ?? [])
+  } catch (err) {
+    console.error('stator: applying the dispatch response failed', err)
+  }
+  return answer
 }
