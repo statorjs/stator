@@ -44,9 +44,9 @@ Checked and left alone: `describe.ts` walks maps with `Object.entries`/`Object.k
 - **Null-prototype objects in `defineMachine`** (`Object.create(null)` copies of `states` and every `on`). Fixes every reader at once, but changes the shape of `def.states` that the server, describe and tests compare against, and a def built by hand without `defineMachine` would still be exposed. The lookup is the place to fix.
 - **Reject prototype names in `defineMachine`.** A machine may legitimately name an event `toString`; nothing else forbids it.
 
-## Open Questions
+## Not in this change
 
-- `template/conditional.ts` has the same defect in `match()` (`cases[String(v)]`, around lines 144-145): on 2026-11-27 a plain `match('constructor', { a })` and `match('toString', …)` throw "renderer must return an html`...` result", `__proto__` throws "renderer is not a function" and `valueOf` throws "Cannot convert undefined or null to object", where an unmatched key should render nothing. Outside this branch's scope (`src/template/` is being changed elsewhere); it needs its own follow-up, which is not an engine change and costs no reset.
+- `match()` in `template/conditional.ts` had the same defect (`cases[String(v)]`): a value like `constructor` threw where an unmatched key should render nothing. It is outside the engine, so it is fixed on its own and costs no reset: [`match-looks-up-own-arms-only`](./match-looks-up-own-arms-only.md).
 
 ## Implementation Notes
 
