@@ -161,7 +161,9 @@ function handleRead(
       lastValue: r.value,
       kind: 'text',
     })
-    builder.pushRaw(`<span data-slot="${r.slotId}">${escapeText(textValue(r.value))}</span>`)
+    builder.pushRaw(
+      `<span data-slot="${escapeAttribute(r.slotId)}">${escapeText(textValue(r.value))}</span>`,
+    )
     return
   }
   if (pos.kind === 'attr-value') {

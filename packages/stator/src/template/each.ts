@@ -15,6 +15,7 @@ import {
   type SlotId,
   unregisterBindingsForScope,
 } from '../server/render-context.ts'
+import { EACH_RESULT, hasBrand, ITEM_READ } from './brand.ts'
 import { isReadResult, type ReadResult } from './read.ts'
 import { type HtmlFragment, isHtmlFragment } from './types.ts'
 import { VOID_ELEMENTS } from './void-elements.ts'
@@ -28,15 +29,13 @@ export interface EachOptions<T> {
 }
 
 export interface EachResult {
-  readonly __isEachResult: true
+  readonly [EACH_RESULT]: true
   readonly html: string
   readonly slotId: SlotId
 }
 
 export function isEachResult(v: unknown): v is EachResult {
-  return (
-    typeof v === 'object' && v !== null && (v as Record<string, unknown>).__isEachResult === true
-  )
+  return hasBrand(v, EACH_RESULT)
 }
 
 /**
@@ -47,13 +46,13 @@ export function isEachResult(v: unknown): v is EachResult {
  * (rather than re-rendering the row, so islands/focus survive).
  */
 export interface ItemReadResult {
-  readonly __isItemRead: true
+  readonly [ITEM_READ]: true
   readonly selector: (item: unknown, index: number) => unknown
   readonly value: unknown
 }
 
 export function isItemReadResult(v: unknown): v is ItemReadResult {
-  return typeof v === 'object' && v !== null && (v as Record<string, unknown>).__isItemRead === true
+  return hasBrand(v, ITEM_READ)
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: erased item selector — the item type is the each callback's, recovered at the call site
@@ -72,7 +71,7 @@ export function itemBind(selector: (item: any, index: number) => unknown): ItemR
   // by html.ts, which knows the position (text span vs attribute) — same split as
   // read() → handleRead.
   const value = selector(state.currentItem, state.currentItemIndex ?? 0)
-  return { __isItemRead: true, selector, value }
+  return { [ITEM_READ]: true, selector, value }
 }
 
 export function each<T>(
@@ -140,7 +139,7 @@ export function each<T>(
   // pollution) and are valid in restricted parents like <table>/<tbody> where a
   // <span> is foster-parented out. The client addresses the list by its markers.
   const html = `<!--s:${slotId}-->${innerHtml}<!--/s:${slotId}-->`
-  return { __isEachResult: true, html, slotId }
+  return { [EACH_RESULT]: true, html, slotId }
 }
 
 /**

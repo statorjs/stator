@@ -6,6 +6,7 @@ import { recompute } from '../src/server/recompute.ts'
 import { createRenderState, runInRender } from '../src/server/render-context.ts'
 import { SessionRuntime } from '../src/server/session-runtime.ts'
 import { InMemoryStore } from '../src/server/store.ts'
+import { ITEM_READ } from '../src/template/brand.ts'
 import { classList } from '../src/template/directives/list-attr.ts'
 import { spreadAttrs } from '../src/template/directives/spread.ts'
 import { html } from '../src/template/html.ts'
@@ -90,7 +91,7 @@ describe('element spread ({...} → spreadAttrs)', () => {
     const state = createRenderState('spread-item', 'GET /x')
     // The shape isItemReadResult recognizes — what the compiler lowers a
     // read(item, …) to. Forwarding it through a spread is the deferred case.
-    const itemRead = { __isItemRead: true, selector: () => 'x', value: 'x' }
+    const itemRead = { [ITEM_READ]: true, selector: () => 'x', value: 'x' }
     assert.throws(
       () =>
         runInRender(state, () => html`<button ${spreadAttrs({ disabled: itemRead })}>go</button>`),

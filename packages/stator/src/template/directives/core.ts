@@ -1,4 +1,5 @@
 import type { ElementId } from '../../server/render-context.ts'
+import { DIRECTIVE_INVOCATION, hasBrand } from '../brand.ts'
 
 export interface DirectiveContext<TArg> {
   /** The synthetic id of the element this directive is attached to. */
@@ -30,18 +31,14 @@ export function defineDirective<TArg>(def: DirectiveDefinition<TArg>): Directive
 }
 
 export interface DirectiveInvocation<TArg = unknown> {
-  readonly __isStatorDirectiveInvocation: true
+  readonly [DIRECTIVE_INVOCATION]: true
   directive: Directive<TArg>
   modifier: string
   arg: TArg
 }
 
 export function isDirectiveInvocation(v: unknown): v is DirectiveInvocation {
-  return (
-    typeof v === 'object' &&
-    v !== null &&
-    (v as Record<string, unknown>).__isStatorDirectiveInvocation === true
-  )
+  return hasBrand(v, DIRECTIVE_INVOCATION)
 }
 
 export function invoke<TArg>(
@@ -50,7 +47,7 @@ export function invoke<TArg>(
   arg: TArg,
 ): DirectiveInvocation<TArg> {
   return {
-    __isStatorDirectiveInvocation: true,
+    [DIRECTIVE_INVOCATION]: true,
     directive,
     modifier,
     arg,
