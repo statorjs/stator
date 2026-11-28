@@ -170,6 +170,74 @@ describe('delegated dispatch (data-event-* → /__events)', () => {
     assert.partialDeepStrictEqual(errors, [{ machine: 'CartMachine', phase: 'http', status: 500 }])
   })
 
+  it('puts the server error string on the dispatch-error detail, without retrying a 4xx', async () => {
+    document.body.innerHTML = `<button data-event-click='${DESCRIPTOR}'>go</button>`
+    init()
+    const spy = mock.fn(async () =>
+      Response.json({ error: 'event type "ADD" is server-only' }, { status: 403 }),
+    )
+    stubGlobal('fetch', spy)
+    const errors = listen('stator:dispatch-error')
+
+    const btn = document.querySelector('button')!
+    btn.click()
+    await flush()
+
+    assert.equal(spy.mock.callCount(), 1)
+    assert.equal(btn.hasAttribute('data-stator-pending'), false)
+    assert.partialDeepStrictEqual(errors, [
+      {
+        machine: 'CartMachine',
+        phase: 'http',
+        status: 403,
+        message: 'event type "ADD" is server-only',
+      },
+    ])
+  })
+
+  it('reports a 200 with a malformed body as a dispatch-error', async () => {
+    document.body.innerHTML = `<button data-event-click='${DESCRIPTOR}'>go</button>`
+    init()
+    stubGlobal(
+      'fetch',
+      mock.fn(async () => new Response('not json', { status: 200 })),
+    )
+    const errors = listen('stator:dispatch-error')
+
+    const btn = document.querySelector('button')!
+    btn.click()
+    await flush()
+
+    assert.partialDeepStrictEqual(errors, [
+      { machine: 'CartMachine', phase: 'http', status: 200, message: 'malformed response body' },
+    ])
+    assert.equal(btn.hasAttribute('data-stator-pending'), false)
+  })
+
+  it('applies a 422 refusal envelope and fires no dispatch-error', async () => {
+    document.body.innerHTML = `<button data-event-click='${DESCRIPTOR}'>go</button>`
+    init()
+    stubGlobal(
+      'fetch',
+      mock.fn(async () =>
+        Response.json(
+          { patches: [], committed: false, refusal: { code: 'full' } },
+          { status: 422 },
+        ),
+      ),
+    )
+    const errors = listen('stator:dispatch-error')
+    const received = listen('stator:patches-received')
+
+    const btn = document.querySelector('button')!
+    btn.click()
+    await flush()
+
+    assert.deepStrictEqual(errors, [])
+    assert.partialDeepStrictEqual(received, [{ patches: [], source: 'post' }])
+    assert.equal(btn.hasAttribute('data-stator-pending'), false)
+  })
+
   it('aborts a hung POST at the deadline and emits phase timeout', async () => {
     useFakeTimers()
     document.body.innerHTML = `<button data-event-click='${DESCRIPTOR}'>go</button>`
@@ -222,5 +290,28 @@ describe('enhanced form submit (data-stator-enhance)', () => {
     assert.equal(form.hasAttribute('data-stator-pending'), false)
     assert.partialDeepStrictEqual(errors, [{ phase: 'http', status: 422 }])
     assert.equal((errors[0] as { machine?: string }).machine, undefined)
+  })
+
+  it("passes a JSON error body's string through as the dispatch-error message", async () => {
+    document.body.innerHTML = `<form data-stator-enhance action="/submit" method="post"><input name="a" value="1"></form>`
+    init()
+    stubGlobal(
+      'fetch',
+      mock.fn(async () => Response.json({ error: 'email is required' }, { status: 422 })),
+    )
+    const errors = listen('stator:dispatch-error')
+
+    document
+      .querySelector('form')!
+      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await flush()
+
+    assert.deepStrictEqual(
+      errors.map((e) => {
+        const { timestamp: _t, ...rest } = e as { timestamp: number }
+        return rest
+      }),
+      [{ phase: 'http', status: 422, message: 'email is required' }],
+    )
   })
 })

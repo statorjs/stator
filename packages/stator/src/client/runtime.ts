@@ -24,6 +24,7 @@ import { clearReloadGuard, guardedReload, settleReloadGuard } from './build-relo
 import { clientId, newEventId } from './client-id.ts'
 import {
   emitDispatchError,
+  errorMessageOf,
   fetchWithTimeout,
   pageLayout,
   pagePattern,
@@ -391,7 +392,8 @@ async function dispatchEvent(
   try {
     const result = await postEvent({ ...descriptor, eventId: newEventId() }, routeKey)
     if (!result.ok) return
-    await applyEnvelopeFromResponse(result.res, startedAt, 'post')
+    // A 200, or a 422 that carries a refusal: both are envelopes.
+    applyEnvelope(result.envelope, startedAt, 'post')
   } finally {
     if (el) endPending(el)
   }
@@ -421,8 +423,13 @@ async function submitForm(form: HTMLFormElement): Promise<void> {
       return
     }
     if (!res.ok) {
-      console.error('stator: form submit failed', res.status, await res.text())
-      emitDispatchError({ phase: 'http', status: res.status }, {})
+      const text = await res.text().catch(() => '')
+      const message = errorMessageOf(text)
+      console.error('stator: form submit failed', res.status, text)
+      emitDispatchError(
+        { phase: 'http', status: res.status, ...(message !== undefined ? { message } : {}) },
+        {},
+      )
       return
     }
     await applyEnvelopeFromResponse(res, startedAt, 'post')
@@ -443,6 +450,10 @@ async function applyEnvelopeFromResponse(
     console.error('stator: malformed response', err)
     return
   }
+  applyEnvelope(data, startedAt, source)
+}
+
+function applyEnvelope(data: WireEnvelope, startedAt: number, source: 'post' | 'sse'): void {
   const durationMs = Math.round(performance.now() - startedAt)
   if (data.patches) {
     emit('stator:patches-received', {

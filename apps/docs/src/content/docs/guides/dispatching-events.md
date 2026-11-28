@@ -46,10 +46,10 @@ A machine an island imports only to dispatch to collapses to an identity stub (`
 
 `dispatch` resolves — it never throws — with a `DispatchResult` reporting three separate facts:
 
-- **`ok`** — the POST reached the server and returned 200.
+- **`ok`** — the server processed the event and answered. It is `false` when the event never reached a machine or the answer did not arrive: a network failure, a timeout, a non-2xx status, or a body that is not a JSON envelope.
 - **`committed`** — the event committed a transition. `ok && !committed` means a guard dropped it, and the UI should not pretend something happened.
 - **`patchCount`** — patches applied to *this* page. A committed event may patch zero slots here if the machines it touched aren't bound on the current route.
-- **`error`** — present only when `ok` is false: `{ phase: 'network' | 'timeout' | 'http', status? }`.
+- **`error`** — present only when `ok` is false: `{ phase: 'network' | 'timeout' | 'http', status?, message? }`. `message` is the server's own sentence for a turned-away request (a 400, 403, 404 or 413 answers `{ "error": "…" }`), and is absent when the body was not JSON.
 
 ## What a page may send
 
@@ -73,6 +73,6 @@ An event body is capped at 64 KiB (`events.maxBytes`); a larger one is refused w
 
 ## Failure and retry semantics
 
-Every event POST carries an `eventId`. Network and timeout failures retry with backoff under the same id, and the server's replay cache makes a duplicate that did arrive safe to re-send — so a flaky connection can't apply an event twice. Non-2xx responses are terminal immediately: the server saw the event and answered.
+Every event POST carries an `eventId`. Network and timeout failures retry with backoff under the same id, and the server's replay cache makes a duplicate that did arrive safe to re-send — so a flaky connection can't apply an event twice. Non-2xx responses are terminal immediately: the server saw the event and answered. Their body is read, so the server's `error` string reaches `result.error.message` and the window event's `message`.
 
 When a failure is final, a `stator:dispatch-error` CustomEvent fires on `window`, so one listener can own the "something didn't go through" UI for the whole page. Template `on:` handlers post through the same transport, so this contract holds for them too.

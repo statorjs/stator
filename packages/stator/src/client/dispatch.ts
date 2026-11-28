@@ -1,21 +1,32 @@
 import type { AnyMachineDef, BrowserEventOf } from '../engine/index.ts'
 import { applyDirectives, applyPatches } from '../wire/apply.ts'
-import type { WireEnvelope } from '../wire/index.ts'
 import { newEventId } from './client-id.ts'
 import { type DispatchError, postEvent } from './transport.ts'
 
-export interface DispatchResult {
-  /** The POST reached the server and returned 200. */
-  ok: boolean
-  /** The event committed a transition. `ok && !committed` means a guard
-   *  dropped it — the UI should not pretend something happened. */
-  committed: boolean
-  /** Patches applied to THIS page (a committed event may patch zero slots
-   *  here if the touched machines aren't bound on the current route). */
-  patchCount: number
-  /** Present only when `ok` is false — how the POST failed. */
-  error?: DispatchError
-}
+/** What `dispatch()` resolves with. A union on `ok`: after `if (!result.ok)`
+ *  the `error` is present and typed, and a success never carries one. */
+export type DispatchResult =
+  | {
+      /** The server processed the event and answered with an envelope. */
+      ok: true
+      /** The event committed a transition. `ok && !committed` means a guard
+       *  dropped it — the UI should not pretend something happened. */
+      committed: boolean
+      /** Patches applied to THIS page (a committed event may patch zero slots
+       *  here if the touched machines aren't bound on the current route). */
+      patchCount: number
+      error?: undefined
+    }
+  | {
+      /** The event never reached a machine or the answer did not arrive: a
+       *  network failure, a timeout, a non-2xx, or a malformed body. */
+      ok: false
+      committed: false
+      patchCount: 0
+      /** How the POST failed, with the server's `error` string as `message`
+       *  when the body had one. */
+      error: DispatchError
+    }
 
 /**
  * Commit an event to a SERVER machine over the existing `/__events` wire — the
@@ -40,12 +51,14 @@ export async function dispatch<D extends AnyMachineDef>(
   if (!result.ok) {
     return { ok: false, committed: false, patchCount: 0, error: result.error }
   }
-  const data = (await result.res.json()) as WireEnvelope
+  const data = result.envelope
+  // A 422 envelope (a refusal) is applied like a 200's: one code path, and
+  // both lists are empty on a refusal.
   applyPatches(data.patches ?? [])
   applyDirectives(data.directives ?? [])
   return {
     ok: true,
-    committed: data.committed ?? true,
+    committed: result.status === 422 ? false : (data.committed ?? true),
     patchCount: data.patches?.length ?? 0,
   }
 }

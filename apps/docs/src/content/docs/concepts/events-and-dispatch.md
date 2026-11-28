@@ -37,7 +37,7 @@ An interaction costs one round trip carrying a small JSON body each way. While t
 
 The server is where guards live, so the server's answer — not the click — is what happened. A dispatch reports three separate facts:
 
-- **ok** — the POST reached the server.
+- **ok** — the server processed the event and answered. A non-2xx status, a body that is not a JSON envelope, a network failure and a timeout are all `ok: false`, with the server's `error` sentence as `error.message` when it sent one.
 - **committed** — the event actually committed a transition. A guard dropping an event is a *normal outcome*, not an error: `ok && !committed` means the machine declined, and the UI shouldn't pretend otherwise.
 - **patchCount** — what changed on *this* page. A committed event can legitimately patch zero slots here (the machines it touched aren't bound on this route) — the state still changed, and live routes elsewhere still see it.
 
