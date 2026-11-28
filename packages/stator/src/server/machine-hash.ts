@@ -91,7 +91,7 @@ const MEASURE = {
   metafile: true,
   format: 'esm',
   platform: 'node',
-  target: 'node20',
+  target: 'node24',
   outdir: OUTDIR,
   entryNames: '[dir]/[name]',
   legalComments: 'none',

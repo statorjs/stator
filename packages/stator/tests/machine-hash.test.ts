@@ -286,4 +286,20 @@ export default defineMachine({ name: 'Missing', context: { x }, initial: 'idle',
     assert.deepStrictEqual(res.packages, [])
     await rm(f)
   })
+
+  it('measures for node24: an import attribute stays in the bundle and is part of the hash', async () => {
+    // A `node20` target stripped `with { type: 'json' }` from the output, so
+    // these two machines hashed the same. At `node24` the attribute is kept.
+    const machine = (attr: string) => `import { defineMachine } from '@statorjs/stator/machine'
+import data from 'not-installed-json'${attr}
+export default defineMachine({ name: 'Attr', context: { data }, initial: 'idle', states: { idle: {} } })
+`
+    const f = join(machinesDir(), 'attr.ts')
+    await write('machines/attr.ts', machine(''))
+    const without = (await hashMachines([f], { machinesDir: machinesDir() })).get(f)!.hash
+    await write('machines/attr.ts', machine(" with { type: 'json' }"))
+    const withAttr = (await hashMachines([f], { machinesDir: machinesDir() })).get(f)!.hash
+    assert.notEqual(withAttr, without)
+    await rm(f)
+  })
 })
