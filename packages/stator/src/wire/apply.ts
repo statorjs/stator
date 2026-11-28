@@ -6,7 +6,8 @@
  *
  * Observability: every applied patch/directive dispatches a `stator:*`
  * CustomEvent on `window` (the inspector's contract), regardless of which
- * path applied it.
+ * path applied it. A patch that throws while applying fires
+ * `stator:patch-error` instead, and the rest of the batch still applies.
  */
 import { setAttr } from './attr-value.ts'
 import type { Directive, Patch } from './index.ts'
@@ -56,8 +57,21 @@ export function applyPatches(patches: Patch[]): void {
     return r
   }
 
+  // Each patch applies in its own `try`: one that throws (markup the server's
+  // value cannot parse into, a node client code moved) must not take the rest
+  // of the batch, or the caller's directives, with it. A keyed-list batch is
+  // positional, so ops after a failed one can land one place off; that is
+  // still nearer the server than dropping them, and a live route's next sync
+  // resets the list wholesale.
   for (const patch of patches) {
-    const element = applyPatch(patch, regionFor)
+    let element: Element | null
+    try {
+      element = applyPatch(patch, regionFor)
+    } catch (error) {
+      console.error('stator: patch failed to apply', patch, error)
+      emit('stator:patch-error', { patch, error, timestamp: Date.now() })
+      continue
+    }
     emit('stator:patch-applied', { patch, element, timestamp: Date.now() })
   }
 }

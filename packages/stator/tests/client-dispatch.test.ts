@@ -236,4 +236,117 @@ describe('client dispatch (island → server wire)', () => {
       assert.equal(spy.mock.callCount(), 1)
     })
   })
+
+  describe('hardening', () => {
+    function listen(name: string): { seen: unknown[]; stop: () => void } {
+      const seen: unknown[] = []
+      const fn = (e: Event) => seen.push((e as CustomEvent).detail)
+      window.addEventListener(name, fn)
+      return { seen, stop: () => window.removeEventListener(name, fn) }
+    }
+
+    it('fires stator:event-sent and stator:patches-received for an island dispatch', async () => {
+      document.body.innerHTML = '<span data-slot="s0">old</span>'
+      const patches = [{ target: { kind: 'slot', id: 's0' }, op: 'text', value: 'new' }]
+      stubFetch(async () => Response.json({ patches, committed: true }))
+      const sent = listen('stator:event-sent')
+      const received = listen('stator:patches-received')
+      try {
+        await dispatch(Cart, { type: 'ADD', productId: 'p1' } as never)
+        assert.equal(sent.seen.length, 1)
+        assert.partialDeepStrictEqual(sent.seen, [
+          { machine: 'CartMachine', event: { type: 'ADD', productId: 'p1' } },
+        ])
+        assert.match((sent.seen[0] as { routeKey: string }).routeKey, /^GET \//)
+        assert.equal(received.seen.length, 1)
+        assert.partialDeepStrictEqual(received.seen, [{ patches, source: 'post' }])
+        assert.equal(typeof (received.seen[0] as { durationMs: number }).durationMs, 'number')
+      } finally {
+        sent.stop()
+        received.stop()
+      }
+    })
+
+    it('a failed island dispatch still shows its send, and no patches-received', async () => {
+      stubFetch(async () => Response.json({ error: 'nope' }, { status: 403 }))
+      const sent = listen('stator:event-sent')
+      const received = listen('stator:patches-received')
+      const errSpy = mock.method(console, 'error', () => {})
+      try {
+        await dispatch(Cart, { type: 'ADD' } as never)
+        assert.equal(sent.seen.length, 1)
+        assert.deepStrictEqual(received.seen, [])
+      } finally {
+        errSpy.mock.restore()
+        sent.stop()
+        received.stop()
+      }
+    })
+
+    it('a throwing patch is reported and the rest of the batch and the directives still apply', async () => {
+      document.body.innerHTML =
+        '<span data-slot="s0">a</span><span data-slot="s1">b</span><span data-slot="s2">c</span>'
+      Object.defineProperty(document.querySelector('[data-slot="s1"]')!, 'textContent', {
+        set() {
+          throw new Error('boom')
+        },
+      })
+      const patches = [
+        { target: { kind: 'slot', id: 's0' }, op: 'text', value: 'A' },
+        { target: { kind: 'slot', id: 's1' }, op: 'text', value: 'B' },
+        { target: { kind: 'slot', id: 's2' }, op: 'text', value: 'C' },
+      ]
+      stubFetch(async () =>
+        Response.json({
+          patches,
+          committed: true,
+          directives: [{ type: 'event', name: 'custom:after', detail: 1 }],
+        }),
+      )
+      const errors = listen('stator:patch-error')
+      const applied = listen('stator:patch-applied')
+      const after = listen('custom:after')
+      const errSpy = mock.method(console, 'error', () => {})
+      try {
+        const result = await dispatch(Cart, { type: 'ADD' } as never)
+        assert.deepStrictEqual(result, { ok: true, committed: true, patchCount: 3 })
+        assert.equal(document.querySelector('[data-slot="s0"]')!.textContent, 'A')
+        assert.equal(document.querySelector('[data-slot="s2"]')!.textContent, 'C')
+        assert.equal(errors.seen.length, 1)
+        const detail = errors.seen[0] as { patch: unknown; error: Error; timestamp: number }
+        assert.deepStrictEqual(detail.patch, patches[1])
+        assert.equal(detail.error.message, 'boom')
+        assert.equal(typeof detail.timestamp, 'number')
+        assert.equal(applied.seen.length, 2)
+        assert.deepStrictEqual(after.seen, [1])
+      } finally {
+        errSpy.mock.restore()
+        errors.stop()
+        applied.stop()
+        after.stop()
+      }
+    })
+
+    it('a directive that throws does not reject dispatch()', async () => {
+      stubFetch(async () =>
+        Response.json({
+          patches: [],
+          committed: true,
+          directives: [{ type: 'push-url', to: '/next' }],
+        }),
+      )
+      const pushSpy = mock.method(history, 'pushState', () => {
+        throw new Error('SecurityError')
+      })
+      const errSpy = mock.method(console, 'error', () => {})
+      try {
+        const result = await dispatch(Cart, { type: 'ADD' } as never)
+        assert.deepStrictEqual(result, { ok: true, committed: true, patchCount: 0 })
+        assert.equal(pushSpy.mock.callCount(), 1)
+      } finally {
+        pushSpy.mock.restore()
+        errSpy.mock.restore()
+      }
+    })
+  })
 })

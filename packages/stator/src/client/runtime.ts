@@ -380,20 +380,13 @@ async function dispatchEvent(
 ): Promise<void> {
   const routeKey = `GET ${location.pathname}${location.search}`
 
-  emit('stator:event-sent', {
-    machine: descriptor.machine,
-    event: descriptor.event,
-    routeKey,
-    timestamp: Date.now(),
-  })
-
-  const startedAt = performance.now()
   if (el) beginPending(el)
   try {
+    // `postEvent` fires `stator:event-sent` and `stator:patches-received`.
     const result = await postEvent({ ...descriptor, eventId: newEventId() }, routeKey)
     if (!result.ok) return
     // A 200, or a 422 that carries a refusal: both are envelopes.
-    applyEnvelope(result.envelope, startedAt, 'post')
+    applyEnvelope(result.envelope)
   } finally {
     if (el) endPending(el)
   }
@@ -450,20 +443,19 @@ async function applyEnvelopeFromResponse(
     console.error('stator: malformed response', err)
     return
   }
-  applyEnvelope(data, startedAt, source)
-}
-
-function applyEnvelope(data: WireEnvelope, startedAt: number, source: 'post' | 'sse'): void {
-  const durationMs = Math.round(performance.now() - startedAt)
   if (data.patches) {
     emit('stator:patches-received', {
       patches: data.patches,
       source,
-      durationMs,
+      durationMs: Math.round(performance.now() - startedAt),
       timestamp: Date.now(),
     })
-    applyPatches(data.patches)
   }
+  applyEnvelope(data)
+}
+
+function applyEnvelope(data: WireEnvelope): void {
+  if (data.patches) applyPatches(data.patches)
   if (data.directives && data.directives.length > 0) {
     runDirectives(data.directives)
   }
