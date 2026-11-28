@@ -1,5 +1,0 @@
----
-'@statorjs/stator': patch
----
-
-`stator build` resolves `#` subpath imports (the `imports` field of the app's `package.json`) the way `stator dev` does. A route that imported a component through one, such as `import Card from '#components/card.stator'`, lost that component's scoped CSS and island script in the build, and when the app had no lockfile of its own the generated `dist/package.json` had no `imports`, so the route failed to import at `stator start`. The build's walks now read the artifact's `package.json`, which carries the app's `imports` with `.stator` paths renamed to the compiled `.stator.ts` (a copied manifest changes only in that field, and only when it names a `.stator` path). Exact keys, `*` patterns, conditional and array targets, and targets naming a package are supported. A `#` import the built app could not resolve, because no key matches or the app root has no `package.json`, fails the build naming the file, line and specifier. `stator dev` also reloads a page when a file it reaches only through a `#` import changes.
