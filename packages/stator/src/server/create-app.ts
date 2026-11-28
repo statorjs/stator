@@ -126,6 +126,15 @@ export interface CreateAppConfig {
     /** Largest `/__events` body accepted, in bytes. Default: 65536. */
     maxBytes?: number
   }
+  /** Request policy for everything outside `/__events` (which has its own
+   *  cap, `events.maxBytes`). */
+  requests?: {
+    /** Largest request body accepted, in bytes: API routes and anything app
+     *  middleware reads. A route can set its own with `maxBodyBytes` on
+     *  `defineApiRoute`. `Infinity` accepts any size. Default: no limit in 3.x
+     *  (a body over 1048576 logs a warning); 1048576 from 4.0. */
+    maxBodyBytes?: number
+  }
   /** What each route's page offers, from the build manifest
    *  (`loadProductionHead(dist).events`), keyed by route file relative to
    *  `routesDir`. Omitted ⇒ read from source on first use. */
@@ -247,6 +256,7 @@ export async function createApp(config: CreateAppConfig): Promise<StatorApp> {
     middleware,
     eventGate: config.events?.gate,
     eventMaxBytes: config.events?.maxBytes,
+    maxBodyBytes: config.requests?.maxBodyBytes,
     offeredEvents: offeredEventsLookup(root, routesDir, config.offeredEvents),
     // Layer-3 derived Cache-Control: on by default with modest values; the
     // whole block set to `false` disables. (createDevApp never passes it —

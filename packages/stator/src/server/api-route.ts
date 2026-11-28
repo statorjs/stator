@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 import { setCookie } from 'hono/cookie'
 import { safeNavigationUrl } from '../wire/safe-url.ts'
+import { BodyTooLargeError, bodyOverLimit } from './body-limit.ts'
 import { cookieJar } from './cookies.ts'
 import { scheduleSessionEffects } from './effects.ts'
 import { scopedLogger } from './logger.ts'
@@ -99,6 +100,11 @@ export async function runApiRoute(
       try {
         result = await route.handler(request, helpers)
       } catch (err) {
+        // A read past `maxBodyBytes`: the body-limit middleware has logged the
+        // refusal and replaces this response with the 413.
+        if (err instanceof BodyTooLargeError || bodyOverLimit(c)) {
+          return c.text('Payload Too Large', 413)
+        }
         apiLog.error({ err: String(err), path: c.req.path }, 'api route handler threw')
         return c.text('Internal Server Error', 500)
       }

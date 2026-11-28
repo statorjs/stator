@@ -81,6 +81,7 @@ function defineApiRoute(config: DefineQueryRouteConfig): QueryRouteDefinition  /
 function defineApiRoute(config: DefineApiRouteConfig): ApiRouteDefinition     // commands
 
 interface DefineApiRouteConfig {
+  maxBodyBytes?: number   // largest request body, in bytes; overrides requests.maxBodyBytes
   reads?: MachineDef[]
   handler: (request: RouteRequest, helpers: ApiRouteHelpers) => ApiRouteResult | Promise<ApiRouteResult>
 }
@@ -93,6 +94,8 @@ interface DefineQueryRouteConfig {
 ```
 
 Defines a non-page endpoint. Without `method`, it is a **command** route (`POST`/`PUT`/`PATCH`/`DELETE`): the handler returns either a raw `Response` or an `ApiRouteEnvelope` (the same `{ patches?, directives? }` wire envelope the client already knows how to apply), and `helpers.dispatch(machine, event)` sends an event to a machine addressed by its imported def — type-checked against that machine's event union, session-lifecycle only, and the machine must be in the route's `reads` graph.
+
+`maxBodyBytes` caps this route's request body for its method, overriding `requests.maxBodyBytes` in [config](/reference/config/) up or down; `Infinity` accepts any size, and anything else that is not a positive number throws when the route is defined. A body over the limit is answered `413` whatever the handler does: a declared `Content-Length` over it is refused before the handler runs, and a chunked body makes the handler's read (`request.formData()`, `json()`, `text()`, `arrayBuffer()`, or `request.raw`) reject with a **`BodyTooLargeError`** (`name: 'BodyTooLargeError'`, `limit: number`, exported from `@statorjs/stator/server`). The handler can let it throw. A data route has no `maxBodyBytes`: a GET has no body.
 
 With `method: 'GET'`, it is a **data route**: the handler receives `helpers.machines` (read proxies keyed by machine name, the same shape a page render context uses) and no `dispatch`. A plain return value is served as JSON; a string takes its `Content-Type` from the URL's extension; a raw `Response` passes through verbatim. Synthesized responses carry a strong `ETag` and answer `If-None-Match` with 304. See the [API routes guide](/guides/api-routes/#data-get-routes).
 
@@ -109,7 +112,7 @@ type Directive =
   | { type: 'event'; name: string; detail?: unknown }
 ```
 
-Related exports: `ApiRouteDefinition`, `ApiRouteHelpers`, `ApiRouteResult`, `ApiRouteEnvelope`, `QueryRouteDefinition`, `QueryRouteHelpers`, `QueryRouteResult`, `Directive`.
+Related exports: `ApiRouteDefinition`, `ApiRouteHelpers`, `BodyTooLargeError`, `ApiRouteResult`, `ApiRouteEnvelope`, `QueryRouteDefinition`, `QueryRouteHelpers`, `QueryRouteResult`, `Directive`.
 
 ## dispatchToApp
 

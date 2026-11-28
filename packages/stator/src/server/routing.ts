@@ -1,5 +1,6 @@
 import type { HtmlFragment } from '../template/types.ts'
 import type { WireEnvelope } from '../wire/index.ts'
+import { assertBodyLimit } from './body-limit.ts'
 import type { CookieJar } from './cookies.ts'
 import type { AnyMachineDef, EventOf, ReadsMap } from './define-machine.ts'
 
@@ -171,6 +172,8 @@ export interface ApiRouteHelpers {
 
 export interface ApiRouteDefinition {
   readonly __isStatorApiRoute: true
+  /** Largest request body this route accepts, in bytes, when it set one. */
+  maxBodyBytes?: number
   reads: AnyMachineDef[]
   handler: (
     request: RouteRequest,
@@ -179,6 +182,10 @@ export interface ApiRouteDefinition {
 }
 
 export interface DefineApiRouteConfig<TReads extends ReadonlyArray<AnyMachineDef>> {
+  /** Largest request body this route accepts, in bytes. Overrides
+   *  `requests.maxBodyBytes` for this route and method, up or down.
+   *  `Infinity` accepts any size. A body over it is answered 413. */
+  maxBodyBytes?: number
   reads?: TReads
   handler: (
     request: RouteRequest,
@@ -206,10 +213,14 @@ export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef>>(
       revision: config.revision,
     }
   }
+  const command = config as DefineApiRouteConfig<TReads>
+  if (command.maxBodyBytes !== undefined)
+    assertBodyLimit(command.maxBodyBytes, 'defineApiRoute maxBodyBytes')
   return {
     __isStatorApiRoute: true,
-    reads: config.reads ? [...config.reads] : [],
-    handler: (config as DefineApiRouteConfig<TReads>).handler,
+    ...(command.maxBodyBytes !== undefined ? { maxBodyBytes: command.maxBodyBytes } : {}),
+    reads: command.reads ? [...command.reads] : [],
+    handler: command.handler,
   }
 }
 
