@@ -85,6 +85,26 @@ describe('state-union inference', () => {
   // collapsed to the covered subset and this valid def failed to typecheck.
   // Surfaced by the store's cart machine when its line ops moved to
   // machine-level `on:`.
+  it('a machine-level guard can refuse with a reason', () => {
+    const def = defineMachine({
+      name: 'MLO-refuse',
+      lifecycle: 'session',
+      events: {} as Events,
+      context: {},
+      initial: 'a',
+      states: { a: {}, b: {} },
+      on: {
+        PING: { when: (_c, _e, { refuse }) => refuse('busy', { message: 'Try again.' }) },
+      },
+    })
+    const actor = createActor(def).start()
+    assert.deepStrictEqual(actor.send({ type: 'PING' }), {
+      committed: false,
+      refusal: { code: 'busy', message: 'Try again.' },
+    })
+    assert.deepStrictEqual(actor.send({ type: 'BUMP' }), { committed: false })
+  })
+
   it('infers the state union from keys even when to: targets do not cover every state', () => {
     const def = defineMachine({
       name: 'MLO-keys',

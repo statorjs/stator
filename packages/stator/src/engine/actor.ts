@@ -2,17 +2,31 @@ import type {
   ActionHelpers,
   EffectInvocation,
   EventObject,
+  GuardHelpers,
   MachineDef,
+  Refusal,
+  RefusalIssue,
   Snapshot,
   TransitionConfig,
 } from './types.ts'
+
+/** What one `send` did. */
+export interface SendResult {
+  /** A transition matched and fired. */
+  committed: boolean
+  /** Present only when `committed` is false and a guard said why
+   *  (`helpers.refuse`). With several candidates, the first refusal recorded. */
+  refusal?: Refusal
+}
 
 /** The actor surface the rest of the framework consumes. Designed to the
  *  framework's actual needs — not XState's actor protocol. */
 export interface Actor<C, E extends EventObject> {
   start(): Actor<C, E>
   stop(): void
-  send(event: E): void
+  /** Deliver an event. The result says whether a transition fired, and, when
+   *  none did, why a guard refused (if one called `refuse`). */
+  send(event: E): SendResult
   /** Merge into the initial context before `start()`, and optionally pick the
    *  state to start in instead of `initial` (entered for real on `start()`:
    *  entry effect, `after` timers). Used for the deferred client seed
@@ -230,7 +244,7 @@ export function createActor<C extends object, E extends EventObject, S extends s
       emitListeners.clear()
     },
 
-    send(event: E) {
+    send(event: E): SendResult {
       // Resolve the current leaf state (depth-1 today: value[0]).
       const stateKey = value[value.length - 1]!
       const node = def.states[stateKey]
@@ -248,9 +262,28 @@ export function createActor<C extends object, E extends EventObject, S extends s
       if (entry === undefined) {
         entry = def.on?.[event.type as E['type']] as RawTransition | RawTransition[] | undefined
       }
-      if (!entry) return
+      // An event the current state does not handle is refused with no reason:
+      // the framework invents no codes.
+      if (!entry) return { committed: false }
 
       const h = helpers()
+
+      // One recorder per send. Guards get `refuse` on top of the action
+      // helpers; the first refusal recorded is kept, later ones only refuse.
+      let refusal: Refusal | undefined
+      const gh: GuardHelpers = {
+        ...h,
+        refuse(code: string, detail?: { message?: string; issues?: RefusalIssue[] }): false {
+          if (refusal === undefined) {
+            refusal = {
+              code,
+              ...(detail?.message !== undefined ? { message: detail.message } : {}),
+              ...(detail?.issues !== undefined ? { issues: detail.issues } : {}),
+            }
+          }
+          return false
+        },
+      }
 
       // Resolve to the first candidate whose guard passes. A bare function or
       // a config with no `when` always matches.
@@ -259,12 +292,14 @@ export function createActor<C extends object, E extends EventObject, S extends s
       for (const candidate of candidates) {
         const c: TransitionConfig<C, E, S> =
           typeof candidate === 'function' ? { do: candidate } : candidate
-        if (!c.when || c.when(context, event as never, h)) {
+        if (!c.when || c.when(context, event as never, gh)) {
           config = c
           break
         }
       }
-      if (!config) return
+      // A reason reaches the caller only when every candidate refused; a
+      // candidate that passes drops whatever an earlier one recorded.
+      if (!config) return refusal ? { committed: false, refusal } : { committed: false }
 
       commits += 1 // a transition matched and fired — the event was HANDLED
 
@@ -341,6 +376,7 @@ export function createActor<C extends object, E extends EventObject, S extends s
       }
 
       notify()
+      return { committed: true }
     },
 
     getSnapshot: snapshot,

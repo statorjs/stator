@@ -5,7 +5,7 @@
  * server- and client-side.
  */
 
-export type { Actor, AnyActor, CreateActorOptions } from './actor.ts'
+export type { Actor, AnyActor, CreateActorOptions, SendResult } from './actor.ts'
 export { createActor } from './actor.ts'
 export type { DefineMachineConfig } from './define-machine.ts'
 export { defineMachine } from './define-machine.ts'
@@ -32,10 +32,13 @@ export type {
   EventObject,
   EventOf,
   Guard,
+  GuardHelpers,
   InstanceOf,
   Lifecycle,
   MachineDef,
   ReadsMap,
+  Refusal,
+  RefusalIssue,
   SelectorMap,
   Snapshot,
   StateNameOf,

@@ -44,7 +44,7 @@ Each entry in an `on` map is a transition (or an ordered array of guarded candid
 ```ts
 {
   to?: S                        // target state; omit for a self-transition
-  when?: (ctx, ev, helpers) => boolean
+  when?: (ctx, ev, helpers) => boolean   // helpers also has refuse(code, detail?)
   do?: (ctx, ev, helpers) => void   // mutates a draft; the engine owns clone + commit
   emit?: string | string[]      // declared emits fired after the action commits
   effect?: (ctx, ev, meta) => Promise<Events | null>
@@ -52,6 +52,51 @@ Each entry in an `on` map is a transition (or an ordered array of guarded candid
 ```
 
 A bare function is sugar for `{ do: fn }`.
+
+### Refusing with a reason
+
+```ts
+interface GuardHelpers extends ActionHelpers {
+  refuse(code: string, detail?: { message?: string; issues?: RefusalIssue[] }): false
+}
+
+interface Refusal {
+  code: string                  // the machine's own vocabulary: 'duplicate', 'full'
+  message?: string              // a sentence for a person
+  issues?: RefusalIssue[]       // per-field problems
+}
+
+interface RefusalIssue {
+  path: ReadonlyArray<string | number>  // ['email'], ['guests', 2, 'name']; [] = the whole event
+  message: string
+}
+```
+
+A guard that should tell the sender why it said no calls `refuse` from its helpers and returns what it returns, which is always `false`:
+
+```ts
+REGISTER: {
+  when: (ctx, ev, { refuse }) => {
+    if (ctx.attendees.some((a) => a.email === ev.email))
+      return refuse('duplicate', {
+        issues: [{ path: ['email'], message: 'That email is already on the roster.' }],
+      })
+    if (ctx.seatsTaken + ev.seats > ctx.capacity)
+      return refuse('full', { message: 'Not enough seats are left for a party that size.' })
+    return true
+  },
+  do: (ctx, ev) => { /* … */ },
+}
+```
+
+Because `refuse` returns `false`, guards still combine as booleans: `(a || refuse('a')) && (b || refuse('b'))` refuses with the code of the first check that failed. The reason is reported on the result of `actor.send` (see below) and is never written to the machine: nothing about it is in the snapshot, and the next event starts with no reason recorded.
+
+- The first `refuse` call during one `send` is the one reported. Later calls in the same `send` still return `false` and record nothing.
+- With an array of candidates, a reason is reported only when every candidate refused. A candidate whose guard passes commits the event and drops whatever an earlier one recorded, and so does a guard that calls `refuse` and then returns `true`.
+- An event the current state does not handle, and a guard that returns `false` without calling `refuse`, are refused with no reason. The framework adds no codes of its own.
+- `refuse` is only on the helpers handed to guards. Actions get `ActionHelpers` as before. A guard written against `ActionHelpers` still type-checks.
+
+`'invalid'` is the conventional code for "the payload is wrong, see `issues`". A reason is read by whoever sent the event, so it is as public as the page: do not put another session's data in a message.
 
 ## createActor
 
@@ -67,16 +112,21 @@ interface CreateActorOptions {
 interface Actor<C, E> {
   start(): Actor<C, E>
   stop(): void
-  send(event: E): void
+  send(event: E): SendResult
   seed(partial: Partial<C>): void   // merge into context before start(); no-op after
   getSnapshot(): Snapshot<C>
   getPersistedSnapshot(): Snapshot<C>
   subscribe(listener: (snapshot: Snapshot<C>) => void): { unsubscribe(): void }
   on(emitName: string, listener: (event) => void): () => void
 }
+
+interface SendResult {
+  committed: boolean            // a transition matched and fired
+  refusal?: Refusal             // only with committed: false, and only when a guard called refuse
+}
 ```
 
-Instantiates a running machine. The two injection points are what keep the engine isomorphic: the server wires `resolveHelpers` to the active dispatch context and `onEffect` to its post-commit queue; the client omits both, so effects run locally on a microtask and a `reads` dereference throws with a clear error. You call this directly in unit tests; the framework calls it everywhere else.
+Instantiates a running machine. The two injection points are what keep the engine isomorphic: the server wires `resolveHelpers` to the active dispatch context and `onEffect` to its post-commit queue; the client omits both, so effects run locally on a microtask and a `reads` dereference throws with a clear error. You call this directly in unit tests; the framework calls it everywhere else. `send` returns whether a transition fired and, when none did and a guard called `refuse`, the reason.
 
 ## Effects
 
@@ -179,7 +229,8 @@ Type-level plumbing, exported for tooling and advanced typing:
 - `InstanceOf<Def>` — a machine's instance shape (each selector as a typed property).
 - `ReadsMap<Reads>` — the typed `helpers.reads` map built from a `reads` tuple.
 - `Snapshot<C>` — `{ value: string[]; context: C; enteredAt?: number; pendingEntry?: { effectId: string } }`; serializes to the Store and seeds a client island on upgrade. `enteredAt` lets a restoring host re-arm `after` timers with elapsed credit; `pendingEntry` marks an entry effect whose completion never settled, so the host re-invokes it.
-- `Action`, `Guard`, `ActionHelpers` — the function shapes transitions are built from.
+- `Action`, `Guard`, `ActionHelpers`, `GuardHelpers` — the function shapes transitions are built from; `GuardHelpers` adds `refuse`.
+- `Refusal`, `RefusalIssue`, `SendResult` — what `actor.send` returns, and the reason a guard gave (see [Refusing with a reason](#refusing-with-a-reason)).
 - `EntryEffect`, `AfterEntry` — the state-entry effect and timeout-entry shapes.
 - `Transition`, `TransitionConfig`, `StateNode` — the transition-graph node types.
 - `EmitDeclaration`, `EmitsConfig` — normalized emit declarations.
