@@ -115,6 +115,15 @@ function mirrorHelpers(resolved: ResolvedHelpers): ActionHelpers {
   return { peers: map, reads: map }
 }
 
+/** Look `key` up in an author-supplied map by OWN property only. Event types
+ *  and state names can come from outside the machine (a dispatched event, a
+ *  persisted snapshot, a seed), and plain indexing would find
+ *  `Object.prototype` members: `on['toString']` is a function, `on['__proto__']`
+ *  an object, and either would be taken for a declared handler. */
+function own<T>(map: Readonly<Record<string, T>> | undefined, key: string): T | undefined {
+  return map !== undefined && Object.hasOwn(map, key) ? map[key] : undefined
+}
+
 /** Unique per-invocation effect id — usable as an idempotency key, so it must
  *  be unique across process restarts (randomUUID, not a counter). */
 function newEffectId(): string {
@@ -184,7 +193,7 @@ export function createActor<C extends object, E extends EventObject, S extends s
   // transition); the server persists an entry-firing machine via the host's
   // pending-effects queue instead (see server/session-runtime.ts).
   const fireEntryEffect = (stateKey: string, reuseEffectId?: string): void => {
-    const entry = def.states[stateKey]?.entry
+    const entry = own(def.states, stateKey)?.entry
     if (!entry) return
     // A re-invocation keeps its logical id, so idempotency keys threaded to
     // external calls hold across the retry.
@@ -223,7 +232,7 @@ export function createActor<C extends object, E extends EventObject, S extends s
       if (started) return
       context = { ...context, ...partial }
       if (state !== undefined) {
-        if (!(state in def.states)) {
+        if (!Object.hasOwn(def.states, state)) {
           throw new Error(
             `stator: "${def.name}" was seeded into state "${state}", which the machine does not have`,
           )
@@ -244,7 +253,7 @@ export function createActor<C extends object, E extends EventObject, S extends s
         } else if (opts.onStateRestore) {
           // Restored, not entered: hand the host what it needs to re-arm
           // timers (elapsed credit) and recover an unsettled entry effect.
-          const pending = pendingEntry && def.states[current]?.entry ? pendingEntry : undefined
+          const pending = pendingEntry && own(def.states, current)?.entry ? pendingEntry : undefined
           opts.onStateRestore(current, context, {
             enteredAt,
             pendingEntry: pending,
@@ -266,12 +275,16 @@ export function createActor<C extends object, E extends EventObject, S extends s
     send(event: E): SendResult {
       // Resolve the current leaf state (depth-1 today: value[0]).
       const stateKey = value[value.length - 1]!
-      const node = def.states[stateKey]
+      const node = own(def.states, stateKey)
       // The `on` map narrows the event per key; internally we treat every
       // transition uniformly against the full event union (the runtime event
       // IS the narrowed type for this key, so the coercion is sound).
       type RawTransition = ((ctx: C, ev: E, h: ActionHelpers) => void) | TransitionConfig<C, E, S>
-      let entry = node?.on?.[event.type as E['type']] as RawTransition | RawTransition[] | undefined
+      // Own properties only (see `own`): an event named `toString` or
+      // `constructor` is handled only where the machine declares it.
+      type RawEntry = RawTransition | RawTransition[] | undefined
+      const stateOn = node?.on as Record<string, RawEntry> | undefined
+      let entry = own(stateOn, event.type)
       // Machine-level fallback: consulted ONLY when the current state does not
       // declare this event (state-scoped handlers win — most specific). This is
       // how a completion is handled regardless of the machine-wide state (a save
@@ -279,7 +292,7 @@ export function createActor<C extends object, E extends EventObject, S extends s
       // into every state. A state that declares the event owns it, even if its
       // guard drops — no fall-through to machine level in that case.
       if (entry === undefined) {
-        entry = def.on?.[event.type as E['type']] as RawTransition | RawTransition[] | undefined
+        entry = own(def.on as Record<string, RawEntry> | undefined, event.type)
       }
       // An event the current state does not handle is refused with no reason:
       // the framework invents no codes.
@@ -335,7 +348,7 @@ export function createActor<C extends object, E extends EventObject, S extends s
       if (config.emit) {
         const names = Array.isArray(config.emit) ? config.emit : [config.emit]
         for (const name of names) {
-          const decl = def.emits[name]
+          const decl = own(def.emits, name)
           const payload = decl?.payload ? decl.payload(context, event as never) : {}
           const emitted = { type: name, ...payload }
           const listeners = emitListeners.get(name)
