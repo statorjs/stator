@@ -90,4 +90,5 @@ Providers time out and retry a slow endpoint. Do the *decision* synchronously (v
 
 - **Per-provider signature schemes.** Stripe signs a timestamped payload with a replay window, GitHub uses `X-Hub-Signature-256`, others differ. Verify to the provider's spec, and reject stale timestamps to close replay.
 - **A bounded, durable processed-id store.** `ctx.processed` as an ever-growing array is the exact [context cliff](/recipes/where-data-lives/) this framework warns about — it's cloned and re-serialized on every event. Cap it to a recent window, or key a table in real storage and dedupe with a guard that reads it.
+- **A small body limit.** Provider payloads are a few kilobytes, so `maxBodyBytes: 64 * 1024` on the webhook route refuses anything else with a 413 before your signature check reads it.
 - **A dead-letter path** for events whose processing effect fails, so a bad payload doesn't silently vanish.

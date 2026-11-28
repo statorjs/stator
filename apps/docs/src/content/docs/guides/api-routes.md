@@ -29,6 +29,30 @@ Export by method (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`). The mutation methods
 
 `request` carries `params`, `query`, `headers`, the raw `Request`, and body helpers `formData()` / `json()` / `text()`.
 
+## Body size
+
+Set a limit on how large a request body can be. `requests.maxBodyBytes` in `stator.config.ts` applies to every API route and to anything your middleware reads; `maxBodyBytes` on a command route's `defineApiRoute` overrides it for that route and method, up or down:
+
+```ts title="stator.config.ts"
+export default defineConfig({
+  requests: { maxBodyBytes: 1024 * 1024 },
+})
+```
+
+```ts title="routes/admin/publish.ts"
+export const POST = defineApiRoute({
+  maxBodyBytes: 12 * 1024 * 1024, // a 10 MiB photo plus the form around it
+  handler: async (request, { dispatch }) => {
+    const form = await request.formData()
+    // …
+  },
+})
+```
+
+A body over its limit is answered `413` with `{ "error": "request body exceeds N bytes" }`. When the client sends a `Content-Length` over the limit, the handler never runs. When it does not (a chunked upload), the body is counted as the handler reads it: the read (`formData()`, `json()`, `text()`, `arrayBuffer()` or `request.raw`) rejects with a `BodyTooLargeError` and the response is the 413, whatever the handler does with the error. Read the body before you dispatch or write anything, so a refused upload leaves nothing half-done. A route that never reads its body is refused only by `Content-Length`.
+
+`Infinity` accepts any size. With neither key set, 3.x refuses nothing and logs a warning the first time a route receives a body over 1 MiB; 4.0 will default the limit to 1 MiB. `/__events` has its own limit, `events.maxBytes`. See [config](/reference/config/).
+
 ## Mutate with dispatch
 
 `dispatch(Machine, event)` is typed against the machine's event union. The target must be in the route's loaded `reads` graph, and it must be a **session**-lifecycle machine — dispatching to an app machine throws at request time. To change app state from a handler, go through a session gateway machine's emit (see [app machines](/guides/app-machines/)); for server-originated events with no session at all (webhooks, cron), use `app.dispatchToApp(Machine, event)`.
