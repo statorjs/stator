@@ -181,6 +181,10 @@ export interface ApiRouteDefinition {
   ) => Promise<ApiRouteResult> | ApiRouteResult
 }
 
+/** A command route's config. It has no `method` field: the export name
+ *  (`POST`, `PUT`, `PATCH`, `DELETE`) is the HTTP method, so
+ *  `export const DELETE = defineApiRoute({ handler })` is a DELETE. A data
+ *  GET is `defineDataRoute`. */
 export interface DefineApiRouteConfig<TReads extends ReadonlyArray<AnyMachineDef>> {
   /** Largest request body this route accepts, in bytes. Overrides
    *  `requests.maxBodyBytes` for this route and method, up or down.
@@ -193,26 +197,32 @@ export interface DefineApiRouteConfig<TReads extends ReadonlyArray<AnyMachineDef
   ) => Promise<ApiRouteResult> | ApiRouteResult
 }
 
-/** `method: 'GET'` discriminates: with it, the handler is a read-only data
- *  route typed with `{ machines }`; without it, a command route typed with
- *  `{ dispatch, rotateSession }` — exactly as before. */
+/**
+ * A data route, the 3.0 spelling: `method: 'GET'` makes `defineApiRoute`
+ * build a read-only data route typed with `{ machines }`.
+ *
+ * @deprecated Use `defineDataRoute({ reads, handler, revision })`, which
+ * takes the same fields without `method` and builds the same definition.
+ * This form keeps working through 3.x and is removed in 4.0.
+ */
 export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef> = readonly []>(
   config: DefineQueryRouteConfig<TReads>,
 ): QueryRouteDefinition
+/**
+ * A command route: the handler gets `dispatch`, `rotateSession`, claims and
+ * cookie helpers. The export name (`POST`, `PUT`, `PATCH`, `DELETE`) is the
+ * HTTP method; there is no `method` field. A GET that returns data is a
+ * `defineDataRoute`.
+ */
 export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef>>(
   config: DefineApiRouteConfig<TReads>,
 ): ApiRouteDefinition
 export function defineApiRoute<TReads extends ReadonlyArray<AnyMachineDef>>(
   config: DefineQueryRouteConfig<TReads> | DefineApiRouteConfig<TReads>,
 ): QueryRouteDefinition | ApiRouteDefinition {
-  if ('method' in config && config.method === 'GET') {
-    return {
-      __isStatorQueryRoute: true,
-      reads: config.reads ? [...config.reads] : [],
-      handler: config.handler,
-      revision: config.revision,
-    }
-  }
+  // The data-route branch builds through defineDataRoute, so the two
+  // spellings produce the same definition from one code path.
+  if ('method' in config && config.method === 'GET') return defineDataRoute(config)
   const command = config as DefineApiRouteConfig<TReads>
   if (command.maxBodyBytes !== undefined)
     assertBodyLimit(command.maxBodyBytes, 'defineApiRoute maxBodyBytes')
@@ -233,7 +243,7 @@ export function isStatorApiRoute(v: unknown): v is ApiRouteDefinition {
 }
 
 /* ------------------------------------------------------------------ */
-/* Data GET routes (defineApiRoute with method: 'GET')                 */
+/* Data GET routes (defineDataRoute)                                   */
 /* ------------------------------------------------------------------ */
 
 /** Helpers available inside a data GET handler. Read-only by construction:
@@ -268,10 +278,10 @@ export interface QueryRouteDefinition {
   revision?: () => string | number | Promise<string | number>
 }
 
-export interface DefineQueryRouteConfig<TReads extends ReadonlyArray<AnyMachineDef> = readonly []> {
-  /** The capability discriminant: `'GET'` declares a read-only data route.
-   *  Discovery cross-checks it against the export name. */
-  method: 'GET'
+/** A data route's config: `reads`, the read-only `handler`, and an optional
+ *  `revision`. No `method` (the export is `GET`) and no `maxBodyBytes` (a
+ *  GET has no body). */
+export interface DefineDataRouteConfig<TReads extends ReadonlyArray<AnyMachineDef> = readonly []> {
   reads?: TReads
   handler: (
     request: RouteRequest,
@@ -283,6 +293,39 @@ export interface DefineQueryRouteConfig<TReads extends ReadonlyArray<AnyMachineD
    *  answers 304 WITHOUT invoking the handler — a polling crawler costs the
    *  fingerprint, not the render. Must change whenever the body could. */
   revision?: () => string | number | Promise<string | number>
+}
+
+/** The deprecated `defineApiRoute({ method: 'GET', … })` config: a
+ *  `DefineDataRouteConfig` plus the `method` discriminant. */
+export interface DefineQueryRouteConfig<TReads extends ReadonlyArray<AnyMachineDef> = readonly []>
+  extends DefineDataRouteConfig<TReads> {
+  /** The capability discriminant: `'GET'` declares a read-only data route.
+   *  Discovery cross-checks it against the export name. */
+  method: 'GET'
+}
+
+/**
+ * Define a read-only data route, exported as `GET`. The handler gets
+ * `{ machines }`, read proxies typed off `reads`; there is no `dispatch`.
+ * It returns a `Response`, a string, or a JSON-serializable value, and an
+ * optional `revision` answers conditional GETs without running the handler.
+ *
+ * ```ts
+ * export const GET = defineDataRoute({
+ *   reads: [Cart],
+ *   handler: (_request, { machines }) => ({ items: machines.CartMachine.items }),
+ * })
+ * ```
+ */
+export function defineDataRoute<TReads extends ReadonlyArray<AnyMachineDef> = readonly []>(
+  config: DefineDataRouteConfig<TReads>,
+): QueryRouteDefinition {
+  return {
+    __isStatorQueryRoute: true,
+    reads: config.reads ? [...config.reads] : [],
+    handler: config.handler,
+    revision: config.revision,
+  }
 }
 
 export function isStatorQueryRoute(v: unknown): v is QueryRouteDefinition {

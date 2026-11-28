@@ -77,8 +77,9 @@ Set `live: true` and the rendered page opens an SSE channel that receives patche
 ## defineApiRoute
 
 ```ts
-function defineApiRoute(config: DefineQueryRouteConfig): QueryRouteDefinition  // method: 'GET'
 function defineApiRoute(config: DefineApiRouteConfig): ApiRouteDefinition     // commands
+/** @deprecated use defineDataRoute */
+function defineApiRoute(config: DefineQueryRouteConfig): QueryRouteDefinition  // method: 'GET'
 
 interface DefineApiRouteConfig {
   maxBodyBytes?: number   // largest request body, in bytes; overrides requests.maxBodyBytes
@@ -86,18 +87,16 @@ interface DefineApiRouteConfig {
   handler: (request: RouteRequest, helpers: ApiRouteHelpers) => ApiRouteResult | Promise<ApiRouteResult>
 }
 
-interface DefineQueryRouteConfig {
+interface DefineQueryRouteConfig extends DefineDataRouteConfig {
   method: 'GET'
-  reads?: MachineDef[]
-  handler: (request: RouteRequest, helpers: QueryRouteHelpers) => QueryRouteResult | Promise<QueryRouteResult>
 }
 ```
 
-Defines a non-page endpoint. Without `method`, it is a **command** route (`POST`/`PUT`/`PATCH`/`DELETE`): the handler returns either a raw `Response` or an `ApiRouteEnvelope` (the same `{ patches?, directives? }` wire envelope the client already knows how to apply), and `helpers.dispatch(machine, event)` sends an event to a machine addressed by its imported def — type-checked against that machine's event union, session-lifecycle only, and the machine must be in the route's `reads` graph.
+Defines a **command** route. The export name (`POST`/`PUT`/`PATCH`/`DELETE`) is the HTTP method; there is no `method` field, and `method: 'POST'` is a type error. The handler returns either a raw `Response` or an `ApiRouteEnvelope` (the same `{ patches?, directives? }` wire envelope the client already knows how to apply), and `helpers.dispatch(machine, event)` sends an event to a machine addressed by its imported def — type-checked against that machine's event union, session-lifecycle only, and the machine must be in the route's `reads` graph.
 
 `maxBodyBytes` caps this route's request body for its method, overriding `requests.maxBodyBytes` in [config](/reference/config/) up or down; `Infinity` accepts any size, and anything else that is not a positive number throws when the route is defined. A body over the limit is answered `413` whatever the handler does: a declared `Content-Length` over it is refused before the handler runs, and a chunked body makes the handler's read (`request.formData()`, `json()`, `text()`, `arrayBuffer()`, or `request.raw`) reject with a **`BodyTooLargeError`** (`name: 'BodyTooLargeError'`, `limit: number`, exported from `@statorjs/stator/server`). The handler can let it throw. A data route has no `maxBodyBytes`: a GET has no body.
 
-With `method: 'GET'`, it is a **data route**: the handler receives `helpers.machines` (read proxies keyed by machine name, the same shape a page render context uses) and no `dispatch`. A plain return value is served as JSON; a string takes its `Content-Type` from the URL's extension; a raw `Response` passes through verbatim. Synthesized responses carry a strong `ETag` and answer `If-None-Match` with 304. See the [API routes guide](/guides/api-routes/#data-get-routes).
+**Deprecated:** `defineApiRoute({ method: 'GET', … })` builds a data route, the same definition `defineDataRoute` builds from the same fields. It keeps working through 3.x and is removed in 4.0; write `defineDataRoute` instead.
 
 Command helpers also carry **`rotateSession(opts?: { clear?: boolean })`** — the session-fixation defense for privilege changes. Call it on login (state moves to a fresh session id; a captured old id becomes worthless) and on logout with `{ clear: true }` (the old session's state is deleted and the browser starts anonymous). It applies after the handler returns: state persists under the new id and the response carries the new cookie. Requires a store with `renameSession` — all built-in stores have it. See the [authentication recipe](/recipes/authentication/).
 
@@ -112,7 +111,33 @@ type Directive =
   | { type: 'event'; name: string; detail?: unknown }
 ```
 
-Related exports: `ApiRouteDefinition`, `ApiRouteHelpers`, `BodyTooLargeError`, `ApiRouteResult`, `ApiRouteEnvelope`, `QueryRouteDefinition`, `QueryRouteHelpers`, `QueryRouteResult`, `Directive`.
+Related exports: `ApiRouteDefinition`, `ApiRouteHelpers`, `BodyTooLargeError`, `ApiRouteResult`, `ApiRouteEnvelope`, `DefineQueryRouteConfig`, `Directive`.
+
+## defineDataRoute
+
+```ts
+function defineDataRoute(config: DefineDataRouteConfig): QueryRouteDefinition
+
+interface DefineDataRouteConfig {
+  reads?: MachineDef[]
+  handler: (request: RouteRequest, helpers: QueryRouteHelpers) => QueryRouteResult | Promise<QueryRouteResult>
+  revision?: () => string | number | Promise<string | number>
+}
+```
+
+Defines a read-only **data route**, exported as `GET`. The handler receives `helpers.machines` (read proxies keyed by machine name and typed off `reads`, the same shape a page render context uses) and no `dispatch`. A plain return value is served as JSON; a string takes its `Content-Type` from the URL's extension; a raw `Response` passes through verbatim. Synthesized responses carry a strong `ETag` and answer `If-None-Match` with 304. `revision` is a cheap fingerprint of everything the body depends on: when set, the `ETag` derives from it and a matching `If-None-Match` is answered 304 without running the handler. There is no `method` field (the export is `GET`) and no `maxBodyBytes` (a GET has no body). Exported under any other name, discovery rejects it. See the [API routes guide](/guides/api-routes/#data-get-routes).
+
+```ts title="routes/cart.json.ts"
+import { defineDataRoute } from '@statorjs/stator/server'
+import Cart from '../machines/cart.ts'
+
+export const GET = defineDataRoute({
+  reads: [Cart],
+  handler: (_request, { machines }) => ({ items: machines.CartMachine.items }),
+})
+```
+
+Related exports: `QueryRouteDefinition`, `QueryRouteHelpers`, `QueryRouteResult`.
 
 ## dispatchToApp
 

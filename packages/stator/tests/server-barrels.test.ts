@@ -34,6 +34,7 @@ describe('/server and /server/runtime', () => {
       'createApp',
       'defineRoute',
       'defineApiRoute',
+      'defineDataRoute',
       'dispatchToApp',
       'activeConnectionCount',
       'probeImage',

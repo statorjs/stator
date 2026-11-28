@@ -11,7 +11,7 @@ This file lists what is open. What shipped is in the [changelog](packages/stator
 The full plan, with what runs in parallel, is in [`implementation-plan-3-1-through-3-3`](.chisel/specs/implementation-plan-3-1-through-3-3.md).
 
 - **Refused-dispatch reasons, over 4xx**: a guard calls `helpers.refuse(code, …)`; a response carrying a refusal is a 422; the client reads 4xx bodies instead of discarding them, and failure events bubble from the element that sent the event. Specs: [`refused-dispatch-reasons`](.chisel/specs/refused-dispatch-reasons.md), [`client-side-event-error-handling`](.chisel/specs/client-side-event-error-handling.md).
-- **`defineApiRoute` takes any HTTP method**: `method: 'POST'` on a command route is a type error today. Spec: [`defineapiroute-takes-any-http-method`](.chisel/specs/defineapiroute-takes-any-http-method.md).
+- **`defineDataRoute`**: a read-only GET data route with no `method` field, building the same definition as `defineApiRoute({ method: 'GET' })`, which is deprecated. Replaces "`defineApiRoute` takes any HTTP method" (#282, closed). Spec: [`definedataroute-defines-a-data-route`](.chisel/specs/definedataroute-defines-a-data-route.md).
 - **The `reads` rename, as aliases**: `Stator.machines([...])` and `machines:` on routes, `peers:` and `helpers.peers` on machines; old names deprecated, removed at 4.0. Spec: [`the-reads-family-rename`](.chisel/specs/the-reads-family-rename-ships-as-aliases-machines-on-routes-peers-on-machines.md).
 
 - **Body size limits for uploads and API routes**: `requests.maxBodyBytes` in config and `maxBodyBytes` per route, 413 over the limit. No default in 3.1 (a warning over 1 MiB); 1 MiB at 4.0. Spec: [`request-body-size-limits`](.chisel/specs/request-body-size-limits-for-uploads-and-api-routes.md).
@@ -127,6 +127,7 @@ Tracked in the gap analysis, unscheduled: a Redis fan-out backplane (multi-repli
 | Every `defineMachine` event has a schema: `events.schemas` becomes `require`, `{} as Events` is removed. Client-only `machine()` machines are exempt | `events({ … })` opt-in, `warn` at dev boot | 3.2 |
 | Old `reads` names removed (`Stator.reads`, `reads:`, `helpers.reads`); internal fields renamed | `machines` and `peers` aliases, old names deprecated | 3.1 |
 | 1 MiB default request body limit | `requests.maxBodyBytes` opt-in, a warning over 1 MiB | 3.1 |
+| `method` removed from `defineApiRoute`; a `GET` export comes from `defineDataRoute` | `defineDataRoute`, `defineApiRoute({ method: 'GET' })` deprecated | 3.1 |
 | `zod` removed from the framework's dependencies | hand-written envelope check | 3.2 |
 | Root `media/` convention dir | held back from the images release | 2.11 |
 
@@ -146,7 +147,7 @@ Tracked in the gap analysis, unscheduled: a Redis fan-out backplane (multi-repli
 The plan, with what runs in parallel and what was parked, is in [`implementation-plan-3-1-through-3-3`](.chisel/specs/implementation-plan-3-1-through-3-3.md).
 
 1. **Patches**: `stator dev` ignoring `config.events`, the `stator check` warning for render-time branches, and the four bugs under Runtime correctness (claims caching, the reload guard, the layout fingerprint, the fall-through route).
-2. **3.1, forms and the wire**: refusal reasons over 4xx, client hardening, body limits, `defineApiRoute` any method, the `reads` rename as aliases, the `node24` hash target, unlisted image widths answered by redirect (its PR merges early and waits; nothing releases as 3.1 before the rest lands).
+2. **3.1, forms and the wire**: refusal reasons over 4xx, client hardening, body limits, `defineDataRoute`, the `reads` rename as aliases, the `node24` hash target, unlisted image widths answered by redirect (its PR merges early and waits; nothing releases as 3.1 before the rest lands).
 3. **3.2**: event payload schemas.
 4. Alongside, as they merge: `stator inspect` / `stator viz`, the SEO recipe with `indie-blog`, the "Running scripts" recipe.
 5. **4.0**: schemas required for every `defineMachine` event, carrying the [4.0 ledger](#40-ledger).

@@ -24,7 +24,7 @@ pnpm add @statorjs/stator
 | import | contents |
 |---|---|
 | `@statorjs/stator/machine`  | `defineMachine`, `createActor` — the engine, and the one place a machine is defined from |
-| `@statorjs/stator/server`   | `createApp`, `defineRoute`, `defineApiRoute`, stores, `dispatchToApp` |
+| `@statorjs/stator/server`   | `createApp`, `defineRoute`, `defineApiRoute`, `defineDataRoute`, stores, `dispatchToApp` |
 | `@statorjs/stator/template` | `html`, `read`, `each`, `when`/`match`, `raw`, directives |
 | `@statorjs/stator/client`   | island runtime — `StatorElement`, `use`, `machine`, `bind`, `dispatch` |
 | `@statorjs/stator/dev`      | `createDevApp` — the dev server `stator dev` runs |

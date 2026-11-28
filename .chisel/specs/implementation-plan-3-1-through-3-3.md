@@ -2,7 +2,7 @@
 title: 'Implementation plan: 3.1, 3.2 and the road to 4.0'
 status: ready
 created: 2026-11-22
-updated: 2026-11-22
+updated: 2026-11-27
 area: planning
 ---
 
@@ -15,10 +15,10 @@ The plan for the next two minors and the major they lead to, with every decision
 | Release | Theme | What ships |
 | --- | --- | --- |
 | 3.0.x | patches | `stator dev` ignores `config.events`; a claims read always withdraws derived caching; the build-mismatch reload guard; the layout fingerprint; a fall-through page names its route |
-| 3.1 | forms and the wire | refused-dispatch reasons over 4xx, client error-handling hardening, request body limits, `defineApiRoute` any method, the `reads` rename as aliases, the `node24` hash target |
+| 3.1 | forms and the wire | refused-dispatch reasons over 4xx, client error-handling hardening, request body limits, `defineDataRoute`, the `reads` rename as aliases, the `node24` hash target |
 | 3.2 | schemas | event payload schemas: bring your own Standard Schema validator, `warn` by default |
 | any | rides the next release when merged | `stator inspect` / `stator viz`, the SEO recipe with `indie-blog`, the "Running scripts" recipe |
-| 4.0 | schemas required | every `defineMachine` event has a schema; old `reads` names removed; 1 MiB default body limit; `zod` removed; root `media/` dir |
+| 4.0 | schemas required | every `defineMachine` event has a schema; old `reads` names removed; `method` removed from `defineApiRoute`; 1 MiB default body limit; `zod` removed; root `media/` dir |
 
 Specs:
 
@@ -29,7 +29,7 @@ Specs:
 - [`refused-dispatch-reasons`](./refused-dispatch-reasons.md) (3.1; revised for 4xx)
 - [`client-side-event-error-handling`](./client-side-event-error-handling.md) (3.1 hardening and bubbling events; the rest parked)
 - [`request-body-size-limits-for-uploads-and-api-routes`](./request-body-size-limits-for-uploads-and-api-routes.md) (3.1)
-- [`defineapiroute-takes-any-http-method`](./defineapiroute-takes-any-http-method.md) (3.1)
+- [`definedataroute-defines-a-data-route`](./definedataroute-defines-a-data-route.md) (3.1; replaces [`defineapiroute-takes-any-http-method`](./defineapiroute-takes-any-http-method.md), archived)
 - [`the-reads-family-rename-ships-as-aliases-machines-on-routes-peers-on-machines`](./the-reads-family-rename-ships-as-aliases-machines-on-routes-peers-on-machines.md) (3.1)
 - [`event-payload-schemas`](./event-payload-schemas.md) (3.2, cutover at 4.0; body being revised to its decision record)
 
@@ -137,7 +137,7 @@ What each piece is, as decided:
 - **Refusal reasons**: a guard calls `helpers.refuse(code, { message?, issues? })`, which returns `false`; `send()` returns `{ committed, refusal? }`; API-route `dispatch` and `dispatchToApp` carry it. A reason is transient data on the result, never machine state. **A response carrying a refusal is a 422**; a bare `committed: false` stays 200. `DispatchResult.ok` is `true` for a 422 refusal. The replay cache stores the status with the body (it hardcodes 200 today). A 422 on `/__events` logs at `debug`, not `warn`.
 - **Bubbling failure events**: `stator:dispatch-refused` (new) and `stator:dispatch-error` fire from the element that sent the event and bubble, so any ancestor can act as a boundary and `window` listeners keep working. Chosen now because moving a public event's target later is breaking.
 - **Body limits**: `requests: { maxBodyBytes }` in config and `maxBodyBytes` on a command route; a `Content-Length` pre-check plus a counting stream; 413. No default in 3.1 (one warning per route over 1 MiB); 1 MiB at 4.0.
-- **Any method**: `method?: CommandMethod` on command routes, checked against the export name at discovery.
+- **`defineDataRoute`**: a data route's own definer with no `method` field, building the same definition as `defineApiRoute({ method: 'GET' })`, which is `@deprecated` on that overload only; `method` is removed from `defineApiRoute` at 4.0. Replaces "any method" (`method?: CommandMethod` on command routes), closed 2026-11-27.
 - **Rename**: `Stator.machines([...])` and `machines:` on routes, `peers:` and `helpers.peers` on machines; both halves in 3.1; old names `@deprecated`, reported by `stator check` and once by the dev server, removed at 4.0. Internal field names stay until 4.0. One type-level break is accepted: a test that hand-builds `{ reads: stub }` helpers. No shipped codemod.
 - **`node24` target**: one literal in `machine-hash.ts`. Measured on seven apps, outputs are byte-identical at both targets; only machines using syntax esbuild rewrote for Node 20 get a new hash.
 - **`stator inspect` / `stator viz`**: import the app's machine modules (documented: this runs their top-level code), with no config load and no server. `stator check` stays static.
@@ -166,6 +166,7 @@ The PR breakdown is in the spec, which is being revised to this record.
 | `events.schemas: 'require'`; `{} as Events` and `unchecked<T>()` removed (client-only `machine()` machines exempt) | 3.2 |
 | Old `reads` names removed; internal fields renamed | 3.1 |
 | 1 MiB default request body limit | 3.1 |
+| `method` removed from `defineApiRoute`; a `GET` export comes from `defineDataRoute` | 3.1 |
 | `zod` removed from `package.json` | 3.2 |
 | Root `media/` convention dir | 2.11 |
 
