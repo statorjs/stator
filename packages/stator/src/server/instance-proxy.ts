@@ -28,25 +28,25 @@ export function createInstanceProxy<TDef extends MachineDef>(
 ): InstanceHandle<TDef> {
   const proxy = Object.create(null) as Record<string, unknown>
 
-  // Selectors receive the same helpers shape actions/guards get. The reads
-  // views are the sibling proxies themselves, so a read machine's own
-  // reads-aware selectors recurse naturally. (A reads-cycle between
-  // selectors is an author error and shows up as a stack overflow.)
-  const helpers: ActionHelpers = {
-    reads: new Proxy({} as Record<string, unknown>, {
-      get(_t, prop: string) {
-        const sibling = resolveRead?.(prop)
-        if (sibling === undefined) {
-          throw new Error(
-            `stator: selector on "${def.name}" accessed reads.${prop}, but "${prop}" ` +
-              `is not resolvable here — declare it in reads: and evaluate selectors ` +
-              `through a runtime/store-backed instance.`,
-          )
-        }
-        return sibling
-      },
-    }),
-  }
+  // Selectors receive the same helpers shape actions/guards get. The peer
+  // views are the sibling proxies themselves, so a peer machine's own
+  // peer-aware selectors recurse naturally. (A cycle between selectors is an
+  // author error and shows up as a stack overflow.) One proxy serves both
+  // `peers` and its old name `reads`.
+  const peers = new Proxy({} as Record<string, unknown>, {
+    get(_t, prop: string) {
+      const sibling = resolveRead?.(prop)
+      if (sibling === undefined) {
+        throw new Error(
+          `stator: selector on "${def.name}" accessed peers.${prop}, but "${prop}" ` +
+            `is not resolvable here — declare it in peers: and evaluate selectors ` +
+            `through a runtime/store-backed instance.`,
+        )
+      }
+      return sibling
+    },
+  })
+  const helpers: ActionHelpers = { peers, reads: peers }
 
   for (const [name, selector] of Object.entries(def.selectors)) {
     Object.defineProperty(proxy, name, {

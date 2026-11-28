@@ -12,16 +12,18 @@
  * value is a PATH ARRAY (`['active']`) — depth-1 today, the extension point for
  * hierarchy later without a rewrite.
  *
- * Reads are type-safe by inference: a machine that `reads` others gets a typed
- * `helpers.reads` map keyed by each read machine's `name`, with that machine's
- * selectors (and their return types) preserved. See `ReadsMap` / `InstanceOf`.
+ * Peers are type-safe by inference: a machine that declares `peers` gets a
+ * typed `helpers.peers` map keyed by each peer machine's `name`, with that
+ * machine's selectors (and their return types) preserved. See `PeersMap` /
+ * `InstanceOf`. `reads` / `helpers.reads` are the old names, kept as
+ * deprecated aliases until 4.0.
  */
 
 /** Every event is a discriminated union member keyed on `type`. */
 export type EventObject = { type: string }
 
 /** Selectors derive views: of their own context, and — when the machine
- *  declares `reads:` — of the read machines' selectors via the same helpers
+ *  declares `peers:` — of the peer machines' selectors via the same helpers
  *  object actions/guards receive. One-param selectors remain valid. */
 export type SelectorMap<C, R = Record<string, any>> = Record<
   string,
@@ -30,10 +32,15 @@ export type SelectorMap<C, R = Record<string, any>> = Record<
   { selector(ctx: C, helpers: ActionHelpers<R>): unknown }['selector']
 >
 
-/** Helpers handed to actions/guards. `reads` is the typed map of machines
- *  declared in `reads:` (see `ReadsMap`). Defaults loose for internal/runtime
- *  use where the concrete map isn't threaded. */
+/** Helpers handed to actions/guards. `peers` is the typed map of machines
+ *  declared in `peers:` (see `PeersMap`); `reads` is the same map under its
+ *  old name. Defaults loose for internal/runtime use where the concrete map
+ *  isn't threaded. */
 export interface ActionHelpers<R = Record<string, any>> {
+  /** The machines declared in `peers:`, keyed by name, each exposing its
+   *  selectors. */
+  peers: R
+  /** @deprecated Renamed `helpers.peers` (the same map). Removed in 4.0. */
   reads: R
 }
 
@@ -314,6 +321,10 @@ export interface MachineDef<
   /** APP machines only: snapshot persists through the AppStore across
    *  restarts (opt-in; see DefineMachineConfig.persist). */
   persist: boolean
+  /** The machines this one consults (`peers:`). Normalized to `[]`. */
+  peers: AnyMachineDef[]
+  /** The same array as `peers`, under its old name. The field the server
+   *  reads until 4.0; prefer `peers` in new code. */
   reads: AnyMachineDef[]
   subscribes: SubscribeEntry[]
   /** Event types no client may dispatch to `/__events` (server-generated only:
@@ -343,7 +354,7 @@ export interface MachineDef<
 }
 
 /** The "top type" for a machine def — used wherever a heterogeneous collection
- *  of machines is held (e.g. `reads`). `any` in the slots is deliberate:
+ *  of machines is held (e.g. `peers`). `any` in the slots is deliberate:
  *  `MachineDef` is invariant in its context (context appears in contravariant
  *  action-parameter positions), so a specific `MachineDef<{...}>` is NOT
  *  assignable to `MachineDef<unknown>` — only `any` admits every concrete def.
@@ -352,17 +363,20 @@ export type AnyMachineDef = MachineDef<any, any, any, any, any>
 
 /** The instance-facing shape of a machine: each selector exposed as a property
  *  carrying that selector's return type (callable if the selector returns a
- *  function). This is what `helpers.reads.<Name>` resolves to. */
+ *  function). This is what `helpers.peers.<Name>` resolves to. */
 export type InstanceOf<TDef extends AnyMachineDef> =
   TDef extends MachineDef<any, any, any, infer Sel, any>
     ? { readonly [K in keyof Sel]: ReturnType<Sel[K]> }
     : never
 
-/** Build the typed `helpers.reads` map from a tuple of read machines: keyed by
- *  each machine's literal `name`, valued by its instance type. */
-export type ReadsMap<TReads extends readonly AnyMachineDef[]> = {
-  [M in TReads[number] as M['name']]: InstanceOf<M>
+/** Build the typed `helpers.peers` map from a tuple of peer machines: keyed
+ *  by each machine's literal `name`, valued by its instance type. */
+export type PeersMap<TPeers extends readonly AnyMachineDef[]> = {
+  [M in TPeers[number] as M['name']]: InstanceOf<M>
 }
+
+/** @deprecated Renamed `PeersMap`. Removed in 4.0. */
+export type ReadsMap<TReads extends readonly AnyMachineDef[]> = PeersMap<TReads>
 
 /** The event union a machine accepts — used to type machine-mediated dispatch
  *  (`dispatch(Machine, event)`) against the imported def. */

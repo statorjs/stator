@@ -110,14 +110,14 @@ function validateReads(defs: AnyMachineDef[], dir: string): void {
     for (const dep of def.reads) {
       if (!byName.has(dep.name)) {
         throw new Error(
-          `stator: machine "${def.name}" reads from "${dep.name}", which was not ` +
+          `stator: machine "${def.name}" declares "${dep.name}" in peers:, which was not ` +
             `discovered in ${dir}. Both must live in the machines directory.`,
         )
       }
       if (def.lifecycle === 'app' && dep.lifecycle === 'session') {
         throw new Error(
-          `stator: app-lifecycle machine "${def.name}" cannot read session-lifecycle ` +
-            `machine "${dep.name}". App machines exist before any session.`,
+          `stator: app-lifecycle machine "${def.name}" cannot have the session-lifecycle ` +
+            `machine "${dep.name}" as a peer. App machines exist before any session.`,
         )
       }
     }

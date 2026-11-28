@@ -68,11 +68,14 @@ export type EmittedEvent = { type: string; [k: string]: unknown }
 export interface CreateActorOptions<C> {
   /** Hydrate from a persisted snapshot (Store) or a client seed. */
   snapshot?: Snapshot<C>
-  /** Host-provided resolver for action/guard `reads` helpers. The server wires
-   *  this to the active dispatch context; the client omits it (a reads-free
-   *  machine never dereferences it). This injection is what keeps the engine
-   *  isomorphic — it imports no server-only module. */
-  resolveHelpers?: () => ActionHelpers
+  /** Host-provided resolver for the action/guard/selector `peers` helper. The
+   *  server wires this to the active dispatch context; the client omits it (a
+   *  peer-free machine never dereferences it). This injection is what keeps
+   *  the engine isomorphic — it imports no server-only module. The map may be
+   *  returned under `peers` or under its old name `reads`; the actor hands the
+   *  same map to the machine under both keys, so a stub written with either
+   *  name works with a machine that uses the other. */
+  resolveHelpers?: () => ResolvedHelpers
   /** Host-provided effect scheduler. When set, the actor hands each pending
    *  effect to the host instead of running it (the server queues effects and
    *  runs them after the session lock releases, dispatching completions
@@ -100,6 +103,18 @@ export interface CreateActorOptions<C> {
   ) => void
 }
 
+/** What a host's `resolveHelpers` returns: the peers map under `peers`, or
+ *  under its old name `reads` (deprecated; removed in 4.0). */
+export type ResolvedHelpers =
+  | { peers: Record<string, unknown>; reads?: Record<string, unknown> }
+  | { reads: Record<string, unknown>; peers?: Record<string, unknown> }
+
+/** Put one peers map under both keys. */
+function mirrorHelpers(resolved: ResolvedHelpers): ActionHelpers {
+  const map = resolved.peers ?? resolved.reads ?? {}
+  return { peers: map, reads: map }
+}
+
 /** Unique per-invocation effect id — usable as an idempotency key, so it must
  *  be unique across process restarts (randomUUID, not a counter). */
 function newEffectId(): string {
@@ -107,20 +122,21 @@ function newEffectId(): string {
   return uuid ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-/** Helpers that throw on any `reads` access — used when no resolver is wired
+/** Helpers that throw on any `peers` access — used when no resolver is wired
  *  (e.g. a client actor, or a direct unit-test send). A machine that ignores
- *  reads keeps working; one that dereferences them gets a clear error. */
+ *  peers keeps working; one that dereferences them gets a clear error. One
+ *  proxy serves both keys. */
 function throwingHelpers(machineName: string): ActionHelpers {
-  return {
-    reads: new Proxy({} as Record<string, unknown>, {
-      get(_t, prop) {
-        throw new Error(
-          `stator: "${machineName}" accessed reads.${String(prop)} with no reads resolver — ` +
-            `actions/guards that use reads must run through the server dispatch path.`,
-        )
-      },
-    }),
-  }
+  const peers = new Proxy({} as Record<string, unknown>, {
+    get(_t, prop) {
+      throw new Error(
+        `stator: "${machineName}" accessed peers.${String(prop)} (helpers.peers, or its old ` +
+          `name helpers.reads) with no peers resolver — actions/guards that use peers must ` +
+          `run through the server dispatch path.`,
+      )
+    },
+  })
+  return { peers, reads: peers }
 }
 
 export function createActor<C extends object, E extends EventObject, S extends string>(
@@ -143,7 +159,10 @@ export function createActor<C extends object, E extends EventObject, S extends s
   const emitListeners = new Map<string, Set<(e: EmittedEvent) => void>>()
   let started = false
 
-  const helpers = (): ActionHelpers => opts.resolveHelpers?.() ?? throwingHelpers(def.name)
+  const helpers = (): ActionHelpers => {
+    const resolved = opts.resolveHelpers?.()
+    return resolved ? mirrorHelpers(resolved) : throwingHelpers(def.name)
+  }
 
   let commits = 0
 

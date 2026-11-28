@@ -209,7 +209,7 @@ export class MachineStore {
               `defining "${def.name}" and the module defining its subscription source import ` +
               `each other, and the loader resolved the mid-cycle binding to undefined. ` +
               `Break the module cycle: move the DISPLAY selectors into a third machine ` +
-              `that \`reads:\` both sides (the read/write split — see the weather example's ` +
+              `that declares both sides in \`peers:\` (the read/write split — see the weather example's ` +
               `PanelsMachine), or move one machine or the subscription. Note that defining ` +
               `both machines in one module does NOT work with directory discovery, which ` +
               `registers default exports only.`,

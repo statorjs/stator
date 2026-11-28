@@ -2,7 +2,7 @@
 title: 'The reads family rename ships as aliases: machines on routes, peers on machines'
 status: draft
 created: 2026-11-22
-updated: 2026-11-22
+updated: 2026-11-27
 area: runtime
 ---
 
@@ -20,7 +20,7 @@ The rename was scheduled for 3.0 and did not land (ROADMAP, Surface hygiene). Th
   - `peers: [...]` on `defineMachine`;
   - `helpers.peers` in actions, guards and selectors.
 - Declaring both spellings in one place is an error that names the one to keep.
-- Old spellings are marked `@deprecated` in the types, reported as warnings by `stator check` (never errors), and logged once per process by `stator dev`.
+- Old spellings are marked `@deprecated` in the types, and reported as warnings by `stator check` (never errors). Nothing is logged at runtime.
 - The editor shows the deprecation from the project's own types, and shows nothing on a project whose Stator predates the new names.
 - First-party docs, examples and scaffold templates use only the new names, and do not switch before the release that accepts them is on npm.
 - The release notes say which sessions reset, and why.
@@ -69,7 +69,7 @@ Bundled-compiler tolerance, checked in both directions:
 
 **The `stator check` warning.** `check` already builds a `ts.Program` over the app and the virtual TSX of every `.stator` file (`cli/commands/check.ts`), and the macros in that TSX are typed from the project's `StatorMacros`. One pass over the app's own source files asks the checker for the symbol behind each property name, property access and binding element, and reports it when the symbol carries a `deprecated` JSDoc tag and is declared inside `@statorjs/stator`. Positions in generated files go through the existing `toStatorSource` mapping. This covers `Stator.reads` in a fence, `reads:` in all three definers, and `helpers.reads` however it is destructured, with no pattern matching on the word `reads`, and it will report the next deprecation for free. Output is tsc-shaped, counted in the existing `N warnings` summary, and never fails the check.
 
-**The dev warning.** `defineMachine`, `defineRoute` and `defineApiRoute` record which spelling declared the definition. After discovery, the dev server (`server/dev-native.ts`, beside the `findPollLoops` report) logs one line naming the files: `stator: reads is deprecated (3 files: machines/cart.ts, routes/checkout/submit.ts, …) — machines: on routes, peers: on machines. stator check lists every use.` Once per process. Not in production. `helpers.reads` access is not logged at runtime; the types and `check` cover it.
+**No dev warning.** The first draft had the dev server log one line per process naming the files that use an old spelling, which needed each definition to record which spelling declared it. Cut on 2026-11-27: that record is a field on every definition, and in the engine, for the sake of one deprecated name. The `@deprecated` tag shows in the editor, and `stator check` runs before every `stator build`, so an app that builds is told. An app that only ever runs `stator dev`, in an editor without the language server, hears nothing until 4.0.
 
 **Machine hashes.** Two resets follow, and the changeset states both.
 
@@ -115,7 +115,7 @@ Three PRs. Changesets: minor for the first two, none for the third.
 
 **PR 2, the route half (`machines`), the deprecation reporting.**
 
-- `packages/stator/src/server/routing.ts`, `server/dev-native.ts`
+- `packages/stator/src/server/routing.ts`
 - `packages/stator/src/compiler/compile.ts`, `compiler/lower.ts`, `compiler/virtual-code.ts` (comments only)
 - `packages/stator/src/editor.ts`
 - `packages/stator/src/cli/commands/check.ts`

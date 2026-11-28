@@ -23,8 +23,9 @@ function defineMachine(config: DefineMachineConfig): MachineDef
                                 // when the current state doesn't declare the event (a state-
                                 // scoped handler always wins, even if its guard drops)
   events?: E                    // typed event surface — pass `{} as MyEvents`
-  selectors?: Record<string, (ctx: C, helpers?) => unknown>  // helpers.reads for cross-machine views
-  reads?: MachineDef[]          // machines this one reads (typed helpers.reads)
+  selectors?: Record<string, (ctx: C, helpers?) => unknown>  // helpers.peers for cross-machine views
+  peers?: MachineDef[]          // machines this one consults (typed helpers.peers); 3.1+
+  reads?: MachineDef[]          // deprecated: the old name of peers, removed in 4.0
   subscribes?: SubscribeEntry[] // cross-machine subscriptions
   emits?: string[] | Record<string, { payload?: (ctx, ev) => object }>
   persist?: boolean             // app machines only: survive restarts (while the machine's
@@ -35,7 +36,9 @@ function defineMachine(config: DefineMachineConfig): MachineDef
 }
 ```
 
-Defines a machine: flat states, typed events, and inline transitions. `events` is a phantom carrier — the engine reads only its type, and each transition's action/guard then sees the event **narrowed** to exactly its `on` key. A machine that declares `reads` gets a typed `helpers.reads` map (keyed by machine name, selectors preserved) in its actions, guards, **and selectors** — reads-aware selectors project cross-machine verdicts as display state, and bindings on the reading machine re-diff when a read machine changes. Declaring `reads` server-pins the machine, since cross-machine reads can't resolve in the browser. `persist: true` on a session machine is an error; sessions always persist through the session `Store`.
+Defines a machine: flat states, typed events, and inline transitions. `events` is a phantom carrier — the engine reads only its type, and each transition's action/guard then sees the event **narrowed** to exactly its `on` key. A machine that declares `reads` gets a typed `helpers.reads` map (keyed by machine name, selectors preserved) in its actions, guards, **and selectors** — reads-aware selectors project cross-machine verdicts as display state, and bindings on the reading machine re-diff when a read machine changes. Declaring `reads` server-pins the machine, since cross-machine reads can't resolve in the browser.
+
+**`peers` is the new name for `reads`** (3.1). `peers: [...]` on `defineMachine` and `helpers.peers` in actions, guards and selectors are the same list and the same map as `reads: [...]` and `helpers.reads`, which keep working through 3.x, are marked `@deprecated`, and are removed in 4.0. Every helpers object carries the map under both keys, so a machine can move one use at a time. Declaring both `peers` and `reads` on one machine throws at definition. A test stub passed to `createActor`'s `resolveHelpers` may use either key; a helpers object built by hand and typed as `ActionHelpers` needs both. `MachineDef` and `describeMachine()` carry `peers` beside `reads`. `persist: true` on a session machine is an error; sessions always persist through the session `Store`.
 
 **Snapshots are bound to the machine's code.** Every persisted snapshot is stamped with a hash of the machine's code (the file plus every module it reaches, tree-shaken), and a snapshot whose hash no longer matches the running machine is discarded at hydration — the machine starts fresh. Machine state is working state, not persistence; see [What survives a deploy](/guides/persistence/#what-survives-a-deploy) for the rule, what moves the hash, and the reload-on-entry idiom for durable facts.
 
@@ -105,7 +108,7 @@ function createActor(def: MachineDef, opts?: CreateActorOptions): Actor
 
 interface CreateActorOptions {
   snapshot?: Snapshot           // restore from persisted state or a client seed
-  resolveHelpers?: () => ActionHelpers  // host-provided `reads` resolver
+  resolveHelpers?: () => { peers } | { reads }  // host-provided peers resolver; either key
   onEffect?: (invocation: EffectInvocation) => void  // host effect scheduler
 }
 
@@ -227,7 +230,7 @@ Type-level plumbing, exported for tooling and advanced typing:
 - `EventObject` — the base event shape (`{ type: string }`).
 - `EventOf<Def>` — a machine's event union; what `dispatch(Machine, event)` checks against.
 - `InstanceOf<Def>` — a machine's instance shape (each selector as a typed property).
-- `ReadsMap<Reads>` — the typed `helpers.reads` map built from a `reads` tuple.
+- `PeersMap<Peers>` — the typed `helpers.peers` map built from a `peers` tuple. `ReadsMap` is its deprecated old name.
 - `Snapshot<C>` — `{ value: string[]; context: C; enteredAt?: number; pendingEntry?: { effectId: string } }`; serializes to the Store and seeds a client island on upgrade. `enteredAt` lets a restoring host re-arm `after` timers with elapsed credit; `pendingEntry` marks an entry effect whose completion never settled, so the host re-invokes it.
 - `Action`, `Guard`, `ActionHelpers`, `GuardHelpers` — the function shapes transitions are built from; `GuardHelpers` adds `refuse`.
 - `Refusal`, `RefusalIssue`, `SendResult` — what `actor.send` returns, and the reason a guard gave (see [Refusing with a reason](#refusing-with-a-reason)).
